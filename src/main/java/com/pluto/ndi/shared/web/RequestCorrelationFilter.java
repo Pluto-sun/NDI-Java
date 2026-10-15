@@ -17,11 +17,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-class RequestCorrelationFilter extends OncePerRequestFilter {
+public class RequestCorrelationFilter extends OncePerRequestFilter {
 
     static final String REQUEST_ID_HEADER = "X-Request-Id";
     static final String REQUEST_ID_MDC_KEY = "requestId";
     private static final Pattern REQUEST_ID_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,128}");
+
+    public static Optional<String> currentRequestId() {
+        return Optional.ofNullable(MDC.get(REQUEST_ID_MDC_KEY));
+    }
 
     @Override
     protected void doFilterInternal(
