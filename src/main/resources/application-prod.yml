@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${NDI_DATASOURCE_URL}
+    username: ${NDI_DATASOURCE_USERNAME}
+    password: ${NDI_DATASOURCE_PASSWORD}
+
+logging:
+  level:
+    com.pluto.ndi: info
