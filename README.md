@@ -8,11 +8,11 @@ NDI 是面向项目管理、排产、计收与能力指标的企业业务平台�
 
 ```bash
 source /Users/alexander/.zshrc
-docker compose -f docker/compose.yml up -d
+./scripts/start-local-mysql.sh
 ./mvnw spring-boot:run
 ```
 
-应用启动后访问 `http://localhost:8080/actuator/health`。本地数据库账号仅用于 Docker 开发环境，生产配置从 `NDI_DATASOURCE_URL`、`NDI_DATASOURCE_USERNAME`、`NDI_DATASOURCE_PASSWORD` 注入。
+应用启动后访问 `http://localhost:8080/actuator/health`。NDI 本地 MySQL 映射至 `localhost:3307`，本地数据库账号仅用于 Docker 开发环境。`/Users/alexander/Documents/docker_scripts/启动NDI-MySQL.command` 是当前机器的双击入口，调用仓库中的启动脚本。MinIO 在需要附件功能时通过 `docker compose -f docker/compose.yml up -d minio` 启动；生产配置从 `NDI_DATASOURCE_URL`、`NDI_DATASOURCE_USERNAME`、`NDI_DATASOURCE_PASSWORD` 注入。
 
 ## 常用命令
 
