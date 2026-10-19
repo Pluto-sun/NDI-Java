@@ -69,4 +69,11 @@ public class ProjectStageMilestoneEntity {
     public Instant occurredAt() {
         return occurredAt;
     }
+
+    public UUID id() { return id; }
+    public UUID projectId() { return projectId; }
+    public String stageCode() { return stageCode; }
+    public String sourceType() { return sourceType; }
+    public UUID actorId() { return actorId; }
+    public String descriptionText() { return descriptionText; }
 }

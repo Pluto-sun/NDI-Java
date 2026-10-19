@@ -51,6 +51,7 @@ public class ProjectService {
     private final ProjectChangeEventRepository changeEventRepository;
     private final ProjectNumberGenerator projectNumberGenerator;
     private final ProjectMapper projectMapper;
+    private final ProjectAccessService projectAccessService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -65,6 +66,7 @@ public class ProjectService {
             ProjectChangeEventRepository changeEventRepository,
             ProjectNumberGenerator projectNumberGenerator,
             ProjectMapper projectMapper,
+            ProjectAccessService projectAccessService,
             ObjectMapper objectMapper,
             Clock clock
     ) {
@@ -78,6 +80,7 @@ public class ProjectService {
         this.changeEventRepository = changeEventRepository;
         this.projectNumberGenerator = projectNumberGenerator;
         this.projectMapper = projectMapper;
+        this.projectAccessService = projectAccessService;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -131,6 +134,15 @@ public class ProjectService {
                 .map(ProjectEntity::id)
                 .toList());
         return projects.map(project -> projectMapper.toSummary(project, amountsByProjectId.getOrDefault(project.id(), List.of())));
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectDetailSummary findDetail(UUID actorId, UUID projectId) {
+        var project = projectAccessService.requireReadable(actorId, projectId);
+        var categories = categoryAmountRepository.findByProjectIdIn(List.of(projectId)).stream()
+                .map(item -> new ProjectSummary.CategoryAmount(item.categoryCode(), item.expectedAmount()))
+                .toList();
+        return projectMapper.toDetail(project, categories);
     }
 
     private ProjectActor requireEnabledActor(UUID actorId) {

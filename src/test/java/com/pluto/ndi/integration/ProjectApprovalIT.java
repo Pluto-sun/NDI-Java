@@ -3,6 +3,7 @@ package com.pluto.ndi.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,8 @@ import com.pluto.ndi.projects.service.ProjectApprovalInboxService;
 import com.pluto.ndi.projects.service.ProjectApprovalNotificationService;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderWriter;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderJob;
+import com.pluto.ndi.projects.service.ProjectProgressService;
+import com.pluto.ndi.projects.service.AppendProgressCommand;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectStageService;
 import com.pluto.ndi.projects.service.StageAdvanceCommand;
@@ -42,6 +45,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -80,6 +84,7 @@ class ProjectApprovalIT {
     @Autowired private ProjectApprovalNotificationService notificationService;
     @Autowired private ProjectApprovalReminderWriter reminderWriter;
     @Autowired private ProjectApprovalReminderJob reminderJob;
+    @Autowired private ProjectProgressService progressService;
     @MockitoBean private DocumentDirectory documentDirectory;
 
     private UUID provinceId;
@@ -390,6 +395,114 @@ class ProjectApprovalIT {
                     assertThat(task.requestId()).isEqualTo(request.id());
                     assertThat(task.overdue()).isTrue();
                 });
+    }
+
+    @Test
+    void appendsAndCorrectsProgressWithoutInvalidatingPendingApproval() throws Exception {
+        var projectId = createProject();
+        var original = progressService.findProgress(cityUserId, projectId, PageRequest.of(0, 20))
+                .getContent().getFirst();
+        var version = projectRepository.findById(projectId).orElseThrow().versionNo();
+        var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户正式名称变化", "更新后的名称", null, null));
+
+        var added = progressService.append(interfaceUserId, projectId,
+                new AppendProgressCommand("  接口人补充进展  ", "下一步联络客户", null));
+        var correction = progressService.append(provinceUserId, projectId,
+                new AppendProgressCommand("原始交流记录更正", "重新确认需求", original.id()));
+
+        assertThat(added.progressContent()).isEqualTo("接口人补充进展");
+        assertThat(correction.correctsProgressId()).isEqualTo(original.id());
+        assertThat(progressService.findProgress(cityUserId, projectId, PageRequest.of(0, 20)).getContent())
+                .extracting(progress -> progress.id()).contains(original.id(), added.id(), correction.id());
+        assertThat(projectRepository.findById(projectId).orElseThrow().versionNo()).isEqualTo(version);
+        assertThat(approvalService.decide(provinceUserId, request.id(), true, null).status())
+                .isEqualTo(ApprovalStatus.APPROVED);
+        assertThat(projectService.findDetail(interfaceUserId, projectId).projectName()).isEqualTo("更新后的名称");
+        assertThat(projectService.findDetail(cityUserId, projectId).customerNeed()).isEqualTo("客户需要系统升级");
+        assertThat(progressService.findMilestones(interfaceUserId, projectId, PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(1);
+
+        mockMvc.perform(get("/api/v1/projects/{projectId}", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectName").value("更新后的名称"));
+        mockMvc.perform(get("/api/v1/projects/{projectId}/progress", projectId)
+                        .header("X-NDI-Actor-Id", interfaceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3));
+        mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"progressContent\":\"接口新增进展\",\"nextAction\":\"继续跟进\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.progressContent").value("接口新增进展"));
+        mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"progressContent\":\"   \",\"nextAction\":\"继续跟进\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsCrossProjectCorrectionAndMakesTerminatedProjectReadOnly() throws Exception {
+        var projectId = createProject();
+        var otherProjectId = createProject();
+        var otherProgressId = progressService.findProgress(cityUserId, otherProjectId, PageRequest.of(0, 20))
+                .getContent().getFirst().id();
+        var foreignCorrection = catchThrowable(() -> progressService.append(cityUserId, projectId,
+                new AppendProgressCommand("错误更正", "继续联系", otherProgressId)));
+        assertThat(foreignCorrection).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) foreignCorrection).errorCode()).isEqualTo(ProjectErrorCode.PROGRESS_NOT_FOUND);
+        var databaseCrossProject = catchThrowable(() -> jdbc.update("""
+                INSERT INTO project_progress (
+                    id, project_id, progress_content, next_action, occurred_at, actor_id, corrects_progress_id
+                ) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), '跨项目更正', '不应保存', NOW(6), UUID_TO_BIN(?), UUID_TO_BIN(?))
+                """, UUID.randomUUID().toString(), projectId.toString(), cityUserId.toString(), otherProgressId.toString()));
+        assertThat(databaseCrossProject).isInstanceOf(DataIntegrityViolationException.class);
+
+        var otherCityId = UUID.randomUUID();
+        var otherCityUserId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '其他地市', true)",
+                otherCityId.toString(), provinceId.toString(), otherCityId.toString().replace("-", ""));
+        jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, '其他地市人员', UUID_TO_BIN(?), UUID_TO_BIN(?), true)",
+                otherCityUserId.toString(), otherCityUserId.toString(), provinceId.toString(), otherCityId.toString());
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'CITY_REPORTER')",
+                otherCityUserId.toString());
+        var otherCityAppend = catchThrowable(() -> progressService.append(otherCityUserId, projectId,
+                new AppendProgressCommand("跨市进展", "不应保存", null)));
+        assertThat(otherCityAppend).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) otherCityAppend).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        var otherCityRead = catchThrowable(() -> projectService.findDetail(otherCityUserId, projectId));
+        assertThat(otherCityRead).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) otherCityRead).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+
+        var adminId = UUID.randomUUID();
+        addUser(adminId, "SYSTEM_ADMIN", false);
+        var adminAppend = catchThrowable(() -> progressService.append(adminId, projectId,
+                new AppendProgressCommand("管理员进展", "继续联系", null)));
+        assertThat(adminAppend).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) adminAppend).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+
+        var termination = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户终止", null, null, null));
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+        var terminatedAppend = catchThrowable(() -> progressService.append(interfaceUserId, projectId,
+                new AppendProgressCommand("终止后补写", "不应保存", null)));
+        assertThat(terminatedAppend).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) terminatedAppend).errorCode()).isEqualTo(ProjectErrorCode.TERMINATED_READ_ONLY);
+        assertThat(progressService.findProgress(interfaceUserId, projectId, PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(1);
+        assertThat(progressService.findMilestones(interfaceUserId, projectId, PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(2);
+        mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
+                        .header("X-NDI-Actor-Id", interfaceUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"progressContent\":\"再次补写\",\"nextAction\":\"不应保存\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROJECT_TERMINATED_READ_ONLY"));
     }
 
     private UUID createProject() {

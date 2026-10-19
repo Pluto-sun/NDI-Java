@@ -135,6 +135,8 @@ public class ProjectEntity {
         return customerName;
     }
 
+    public String customerNeed() { return customerNeed; }
+
     public String industryCode() {
         return industryCode;
     }
@@ -162,6 +164,10 @@ public class ProjectEntity {
     public BigDecimal signedAmount() {
         return signedAmount;
     }
+
+    public UUID provinceLeaderUserId() { return provinceLeaderUserId; }
+    public String cityAccountManagerName() { return cityAccountManagerName; }
+    public Instant updatedAt() { return updatedAt; }
 
     public void rename(String newName, UUID actorId, Instant occurredAt) {
         projectName = newName;

@@ -71,6 +71,7 @@ class ProjectServiceTest {
                 changeEventRepository,
                 new ProjectNumberGenerator(clock),
                 new com.pluto.ndi.projects.mapper.ProjectMapper(),
+                mock(ProjectAccessService.class),
                 new ObjectMapper(),
                 clock
         );

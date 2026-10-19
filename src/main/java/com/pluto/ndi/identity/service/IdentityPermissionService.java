@@ -126,6 +126,15 @@ class IdentityPermissionService implements IdentityDirectory {
 
     @Override
     public boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId) {
+        return hasProjectCollaborationScope(actor, provinceId, cityId);
+    }
+
+    @Override
+    public boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId) {
+        return hasProjectCollaborationScope(actor, provinceId, cityId);
+    }
+
+    private boolean hasProjectCollaborationScope(ProjectActor actor, UUID provinceId, UUID cityId) {
         if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
             return false;
         }

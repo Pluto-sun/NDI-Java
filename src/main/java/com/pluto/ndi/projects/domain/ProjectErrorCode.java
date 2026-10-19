@@ -7,6 +7,9 @@ import org.springframework.http.HttpStatus;
 public enum ProjectErrorCode implements ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_NOT_FOUND", "项目不存在", "未找到指定项目"),
     ACCESS_FORBIDDEN(HttpStatus.FORBIDDEN, "PROJECT_ACCESS_FORBIDDEN", "无权访问项目", "当前账号无权访问项目数据"),
+    PROGRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_PROGRESS_NOT_FOUND", "项目进展不存在", "更正目标不是本项目的现有进展"),
+    TERMINATED_READ_ONLY(HttpStatus.CONFLICT, "PROJECT_TERMINATED_READ_ONLY", "已终止项目只读", "已终止项目不接受新增或更正进展"),
+    INVALID_PROGRESS(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_PROGRESS", "项目进展内容无效", "进展正文和下一步动作必须填写且长度不得超过限制"),
     CREATION_FORBIDDEN(HttpStatus.FORBIDDEN, "PROJECT_CREATION_FORBIDDEN", "无权创建项目", "当前账号无权在目标属地创建项目"),
     INVALID_ORGANIZATION(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ORGANIZATION", "项目属地无效", "省分与地市不存在、未启用或不匹配"),
     INVALID_PROVINCE_LEADER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_PROVINCE_LEADER", "省分负责人无效", "省分负责人必须是本省已启用的省分负责人账号"),

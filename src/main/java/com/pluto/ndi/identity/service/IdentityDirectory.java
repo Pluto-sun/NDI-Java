@@ -24,4 +24,6 @@ public interface IdentityDirectory {
     boolean isEligibleStageApprover(UUID userId, UUID provinceId);
 
     boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId);
+
+    boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId);
 }

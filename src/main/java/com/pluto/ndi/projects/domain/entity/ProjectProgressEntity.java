@@ -30,6 +30,9 @@ public class ProjectProgressEntity {
     @Column(name = "actor_id", nullable = false)
     private UUID actorId;
 
+    @Column(name = "corrects_progress_id")
+    private UUID correctsProgressId;
+
     protected ProjectProgressEntity() {
     }
 
@@ -40,6 +43,17 @@ public class ProjectProgressEntity {
             UUID actorId,
             Instant occurredAt
     ) {
+        return append(projectId, progressContent, nextAction, actorId, occurredAt, null);
+    }
+
+    public static ProjectProgressEntity append(
+            UUID projectId,
+            String progressContent,
+            String nextAction,
+            UUID actorId,
+            Instant occurredAt,
+            UUID correctsProgressId
+    ) {
         var entity = new ProjectProgressEntity();
         entity.id = UUID.randomUUID();
         entity.projectId = projectId;
@@ -47,6 +61,15 @@ public class ProjectProgressEntity {
         entity.nextAction = nextAction;
         entity.actorId = actorId;
         entity.occurredAt = occurredAt;
+        entity.correctsProgressId = correctsProgressId;
         return entity;
     }
+
+    public UUID id() { return id; }
+    public UUID projectId() { return projectId; }
+    public String progressContent() { return progressContent; }
+    public String nextAction() { return nextAction; }
+    public Instant occurredAt() { return occurredAt; }
+    public UUID actorId() { return actorId; }
+    public UUID correctsProgressId() { return correctsProgressId; }
 }

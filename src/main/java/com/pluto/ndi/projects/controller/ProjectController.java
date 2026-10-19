@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectSummary;
+import com.pluto.ndi.projects.service.ProjectDetailSummary;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -20,6 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -58,6 +60,13 @@ public class ProjectController {
     ) {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return responseFactory.success(PageResponse.from(projectService.findProjects(actorId(authentication), pageable)));
+    }
+
+    @GetMapping("/{projectId}")
+    public ApiResponse<ProjectDetailSummary> findDetail(
+            Authentication authentication, @PathVariable UUID projectId
+    ) {
+        return responseFactory.success(projectService.findDetail(actorId(authentication), projectId));
     }
 
     private UUID actorId(Authentication authentication) {
