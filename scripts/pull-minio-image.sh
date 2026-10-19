@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-MINIO_IMAGE="minio/minio:RELEASE.2023-09-30T07-02-29Z"
+MINIO_IMAGE="netiedge/minio:RELEASE.2025-01-20T14-49-07Z@sha256:e6c282005f6c8496256f8fd07e9a8b82073344c217ea87436d9af888db67eb0e"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "未找到 Docker。请先安装 Docker Engine 或 Docker Desktop。"
