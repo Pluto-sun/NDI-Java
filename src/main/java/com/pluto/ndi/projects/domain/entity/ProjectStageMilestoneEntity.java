@@ -56,4 +56,17 @@ public class ProjectStageMilestoneEntity {
         entity.sourceType = "MAJOR_CHANGE_APPROVED";
         return entity;
     }
+
+    public static ProjectStageMilestoneEntity approvedAdvance(
+            UUID projectId, ProjectStage stage, UUID actorId, Instant stageOccurredAt
+    ) {
+        var entity = initial(projectId, actorId, stageOccurredAt);
+        entity.stageCode = stage.name();
+        entity.sourceType = "STAGE_ADVANCEMENT_APPROVED";
+        return entity;
+    }
+
+    public Instant occurredAt() {
+        return occurredAt;
+    }
 }

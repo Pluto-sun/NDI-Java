@@ -20,4 +20,6 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select project from ProjectEntity project where project.id = :id")
     Optional<ProjectEntity> findLockedById(UUID id);
+
+    boolean existsByContractNoAndIdNot(String contractNo, UUID id);
 }

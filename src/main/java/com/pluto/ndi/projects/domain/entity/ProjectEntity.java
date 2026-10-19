@@ -182,6 +182,20 @@ public class ProjectEntity {
         touch(actorId, occurredAt);
     }
 
+    public void advanceStage(
+            ProjectStage target, String contractNo, BigDecimal signedAmount, UUID actorId, Instant approvedAt
+    ) {
+        if (target != ProjectStage.valueOf(currentStageCode).nextStage()) {
+            throw new IllegalStateException("项目阶段不是相邻的正向推进");
+        }
+        currentStageCode = target.name();
+        if (target == ProjectStage.COLLECTION) {
+            this.contractNo = contractNo;
+            this.signedAmount = signedAmount;
+        }
+        touch(actorId, approvedAt);
+    }
+
     private void touch(UUID actorId, Instant occurredAt) {
         updatedBy = actorId;
         updatedAt = occurredAt;

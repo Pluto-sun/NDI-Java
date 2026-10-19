@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.NdiApplication;
+import com.pluto.ndi.documents.service.DocumentDirectory;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.MajorChangeType;
@@ -20,17 +23,21 @@ import com.pluto.ndi.projects.service.CreateProjectCommand;
 import com.pluto.ndi.projects.service.MajorChangeCommand;
 import com.pluto.ndi.projects.service.ProjectApprovalService;
 import com.pluto.ndi.projects.service.ProjectService;
+import com.pluto.ndi.projects.service.ProjectStageService;
+import com.pluto.ndi.projects.service.StageAdvanceCommand;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = NdiApplication.class)
 @Testcontainers(disabledWithoutDocker = true)
@@ -54,6 +61,8 @@ class ProjectApprovalIT {
     @Autowired private ProjectApprovalService approvalService;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private ProjectApprovalRequestRepository approvalRepository;
+    @Autowired private ProjectStageService stageService;
+    @MockitoBean private DocumentDirectory documentDirectory;
 
     private UUID provinceId;
     private UUID cityId;
@@ -187,6 +196,91 @@ class ProjectApprovalIT {
         assertThat(projectRepository.findById(projectId).orElseThrow().projectName()).isEqualTo("原项目");
     }
 
+    @Test
+    void advancesAllThreeStagesOnlyAfterApprovalAndValidatedEvidence() {
+        var projectId = createProject();
+        var solutionId = createAvailableDocument(projectId, "CUSTOMER_SOLUTION");
+        var awardId = createAvailableDocument(projectId, "AWARD_NOTICE");
+        when(documentDirectory.isUsable("PROJECT", projectId, solutionId, "CUSTOMER_SOLUTION")).thenReturn(true);
+        when(documentDirectory.isUsable("PROJECT", projectId, awardId, "AWARD_NOTICE")).thenReturn(true);
+        var occurredOn = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+
+        var missingEvidence = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
+                null, null, null, null, null)));
+        assertThat(missingEvidence).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) missingEvidence).errorCode()).isEqualTo(ProjectErrorCode.STAGE_EVIDENCE_REQUIRED);
+
+        var bidding = stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
+                solutionId, null, null, "客户方案已确认", "安排招投标"));
+        assertThat(projectRepository.findById(projectId).orElseThrow().currentStageCode())
+                .isEqualTo(ProjectStage.SOLUTION_EXCHANGE.name());
+        var wrongApprover = catchThrowable(() -> approvalService.decide(provinceUserId, bidding.id(), true, null));
+        assertThat(wrongApprover).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) wrongApprover).errorCode()).isEqualTo(ProjectErrorCode.APPROVAL_FORBIDDEN);
+        assertThat(approvalService.decide(interfaceUserId, bidding.id(), true, null).status())
+                .isEqualTo(ApprovalStatus.APPROVED);
+
+        var signed = stageService.submit(provinceUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.PROVINCE, ProjectStage.SIGNED, interfaceUserId, occurredOn,
+                awardId, null, null, null, null));
+        approvalService.decide(interfaceUserId, signed.id(), true, null);
+
+        var collection = stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.COLLECTION, interfaceUserId, occurredOn,
+                null, "NDI-CONTRACT-" + UUID.randomUUID(), new BigDecimal("88.00"), null, null));
+        approvalService.decide(interfaceUserId, collection.id(), true, null);
+        var project = projectRepository.findById(projectId).orElseThrow();
+        assertThat(project.currentStageCode()).isEqualTo(ProjectStage.COLLECTION.name());
+        assertThat(project.contractNo()).startsWith("NDI-CONTRACT-");
+        assertThat(project.signedAmount()).isEqualByComparingTo("88.00");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_stage_milestone WHERE project_id = UUID_TO_BIN(?)",
+                Integer.class, projectId.toString())).isEqualTo(4);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_progress WHERE project_id = UUID_TO_BIN(?)",
+                Integer.class, projectId.toString())).isEqualTo(2);
+    }
+
+    @Test
+    void rejectsWrongStageEvidenceAndUnsignedCollection() {
+        var projectId = createProject();
+        var awardId = createAvailableDocument(projectId, "AWARD_NOTICE");
+        var occurredOn = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        var wrongEvidence = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
+                awardId, null, null, null, null)));
+        assertThat(wrongEvidence).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) wrongEvidence).errorCode()).isEqualTo(ProjectErrorCode.STAGE_EVIDENCE_REQUIRED);
+
+        var skipped = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.COLLECTION, interfaceUserId, occurredOn,
+                null, "CONTRACT", new BigDecimal("50.00"), null, null)));
+        assertThat(skipped).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) skipped).errorCode()).isEqualTo(ProjectErrorCode.INVALID_STAGE_ADVANCEMENT);
+    }
+
+    @Test
+    void marksContractCollisionAsConflictBeforeApproval() {
+        var projectId = createProject();
+        var otherProjectId = createProject();
+        forceSigned(projectId);
+        forceSigned(otherProjectId);
+        var contractNo = "SHARED-" + UUID.randomUUID();
+        var request = stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.COLLECTION, interfaceUserId,
+                LocalDate.now(ZoneId.of("Asia/Shanghai")), null, contractNo,
+                new BigDecimal("90.00"), null, null));
+        jdbc.update("UPDATE project_project SET contract_no = ? WHERE id = UUID_TO_BIN(?)",
+                contractNo, otherProjectId.toString());
+
+        assertThat(approvalService.decide(interfaceUserId, request.id(), true, null).status())
+                .isEqualTo(ApprovalStatus.CONFLICT);
+        assertThat(projectRepository.findById(projectId).orElseThrow().currentStageCode())
+                .isEqualTo(ProjectStage.SIGNED.name());
+    }
+
     private UUID createProject() {
         return projectService.createProject(cityUserId, new CreateProjectCommand(
                 provinceId, cityId, "原项目", "客户", "C25", "客户需要系统升级",
@@ -199,6 +293,26 @@ class ProjectApprovalIT {
     private void setSignedProject(UUID projectId, String contractNo) {
         jdbc.update("UPDATE project_project SET current_stage_code = 'COLLECTION', contract_no = ?, signed_amount = 80.00, version_no = version_no + 1 WHERE id = UUID_TO_BIN(?)",
                 contractNo, projectId.toString());
+    }
+
+    private void forceSigned(UUID projectId) {
+        jdbc.update("UPDATE project_project SET current_stage_code = 'SIGNED', version_no = version_no + 1 WHERE id = UUID_TO_BIN(?)",
+                projectId.toString());
+    }
+
+    private UUID createAvailableDocument(UUID projectId, String purpose) {
+        var id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO document_object (
+                    id, scope_type, scope_id, purpose_code, bucket_name, staging_object_key, object_key,
+                    original_name, media_type, byte_size, sha256_hex, status, uploaded_by, created_at, completed_at
+                ) VALUES (
+                    UUID_TO_BIN(?), 'PROJECT', UUID_TO_BIN(?), ?, 'ndi-documents', ?, ?,
+                    '材料.pdf', 'application/pdf', 3, ?, 'AVAILABLE', UUID_TO_BIN(?), NOW(6), NOW(6)
+                )
+                """, id.toString(), projectId.toString(), purpose,
+                "staging/" + id, "objects/" + id, "0".repeat(64), cityUserId.toString());
+        return id;
     }
 
     private void addUser(UUID userId, String roleCode, boolean cityUser) {

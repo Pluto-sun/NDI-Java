@@ -30,7 +30,7 @@ import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 重大变更审批与项目正式数据生效边界。 */
+/** 项目审批与正式数据生效边界。 */
 @Service
 public class ProjectApprovalService {
 
@@ -41,6 +41,7 @@ public class ProjectApprovalService {
     private final ProjectApprovalActionRepository actionRepository;
     private final ProjectStageMilestoneRepository milestoneRepository;
     private final ProjectChangeEventRepository eventRepository;
+    private final ProjectStageService stageService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -50,7 +51,8 @@ public class ProjectApprovalService {
             ProjectApprovalRequestRepository approvalRepository,
             ProjectApprovalActionRepository actionRepository,
             ProjectStageMilestoneRepository milestoneRepository,
-            ProjectChangeEventRepository eventRepository, ObjectMapper objectMapper, Clock clock
+            ProjectChangeEventRepository eventRepository, ProjectStageService stageService,
+            ObjectMapper objectMapper, Clock clock
     ) {
         this.identityDirectory = identityDirectory;
         this.projectRepository = projectRepository;
@@ -59,6 +61,7 @@ public class ProjectApprovalService {
         this.actionRepository = actionRepository;
         this.milestoneRepository = milestoneRepository;
         this.eventRepository = eventRepository;
+        this.stageService = stageService;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -126,22 +129,27 @@ public class ProjectApprovalService {
         var locked = pendingRequestAfterProjectLock(requestId);
         var request = locked.request();
         var project = locked.project();
-        if (!actorId.equals(request.approverId()) || !identityDirectory.isEligibleMajorChangeApprover(
-                actorId, project.provinceId(), request.initiatorLevel())) {
+        if (!actorId.equals(request.approverId()) || !isEligibleApprover(actorId, project, request)) {
             throw new BusinessException(ProjectErrorCode.APPROVAL_FORBIDDEN);
         }
         if (!approved && (opinion == null || opinion.isBlank())) {
             throw new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE);
         }
         var at = Instant.now(clock);
-        if (project.versionNo() != request.baseVersion()) {
+        if (project.versionNo() != request.baseVersion()
+                || approved && "STAGE_ADVANCEMENT".equals(request.requestType())
+                && stageService.hasBusinessConflict(project, request)) {
             request.finish(ApprovalStatus.CONFLICT, null, at);
             actionRepository.save(ProjectApprovalActionEntity.create(requestId, "CONFLICT", actorId, at, null));
             return ApprovalSummary.from(request);
         }
         if (approved) {
             var before = projectSnapshot(project);
-            applyChange(project, request, actorId, at);
+            if ("STAGE_ADVANCEMENT".equals(request.requestType())) {
+                stageService.applyApproved(project, request, actorId, at);
+            } else {
+                applyChange(project, request, actorId, at);
+            }
             projectRepository.saveAndFlush(project);
             eventRepository.save(approvedEvent(project, request, before, actorId, at));
         }
@@ -166,6 +174,15 @@ public class ProjectApprovalService {
     private ProjectEntity lockedProject(UUID projectId) {
         return projectRepository.findLockedById(projectId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
+    }
+
+    private boolean isEligibleApprover(UUID actorId, ProjectEntity project, ProjectApprovalRequestEntity request) {
+        return switch (request.requestType()) {
+            case "MAJOR_CHANGE" -> identityDirectory.isEligibleMajorChangeApprover(
+                    actorId, project.provinceId(), request.initiatorLevel());
+            case "STAGE_ADVANCEMENT" -> identityDirectory.isEligibleStageApprover(actorId, project.provinceId());
+            default -> false;
+        };
     }
 
     private ProjectActor enabledActor(UUID actorId) {
@@ -236,15 +253,18 @@ public class ProjectApprovalService {
         try {
             var event = new LinkedHashMap<String, Object>();
             event.put("approvalRequestId", request.id().toString());
-            event.put("changeType", request.changeType().name());
+            event.put("requestType", request.requestType());
+            event.put("changeType", request.changeType() == null ? null : request.changeType().name());
             event.put("reason", request.changeReason());
+            event.put("evidenceDocumentId", request.evidenceDocumentId());
+            event.put("stageOccurredAt", request.stageOccurredAt());
             event.put("before", before);
             event.put("after", projectSnapshot(project));
             var payload = objectMapper.writeValueAsString(event);
             return ProjectChangeEventEntity.approvedChange(
-                    project.id(), project.versionNo(), "MAJOR_CHANGE_APPROVED", payload, actorId, at);
+                    project.id(), project.versionNo(), request.requestType() + "_APPROVED", payload, actorId, at);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("重大变更事件无法序列化", exception);
+            throw new IllegalStateException("项目审批事件无法序列化", exception);
         }
     }
 

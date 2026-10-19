@@ -18,7 +18,10 @@ public enum ProjectErrorCode implements ErrorCode {
     APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_APPROVAL_NOT_FOUND", "审批申请不存在", "未找到指定审批申请"),
     APPROVAL_NOT_PENDING(HttpStatus.CONFLICT, "PROJECT_APPROVAL_NOT_PENDING", "审批申请已结束", "申请不再处于待审批状态"),
     PENDING_APPROVAL_EXISTS(HttpStatus.CONFLICT, "PROJECT_PENDING_APPROVAL_EXISTS", "已有待审批申请", "同一项目同一时间只能存在一条待审批申请"),
-    APPROVAL_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_APPROVAL_VERSION_CONFLICT", "项目版本冲突", "项目数据已变化，请刷新后重新发起申请");
+    APPROVAL_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_APPROVAL_VERSION_CONFLICT", "项目版本冲突", "项目数据已变化，请刷新后重新发起申请"),
+    INVALID_STAGE_ADVANCEMENT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_STAGE_ADVANCEMENT", "阶段推进内容无效", "只能申请相邻正向阶段，且阶段日期与字段必须完整"),
+    STAGE_EVIDENCE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_STAGE_EVIDENCE_REQUIRED", "阶段材料无效", "必须提供属于本项目且已完成上传校验的指定材料"),
+    CONTRACT_NO_CONFLICT(HttpStatus.CONFLICT, "PROJECT_CONTRACT_NO_CONFLICT", "合同编号重复", "合同编号必须在全系统唯一");
 
     private final HttpStatus status;
     private final String code;

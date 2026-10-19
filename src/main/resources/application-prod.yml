@@ -7,3 +7,12 @@ spring:
 logging:
   level:
     com.pluto.ndi: info
+
+ndi:
+  storage:
+    endpoint: ${NDI_MINIO_ENDPOINT}
+    public-endpoint: ${NDI_MINIO_PUBLIC_ENDPOINT}
+    access-key: ${NDI_MINIO_ACCESS_KEY}
+    secret-key: ${NDI_MINIO_SECRET_KEY}
+    bucket: ${NDI_MINIO_BUCKET}
+    auto-create-bucket: false

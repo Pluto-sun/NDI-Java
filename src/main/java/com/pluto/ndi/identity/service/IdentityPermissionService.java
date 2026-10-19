@@ -109,6 +109,35 @@ class IdentityPermissionService implements IdentityDirectory {
                 .orElse(false);
     }
 
+    @Override
+    public boolean canAdvanceProjectStage(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level) {
+        return canInitiateMajorChange(actor, provinceId, cityId, level);
+    }
+
+    @Override
+    public boolean isEligibleStageApprover(UUID userId, UUID provinceId) {
+        return findProjectActor(userId)
+                .filter(ProjectActor::enabled)
+                .filter(actor -> provinceId.equals(actor.provinceId()))
+                .map(actor -> roleCodes(actor.id()))
+                .map(roles -> roles.contains(INTERFACE_PROJECT_READER_ROLE) && !roles.contains(SYSTEM_ADMIN_ROLE))
+                .orElse(false);
+    }
+
+    @Override
+    public boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId) {
+        if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
+            return false;
+        }
+        var roles = roleCodes(actor.id());
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) {
+            return false;
+        }
+        return roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
+                || roles.contains(INTERFACE_PROJECT_READER_ROLE)
+                || cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
+    }
+
     private Set<String> roleCodes(UUID userId) {
         return Set.copyOf(userRoleRepository.findRoleCodesByUserId(userId));
     }

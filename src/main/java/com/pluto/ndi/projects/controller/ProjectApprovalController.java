@@ -11,6 +11,7 @@ import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import com.pluto.ndi.shared.web.BusinessException;
 import jakarta.validation.Valid;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 项目重大变更的申请、查看、撤销和审批接口。 */
+/** 项目重大变更与阶段推进申请的查看、撤销和审批接口。 */
 @RestController
 @RequestMapping("/api/v1/projects")
 public class ProjectApprovalController {
@@ -56,7 +57,16 @@ public class ProjectApprovalController {
     public ApiResponse<ApprovalSummary> decide(
             Authentication authentication, @PathVariable UUID requestId, @Valid @RequestBody ApprovalDecisionRequest decision
     ) {
-        var result = service.decide(actorId(authentication), requestId, decision.approved(), decision.opinion());
+        ApprovalSummary result;
+        try {
+            result = service.decide(actorId(authentication), requestId, decision.approved(), decision.opinion());
+        } catch (DataIntegrityViolationException exception) {
+            var message = exception.getMostSpecificCause().getMessage();
+            if (message != null && message.contains("uk_project_project_contract_no")) {
+                throw new BusinessException(ProjectErrorCode.CONTRACT_NO_CONFLICT);
+            }
+            throw exception;
+        }
         if (result.status() == ApprovalStatus.CONFLICT) {
             throw new BusinessException(ProjectErrorCode.APPROVAL_VERSION_CONFLICT);
         }

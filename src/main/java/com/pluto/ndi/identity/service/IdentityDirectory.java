@@ -18,4 +18,10 @@ public interface IdentityDirectory {
     boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
 
     boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel);
+
+    boolean canAdvanceProjectStage(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
+
+    boolean isEligibleStageApprover(UUID userId, UUID provinceId);
+
+    boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId);
 }

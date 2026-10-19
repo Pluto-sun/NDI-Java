@@ -72,6 +72,24 @@ public class ProjectApprovalRequestEntity {
     @Column(name = "proposed_total_amount", precision = 18, scale = 2)
     private BigDecimal proposedTotalAmount;
 
+    @Column(name = "evidence_document_id")
+    private UUID evidenceDocumentId;
+
+    @Column(name = "stage_occurred_at")
+    private Instant stageOccurredAt;
+
+    @Column(name = "proposed_contract_no")
+    private String proposedContractNo;
+
+    @Column(name = "proposed_signed_amount", precision = 18, scale = 2)
+    private BigDecimal proposedSignedAmount;
+
+    @Column(name = "proposed_progress_content")
+    private String proposedProgressContent;
+
+    @Column(name = "proposed_next_action")
+    private String proposedNextAction;
+
     @Column(name = "change_reason")
     private String changeReason;
 
@@ -120,6 +138,38 @@ public class ProjectApprovalRequestEntity {
         return entity;
     }
 
+    public static ProjectApprovalRequestEntity stageAdvancement(
+            ProjectEntity project, ProjectInitiatorLevel initiatorLevel,
+            UUID initiatorId, UUID approverId, String targetStageCode,
+            UUID evidenceDocumentId, Instant stageOccurredAt, String proposedContractNo,
+            BigDecimal proposedSignedAmount, String progressContent, String nextAction, Instant submittedAt
+    ) {
+        var entity = new ProjectApprovalRequestEntity();
+        entity.id = UUID.randomUUID();
+        entity.projectId = project.id();
+        entity.requestType = "STAGE_ADVANCEMENT";
+        entity.status = ApprovalStatus.PENDING;
+        entity.initiatorLevel = initiatorLevel;
+        entity.initiatorId = initiatorId;
+        entity.approverId = approverId;
+        entity.baseVersion = project.versionNo();
+        entity.fromStageCode = project.currentStageCode();
+        entity.originalProjectName = project.projectName();
+        entity.originalTotalAmount = project.totalAmount();
+        entity.originalContractNo = project.contractNo();
+        entity.originalSignedAmount = project.signedAmount();
+        entity.targetStageCode = targetStageCode;
+        entity.evidenceDocumentId = evidenceDocumentId;
+        entity.stageOccurredAt = stageOccurredAt;
+        entity.proposedContractNo = proposedContractNo;
+        entity.proposedSignedAmount = proposedSignedAmount;
+        entity.proposedProgressContent = progressContent;
+        entity.proposedNextAction = nextAction;
+        entity.submittedAt = submittedAt;
+        entity.dueAt = submittedAt.plusSeconds(48 * 60 * 60);
+        return entity;
+    }
+
     public void finish(ApprovalStatus newStatus, String opinion, Instant at) {
         if (status != ApprovalStatus.PENDING || newStatus == ApprovalStatus.PENDING) {
             throw new IllegalStateException("审批申请状态不可重复变更");
@@ -146,6 +196,12 @@ public class ProjectApprovalRequestEntity {
     public String targetStageCode() { return targetStageCode; }
     public String proposedProjectName() { return proposedProjectName; }
     public BigDecimal proposedTotalAmount() { return proposedTotalAmount; }
+    public UUID evidenceDocumentId() { return evidenceDocumentId; }
+    public Instant stageOccurredAt() { return stageOccurredAt; }
+    public String proposedContractNo() { return proposedContractNo; }
+    public BigDecimal proposedSignedAmount() { return proposedSignedAmount; }
+    public String proposedProgressContent() { return proposedProgressContent; }
+    public String proposedNextAction() { return proposedNextAction; }
     public String changeReason() { return changeReason; }
     public String reviewOpinion() { return reviewOpinion; }
     public Instant submittedAt() { return submittedAt; }

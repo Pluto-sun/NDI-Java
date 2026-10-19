@@ -11,3 +11,12 @@ spring:
 logging:
   level:
     com.pluto.ndi: debug
+
+ndi:
+  storage:
+    endpoint: ${NDI_MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${NDI_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    access-key: ${NDI_MINIO_ACCESS_KEY:ndi_minio_admin}
+    secret-key: ${NDI_MINIO_SECRET_KEY:ndi_minio_local_password}
+    bucket: ${NDI_MINIO_BUCKET:ndi-documents}
+    auto-create-bucket: true

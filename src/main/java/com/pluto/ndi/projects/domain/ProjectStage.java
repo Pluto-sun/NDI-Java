@@ -21,4 +21,13 @@ public enum ProjectStage {
     public boolean clearsContractFieldsOnEntry() {
         return this == SOLUTION_EXCHANGE || this == BIDDING;
     }
+
+    public ProjectStage nextStage() {
+        return switch (this) {
+            case SOLUTION_EXCHANGE -> BIDDING;
+            case BIDDING -> SIGNED;
+            case SIGNED -> COLLECTION;
+            case COLLECTION, TERMINATED -> null;
+        };
+    }
 }

@@ -26,6 +26,12 @@ public record ApprovalSummary(
         String targetStageCode,
         String proposedProjectName,
         BigDecimal proposedTotalAmount,
+        UUID evidenceDocumentId,
+        Instant stageOccurredAt,
+        String proposedContractNo,
+        BigDecimal proposedSignedAmount,
+        String proposedProgressContent,
+        String proposedNextAction,
         String changeReason,
         String reviewOpinion,
         Instant submittedAt,
@@ -39,7 +45,10 @@ public record ApprovalSummary(
                 request.fromStageCode(), request.originalProjectName(), request.originalTotalAmount(),
                 request.originalContractNo(), request.originalSignedAmount(),
                 request.targetStageCode(), request.proposedProjectName(),
-                request.proposedTotalAmount(), request.changeReason(), request.reviewOpinion(),
+                request.proposedTotalAmount(), request.evidenceDocumentId(), request.stageOccurredAt(),
+                request.proposedContractNo(), request.proposedSignedAmount(),
+                request.proposedProgressContent(), request.proposedNextAction(),
+                request.changeReason(), request.reviewOpinion(),
                 request.submittedAt(), request.dueAt(), request.decidedAt()
         );
     }
