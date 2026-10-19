@@ -14,15 +14,25 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.DocumentDirectory;
+import com.pluto.ndi.documents.service.DocumentSummary;
+import com.pluto.ndi.documents.service.DownloadIntent;
+import com.pluto.ndi.documents.service.UploadCommand;
+import com.pluto.ndi.documents.service.UploadIntent;
+import com.pluto.ndi.documents.domain.DocumentStatus;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.ApprovalNotificationKind;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectDocumentPurpose;
 import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.repository.ProjectApprovalRequestRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
@@ -34,6 +44,7 @@ import com.pluto.ndi.projects.service.ProjectApprovalNotificationService;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderWriter;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderJob;
 import com.pluto.ndi.projects.service.ProjectProgressService;
+import com.pluto.ndi.projects.service.ProjectDocumentService;
 import com.pluto.ndi.projects.service.ProjectProfileService;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
@@ -58,6 +69,10 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 @SpringBootTest(classes = NdiApplication.class)
 @AutoConfigureMockMvc
@@ -89,6 +104,7 @@ class ProjectApprovalIT {
     @Autowired private ProjectApprovalReminderWriter reminderWriter;
     @Autowired private ProjectApprovalReminderJob reminderJob;
     @Autowired private ProjectProgressService progressService;
+    @Autowired private ProjectDocumentService projectDocumentService;
     @Autowired private ProjectProfileService profileService;
     @Autowired private ProjectWorkbenchService workbenchService;
     @MockitoBean private DocumentDirectory documentDirectory;
@@ -626,6 +642,99 @@ class ProjectApprovalIT {
         var adminRead = catchThrowable(() -> workbenchService.overview(adminId, false));
         assertThat(adminRead).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) adminRead).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+    }
+
+    @Test
+    void terminatedProjectRejectsNewAndPendingUploadsButRetainsAvailableDocuments() throws Exception {
+        var projectId = createProject();
+        var documentId = UUID.randomUUID();
+        var command = new UploadCommand("GENERAL", "资料.pdf", "application/pdf", 3, "0".repeat(64));
+        when(documentDirectory.beginUpload(eq("PROJECT"), eq(projectId), eq(cityUserId), any(UploadCommand.class)))
+                .thenReturn(new UploadIntent(documentId, "PUT", "https://storage.example/upload", Map.of(),
+                        Instant.now().plusSeconds(600)));
+        assertThat(projectDocumentService.beginUpload(cityUserId, projectId, ProjectDocumentPurpose.GENERAL,
+                command).documentId()).isEqualTo(documentId);
+
+        var termination = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户终止项目", null, null, null));
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+        var newUpload = catchThrowable(() -> projectDocumentService.beginUpload(cityUserId, projectId,
+                ProjectDocumentPurpose.GENERAL, command));
+        assertThat(((BusinessException) newUpload).errorCode()).isEqualTo(ProjectErrorCode.TERMINATED_READ_ONLY);
+        var finishPending = catchThrowable(() -> projectDocumentService.completeUpload(cityUserId, projectId, documentId));
+        assertThat(((BusinessException) finishPending).errorCode()).isEqualTo(ProjectErrorCode.TERMINATED_READ_ONLY);
+        verify(documentDirectory, never()).completeUpload("PROJECT", projectId, cityUserId, documentId);
+
+        var available = new DocumentSummary(UUID.randomUUID(), projectId, "GENERAL", "历史资料.pdf",
+                "application/pdf", 3, "0".repeat(64), DocumentStatus.AVAILABLE, Instant.now());
+        when(documentDirectory.listAvailable("PROJECT", projectId)).thenReturn(List.of(available));
+        when(documentDirectory.download("PROJECT", projectId, available.id()))
+                .thenReturn(new DownloadIntent("https://storage.example/download", Instant.now().plusSeconds(300)));
+        assertThat(projectDocumentService.listAvailable(interfaceUserId, projectId)).containsExactly(available);
+        assertThat(projectDocumentService.download(interfaceUserId, projectId, available.id()).downloadUrl())
+                .isEqualTo("https://storage.example/download");
+
+        mockMvc.perform(get("/api/v1/projects/{projectId}/documents", projectId)
+                        .header("X-NDI-Actor-Id", interfaceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(available.id().toString()));
+        mockMvc.perform(get("/api/v1/projects/{projectId}/documents/{documentId}/download-url",
+                        projectId, available.id())
+                        .header("X-NDI-Actor-Id", interfaceUserId.toString()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/projects/{projectId}/documents/uploads", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("""
+                                {"purpose":"GENERAL","originalName":"资料.pdf","mediaType":"application/pdf",
+                                 "byteSize":3,"sha256Hex":"%s"}
+                                """.formatted("0".repeat(64))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROJECT_TERMINATED_READ_ONLY"));
+        mockMvc.perform(post("/api/v1/projects/{projectId}/documents/{documentId}/complete", projectId, documentId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isConflict());
+        verify(documentDirectory).beginUpload(eq("PROJECT"), eq(projectId), eq(cityUserId), any(UploadCommand.class));
+    }
+
+    @Test
+    void uploadCompletionAndTerminationAreSerializedByProjectLock() throws Exception {
+        var projectId = createProject();
+        var documentId = UUID.randomUUID();
+        var termination = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户终止项目", null, null, null));
+        var completionEntered = new CountDownLatch(1);
+        var releaseCompletion = new CountDownLatch(1);
+        var decisionStarted = new CountDownLatch(1);
+        when(documentDirectory.completeUpload("PROJECT", projectId, cityUserId, documentId)).thenAnswer(invocation -> {
+            completionEntered.countDown();
+            if (!releaseCompletion.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("等待完成上传超时");
+            }
+            return new DocumentSummary(documentId, projectId, "GENERAL", "资料.pdf", "application/pdf",
+                    3, "0".repeat(64), DocumentStatus.AVAILABLE, Instant.now());
+        });
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var completion = executor.submit(() -> projectDocumentService.completeUpload(cityUserId, projectId, documentId));
+            assertThat(completionEntered.await(10, TimeUnit.SECONDS)).isTrue();
+            var decision = executor.submit(() -> {
+                decisionStarted.countDown();
+                return approvalService.decide(provinceUserId, termination.id(), true, null);
+            });
+            assertThat(decisionStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(decision.isDone()).isFalse();
+            releaseCompletion.countDown();
+            assertThat(completion.get(10, TimeUnit.SECONDS).status()).isEqualTo(DocumentStatus.AVAILABLE);
+            assertThat(decision.get(10, TimeUnit.SECONDS).status()).isEqualTo(ApprovalStatus.APPROVED);
+        } finally {
+            releaseCompletion.countDown();
+        }
+        assertThat(projectRepository.findById(projectId).orElseThrow().currentStageCode())
+                .isEqualTo(ProjectStage.TERMINATED.name());
     }
 
     @Test
