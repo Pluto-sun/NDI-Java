@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
+import com.pluto.ndi.projects.domain.ApprovalNotificationKind;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
@@ -42,6 +43,7 @@ public class ProjectApprovalService {
     private final ProjectStageMilestoneRepository milestoneRepository;
     private final ProjectChangeEventRepository eventRepository;
     private final ProjectStageService stageService;
+    private final ProjectApprovalNotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -52,6 +54,7 @@ public class ProjectApprovalService {
             ProjectApprovalActionRepository actionRepository,
             ProjectStageMilestoneRepository milestoneRepository,
             ProjectChangeEventRepository eventRepository, ProjectStageService stageService,
+            ProjectApprovalNotificationService notificationService,
             ObjectMapper objectMapper, Clock clock
     ) {
         this.identityDirectory = identityDirectory;
@@ -62,6 +65,7 @@ public class ProjectApprovalService {
         this.milestoneRepository = milestoneRepository;
         this.eventRepository = eventRepository;
         this.stageService = stageService;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -97,6 +101,7 @@ public class ProjectApprovalService {
         );
         approvalRepository.save(request);
         actionRepository.save(ProjectApprovalActionEntity.create(request.id(), "SUBMITTED", actorId, at, null));
+        notificationService.submitted(request, at);
         return ApprovalSummary.from(request);
     }
 
@@ -121,6 +126,7 @@ public class ProjectApprovalService {
         var at = Instant.now(clock);
         request.finish(ApprovalStatus.WITHDRAWN, null, at);
         actionRepository.save(ProjectApprovalActionEntity.create(requestId, "WITHDRAWN", actorId, at, null));
+        notificationService.finished(request, ApprovalNotificationKind.WITHDRAWN, at);
         return ApprovalSummary.from(request);
     }
 
@@ -141,6 +147,7 @@ public class ProjectApprovalService {
                 && stageService.hasBusinessConflict(project, request)) {
             request.finish(ApprovalStatus.CONFLICT, null, at);
             actionRepository.save(ProjectApprovalActionEntity.create(requestId, "CONFLICT", actorId, at, null));
+            notificationService.finished(request, ApprovalNotificationKind.CONFLICT, at);
             return ApprovalSummary.from(request);
         }
         if (approved) {
@@ -156,6 +163,8 @@ public class ProjectApprovalService {
         var status = approved ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED;
         request.finish(status, opinion == null ? null : opinion.trim(), at);
         actionRepository.save(ProjectApprovalActionEntity.create(requestId, status.name(), actorId, at, request.reviewOpinion()));
+        notificationService.finished(request,
+                approved ? ApprovalNotificationKind.APPROVED : ApprovalNotificationKind.REJECTED, at);
         return ApprovalSummary.from(request);
     }
 

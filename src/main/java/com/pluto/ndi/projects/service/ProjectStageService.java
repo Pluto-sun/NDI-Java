@@ -40,6 +40,7 @@ public class ProjectStageService {
     private final ProjectApprovalActionRepository actionRepository;
     private final ProjectStageMilestoneRepository milestoneRepository;
     private final ProjectProgressRepository progressRepository;
+    private final ProjectApprovalNotificationService notificationService;
     private final Clock clock;
 
     public ProjectStageService(
@@ -47,6 +48,7 @@ public class ProjectStageService {
             ProjectRepository projectRepository, ProjectApprovalRequestRepository approvalRepository,
             ProjectApprovalActionRepository actionRepository,
             ProjectStageMilestoneRepository milestoneRepository, ProjectProgressRepository progressRepository,
+            ProjectApprovalNotificationService notificationService,
             Clock clock
     ) {
         this.identityDirectory = identityDirectory;
@@ -56,6 +58,7 @@ public class ProjectStageService {
         this.actionRepository = actionRepository;
         this.milestoneRepository = milestoneRepository;
         this.progressRepository = progressRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -87,6 +90,7 @@ public class ProjectStageService {
         );
         approvalRepository.save(request);
         actionRepository.save(ProjectApprovalActionEntity.create(request.id(), "SUBMITTED", actorId, at, null));
+        notificationService.submitted(request, at);
         return ApprovalSummary.from(request);
     }
 

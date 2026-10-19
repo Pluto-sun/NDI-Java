@@ -16,6 +16,7 @@ public enum ProjectErrorCode implements ErrorCode {
     APPROVER_INVALID(HttpStatus.BAD_REQUEST, "PROJECT_APPROVER_INVALID", "审批人无效", "审批人必须具有目标省份的对应审批职责且不能是发起人"),
     APPROVAL_FORBIDDEN(HttpStatus.FORBIDDEN, "PROJECT_APPROVAL_FORBIDDEN", "无权处理审批", "仅申请指定的审批人或发起人有权执行对应操作"),
     APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_APPROVAL_NOT_FOUND", "审批申请不存在", "未找到指定审批申请"),
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_NOTIFICATION_NOT_FOUND", "审批通知不存在", "未找到当前账号的指定通知"),
     APPROVAL_NOT_PENDING(HttpStatus.CONFLICT, "PROJECT_APPROVAL_NOT_PENDING", "审批申请已结束", "申请不再处于待审批状态"),
     PENDING_APPROVAL_EXISTS(HttpStatus.CONFLICT, "PROJECT_PENDING_APPROVAL_EXISTS", "已有待审批申请", "同一项目同一时间只能存在一条待审批申请"),
     APPROVAL_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_APPROVAL_VERSION_CONFLICT", "项目版本冲突", "项目数据已变化，请刷新后重新发起申请"),

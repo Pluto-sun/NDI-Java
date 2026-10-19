@@ -2,9 +2,13 @@ package com.pluto.ndi.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -14,6 +18,7 @@ import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.DocumentDirectory;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
+import com.pluto.ndi.projects.domain.ApprovalNotificationKind;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
@@ -22,6 +27,10 @@ import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.service.CreateProjectCommand;
 import com.pluto.ndi.projects.service.MajorChangeCommand;
 import com.pluto.ndi.projects.service.ProjectApprovalService;
+import com.pluto.ndi.projects.service.ProjectApprovalInboxService;
+import com.pluto.ndi.projects.service.ProjectApprovalNotificationService;
+import com.pluto.ndi.projects.service.ProjectApprovalReminderWriter;
+import com.pluto.ndi.projects.service.ProjectApprovalReminderJob;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectStageService;
 import com.pluto.ndi.projects.service.StageAdvanceCommand;
@@ -30,16 +39,20 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = NdiApplication.class)
+@AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class ProjectApprovalIT {
 
@@ -57,11 +70,16 @@ class ProjectApprovalIT {
     }
 
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private MockMvc mockMvc;
     @Autowired private ProjectService projectService;
     @Autowired private ProjectApprovalService approvalService;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private ProjectApprovalRequestRepository approvalRepository;
     @Autowired private ProjectStageService stageService;
+    @Autowired private ProjectApprovalInboxService inboxService;
+    @Autowired private ProjectApprovalNotificationService notificationService;
+    @Autowired private ProjectApprovalReminderWriter reminderWriter;
+    @Autowired private ProjectApprovalReminderJob reminderJob;
     @MockitoBean private DocumentDirectory documentDirectory;
 
     private UUID provinceId;
@@ -279,6 +297,99 @@ class ProjectApprovalIT {
                 .isEqualTo(ApprovalStatus.CONFLICT);
         assertThat(projectRepository.findById(projectId).orElseThrow().currentStageCode())
                 .isEqualTo(ProjectStage.SIGNED.name());
+    }
+
+    @Test
+    void inboxAndNotificationsStayScopedToTheAssignedUsers() throws Exception {
+        var projectId = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户调整名称", "新的项目名称", null, null));
+
+        var tasks = inboxService.findPending(provinceUserId, PageRequest.of(0, 20));
+        assertThat(tasks.getContent()).extracting(task -> task.requestId()).contains(request.id());
+        mockMvc.perform(get("/api/v1/projects/approvals/inbox")
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].requestId").value(request.id().toString()));
+        assertThat(inboxService.findPending(interfaceUserId, PageRequest.of(0, 20)).getContent()).isEmpty();
+        var notice = notificationService.findMine(provinceUserId, PageRequest.of(0, 20)).getContent().getFirst();
+        assertThat(notice.requestId()).isEqualTo(request.id());
+        assertThat(notice.kind()).isEqualTo(ApprovalNotificationKind.SUBMITTED);
+        assertThat(notice.readAt()).isNull();
+        var wrongRecipient = catchThrowable(() -> notificationService.markRead(interfaceUserId, notice.id()));
+        assertThat(wrongRecipient).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) wrongRecipient).errorCode()).isEqualTo(ProjectErrorCode.NOTIFICATION_NOT_FOUND);
+        assertThat(notificationService.markRead(provinceUserId, notice.id()).readAt()).isNotNull();
+
+        approvalService.decide(provinceUserId, request.id(), false, "名称尚未确认");
+        assertThat(inboxService.findPending(provinceUserId, PageRequest.of(0, 20)).getContent()).isEmpty();
+        assertThat(notificationService.findMine(cityUserId, PageRequest.of(0, 20)).getContent())
+                .extracting(notification -> notification.kind()).contains(ApprovalNotificationKind.REJECTED);
+    }
+
+    @Test
+    void overdueReminderIsIdempotentAndStopsAfterWithdrawal() {
+        var projectId = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "名称变更", "新的项目名称", null, null));
+
+        assertThat(reminderWriter.recordIfDue(request.id(), request.dueAt().minusSeconds(1))).isFalse();
+        reminderWriter.recordIfDue(request.id(), request.dueAt().plusSeconds(1));
+        reminderWriter.recordIfDue(request.id(), request.dueAt().plusSeconds(2));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_approval_notification
+                WHERE request_id = UUID_TO_BIN(?) AND kind = 'OVERDUE'
+                """, Integer.class, request.id().toString())).isEqualTo(1);
+
+        reminderWriter.recordIfDue(request.id(), request.dueAt().plusSeconds(24 * 60 * 60 + 1));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_approval_notification
+                WHERE request_id = UUID_TO_BIN(?) AND kind = 'OVERDUE'
+                """, Integer.class, request.id().toString())).isEqualTo(2);
+        approvalService.withdraw(cityUserId, request.id());
+        assertThat(reminderWriter.recordIfDue(request.id(), request.dueAt().plusSeconds(48 * 60 * 60))).isFalse();
+        assertThat(notificationService.findMine(provinceUserId, PageRequest.of(0, 20)).getContent())
+                .extracting(notification -> notification.kind())
+                .contains(ApprovalNotificationKind.WITHDRAWN, ApprovalNotificationKind.OVERDUE);
+    }
+
+    @Test
+    void scheduledScanCreatesOneReminderForAnOverduePendingRequest() {
+        var projectId = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "名称变更", "新的项目名称", null, null));
+        var secondProjectId = createProject();
+        var secondRequest = approvalService.submitMajorChange(cityUserId, secondProjectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "名称变更", "另一个项目名称", null, null));
+        jdbc.update("""
+                UPDATE project_approval_request SET due_at = NOW(6) - INTERVAL 1 SECOND
+                WHERE id IN (UUID_TO_BIN(?), UUID_TO_BIN(?))
+                """, request.id().toString(), secondRequest.id().toString());
+
+        var first = approvalRepository.findOverdueAfter(
+                ApprovalStatus.PENDING, Instant.now().plusSeconds(5), Instant.EPOCH,
+                new UUID(0, 0), PageRequest.of(0, 1)).getFirst();
+        var second = approvalRepository.findOverdueAfter(
+                ApprovalStatus.PENDING, Instant.now().plusSeconds(5), first.dueAt(),
+                first.id(), PageRequest.of(0, 1)).getFirst();
+        assertThat(List.of(first.id(), second.id())).containsExactlyInAnyOrder(request.id(), secondRequest.id());
+
+        reminderJob.scan();
+        reminderJob.scan();
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_approval_notification
+                WHERE request_id = UUID_TO_BIN(?) AND kind = 'OVERDUE'
+                """, Integer.class, request.id().toString())).isEqualTo(1);
+        assertThat(inboxService.findPending(provinceUserId, PageRequest.of(0, 20)).getContent())
+                .anySatisfy(task -> {
+                    assertThat(task.requestId()).isEqualTo(request.id());
+                    assertThat(task.overdue()).isTrue();
+                });
     }
 
     private UUID createProject() {

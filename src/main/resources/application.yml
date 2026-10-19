@@ -28,3 +28,9 @@ info:
   app:
     name: NDI
     description: 项目管理、排产、计收与能力指标平台
+
+ndi:
+  approvals:
+    reminders-enabled: ${NDI_APPROVAL_REMINDERS_ENABLED:true}
+    reminder-scan-delay-ms: ${NDI_APPROVAL_REMINDER_SCAN_DELAY_MS:86400000}
+    reminder-initial-delay-ms: ${NDI_APPROVAL_REMINDER_INITIAL_DELAY_MS:60000}
