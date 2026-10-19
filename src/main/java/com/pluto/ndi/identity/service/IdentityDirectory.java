@@ -14,4 +14,8 @@ public interface IdentityDirectory {
     Optional<ProjectDataScope> findReadableProjectScope(ProjectActor actor);
 
     boolean isEligibleProvinceLeader(UUID userId, UUID provinceId);
+
+    boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
+
+    boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel);
 }

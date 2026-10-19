@@ -47,4 +47,13 @@ public class ProjectStageMilestoneEntity {
         entity.actorId = actorId;
         return entity;
     }
+
+    public static ProjectStageMilestoneEntity approvedChange(
+            UUID projectId, ProjectStage stage, UUID actorId, Instant occurredAt
+    ) {
+        var entity = initial(projectId, actorId, occurredAt);
+        entity.stageCode = stage.name();
+        entity.sourceType = "MAJOR_CHANGE_APPROVED";
+        return entity;
+    }
 }

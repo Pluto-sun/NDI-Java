@@ -19,6 +19,7 @@ class IdentityPermissionService implements IdentityDirectory {
     private static final Set<String> PROVINCE_PROJECT_CREATOR_ROLES = PROVINCE_LEADER_ROLES;
     private static final String CITY_PROJECT_CREATOR_ROLE = "CITY_REPORTER";
     private static final String INTERFACE_PROJECT_READER_ROLE = "INTERFACE_REVIEWER";
+    private static final String SYSTEM_ADMIN_ROLE = "SYSTEM_ADMIN";
 
     private final UserAccountRepository userAccountRepository;
     private final UserRoleRepository userRoleRepository;
@@ -77,6 +78,34 @@ class IdentityPermissionService implements IdentityDirectory {
                 .filter(actor -> provinceId.equals(actor.provinceId()))
                 .map(actor -> roleCodes(actor.id()))
                 .map(roles -> roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains))
+                .orElse(false);
+    }
+
+    @Override
+    public boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level) {
+        if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
+            return false;
+        }
+        var roles = roleCodes(actor.id());
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) {
+            return false;
+        }
+        return switch (level) {
+            case CITY -> cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
+            case PROVINCE -> roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
+        };
+    }
+
+    @Override
+    public boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel) {
+        return findProjectActor(userId)
+                .filter(ProjectActor::enabled)
+                .filter(actor -> provinceId.equals(actor.provinceId()))
+                .map(actor -> roleCodes(actor.id()))
+                .map(roles -> !roles.contains(SYSTEM_ADMIN_ROLE) && switch (initiatorLevel) {
+                    case CITY -> roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
+                    case PROVINCE -> roles.contains(INTERFACE_PROJECT_READER_ROLE);
+                })
                 .orElse(false);
     }
 

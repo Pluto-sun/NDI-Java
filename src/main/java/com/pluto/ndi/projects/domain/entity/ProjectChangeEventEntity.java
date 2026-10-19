@@ -56,4 +56,12 @@ public class ProjectChangeEventEntity {
         entity.occurredAt = occurredAt;
         return entity;
     }
+
+    public static ProjectChangeEventEntity approvedChange(
+            UUID projectId, long aggregateVersion, String eventType, String payload, UUID actorId, Instant occurredAt
+    ) {
+        var entity = create(projectId, aggregateVersion, payload, actorId, occurredAt);
+        entity.eventType = eventType;
+        return entity;
+    }
 }

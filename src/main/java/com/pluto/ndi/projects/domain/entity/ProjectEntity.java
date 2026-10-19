@@ -42,6 +42,12 @@ public class ProjectEntity {
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "contract_no", unique = true, length = 100)
+    private String contractNo;
+
+    @Column(name = "signed_amount", precision = 18, scale = 2)
+    private BigDecimal signedAmount;
+
     @Column(name = "current_stage_code", nullable = false)
     private String currentStageCode;
 
@@ -147,5 +153,37 @@ public class ProjectEntity {
 
     public long versionNo() {
         return versionNo;
+    }
+
+    public String contractNo() {
+        return contractNo;
+    }
+
+    public BigDecimal signedAmount() {
+        return signedAmount;
+    }
+
+    public void rename(String newName, UUID actorId, Instant occurredAt) {
+        projectName = newName;
+        touch(actorId, occurredAt);
+    }
+
+    public void changeTotalAmount(BigDecimal newAmount, UUID actorId, Instant occurredAt) {
+        totalAmount = newAmount;
+        touch(actorId, occurredAt);
+    }
+
+    public void changeStage(ProjectStage stage, UUID actorId, Instant occurredAt) {
+        currentStageCode = stage.name();
+        if (stage.clearsContractFieldsOnEntry()) {
+            contractNo = null;
+            signedAmount = null;
+        }
+        touch(actorId, occurredAt);
+    }
+
+    private void touch(UUID actorId, Instant occurredAt) {
+        updatedBy = actorId;
+        updatedAt = occurredAt;
     }
 }

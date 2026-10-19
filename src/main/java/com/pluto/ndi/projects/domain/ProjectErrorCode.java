@@ -11,7 +11,14 @@ public enum ProjectErrorCode implements ErrorCode {
     INVALID_ORGANIZATION(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ORGANIZATION", "项目属地无效", "省分与地市不存在、未启用或不匹配"),
     INVALID_PROVINCE_LEADER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_PROVINCE_LEADER", "省分负责人无效", "省分负责人必须是本省已启用的省分负责人账号"),
     INVALID_INDUSTRY(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_INDUSTRY", "客户所属行业无效", "客户所属行业必须使用已启用的工业行业代码"),
-    INVALID_CATEGORY_AMOUNT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_CATEGORY_AMOUNT", "三化类别金额无效", "三化类别金额必须完整、非负且合计不得超过项目总金额");
+    INVALID_CATEGORY_AMOUNT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_CATEGORY_AMOUNT", "三化类别金额无效", "三化类别金额必须完整、非负且合计不得超过项目总金额"),
+    INVALID_MAJOR_CHANGE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_MAJOR_CHANGE", "重大变更内容无效", "变更内容必须符合当前项目阶段和金额规则"),
+    APPROVER_INVALID(HttpStatus.BAD_REQUEST, "PROJECT_APPROVER_INVALID", "审批人无效", "审批人必须具有目标省份的对应审批职责且不能是发起人"),
+    APPROVAL_FORBIDDEN(HttpStatus.FORBIDDEN, "PROJECT_APPROVAL_FORBIDDEN", "无权处理审批", "仅申请指定的审批人或发起人有权执行对应操作"),
+    APPROVAL_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_APPROVAL_NOT_FOUND", "审批申请不存在", "未找到指定审批申请"),
+    APPROVAL_NOT_PENDING(HttpStatus.CONFLICT, "PROJECT_APPROVAL_NOT_PENDING", "审批申请已结束", "申请不再处于待审批状态"),
+    PENDING_APPROVAL_EXISTS(HttpStatus.CONFLICT, "PROJECT_PENDING_APPROVAL_EXISTS", "已有待审批申请", "同一项目同一时间只能存在一条待审批申请"),
+    APPROVAL_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_APPROVAL_VERSION_CONFLICT", "项目版本冲突", "项目数据已变化，请刷新后重新发起申请");
 
     private final HttpStatus status;
     private final String code;
