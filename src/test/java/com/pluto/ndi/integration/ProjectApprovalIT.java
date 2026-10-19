@@ -35,6 +35,7 @@ import com.pluto.ndi.projects.service.ProjectApprovalReminderWriter;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderJob;
 import com.pluto.ndi.projects.service.ProjectProgressService;
 import com.pluto.ndi.projects.service.ProjectProfileService;
+import com.pluto.ndi.projects.service.ProjectWorkbenchService;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
 import com.pluto.ndi.projects.service.ProjectService;
@@ -89,6 +90,7 @@ class ProjectApprovalIT {
     @Autowired private ProjectApprovalReminderJob reminderJob;
     @Autowired private ProjectProgressService progressService;
     @Autowired private ProjectProfileService profileService;
+    @Autowired private ProjectWorkbenchService workbenchService;
     @MockitoBean private DocumentDirectory documentDirectory;
 
     private UUID provinceId;
@@ -548,6 +550,82 @@ class ProjectApprovalIT {
                         .contentType("application/json")
                         .content("{\"expectedVersion\":1,\"customerName\":\"客户\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void workbenchUsesCurrentApprovedValuesAndExplicitTerminationFilter() throws Exception {
+        var activeId = createProject();
+        var terminatedId = createProject();
+        var amountChange = approvalService.submitMajorChange(cityUserId, activeId, new MajorChangeCommand(
+                MajorChangeType.TOTAL_AMOUNT, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户增加预算", null, new BigDecimal("150.00"), null));
+        var termination = approvalService.submitMajorChange(cityUserId, terminatedId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户终止项目", null, null, null));
+
+        var beforeDecisions = workbenchService.overview(cityUserId, false);
+        assertThat(beforeDecisions.projectCount()).isEqualTo(2);
+        assertThat(beforeDecisions.totalExpectedAmount()).isEqualByComparingTo("200.00");
+        assertThat(beforeDecisions.stages()).hasSize(4);
+        approvalService.decide(provinceUserId, amountChange.id(), true, null);
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+
+        var defaultOverview = workbenchService.overview(cityUserId, false);
+        assertThat(defaultOverview.projectCount()).isEqualTo(1);
+        assertThat(defaultOverview.totalExpectedAmount()).isEqualByComparingTo("150.00");
+        assertThat(defaultOverview.stages()).hasSize(4);
+        assertThat(defaultOverview.stages().getFirst().projectCount()).isEqualTo(1);
+        var includingTerminated = workbenchService.overview(interfaceUserId, true);
+        assertThat(includingTerminated.projectCount()).isEqualTo(2);
+        assertThat(includingTerminated.totalExpectedAmount()).isEqualByComparingTo("250.00");
+        assertThat(includingTerminated.stages()).hasSize(5);
+        assertThat(includingTerminated.stages().get(4).stageCode()).isEqualTo("TERMINATED");
+        assertThat(includingTerminated.stages().get(4).projectCount()).isEqualTo(1);
+
+        mockMvc.perform(get("/api/v1/projects/workbench/overview")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectCount").value(1))
+                .andExpect(jsonPath("$.data.stages.length()").value(4));
+        mockMvc.perform(get("/api/v1/projects/workbench/overview?includeTerminated=true")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectCount").value(2))
+                .andExpect(jsonPath("$.data.stages[4].projectCount").value(1));
+    }
+
+    @Test
+    void workbenchRespectsCityScopeAndReturnsZeroForEmptyScope() throws Exception {
+        createProject();
+        var otherCityId = UUID.randomUUID();
+        var otherCityUserId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '其他地市', true)",
+                otherCityId.toString(), provinceId.toString(), otherCityId.toString().replace("-", ""));
+        jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, '其他地市人员', UUID_TO_BIN(?), UUID_TO_BIN(?), true)",
+                otherCityUserId.toString(), otherCityUserId.toString(), provinceId.toString(), otherCityId.toString());
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'CITY_REPORTER')",
+                otherCityUserId.toString());
+
+        var empty = workbenchService.overview(otherCityUserId, false);
+        assertThat(empty.projectCount()).isZero();
+        assertThat(empty.totalExpectedAmount()).isEqualByComparingTo("0");
+        assertThat(empty.stages()).allSatisfy(stage -> assertThat(stage.projectCount()).isZero());
+        projectService.createProject(otherCityUserId, new CreateProjectCommand(
+                provinceId, otherCityId, "其他地市项目", "客户", "C25", "独立需求",
+                new BigDecimal("70.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("30.00"))),
+                "完成初次沟通", "继续跟进"));
+        assertThat(workbenchService.overview(cityUserId, false).projectCount()).isEqualTo(1);
+        assertThat(workbenchService.overview(otherCityUserId, false).projectCount()).isEqualTo(1);
+        assertThat(workbenchService.overview(provinceUserId, false).projectCount()).isEqualTo(2);
+        assertThat(workbenchService.overview(interfaceUserId, false).totalExpectedAmount())
+                .isEqualByComparingTo("170.00");
+
+        var adminId = UUID.randomUUID();
+        addUser(adminId, "SYSTEM_ADMIN", false);
+        var adminRead = catchThrowable(() -> workbenchService.overview(adminId, false));
+        assertThat(adminRead).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) adminRead).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
     }
 
     @Test
