@@ -10,4 +10,6 @@
 | [P2 决策场景说明](p0-p2-decision-scenarios.md) | 以项目实例解释 P2 前决策项，并说明旧系统月份统计改写问题。 | 已完成 |
 | [项目参考数据字典](p0-project-reference-data.md) | 固化三化类别、41 个工业行业代码及责任字段的引用方式。 | P2 设计基线 |
 
+P2 首个实现切片见 [项目管理 MVP 实施说明](../../projects/p2-project-management-mvp.md)。
+
 项目管理工作台／统计分析属于 `projects` 模块；跨模块专题分析由 `reporting` 承载，边界见 [ADR-0003](../../adr/0003-reporting-and-document-storage-boundaries.md)。
