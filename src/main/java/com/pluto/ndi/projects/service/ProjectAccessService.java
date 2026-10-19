@@ -51,6 +51,19 @@ public class ProjectAccessService {
         return project;
     }
 
+    public ProjectEntity requireProfileEditable(UUID actorId, UUID projectId) {
+        var project = projectRepository.findLockedById(projectId)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
+        var actor = requireActor(actorId);
+        if (!identityDirectory.canUpdateProjectProfile(actor, project.provinceId(), project.cityId())) {
+            throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
+        }
+        if (ProjectStage.TERMINATED.name().equals(project.currentStageCode())) {
+            throw new BusinessException(ProjectErrorCode.TERMINATED_READ_ONLY);
+        }
+        return project;
+    }
+
     private ProjectEntity requireProject(UUID projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));

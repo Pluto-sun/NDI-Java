@@ -134,6 +134,19 @@ class IdentityPermissionService implements IdentityDirectory {
         return hasProjectCollaborationScope(actor, provinceId, cityId);
     }
 
+    @Override
+    public boolean canUpdateProjectProfile(ProjectActor actor, UUID provinceId, UUID cityId) {
+        if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
+            return false;
+        }
+        var roles = roleCodes(actor.id());
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) {
+            return false;
+        }
+        return roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
+                || cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
+    }
+
     private boolean hasProjectCollaborationScope(ProjectActor actor, UUID provinceId, UUID cityId) {
         if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
             return false;

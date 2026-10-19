@@ -1,0 +1,108 @@
+package com.pluto.ndi.projects.service;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pluto.ndi.identity.service.IdentityDirectory;
+import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
+import com.pluto.ndi.projects.domain.entity.ProjectEntity;
+import com.pluto.ndi.projects.repository.ProjectChangeEventRepository;
+import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
+import com.pluto.ndi.projects.repository.ProjectRepository;
+import com.pluto.ndi.shared.web.BusinessException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** 项目普通信息维护；阶段、名称和金额不经此入口修改。 */
+@Service
+public class ProjectProfileService {
+
+    private final ProjectAccessService accessService;
+    private final IdentityDirectory identityDirectory;
+    private final ProjectIndustryReferenceRepository industryRepository;
+    private final ProjectRepository projectRepository;
+    private final ProjectChangeEventRepository eventRepository;
+    private final ProjectService projectService;
+    private final ObjectMapper objectMapper;
+    private final Clock clock;
+
+    public ProjectProfileService(
+            ProjectAccessService accessService, IdentityDirectory identityDirectory,
+            ProjectIndustryReferenceRepository industryRepository, ProjectRepository projectRepository,
+            ProjectChangeEventRepository eventRepository, ProjectService projectService,
+            ObjectMapper objectMapper, Clock clock
+    ) {
+        this.accessService = accessService;
+        this.identityDirectory = identityDirectory;
+        this.industryRepository = industryRepository;
+        this.projectRepository = projectRepository;
+        this.eventRepository = eventRepository;
+        this.projectService = projectService;
+        this.objectMapper = objectMapper;
+        this.clock = clock;
+    }
+
+    @Transactional
+    public ProjectDetailSummary update(UUID actorId, UUID projectId, UpdateProjectProfileCommand command) {
+        var project = accessService.requireProfileEditable(actorId, projectId);
+        if (command == null || command.expectedVersion() < 0) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PROFILE);
+        }
+        if (project.versionNo() != command.expectedVersion()) {
+            throw new BusinessException(ProjectErrorCode.VERSION_CONFLICT);
+        }
+        var customerName = requiredText(command.customerName(), 200);
+        var industryCode = requiredText(command.industryCode(), 3).toUpperCase(Locale.ROOT);
+        var customerNeed = requiredText(command.customerNeed(), 10_000);
+        var managerName = requiredText(command.cityAccountManagerName(), 100);
+        if (!industryRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
+            throw new BusinessException(ProjectErrorCode.INVALID_INDUSTRY);
+        }
+        if (command.provinceLeaderUserId() == null || !identityDirectory.isEligibleProvinceLeader(
+                command.provinceLeaderUserId(), project.provinceId())) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
+        }
+        var before = snapshot(project);
+        var occurredAt = Instant.now(clock);
+        if (project.updateProfile(customerName, industryCode, customerNeed,
+                command.provinceLeaderUserId(), managerName, actorId, occurredAt)) {
+            projectRepository.saveAndFlush(project);
+            eventRepository.save(ProjectChangeEventEntity.approvedChange(
+                    projectId, project.versionNo(), "PROJECT_PROFILE_UPDATED",
+                    eventPayload(before, snapshot(project)), actorId, occurredAt));
+        }
+        return projectService.findDetail(actorId, projectId);
+    }
+
+    private String requiredText(String value, int maxLength) {
+        if (value == null || value.isBlank() || value.trim().length() > maxLength) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PROFILE);
+        }
+        return value.trim();
+    }
+
+    private Map<String, Object> snapshot(ProjectEntity project) {
+        var snapshot = new LinkedHashMap<String, Object>();
+        snapshot.put("customerName", project.customerName());
+        snapshot.put("industryCode", project.industryCode());
+        snapshot.put("customerNeed", project.customerNeed());
+        snapshot.put("provinceLeaderUserId", project.provinceLeaderUserId());
+        snapshot.put("cityAccountManagerName", project.cityAccountManagerName());
+        return snapshot;
+    }
+
+    private String eventPayload(Map<String, Object> before, Map<String, Object> after) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("before", before, "after", after));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("项目普通信息变更事件无法序列化", exception);
+        }
+    }
+}

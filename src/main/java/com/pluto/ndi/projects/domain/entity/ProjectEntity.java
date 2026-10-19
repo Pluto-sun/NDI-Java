@@ -2,6 +2,7 @@ package com.pluto.ndi.projects.domain.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
@@ -177,6 +178,27 @@ public class ProjectEntity {
     public void changeTotalAmount(BigDecimal newAmount, UUID actorId, Instant occurredAt) {
         totalAmount = newAmount;
         touch(actorId, occurredAt);
+    }
+
+    public boolean updateProfile(
+            String customerName, String industryCode, String customerNeed,
+            UUID provinceLeaderUserId, String cityAccountManagerName,
+            UUID actorId, Instant occurredAt
+    ) {
+        if (Objects.equals(this.customerName, customerName)
+                && Objects.equals(this.industryCode, industryCode)
+                && Objects.equals(this.customerNeed, customerNeed)
+                && Objects.equals(this.provinceLeaderUserId, provinceLeaderUserId)
+                && Objects.equals(this.cityAccountManagerName, cityAccountManagerName)) {
+            return false;
+        }
+        this.customerName = customerName;
+        this.industryCode = industryCode;
+        this.customerNeed = customerNeed;
+        this.provinceLeaderUserId = provinceLeaderUserId;
+        this.cityAccountManagerName = cityAccountManagerName;
+        touch(actorId, occurredAt);
+        return true;
     }
 
     public void changeStage(ProjectStage stage, UUID actorId, Instant occurredAt) {

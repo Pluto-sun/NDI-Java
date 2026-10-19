@@ -26,4 +26,6 @@ public interface IdentityDirectory {
     boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId);
+
+    boolean canUpdateProjectProfile(ProjectActor actor, UUID provinceId, UUID cityId);
 }

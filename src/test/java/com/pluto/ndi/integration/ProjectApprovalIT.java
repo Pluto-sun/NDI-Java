@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,7 +34,9 @@ import com.pluto.ndi.projects.service.ProjectApprovalNotificationService;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderWriter;
 import com.pluto.ndi.projects.service.ProjectApprovalReminderJob;
 import com.pluto.ndi.projects.service.ProjectProgressService;
+import com.pluto.ndi.projects.service.ProjectProfileService;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
+import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectStageService;
 import com.pluto.ndi.projects.service.StageAdvanceCommand;
@@ -85,6 +88,7 @@ class ProjectApprovalIT {
     @Autowired private ProjectApprovalReminderWriter reminderWriter;
     @Autowired private ProjectApprovalReminderJob reminderJob;
     @Autowired private ProjectProgressService progressService;
+    @Autowired private ProjectProfileService profileService;
     @MockitoBean private DocumentDirectory documentDirectory;
 
     private UUID provinceId;
@@ -442,6 +446,107 @@ class ProjectApprovalIT {
                         .header("X-NDI-Actor-Id", cityUserId.toString())
                         .contentType("application/json")
                         .content("{\"progressContent\":\"   \",\"nextAction\":\"继续跟进\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updatesOnlyNormalProfileFieldsAndConflictsWithEarlierPendingApproval() throws Exception {
+        var projectId = createProject();
+        var original = projectService.findDetail(cityUserId, projectId);
+        var pending = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户调整项目名称", "审批中的新名称", null, null));
+        var command = new UpdateProjectProfileCommand(original.versionNo(), "  新客户  ", "C25",
+                "  客户增加上线要求  ", provinceUserId, "  新客户经理  ");
+
+        var updated = profileService.update(cityUserId, projectId, command);
+        assertThat(updated.versionNo()).isEqualTo(original.versionNo() + 1);
+        assertThat(updated.customerName()).isEqualTo("新客户");
+        assertThat(updated.customerNeed()).isEqualTo("客户增加上线要求");
+        assertThat(updated.cityAccountManagerName()).isEqualTo("新客户经理");
+        assertThat(updated.projectName()).isEqualTo(original.projectName());
+        assertThat(updated.totalAmount()).isEqualByComparingTo(original.totalAmount());
+        assertThat(updated.currentStageCode()).isEqualTo(original.currentStageCode());
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
+                """, Integer.class, projectId.toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.before.customerName'))
+                FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
+                """, String.class, projectId.toString())).isEqualTo(original.customerName());
+
+        var noChange = profileService.update(provinceUserId, projectId,
+                new UpdateProjectProfileCommand(updated.versionNo(), "新客户", "C25",
+                        "客户增加上线要求", provinceUserId, "新客户经理"));
+        assertThat(noChange.versionNo()).isEqualTo(updated.versionNo());
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
+                """, Integer.class, projectId.toString())).isEqualTo(1);
+        assertThat(approvalService.decide(provinceUserId, pending.id(), true, null).status())
+                .isEqualTo(ApprovalStatus.CONFLICT);
+
+        mockMvc.perform(put("/api/v1/projects/{projectId}/profile", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("""
+                                {"expectedVersion":%d,"customerName":"新客户","industryCode":"C25",
+                                 "customerNeed":"客户增加上线要求","provinceLeaderUserId":"%s",
+                                 "cityAccountManagerName":"新客户经理"}
+                                """.formatted(updated.versionNo(), provinceUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.versionNo").value(updated.versionNo()));
+    }
+
+    @Test
+    void protectsNormalProfileUpdateWithRoleVersionReferenceAndTerminalChecks() throws Exception {
+        var projectId = createProject();
+        var version = projectRepository.findById(projectId).orElseThrow().versionNo();
+        var valid = new UpdateProjectProfileCommand(version, "客户", "C25", "新需求", provinceUserId, "客户经理");
+
+        var interfaceAttempt = catchThrowable(() -> profileService.update(interfaceUserId, projectId, valid));
+        assertThat(((BusinessException) interfaceAttempt).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        var adminId = UUID.randomUUID();
+        addUser(adminId, "PROVINCE_REPORTER", false);
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'SYSTEM_ADMIN')",
+                adminId.toString());
+        var adminAttempt = catchThrowable(() -> profileService.update(adminId, projectId, valid));
+        assertThat(((BusinessException) adminAttempt).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        var otherCityId = UUID.randomUUID();
+        var otherCityUserId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '其他地市', true)",
+                otherCityId.toString(), provinceId.toString(), otherCityId.toString().replace("-", ""));
+        jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, '其他地市人员', UUID_TO_BIN(?), UUID_TO_BIN(?), true)",
+                otherCityUserId.toString(), otherCityUserId.toString(), provinceId.toString(), otherCityId.toString());
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'CITY_REPORTER')",
+                otherCityUserId.toString());
+        var otherCityAttempt = catchThrowable(() -> profileService.update(otherCityUserId, projectId, valid));
+        assertThat(((BusinessException) otherCityAttempt).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+
+        var stale = catchThrowable(() -> profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(version + 1, "客户", "C25", "新需求", provinceUserId, "客户经理")));
+        assertThat(((BusinessException) stale).errorCode()).isEqualTo(ProjectErrorCode.VERSION_CONFLICT);
+        var invalidIndustry = catchThrowable(() -> profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(version, "客户", "XXX", "新需求", provinceUserId, "客户经理")));
+        assertThat(((BusinessException) invalidIndustry).errorCode()).isEqualTo(ProjectErrorCode.INVALID_INDUSTRY);
+        var invalidLeader = catchThrowable(() -> profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(version, "客户", "C25", "新需求", interfaceUserId, "客户经理")));
+        assertThat(((BusinessException) invalidLeader).errorCode()).isEqualTo(ProjectErrorCode.INVALID_PROVINCE_LEADER);
+
+        var termination = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户停止项目", null, null, null));
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+        var terminal = catchThrowable(() -> profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(version + 1, "客户", "C25", "新需求", provinceUserId, "客户经理")));
+        assertThat(((BusinessException) terminal).errorCode()).isEqualTo(ProjectErrorCode.TERMINATED_READ_ONLY);
+
+        mockMvc.perform(put("/api/v1/projects/{projectId}/profile", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"expectedVersion\":1,\"customerName\":\"客户\"}"))
                 .andExpect(status().isBadRequest());
     }
 
