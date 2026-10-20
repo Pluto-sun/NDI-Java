@@ -1,6 +1,7 @@
 package com.pluto.ndi.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
@@ -10,11 +11,14 @@ import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.DocumentDirectory;
 import com.pluto.ndi.documents.service.ExportFileDirectory;
 import com.pluto.ndi.projects.service.ProjectImportService;
+import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.shared.web.BusinessException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -69,6 +73,36 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class)).isEqualTo(1);
         assertThat(done.rows().getFirst().status()).isEqualTo("IMPORTED");
+
+        var selective = imports.preview(actor, "选择导入.xlsx", workbookWithDistinctNames());
+        assertThat(selective.validRows()).isEqualTo(3);
+        var invalidSelection = catchThrowable(() -> imports.confirm(actor, selective.batchId(), List.of(2, 2)));
+        assertThat(((BusinessException) invalidSelection).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_SELECTION_INVALID);
+        var missingRow = catchThrowable(() -> imports.confirm(actor, selective.batchId(), List.of(2, 999)));
+        assertThat(((BusinessException) missingRow).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_SELECTION_INVALID);
+        assertThat(imports.find(actor, selective.batchId()).status()).isEqualTo("PREVIEWED");
+
+        var selected = imports.confirm(actor, selective.batchId(), List.of(2, 4));
+        assertThat(selected.importedRows()).isEqualTo(2);
+        assertThat(selected.skippedRows()).isEqualTo(1);
+        assertThat(selected.failedRows()).isZero();
+        assertThat(selected.rows().get(1).status()).isEqualTo("SKIPPED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(3);
+        assertThat(imports.findMine(actor, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(2);
+        var foreign = catchThrowable(() -> imports.find(UUID.randomUUID(), selective.batchId()));
+        assertThat(((BusinessException) foreign).errorCode()).isEqualTo(ProjectErrorCode.IMPORT_NOT_FOUND);
+
+        var cancellable = imports.preview(actor, "取消计划.xlsx", workbookWithDistinctNames());
+        var foreignCancel = catchThrowable(() -> imports.cancel(UUID.randomUUID(), cancellable.batchId()));
+        assertThat(((BusinessException) foreignCancel).errorCode()).isEqualTo(ProjectErrorCode.IMPORT_NOT_FOUND);
+        var cancelled = imports.cancel(actor, cancellable.batchId());
+        assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(3);
+        var cannotConfirm = catchThrowable(() -> imports.confirm(actor, cancelled.batchId(), List.of(2)));
+        assertThat(((BusinessException) cannotConfirm).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
     }
 
     private void addUser(UUID id, UUID province, UUID city, String login, String name, String role) {
@@ -103,6 +137,19 @@ class ProjectImportIT {
                 }
             }
             workbook.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithDistinctNames() throws Exception {
+        try (var source = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook()));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = source.getSheet("导入数据");
+            for (int row = 1; row <= 3; row++) {
+                sheet.getRow(row).getCell(4).setCellValue("待导入项目" + row);
+            }
+            sheet.getRow(3).getCell(10).setCellValue("100");
+            source.write(output);
             return output.toByteArray();
         }
     }

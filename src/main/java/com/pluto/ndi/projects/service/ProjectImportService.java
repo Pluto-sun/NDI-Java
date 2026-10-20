@@ -33,6 +33,8 @@ import com.pluto.ndi.projects.util.ProjectExcelReader;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -134,13 +136,49 @@ public class ProjectImportService {
         return summary(batch, rows.findByBatchIdOrderByRowNumber(batchId));
     }
 
+    @Transactional(readOnly = true)
+    public Page<ImportBatchListItem> findMine(UUID actorId, Pageable pageable) {
+        identity.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        return batches.findByActorIdOrderByCreatedAtDescIdDesc(actorId, pageable)
+                .map(ImportBatchListItem::from);
+    }
+
+    @Transactional
+    public ImportBatchSummary cancel(UUID actorId, UUID batchId) {
+        var batch = batches.findByIdAndActorId(batchId, actorId)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        if (!"PREVIEWED".equals(batch.status())) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
+        }
+        batch.cancel();
+        return summary(batch, rows.findByBatchIdOrderByRowNumber(batchId));
+    }
+
     public ImportBatchSummary confirm(UUID actorId, UUID batchId) {
+        return confirm(actorId, batchId, null);
+    }
+
+    public ImportBatchSummary confirm(UUID actorId, UUID batchId, List<Integer> selectedRowNumbers) {
         var batch = transactions.execute(status -> {
             var locked = batches.findByIdAndActorId(batchId, actorId)
                     .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
             if (!"PREVIEWED".equals(locked.status())) {
+                if ("CANCELLED".equals(locked.status())) {
+                    throw new BusinessException(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
+                }
                 throw new BusinessException(ProjectErrorCode.IMPORT_ALREADY_CONFIRMED);
             }
+            var batchRows = rows.findByBatchIdOrderByRowNumber(batchId);
+            var ready = batchRows.stream().filter(row -> "READY".equals(row.status()))
+                    .map(ProjectImportRowEntity::rowNumber).collect(java.util.stream.Collectors.toSet());
+            var selected = selectedRowNumbers == null ? ready : new HashSet<>(selectedRowNumbers);
+            if (selected.isEmpty() || selectedRowNumbers != null
+                    && (selected.size() != selectedRowNumbers.size() || !ready.containsAll(selected))) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_SELECTION_INVALID);
+            }
+            batchRows.stream().filter(row -> "READY".equals(row.status()) && !selected.contains(row.rowNumber()))
+                    .forEach(ProjectImportRowEntity::skip);
             locked.beginConfirmation(Instant.now(clock));
             return locked;
         });
@@ -159,7 +197,11 @@ public class ProjectImportService {
             }
         }
         int count = imported;
-        transactions.executeWithoutResult(status -> batches.findById(batch.id()).orElseThrow().finish(count));
+        transactions.executeWithoutResult(status -> {
+            int skipped = (int) rows.findByBatchIdOrderByRowNumber(batchId).stream()
+                    .filter(row -> "SKIPPED".equals(row.status())).count();
+            batches.findById(batch.id()).orElseThrow().finish(count, skipped);
+        });
         return find(actorId, batchId);
     }
 
@@ -263,8 +305,9 @@ public class ProjectImportService {
     }
 
     private ImportBatchSummary summary(ProjectImportBatchEntity batch, List<ProjectImportRowEntity> items) {
+        int skipped = (int) items.stream().filter(row -> "SKIPPED".equals(row.status())).count();
         return new ImportBatchSummary(batch.id(), batch.status(), batch.totalRows(), batch.validRows(),
-                batch.failedRows(), batch.importedRows(), items.stream().map(row ->
+                batch.failedRows(), skipped, batch.importedRows(), items.stream().map(row ->
                 new ImportBatchSummary.Row(row.rowNumber(), row.status(), row.errors(), row.projectId())).toList());
     }
 }

@@ -401,6 +401,44 @@ label {
 .draft-panel {
   margin-bottom: 18px;
 }
+.import-plans {
+  margin: 18px 0;
+  padding: 0;
+}
+.import-plan-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.import-plan-item > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.import-plan-item strong {
+  overflow-wrap: anywhere;
+}
+.import-plan-item small {
+  color: var(--muted);
+}
+.import-actions {
+  margin: 16px 22px;
+}
+.import-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.import-select-all input,
+.table-panel td > input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  accent-color: var(--red);
+}
 .draft-panel > p {
   margin: 16px 0;
 }
@@ -947,6 +985,10 @@ select:disabled {
   }
   .metric-list > div {
     flex-wrap: wrap;
+  }
+  .import-plan-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .entry-intro h1 {
     font-size: 30px;

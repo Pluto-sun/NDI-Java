@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
-import type { ImportBatch } from './types';
+import type { ImportBatch, ImportBatchListItem } from './types';
+import type { Page } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
+import { dateTime } from '../../shared/ui/format';
 
 function rowErrors(value: string): string[] {
   try {
@@ -13,11 +15,77 @@ function rowErrors(value: string): string[] {
   }
 }
 
+function statusLabel(status: string): string {
+  return (
+    {
+      PREVIEWED: '待确认',
+      CONFIRMING: '导入中',
+      COMPLETED: '已完成',
+      CANCELLED: '已取消',
+      READY: '通过预检',
+      FAILED: '校验或写入失败',
+      IMPORTED: '已导入',
+      SKIPPED: '已跳过',
+    }[status] ?? status
+  );
+}
+
 export function ImportProjectsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [plans, setPlans] = useState<Page<ImportBatchListItem> | null>(null);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [planPage, setPlanPage] = useState(0);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const readyRows = batch?.rows.filter((row) => row.status === 'READY') ?? [];
+
+  useEffect(() => {
+    let active = true;
+    setPlansLoading(true);
+    projectsApi
+      .importPlans(planPage)
+      .then((result) => {
+        if (active) setPlans(result);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : '导入计划加载失败');
+      })
+      .finally(() => {
+        if (active) setPlansLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [planPage]);
+
+  async function refreshPlans() {
+    try {
+      setPlans(await projectsApi.importPlans(planPage));
+    } catch {
+      setError('操作已完成，但计划列表刷新失败。请稍后重新打开此页核对状态。');
+    }
+  }
+
+  function displayBatch(result: ImportBatch) {
+    setBatch(result);
+    setSelectedRows(
+      new Set(result.rows.filter((row) => row.status === 'READY').map((row) => row.rowNumber)),
+    );
+  }
+
+  async function openPlan(id: string) {
+    setBusy(true);
+    setError('');
+    try {
+      displayBatch(await projectsApi.importBatch(id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '导入计划读取失败');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function preview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,7 +94,8 @@ export function ImportProjectsPage() {
     setError('');
     setBatch(null);
     try {
-      setBatch(await projectsApi.previewImport(file));
+      displayBatch(await projectsApi.previewImport(file));
+      await refreshPlans();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '预检失败');
     } finally {
@@ -35,17 +104,48 @@ export function ImportProjectsPage() {
   }
 
   async function confirm() {
-    if (!batch || !window.confirm(`确认导入 ${batch.validRows} 条通过预检的项目？失败行不会写入。`))
+    if (
+      !batch ||
+      selectedRows.size === 0 ||
+      !window.confirm(
+        `确认导入选中的 ${selectedRows.size} 条项目？未选行会保留为“已跳过”，失败行不会写入。`,
+      )
+    )
       return;
     setBusy(true);
     setError('');
     try {
-      setBatch(await projectsApi.confirmImport(batch.batchId));
+      displayBatch(await projectsApi.confirmImport(batch.batchId, [...selectedRows]));
+      await refreshPlans();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '导入失败');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cancelPlan() {
+    if (!batch || !window.confirm('取消这条导入计划？预检记录仍会保留，已导入项目不会删除。'))
+      return;
+    setBusy(true);
+    setError('');
+    try {
+      displayBatch(await projectsApi.cancelImport(batch.batchId));
+      await refreshPlans();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '取消导入计划失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleRow(rowNumber: number) {
+    setSelectedRows((current) => {
+      const next = new Set(current);
+      if (next.has(rowNumber)) next.delete(rowNumber);
+      else next.add(rowNumber);
+      return next;
+    });
   }
 
   return (
@@ -78,33 +178,115 @@ export function ImportProjectsPage() {
           </button>
         </form>
       </div>
+      <div className="panel import-plans">
+        <div className="panel-top">
+          <strong>我的导入计划</strong>
+          <span>{plans?.totalElements ?? 0} 条</span>
+        </div>
+        {plans?.items.map((plan) => (
+          <div className="import-plan-item" key={plan.batchId}>
+            <div>
+              <strong>{plan.fileName}</strong>
+              <small>
+                {dateTime(plan.createdAt)} · {statusLabel(plan.status)} · 已导入 {plan.importedRows}
+                /{plan.totalRows}
+              </small>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={busy}
+              onClick={() => void openPlan(plan.batchId)}
+            >
+              查看计划
+            </button>
+          </div>
+        ))}
+        {plansLoading && <div className="empty-state">正在加载导入计划…</div>}
+        {!plansLoading && plans?.items.length === 0 && (
+          <div className="empty-state">暂无导入计划。</div>
+        )}
+        {(plans?.totalPages ?? 0) > 1 && (
+          <div className="pager">
+            <span>
+              第 {planPage + 1} / {plans?.totalPages} 页
+            </span>
+            <div>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || planPage === 0}
+                onClick={() => setPlanPage(planPage - 1)}
+              >
+                上一页
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || planPage + 1 >= (plans?.totalPages ?? 0)}
+                onClick={() => setPlanPage(planPage + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       {error && <Feedback tone="error">{error}</Feedback>}
       {batch && (
         <div className="panel table-panel">
           <div className="panel-top">
             <strong>预检结果</strong>
             <span>
-              总计 {batch.totalRows} 行 · 可导入 {batch.validRows} 行 · 失败 {batch.failedRows} 行
+              总计 {batch.totalRows} 行 · 预检通过 {batch.validRows} 行 · 失败 {batch.failedRows} 行
+              {batch.skippedRows > 0 ? ` · 已跳过 ${batch.skippedRows} 行` : ''}
             </span>
           </div>
           <p className="subtle">
-            批次 {batch.batchId} · 状态 {batch.status}
+            批次 {batch.batchId} · 状态 {statusLabel(batch.status)}
             {batch.status !== 'PREVIEWED' ? ` · 已导入 ${batch.importedRows} 行` : ''}
           </p>
           {batch.status === 'PREVIEWED' && (
-            <button
-              type="button"
-              className="primary-button"
-              disabled={busy || batch.validRows === 0}
-              onClick={confirm}
-            >
-              确认导入可用行
-            </button>
+            <div className="action-row import-actions">
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy || selectedRows.size === 0}
+                onClick={() => void confirm()}
+              >
+                确认导入已选 {selectedRows.size} 行
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => void cancelPlan()}
+              >
+                取消计划
+              </button>
+            </div>
           )}
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
+                  <th>
+                    <label className="import-select-all">
+                      <input
+                        type="checkbox"
+                        disabled={batch.status !== 'PREVIEWED' || readyRows.length === 0}
+                        checked={readyRows.length > 0 && selectedRows.size === readyRows.length}
+                        onChange={(event) =>
+                          setSelectedRows(
+                            event.target.checked
+                              ? new Set(readyRows.map((row) => row.rowNumber))
+                              : new Set(),
+                          )
+                        }
+                      />
+                      <span>全选</span>
+                    </label>
+                  </th>
                   <th>Excel 行号</th>
                   <th>状态</th>
                   <th>校验结果</th>
@@ -114,8 +296,18 @@ export function ImportProjectsPage() {
               <tbody>
                 {batch.rows.map((row) => (
                   <tr key={row.rowNumber}>
+                    <td>
+                      {row.status === 'READY' && batch.status === 'PREVIEWED' && (
+                        <input
+                          type="checkbox"
+                          aria-label={`选择第 ${row.rowNumber} 行`}
+                          checked={selectedRows.has(row.rowNumber)}
+                          onChange={() => toggleRow(row.rowNumber)}
+                        />
+                      )}
+                    </td>
                     <td>{row.rowNumber}</td>
-                    <td>{row.status}</td>
+                    <td>{statusLabel(row.status)}</td>
                     <td>{rowErrors(row.errorsJson).join('；') || '通过'}</td>
                     <td>
                       {row.projectId && (

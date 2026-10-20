@@ -38,6 +38,7 @@ public class ProjectImportRowEntity {
     }
 
     public void imported(UUID projectId) { this.projectId = projectId; this.status = "IMPORTED"; }
+    public void skip() { this.status = "SKIPPED"; }
     public void fail(String errors) { this.errors = errors; this.status = "FAILED"; }
     public UUID id() { return id; }
     public int rowNumber() { return rowNumber; }

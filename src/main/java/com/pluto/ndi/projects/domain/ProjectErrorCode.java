@@ -40,6 +40,8 @@ public enum ProjectErrorCode implements ErrorCode {
     IMPORT_INVALID_FILE(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_INVALID_FILE", "导入文件无效", "请检查模板、文件大小和工作表内容"),
     IMPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_IMPORT_NOT_FOUND", "导入批次不存在", "批次不存在或不属于当前账号"),
     IMPORT_ALREADY_CONFIRMED(HttpStatus.CONFLICT, "PROJECT_IMPORT_ALREADY_CONFIRMED", "导入批次已确认", "同一批次只能确认一次"),
+    IMPORT_NOT_PREVIEWED(HttpStatus.CONFLICT, "PROJECT_IMPORT_NOT_PREVIEWED", "导入计划状态不允许操作", "仅预检中的导入计划可确认或取消"),
+    IMPORT_SELECTION_INVALID(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_SELECTION_INVALID", "导入行选择无效", "只能选择当前批次中通过预检的行，且至少选择一行"),
     SNAPSHOT_NOT_READY(HttpStatus.NOT_FOUND, "PROJECT_SNAPSHOT_NOT_READY", "月末快照尚未生成", "该月份未生成可查询的月末快照"),
     INVALID_SNAPSHOT_MONTH(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SNAPSHOT_MONTH", "月末查询范围无效", "趋势查询起止月份必须有序且不超过 24 个月");
 

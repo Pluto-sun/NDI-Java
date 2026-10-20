@@ -16,6 +16,7 @@ import type {
   ProjectDocument,
   UploadIntent,
   ImportBatch,
+  ImportBatchListItem,
   ExportTask,
   MonthlyWorkbench,
   TrendPoint,
@@ -126,7 +127,14 @@ export const projectsApi = {
     return request<ImportBatch>('/imports/preview', { method: 'POST', body });
   },
   importBatch: (id: string) => request<ImportBatch>(`/imports/${id}`),
-  confirmImport: (id: string) => request<ImportBatch>(`/imports/${id}/confirm`, { method: 'POST' }),
+  importPlans: (page: number) =>
+    request<Page<ImportBatchListItem>>(`/imports?page=${page}&size=20`),
+  confirmImport: (id: string, selectedRowNumbers: number[]) =>
+    request<ImportBatch>(`/imports/${id}/confirm`, {
+      method: 'POST',
+      ...jsonBody({ selectedRowNumbers }),
+    }),
+  cancelImport: (id: string) => request<ImportBatch>(`/imports/${id}`, { method: 'DELETE' }),
   exportProjects: (filter: Omit<ProjectQuery, 'page'>) =>
     request<ExportTask>('/exports', { method: 'POST', ...jsonBody(filter) }),
   exportTask: (id: string) => request<ExportTask>(`/exports/${id}`),

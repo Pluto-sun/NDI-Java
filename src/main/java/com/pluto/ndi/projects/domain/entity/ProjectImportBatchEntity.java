@@ -45,17 +45,25 @@ public class ProjectImportBatchEntity {
         confirmedAt = at;
     }
 
-    public void finish(int importedRows) {
+    public void finish(int importedRows, int skippedRows) {
         this.importedRows = importedRows;
-        this.failedRows = totalRows - importedRows;
+        this.failedRows = totalRows - importedRows - skippedRows;
         status = "COMPLETED";
+    }
+
+    public void cancel() {
+        if (!"PREVIEWED".equals(status)) throw new IllegalStateException("仅预检中的导入计划可取消");
+        status = "CANCELLED";
     }
 
     public UUID id() { return id; }
     public UUID actorId() { return actorId; }
+    public String fileName() { return fileName; }
     public String status() { return status; }
     public int totalRows() { return totalRows; }
     public int validRows() { return validRows; }
     public int failedRows() { return failedRows; }
     public int importedRows() { return importedRows; }
+    public Instant createdAt() { return createdAt; }
+    public Instant confirmedAt() { return confirmedAt; }
 }
