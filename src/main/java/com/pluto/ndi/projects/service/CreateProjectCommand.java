@@ -21,11 +21,22 @@ public record CreateProjectCommand(
         UUID draftId,
         boolean confirmNew,
         String duplicateReason,
-        String signingSubjectCode
+        String signingSubjectCode,
+        List<String> productSupportExpertNames
 ) {
 
     public CreateProjectCommand {
         categoryAmounts = List.copyOf(categoryAmounts);
+    }
+
+    public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,
+            String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
+            UUID provinceLeaderUserId, String cityAccountManagerName, List<CategoryAmount> categoryAmounts,
+            String initialProgress, String nextAction, UUID draftId, boolean confirmNew,
+            String duplicateReason, String signingSubjectCode) {
+        this(provinceId, cityId, projectName, customerName, industryCode, customerNeed, totalAmount,
+                provinceLeaderUserId, cityAccountManagerName, categoryAmounts, initialProgress, nextAction,
+                draftId, confirmNew, duplicateReason, signingSubjectCode, List.of());
     }
 
     public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,

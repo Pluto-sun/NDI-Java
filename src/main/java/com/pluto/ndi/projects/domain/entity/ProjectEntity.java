@@ -2,13 +2,19 @@ package com.pluto.ndi.projects.domain.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
@@ -60,6 +66,12 @@ public class ProjectEntity {
 
     @Column(name = "signing_subject_code", nullable = false, length = 20)
     private String signingSubjectCode;
+
+    @ElementCollection
+    @CollectionTable(name = "project_support_expert", joinColumns = @JoinColumn(name = "project_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "expert_name", nullable = false, length = 100)
+    private List<String> productSupportExpertNames = new ArrayList<>();
 
     @Version
     @Column(name = "version_no", nullable = false)
@@ -169,6 +181,12 @@ public class ProjectEntity {
     }
 
     public String signingSubjectCode() { return signingSubjectCode; }
+    public List<String> productSupportExpertNames() { return List.copyOf(productSupportExpertNames); }
+
+    public void replaceProductSupportExperts(List<String> names) {
+        productSupportExpertNames.clear();
+        productSupportExpertNames.addAll(names);
+    }
 
     public String currentStageCode() {
         return currentStageCode;
@@ -206,14 +224,15 @@ public class ProjectEntity {
 
     public boolean updateProfile(
             String customerName, String industryCode, String customerNeed,
-            UUID provinceLeaderUserId, String cityAccountManagerName,
+            UUID provinceLeaderUserId, String cityAccountManagerName, List<String> expertNames,
             UUID actorId, Instant occurredAt
     ) {
         if (Objects.equals(this.customerName, customerName)
                 && Objects.equals(this.industryCode, industryCode)
                 && Objects.equals(this.customerNeed, customerNeed)
                 && Objects.equals(this.provinceLeaderUserId, provinceLeaderUserId)
-                && Objects.equals(this.cityAccountManagerName, cityAccountManagerName)) {
+                && Objects.equals(this.cityAccountManagerName, cityAccountManagerName)
+                && Objects.equals(this.productSupportExpertNames, expertNames)) {
             return false;
         }
         this.customerName = customerName;
@@ -221,6 +240,7 @@ public class ProjectEntity {
         this.customerNeed = customerNeed;
         this.provinceLeaderUserId = provinceLeaderUserId;
         this.cityAccountManagerName = cityAccountManagerName;
+        replaceProductSupportExperts(expertNames);
         touch(actorId, occurredAt);
         return true;
     }

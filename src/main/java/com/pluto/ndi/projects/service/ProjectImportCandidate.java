@@ -11,7 +11,7 @@ public record ProjectImportCandidate(
         String industryCode, String customerNeed, BigDecimal totalAmount,
         UUID provinceLeaderUserId, String cityAccountManagerName,
         String signingSubjectCode, String stageCode, List<CategoryAmount> categories, List<Progress> progress,
-        Instant occurredAt) {
+        Instant occurredAt, List<String> productSupportExpertNames) {
     public record CategoryAmount(String code, BigDecimal amount) { }
     public record Progress(Instant occurredAt, String content) { }
 }

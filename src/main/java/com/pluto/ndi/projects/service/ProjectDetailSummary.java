@@ -22,6 +22,7 @@ public record ProjectDetailSummary(
         UUID provinceLeaderUserId,
         String cityAccountManagerName,
         String signingSubjectCode,
+        List<String> productSupportExpertNames,
         long versionNo,
         List<ProjectSummary.CategoryAmount> categoryAmounts,
         Instant createdAt,
@@ -29,5 +30,6 @@ public record ProjectDetailSummary(
 ) {
     public ProjectDetailSummary {
         categoryAmounts = List.copyOf(categoryAmounts);
+        productSupportExpertNames = List.copyOf(productSupportExpertNames);
     }
 }

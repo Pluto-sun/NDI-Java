@@ -21,6 +21,7 @@ public enum ProjectErrorCode implements ErrorCode {
     INVALID_ORGANIZATION(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ORGANIZATION", "项目属地无效", "省分与地市不存在、未启用或不匹配"),
     INVALID_PROVINCE_LEADER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_PROVINCE_LEADER", "省分负责人无效", "省分负责人必须是本省已启用的省分负责人账号"),
     INVALID_SIGNING_SUBJECT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SIGNING_SUBJECT", "签约主体无效", "签约主体必须为省分签约或数科签约"),
+    INVALID_SUPPORT_EXPERTS(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SUPPORT_EXPERTS", "支撑专家无效", "支撑专家姓名不能超过100字或重复"),
     INVALID_INDUSTRY(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_INDUSTRY", "客户所属行业无效", "客户所属行业必须使用已启用的工业行业代码"),
     INVALID_CATEGORY_AMOUNT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_CATEGORY_AMOUNT", "三化类别金额无效", "三化类别金额必须完整、非负且合计不得超过项目总金额"),
     INVALID_MAJOR_CHANGE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_MAJOR_CHANGE", "重大变更内容无效", "变更内容必须符合当前项目阶段和金额规则"),

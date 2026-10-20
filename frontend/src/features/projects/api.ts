@@ -110,6 +110,7 @@ export const projectsApi = {
       customerNeed: string;
       provinceLeaderUserId: string;
       cityAccountManagerName: string;
+      productSupportExpertNames: string[];
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),

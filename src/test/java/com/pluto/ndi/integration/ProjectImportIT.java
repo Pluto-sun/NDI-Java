@@ -208,6 +208,9 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject(
                 "SELECT signing_subject_code FROM project_project WHERE id = UUID_TO_BIN(?)",
                 String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("DS_SIGN");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_support_expert WHERE project_id = UUID_TO_BIN(?)",
+                Integer.class, recovered.rows().getFirst().projectId().toString())).isEqualTo(2);
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -296,6 +299,8 @@ class ProjectImportIT {
             var sheet = source.getSheet("导入数据");
             sheet.getRow(0).createCell(16).setCellValue("签约主体");
             sheet.getRow(1).createCell(16).setCellValue("数科签约");
+            sheet.getRow(0).createCell(17).setCellValue("产品单位支撑专家");
+            sheet.getRow(1).createCell(17).setCellValue("张专家，李专家");
             source.write(output);
             return output.toByteArray();
         }

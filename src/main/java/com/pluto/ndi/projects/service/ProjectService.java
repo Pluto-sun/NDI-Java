@@ -35,6 +35,7 @@ import com.pluto.ndi.projects.repository.ProjectDraftRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
+import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -145,6 +146,7 @@ public class ProjectService {
                 actorId,
                 occurredAt
         );
+        project.replaceProductSupportExperts(normalized.productSupportExpertNames());
         projectRepository.saveAndFlush(project);
         monthlySnapshots.recordCreated(project);
 
@@ -304,6 +306,12 @@ public class ProjectService {
     }
 
     private CreateProjectCommand normalize(CreateProjectCommand command) {
+        List<String> expertNames;
+        try {
+            expertNames = ProjectExpertNames.normalize(command.productSupportExpertNames());
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SUPPORT_EXPERTS);
+        }
         return new CreateProjectCommand(
                 command.provinceId(),
                 command.cityId(),
@@ -321,7 +329,8 @@ public class ProjectService {
                 command.confirmNew(),
                 command.duplicateReason() == null ? null : command.duplicateReason().trim(),
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
-                        ? "PROVINCE_SIGN" : command.signingSubjectCode().trim()
+                        ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
+                expertNames
         );
     }
 
@@ -346,6 +355,7 @@ public class ProjectService {
             values.put("currentStageCode", project.currentStageCode());
             values.put("totalAmount", project.totalAmount());
             values.put("signingSubjectCode", project.signingSubjectCode());
+            values.put("productSupportExpertNames", project.productSupportExpertNames());
             if (duplicateReason != null) values.put("duplicateReason", duplicateReason);
             var payload = objectMapper.writeValueAsString(values);
             return ProjectChangeEventEntity.create(project.id(), project.versionNo(), payload, actorId, occurredAt);

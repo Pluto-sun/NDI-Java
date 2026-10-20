@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { projectsApi } from './api';
 import type { ProjectDetail, ProjectUser, ReferenceData } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
+import { parseSupportExperts } from './supportExperts';
 
 export function ProjectProfileForm({
   project,
@@ -22,6 +23,9 @@ export function ProjectProfileForm({
   const [cityAccountManagerName, setCityAccountManagerName] = useState(
     project.cityAccountManagerName,
   );
+  const [supportExpertsText, setSupportExpertsText] = useState(
+    (project.productSupportExpertNames ?? []).join('\n'),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -30,6 +34,7 @@ export function ProjectProfileForm({
     setCustomerNeed(project.customerNeed);
     setProvinceLeaderUserId(project.provinceLeaderUserId);
     setCityAccountManagerName(project.cityAccountManagerName);
+    setSupportExpertsText((project.productSupportExpertNames ?? []).join('\n'));
   }, [project]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,6 +48,7 @@ export function ProjectProfileForm({
         customerNeed: customerNeed.trim(),
         provinceLeaderUserId,
         cityAccountManagerName: cityAccountManagerName.trim(),
+        productSupportExpertNames: parseSupportExperts(supportExpertsText),
       });
       onSaved(updated);
       setOpen(false);
@@ -118,6 +124,15 @@ export function ProjectProfileForm({
               maxLength={100}
               value={cityAccountManagerName}
               onChange={(event) => setCityAccountManagerName(event.target.value)}
+            />
+          </label>
+          <label>
+            产品单位支撑专家（选填）
+            <textarea
+              rows={2}
+              value={supportExpertsText}
+              onChange={(event) => setSupportExpertsText(event.target.value)}
+              placeholder="多位专家请换行或用逗号分隔；不自动获得项目权限"
             />
           </label>
           <button className="primary-button" type="submit" disabled={busy || !leaders.length}>

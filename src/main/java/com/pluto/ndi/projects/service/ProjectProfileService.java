@@ -16,6 +16,7 @@ import com.pluto.ndi.projects.domain.entity.ProjectEntity;
 import com.pluto.ndi.projects.repository.ProjectChangeEventRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
+import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,11 +72,19 @@ public class ProjectProfileService {
                 command.provinceLeaderUserId(), project.provinceId())) {
             throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
         }
+        var expertNames = project.productSupportExpertNames();
+        if (command.productSupportExpertNames() != null) {
+            try {
+                expertNames = ProjectExpertNames.normalize(command.productSupportExpertNames());
+            } catch (IllegalArgumentException exception) {
+                throw new BusinessException(ProjectErrorCode.INVALID_SUPPORT_EXPERTS);
+            }
+        }
         var before = snapshot(project);
         monthlySnapshots.ensureBaseline(project);
         var occurredAt = Instant.now(clock);
         if (project.updateProfile(customerName, industryCode, customerNeed,
-                command.provinceLeaderUserId(), managerName, actorId, occurredAt)) {
+                command.provinceLeaderUserId(), managerName, expertNames, actorId, occurredAt)) {
             projectRepository.saveAndFlush(project);
             var event = ProjectChangeEventEntity.approvedChange(
                     projectId, project.versionNo(), "PROJECT_PROFILE_UPDATED",
@@ -100,6 +109,7 @@ public class ProjectProfileService {
         snapshot.put("customerNeed", project.customerNeed());
         snapshot.put("provinceLeaderUserId", project.provinceLeaderUserId());
         snapshot.put("cityAccountManagerName", project.cityAccountManagerName());
+        snapshot.put("productSupportExpertNames", project.productSupportExpertNames());
         return snapshot;
     }
 

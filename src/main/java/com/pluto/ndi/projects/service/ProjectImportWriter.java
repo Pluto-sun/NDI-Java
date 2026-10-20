@@ -99,6 +99,8 @@ public class ProjectImportWriter {
                     ProjectStage.valueOf(candidate.stageCode()), null, null,
                     candidate.signingSubjectCode() == null ? "PROVINCE_SIGN" : candidate.signingSubjectCode(),
                     actorId, candidate.occurredAt());
+            project.replaceProductSupportExperts(candidate.productSupportExpertNames() == null
+                    ? java.util.List.of() : candidate.productSupportExpertNames());
             projects.saveAndFlush(project);
             monthlySnapshots.recordCreated(project);
             for (var category : candidate.categories()) {

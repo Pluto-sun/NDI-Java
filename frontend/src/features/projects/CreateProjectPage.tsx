@@ -12,6 +12,7 @@ import type { Page } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
 import { amountToCents } from '../../shared/ui/format';
 import { dateTime } from '../../shared/ui/format';
+import { parseSupportExperts } from './supportExperts';
 
 export function CreateProjectPage({
   me,
@@ -30,6 +31,7 @@ export function CreateProjectPage({
   const [customerNeed, setCustomerNeed] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [cityAccountManagerName, setCityAccountManagerName] = useState('');
+  const [supportExpertsText, setSupportExpertsText] = useState('');
   const [signingSubjectCode, setSigningSubjectCode] = useState<'PROVINCE_SIGN' | 'DS_SIGN'>(
     'PROVINCE_SIGN',
   );
@@ -89,6 +91,7 @@ export function CreateProjectPage({
       customerNeed,
       totalAmount,
       cityAccountManagerName,
+      productSupportExpertNames: supportExpertsText.split(/\n/).filter(Boolean),
       signingSubjectCode,
       initialProgress,
       nextAction,
@@ -144,6 +147,7 @@ export function CreateProjectPage({
     setCustomerNeed(data.customerNeed ?? '');
     setTotalAmount(data.totalAmount ?? '');
     setCityAccountManagerName(data.cityAccountManagerName ?? '');
+    setSupportExpertsText((data.productSupportExpertNames ?? []).join('\n'));
     setSigningSubjectCode(data.signingSubjectCode === 'DS_SIGN' ? 'DS_SIGN' : 'PROVINCE_SIGN');
     setInitialProgress(data.initialProgress ?? '');
     setNextAction(data.nextAction ?? '');
@@ -227,6 +231,7 @@ export function CreateProjectPage({
     setBusy(true);
     setError('');
     try {
+      const productSupportExpertNames = parseSupportExperts(supportExpertsText);
       const created = await projectsApi.create({
         provinceId,
         cityId,
@@ -237,6 +242,7 @@ export function CreateProjectPage({
         totalAmount,
         provinceLeaderUserId: leaderId,
         cityAccountManagerName,
+        productSupportExpertNames,
         signingSubjectCode,
         categoryAmounts,
         initialProgress,
@@ -519,6 +525,15 @@ export function CreateProjectPage({
               <option value="PROVINCE_SIGN">省分签约</option>
               <option value="DS_SIGN">数科签约</option>
             </select>
+          </label>
+          <label>
+            产品单位支撑专家（选填）
+            <textarea
+              rows={2}
+              value={supportExpertsText}
+              onChange={(event) => setSupportExpertsText(event.target.value)}
+              placeholder="多位专家请换行或用逗号分隔；仅用于责任记录"
+            />
           </label>
         </div>
         <div className="category-grid">

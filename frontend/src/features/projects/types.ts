@@ -46,6 +46,7 @@ export interface CreateProjectInput {
   confirmNew?: boolean;
   duplicateReason?: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
+  productSupportExpertNames: string[];
 }
 export interface ProjectDuplicateCheck {
   status: 'NONE' | 'STRONG_DUPLICATE' | 'DUPLICATE_CANDIDATE';
@@ -66,6 +67,7 @@ export interface ProjectDraftData {
   confirmNew: boolean;
   duplicateReason: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
+  productSupportExpertNames?: string[];
 }
 export interface ProjectDraft {
   id: string;
@@ -94,6 +96,7 @@ export interface ProjectDetail extends ProjectSummary {
   provinceLeaderUserId: string;
   cityAccountManagerName: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
+  productSupportExpertNames: string[];
   versionNo: number;
   updatedAt: string;
 }

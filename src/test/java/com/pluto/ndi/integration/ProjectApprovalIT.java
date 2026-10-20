@@ -585,13 +585,15 @@ class ProjectApprovalIT {
                 MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
                 "客户调整项目名称", "审批中的新名称", null, null));
         var command = new UpdateProjectProfileCommand(original.versionNo(), "  新客户  ", "C25",
-                "  客户增加上线要求  ", provinceUserId, "  新客户经理  ");
+                "  客户增加上线要求  ", provinceUserId, "  新客户经理  ",
+                List.of(" 张专家 ", "李专家"));
 
         var updated = profileService.update(cityUserId, projectId, command);
         assertThat(updated.versionNo()).isEqualTo(original.versionNo() + 1);
         assertThat(updated.customerName()).isEqualTo("新客户");
         assertThat(updated.customerNeed()).isEqualTo("客户增加上线要求");
         assertThat(updated.cityAccountManagerName()).isEqualTo("新客户经理");
+        assertThat(updated.productSupportExpertNames()).containsExactly("张专家", "李专家");
         assertThat(updated.projectName()).isEqualTo(original.projectName());
         assertThat(updated.totalAmount()).isEqualByComparingTo(original.totalAmount());
         assertThat(updated.currentStageCode()).isEqualTo(original.currentStageCode());
@@ -604,6 +606,9 @@ class ProjectApprovalIT {
                 FROM project_change_event
                 WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
                 """, String.class, projectId.toString())).isEqualTo(original.customerName());
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_support_expert WHERE project_id = UUID_TO_BIN(?)
+                """, Integer.class, projectId.toString())).isEqualTo(2);
 
         var noChange = profileService.update(provinceUserId, projectId,
                 new UpdateProjectProfileCommand(updated.versionNo(), "新客户", "C25",
@@ -626,6 +631,28 @@ class ProjectApprovalIT {
                                 """.formatted(updated.versionNo(), provinceUserId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.versionNo").value(updated.versionNo()));
+    }
+
+    @Test
+    void changesOnlyExpertNamesAndCanClearThem() {
+        var projectId = createProject();
+        var original = projectService.findDetail(cityUserId, projectId);
+        var withExperts = profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(original.versionNo(), original.customerName(),
+                        original.industryCode(), original.customerNeed(), original.provinceLeaderUserId(),
+                        original.cityAccountManagerName(), List.of("张专家", "李专家")));
+        assertThat(withExperts.versionNo()).isEqualTo(original.versionNo() + 1);
+        assertThat(withExperts.productSupportExpertNames()).containsExactly("张专家", "李专家");
+
+        var cleared = profileService.update(cityUserId, projectId,
+                new UpdateProjectProfileCommand(withExperts.versionNo(), withExperts.customerName(),
+                        withExperts.industryCode(), withExperts.customerNeed(), withExperts.provinceLeaderUserId(),
+                        withExperts.cityAccountManagerName(), List.of()));
+        assertThat(cleared.versionNo()).isEqualTo(withExperts.versionNo() + 1);
+        assertThat(cleared.productSupportExpertNames()).isEmpty();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_support_expert WHERE project_id = UUID_TO_BIN(?)
+                """, Integer.class, projectId.toString())).isZero();
     }
 
     @Test

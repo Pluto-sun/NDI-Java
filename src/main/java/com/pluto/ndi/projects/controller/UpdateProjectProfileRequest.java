@@ -1,5 +1,6 @@
 package com.pluto.ndi.projects.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
@@ -15,10 +16,11 @@ public record UpdateProjectProfileRequest(
         @NotBlank @Size(max = 3) String industryCode,
         @NotBlank @Size(max = 10_000) String customerNeed,
         @NotNull UUID provinceLeaderUserId,
-        @NotBlank @Size(max = 100) String cityAccountManagerName
+        @NotBlank @Size(max = 100) String cityAccountManagerName,
+        List<String> productSupportExpertNames
 ) {
     public UpdateProjectProfileCommand toCommand() {
         return new UpdateProjectProfileCommand(expectedVersion, customerName, industryCode, customerNeed,
-                provinceLeaderUserId, cityAccountManagerName);
+                provinceLeaderUserId, cityAccountManagerName, productSupportExpertNames);
     }
 }
