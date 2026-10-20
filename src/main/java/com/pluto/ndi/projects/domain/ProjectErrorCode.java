@@ -42,6 +42,10 @@ public enum ProjectErrorCode implements ErrorCode {
     IMPORT_ALREADY_CONFIRMED(HttpStatus.CONFLICT, "PROJECT_IMPORT_ALREADY_CONFIRMED", "导入批次已确认", "同一批次只能确认一次"),
     IMPORT_NOT_PREVIEWED(HttpStatus.CONFLICT, "PROJECT_IMPORT_NOT_PREVIEWED", "导入计划状态不允许操作", "仅预检中的导入计划可确认或取消"),
     IMPORT_SELECTION_INVALID(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_SELECTION_INVALID", "导入行选择无效", "只能选择当前批次中通过预检的行，且至少选择一行"),
+    IMPORT_ROW_INVALID(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_ROW_INVALID", "导入行修正无效", "只能修改原模板已有的字段，且字段值不得超过 4000 字符"),
+    IMPORT_ROW_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_IMPORT_ROW_VERSION_CONFLICT", "导入行版本冲突", "导入行已被修改，请刷新计划后重试"),
+    IMPORT_ROW_NOT_EDITABLE(HttpStatus.CONFLICT, "PROJECT_IMPORT_ROW_NOT_EDITABLE", "导入行不可修正", "该行缺少原始模板字段或计划已进入确认流程，请重新上传文件"),
+    IMPORT_RECOVERY_NOT_READY(HttpStatus.CONFLICT, "PROJECT_IMPORT_RECOVERY_NOT_READY", "导入恢复尚不可用", "批次开始确认不足 15 分钟，请稍后刷新或重试"),
     SNAPSHOT_NOT_READY(HttpStatus.NOT_FOUND, "PROJECT_SNAPSHOT_NOT_READY", "月末快照尚未生成", "该月份未生成可查询的月末快照"),
     INVALID_SNAPSHOT_MONTH(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SNAPSHOT_MONTH", "月末查询范围无效", "趋势查询起止月份必须有序且不超过 24 个月");
 

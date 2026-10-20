@@ -1,4 +1,4 @@
-import { jsonBody, request, type Page } from '../../shared/api/http';
+import { jsonBody, request, requestBlob, type Page } from '../../shared/api/http';
 import type {
   CreateProjectInput,
   ProjectDetail,
@@ -126,7 +126,19 @@ export const projectsApi = {
     body.append('file', file);
     return request<ImportBatch>('/imports/preview', { method: 'POST', body });
   },
+  importTemplate: () => requestBlob('/imports/template'),
+  failedImportRows: (id: string) => requestBlob(`/imports/${id}/failed-rows/export`),
   importBatch: (id: string) => request<ImportBatch>(`/imports/${id}`),
+  reviseImportRow: (
+    id: string,
+    rowNumber: number,
+    expectedRevision: number,
+    changes: Record<string, string>,
+  ) =>
+    request<ImportBatch>(`/imports/${id}/rows/${rowNumber}`, {
+      method: 'PUT',
+      ...jsonBody({ expectedRevision, changes }),
+    }),
   importPlans: (page: number) =>
     request<Page<ImportBatchListItem>>(`/imports?page=${page}&size=20`),
   confirmImport: (id: string, selectedRowNumbers: number[]) =>
@@ -134,6 +146,7 @@ export const projectsApi = {
       method: 'POST',
       ...jsonBody({ selectedRowNumbers }),
     }),
+  resumeImport: (id: string) => request<ImportBatch>(`/imports/${id}/resume`, { method: 'POST' }),
   cancelImport: (id: string) => request<ImportBatch>(`/imports/${id}`, { method: 'DELETE' }),
   exportProjects: (filter: Omit<ProjectQuery, 'page'>) =>
     request<ExportTask>('/exports', { method: 'POST', ...jsonBody(filter) }),

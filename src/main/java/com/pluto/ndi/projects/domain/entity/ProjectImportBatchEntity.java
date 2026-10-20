@@ -46,6 +46,7 @@ public class ProjectImportBatchEntity {
     }
 
     public void finish(int importedRows, int skippedRows) {
+        if (!"CONFIRMING".equals(status)) throw new IllegalStateException("导入批次不在确认状态");
         this.importedRows = importedRows;
         this.failedRows = totalRows - importedRows - skippedRows;
         status = "COMPLETED";
@@ -54,6 +55,12 @@ public class ProjectImportBatchEntity {
     public void cancel() {
         if (!"PREVIEWED".equals(status)) throw new IllegalStateException("仅预检中的导入计划可取消");
         status = "CANCELLED";
+    }
+
+    public void refreshPreviewCounts(int validRows) {
+        if (!"PREVIEWED".equals(status)) throw new IllegalStateException("导入计划不在预检状态");
+        this.validRows = validRows;
+        this.failedRows = totalRows - validRows;
     }
 
     public UUID id() { return id; }

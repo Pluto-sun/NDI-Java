@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ImportBatch, ImportBatchListItem } from './types';
@@ -30,6 +30,34 @@ function statusLabel(status: string): string {
   );
 }
 
+function sourceCells(value: string | null): Record<string, string> {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      );
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function downloadWorkbook(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function ImportProjectsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [batch, setBatch] = useState<ImportBatch | null>(null);
@@ -39,6 +67,8 @@ export function ImportProjectsPage() {
   const [plansLoading, setPlansLoading] = useState(true);
   const [planPage, setPlanPage] = useState(0);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [editedCells, setEditedCells] = useState<Record<string, string>>({});
   const readyRows = batch?.rows.filter((row) => row.status === 'READY') ?? [];
 
   useEffect(() => {
@@ -70,9 +100,58 @@ export function ImportProjectsPage() {
 
   function displayBatch(result: ImportBatch) {
     setBatch(result);
+    setEditingRow(null);
     setSelectedRows(
       new Set(result.rows.filter((row) => row.status === 'READY').map((row) => row.rowNumber)),
     );
+  }
+
+  function editRow(rowNumber: number) {
+    const row = batch?.rows.find((item) => item.rowNumber === rowNumber);
+    if (!row) return;
+    setEditedCells(sourceCells(row.sourceCellsJson));
+    setEditingRow(rowNumber);
+    setError('');
+  }
+
+  async function saveRow(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const row = batch?.rows.find((item) => item.rowNumber === editingRow);
+    if (!batch || !row) return;
+    const before = sourceCells(row.sourceCellsJson);
+    const changes = Object.fromEntries(
+      Object.entries(editedCells).filter(([key, value]) => value !== before[key]),
+    );
+    if (Object.keys(changes).length === 0) {
+      setError('请先修改至少一个字段。');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const result = await projectsApi.reviseImportRow(
+        batch.batchId,
+        row.rowNumber,
+        row.revisionNo,
+        changes,
+      );
+      setBatch(result);
+      setEditingRow(null);
+      setSelectedRows(
+        (current) =>
+          new Set(
+            result.rows
+              .filter((item) => item.status === 'READY')
+              .map((item) => item.rowNumber)
+              .filter((number) => current.has(number) || number === row.rowNumber),
+          ),
+      );
+      await refreshPlans();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '导入行修正失败');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openPlan(id: string) {
@@ -139,6 +218,45 @@ export function ImportProjectsPage() {
     }
   }
 
+  async function resumePlan() {
+    if (!batch) return;
+    setBusy(true);
+    setError('');
+    try {
+      displayBatch(await projectsApi.resumeImport(batch.batchId));
+      await refreshPlans();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '导入恢复失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadTemplate() {
+    setBusy(true);
+    setError('');
+    try {
+      downloadWorkbook(await projectsApi.importTemplate(), '项目导入模板.xlsx');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '导入模板下载失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadFailedRows() {
+    if (!batch) return;
+    setBusy(true);
+    setError('');
+    try {
+      downloadWorkbook(await projectsApi.failedImportRows(batch.batchId), '项目导入失败行.xlsx');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '失败行报告下载失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleRow(rowNumber: number) {
     setSelectedRows((current) => {
       const next = new Set(current);
@@ -161,7 +279,17 @@ export function ImportProjectsPage() {
         </Link>
       </div>
       <div className="panel">
-        <h2>选择导入文件</h2>
+        <div className="panel-top">
+          <h2>选择导入文件</h2>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={busy}
+            onClick={() => void downloadTemplate()}
+          >
+            下载导入模板
+          </button>
+        </div>
         <p className="subtle">使用既定项目导入模板，文件不超过 10 MB。预检不会写入项目。</p>
         <form className="filter-bar" onSubmit={preview}>
           <label>
@@ -246,6 +374,49 @@ export function ImportProjectsPage() {
             批次 {batch.batchId} · 状态 {statusLabel(batch.status)}
             {batch.status !== 'PREVIEWED' ? ` · 已导入 ${batch.importedRows} 行` : ''}
           </p>
+          {batch.rows.some((row) => row.status === 'FAILED') && (
+            <div className="action-row import-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => void downloadFailedRows()}
+              >
+                导出失败行
+              </button>
+            </div>
+          )}
+          {batch.status === 'PREVIEWED' && (
+            <p className="subtle">
+              预检失败的行可直接修正并重新校验；修正记录会保留。重复项目仍只保留首条。
+            </p>
+          )}
+          {batch.status === 'CONFIRMING' && (
+            <div className="action-row import-actions">
+              <p className="subtle">
+                确认中断超过 15 分钟后可手动恢复；系统也会定期自动重试。刷新计划可查看最新结果。
+              </p>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => void openPlan(batch.batchId)}
+              >
+                刷新状态
+              </button>
+              {batch.confirmedAt &&
+                Date.now() - new Date(batch.confirmedAt).getTime() >= 15 * 60 * 1000 && (
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void resumePlan()}
+                  >
+                    恢复导入
+                  </button>
+                )}
+            </div>
+          )}
           {batch.status === 'PREVIEWED' && (
             <div className="action-row import-actions">
               <button
@@ -290,33 +461,101 @@ export function ImportProjectsPage() {
                   <th>Excel 行号</th>
                   <th>状态</th>
                   <th>校验结果</th>
-                  <th>项目</th>
+                  <th>项目 / 操作</th>
                 </tr>
               </thead>
               <tbody>
                 {batch.rows.map((row) => (
-                  <tr key={row.rowNumber}>
-                    <td>
-                      {row.status === 'READY' && batch.status === 'PREVIEWED' && (
-                        <input
-                          type="checkbox"
-                          aria-label={`选择第 ${row.rowNumber} 行`}
-                          checked={selectedRows.has(row.rowNumber)}
-                          onChange={() => toggleRow(row.rowNumber)}
-                        />
-                      )}
-                    </td>
-                    <td>{row.rowNumber}</td>
-                    <td>{statusLabel(row.status)}</td>
-                    <td>{rowErrors(row.errorsJson).join('；') || '通过'}</td>
-                    <td>
-                      {row.projectId && (
-                        <Link className="inline-link" to={`/projects/${row.projectId}`}>
-                          查看项目
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
+                  <Fragment key={row.rowNumber}>
+                    <tr>
+                      <td>
+                        {row.status === 'READY' && batch.status === 'PREVIEWED' && (
+                          <input
+                            type="checkbox"
+                            aria-label={`选择第 ${row.rowNumber} 行`}
+                            checked={selectedRows.has(row.rowNumber)}
+                            onChange={() => toggleRow(row.rowNumber)}
+                          />
+                        )}
+                      </td>
+                      <td>{row.rowNumber}</td>
+                      <td>{statusLabel(row.status)}</td>
+                      <td>{rowErrors(row.errorsJson).join('；') || '通过'}</td>
+                      <td>
+                        {row.projectId && (
+                          <Link className="inline-link" to={`/projects/${row.projectId}`}>
+                            查看项目
+                          </Link>
+                        )}
+                        {batch.status === 'PREVIEWED' && row.sourceCellsJson && (
+                          <button
+                            className="text-button"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => editRow(row.rowNumber)}
+                          >
+                            修正第 {row.rowNumber} 行
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {editingRow === row.rowNumber && (
+                      <tr>
+                        <td colSpan={5}>
+                          <form
+                            className="import-row-editor"
+                            onSubmit={(event) => void saveRow(event)}
+                          >
+                            <div className="panel-top">
+                              <strong>修正 Excel 第 {row.rowNumber} 行</strong>
+                              <span>第 {row.revisionNo} 次修订</span>
+                            </div>
+                            <p className="subtle">
+                              保存后立即重新预检；校验未通过时仍不会写入项目。
+                            </p>
+                            {error && <Feedback tone="error">{error}</Feedback>}
+                            {rowErrors(row.errorsJson).length > 0 && (
+                              <Feedback>
+                                当前校验问题：{rowErrors(row.errorsJson).join('；')}
+                              </Feedback>
+                            )}
+                            <div className="import-row-fields">
+                              {Object.keys(editedCells)
+                                .sort()
+                                .map((header) => (
+                                  <label key={header}>
+                                    {header}
+                                    <input
+                                      value={editedCells[header]}
+                                      maxLength={4000}
+                                      onChange={(event) =>
+                                        setEditedCells((current) => ({
+                                          ...current,
+                                          [header]: event.target.value,
+                                        }))
+                                      }
+                                    />
+                                  </label>
+                                ))}
+                            </div>
+                            <div className="action-row">
+                              <button className="primary-button" type="submit" disabled={busy}>
+                                保存并重新预检
+                              </button>
+                              <button
+                                className="secondary-button"
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setEditingRow(null)}
+                              >
+                                取消修正
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

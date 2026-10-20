@@ -184,7 +184,15 @@ export interface ImportBatch {
   failedRows: number;
   skippedRows: number;
   importedRows: number;
-  rows: { rowNumber: number; status: string; errorsJson: string; projectId: string | null }[];
+  confirmedAt: string | null;
+  rows: {
+    rowNumber: number;
+    status: string;
+    errorsJson: string;
+    projectId: string | null;
+    sourceCellsJson: string | null;
+    revisionNo: number;
+  }[];
 }
 export interface ImportBatchListItem {
   batchId: string;

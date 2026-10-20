@@ -18,12 +18,15 @@ import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,6 +39,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/projects/imports")
 public class ProjectImportController {
+    private static final MediaType XLSX = MediaType.parseMediaType(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     private final ProjectImportService service;
     private final ApiResponseFactory responses;
 
@@ -58,6 +63,16 @@ public class ProjectImportController {
         return responses.success(service.find(actorId(authentication), batchId));
     }
 
+    @GetMapping("/template")
+    public ResponseEntity<byte[]> template(Authentication authentication) {
+        return workbook("项目导入模板.xlsx", service.template(actorId(authentication)));
+    }
+
+    @GetMapping("/{batchId}/failed-rows/export")
+    public ResponseEntity<byte[]> failedRows(Authentication authentication, @PathVariable UUID batchId) {
+        return workbook("项目导入失败行.xlsx", service.failedRows(actorId(authentication), batchId));
+    }
+
     @GetMapping
     public ApiResponse<PageResponse<ImportBatchListItem>> findMine(Authentication authentication,
             @RequestParam(defaultValue = "0") @Min(0) int page,
@@ -72,6 +87,19 @@ public class ProjectImportController {
                 request == null ? null : request.selectedRowNumbers()));
     }
 
+    @PutMapping("/{batchId}/rows/{rowNumber}")
+    public ApiResponse<ImportBatchSummary> reviseRow(Authentication authentication,
+            @PathVariable UUID batchId, @PathVariable int rowNumber,
+            @Valid @RequestBody ProjectImportRowRevisionRequest request) {
+        return responses.success(service.reviseRow(actorId(authentication), batchId,
+                rowNumber, request.expectedRevision(), request.changes()));
+    }
+
+    @PostMapping("/{batchId}/resume")
+    public ApiResponse<ImportBatchSummary> resume(Authentication authentication, @PathVariable UUID batchId) {
+        return responses.success(service.resume(actorId(authentication), batchId));
+    }
+
     @DeleteMapping("/{batchId}")
     public ApiResponse<ImportBatchSummary> cancel(Authentication authentication, @PathVariable UUID batchId) {
         return responses.success(service.cancel(actorId(authentication), batchId));
@@ -82,5 +110,13 @@ public class ProjectImportController {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
         return principal.userId();
+    }
+
+    private ResponseEntity<byte[]> workbook(String name, byte[] bytes) {
+        return ResponseEntity.ok().contentType(XLSX)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename(name, java.nio.charset.StandardCharsets.UTF_8).build().toString())
+                .body(bytes);
     }
 }

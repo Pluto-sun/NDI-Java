@@ -1,6 +1,8 @@
 package com.pluto.ndi.projects.repository;
 
 import java.util.UUID;
+import java.time.Instant;
+import java.util.List;
 import com.pluto.ndi.projects.domain.entity.ProjectImportBatchEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,4 +15,6 @@ public interface ProjectImportBatchRepository extends JpaRepository<ProjectImpor
     Page<ProjectImportBatchEntity> findByActorIdOrderByCreatedAtDescIdDesc(UUID actorId, Pageable pageable);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ProjectImportBatchEntity> findByIdAndActorId(UUID id, UUID actorId);
+    List<ProjectImportBatchEntity> findTop20ByStatusAndConfirmedAtBeforeOrderByConfirmedAtAsc(
+            String status, Instant before);
 }

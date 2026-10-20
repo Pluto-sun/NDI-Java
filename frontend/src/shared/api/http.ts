@@ -64,6 +64,27 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   return body.data;
 }
 
+export async function requestBlob(path: string): Promise<Blob> {
+  const actorId = getActorId();
+  const headers = new Headers();
+  if (actorId) headers.set('X-NDI-Actor-Id', actorId);
+  let response: Response;
+  try {
+    response = await fetch(`${API_ROOT}${path}`, { headers });
+  } catch {
+    throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ProblemBody | null;
+    throw new ApiError(
+      body?.code ?? 'HTTP_ERROR',
+      body?.detail ?? body?.title ?? `下载失败（${response.status}）`,
+      response.status,
+    );
+  }
+  return response.blob();
+}
+
 export function jsonBody(value: unknown): Pick<RequestInit, 'body'> {
   return { body: JSON.stringify(value) };
 }

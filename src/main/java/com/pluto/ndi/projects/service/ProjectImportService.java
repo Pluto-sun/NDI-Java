@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
@@ -27,12 +29,16 @@ import com.pluto.ndi.projects.domain.entity.ProjectImportBatchEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectImportRowEntity;
 import com.pluto.ndi.projects.repository.ProjectImportBatchRepository;
 import com.pluto.ndi.projects.repository.ProjectImportRowRepository;
+import com.pluto.ndi.projects.repository.ProjectImportRowRevisionRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExcelReader;
+import com.pluto.ndi.projects.util.ProjectImportWorkbookWriter;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +47,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** Excel 导入预检及人工确认；失败行不阻断其他行写入。 */
 @Service
 public class ProjectImportService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProjectImportService.class);
     private static final Map<String, String> CATEGORY_LABELS = Map.of(
             "网络化", "NETWORK", "数字化(格物)", "GEWU", "数字化(大数据)", "BIG_DATA",
             "智能化", "WANGWU", "智能化(万悟)", "WANGWU");
@@ -52,29 +59,35 @@ public class ProjectImportService {
             "BIG_DATA", "大数据预计金额（万）", "WANGWU", "万悟预计金额（万）");
 
     private final ProjectExcelReader reader;
+    private final ProjectImportWorkbookWriter workbookWriter;
     private final IdentityDirectory identity;
     private final OrganizationDirectory organizations;
     private final ProjectIndustryReferenceRepository industries;
     private final ProjectRepository projects;
     private final ProjectImportBatchRepository batches;
     private final ProjectImportRowRepository rows;
+    private final ProjectImportRowRevisionRepository revisions;
     private final ProjectImportWriter writer;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
     private final Clock clock;
 
-    public ProjectImportService(ProjectExcelReader reader, IdentityDirectory identity,
+    public ProjectImportService(ProjectExcelReader reader, ProjectImportWorkbookWriter workbookWriter,
+            IdentityDirectory identity,
             OrganizationDirectory organizations, ProjectIndustryReferenceRepository industries,
             ProjectRepository projects, ProjectImportBatchRepository batches,
-            ProjectImportRowRepository rows, ProjectImportWriter writer, ObjectMapper json,
+            ProjectImportRowRepository rows, ProjectImportRowRevisionRepository revisions,
+            ProjectImportWriter writer, ObjectMapper json,
             TransactionTemplate transactions, Clock clock) {
         this.reader = reader;
+        this.workbookWriter = workbookWriter;
         this.identity = identity;
         this.organizations = organizations;
         this.industries = industries;
         this.projects = projects;
         this.batches = batches;
         this.rows = rows;
+        this.revisions = revisions;
         this.writer = writer;
         this.json = json;
         this.transactions = transactions;
@@ -112,7 +125,8 @@ public class ProjectImportService {
                 errors.add("项目已存在于目标库");
             }
             output.add(ProjectImportRowEntity.preview(null, row.number(), key,
-                    stringify(candidate == null ? row.cells() : candidate), stringify(errors), errors.isEmpty()));
+                    stringify(candidate == null ? row.cells() : candidate), stringify(row.cells()),
+                    stringify(errors), errors.isEmpty()));
         }
         int valid = (int) output.stream().filter(row -> "READY".equals(row.status())).count();
         var batch = ProjectImportBatchEntity.preview(actorId, safeFileName(fileName), sha256(bytes),
@@ -123,7 +137,7 @@ public class ProjectImportService {
             var item = output.get(i);
             var raw = source.get(i);
             saved.add(ProjectImportRowEntity.preview(batch.id(), item.rowNumber(), duplicateKey(raw),
-                    item.rowPayload(), item.errors(), "READY".equals(item.status())));
+                    item.rowPayload(), item.sourcePayload(), item.errors(), "READY".equals(item.status())));
         }
         rows.saveAll(saved);
         return summary(batch, saved);
@@ -144,6 +158,19 @@ public class ProjectImportService {
                 .map(ImportBatchListItem::from);
     }
 
+    public byte[] template(UUID actorId) {
+        identity.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        return workbookWriter.template();
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] failedRows(UUID actorId, UUID batchId) {
+        batches.findById(batchId).filter(item -> item.actorId().equals(actorId))
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        return workbookWriter.failedRows(rows.findByBatchIdOrderByRowNumber(batchId));
+    }
+
     @Transactional
     public ImportBatchSummary cancel(UUID actorId, UUID batchId) {
         var batch = batches.findByIdAndActorId(batchId, actorId)
@@ -153,6 +180,69 @@ public class ProjectImportService {
         }
         batch.cancel();
         return summary(batch, rows.findByBatchIdOrderByRowNumber(batchId));
+    }
+
+    @Transactional
+    public ImportBatchSummary reviseRow(UUID actorId, UUID batchId, int rowNumber,
+            int expectedRevision, Map<String, String> changes) {
+        var actor = identity.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        var batch = batches.findByIdAndActorId(batchId, actorId)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        if (!"PREVIEWED".equals(batch.status())) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ROW_NOT_EDITABLE);
+        }
+        var item = rows.findByBatchIdAndRowNumber(batchId, rowNumber)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        if (item.sourcePayload() == null || !"READY".equals(item.status()) && !"FAILED".equals(item.status())) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ROW_NOT_EDITABLE);
+        }
+        if (item.revisionNo() != expectedRevision) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ROW_VERSION_CONFLICT);
+        }
+        if (changes == null || changes.isEmpty() || changes.size() > 64) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ROW_INVALID);
+        }
+        Map<String, String> source;
+        try {
+            source = json.readValue(item.sourcePayload(), new TypeReference<>() { });
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ROW_NOT_EDITABLE);
+        }
+        var corrected = new HashMap<>(source);
+        for (var change : changes.entrySet()) {
+            if (!source.containsKey(change.getKey()) || change.getValue() == null
+                    || change.getValue().length() > 4000) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_ROW_INVALID);
+            }
+            corrected.put(change.getKey(), change.getValue().strip());
+        }
+        if (corrected.equals(source)) throw new BusinessException(ProjectErrorCode.IMPORT_ROW_INVALID);
+        var excelRow = new ProjectExcelReader.ExcelRow(rowNumber, Map.copyOf(corrected));
+        var errors = new ArrayList<String>();
+        var key = duplicateKey(excelRow);
+        if (key != null && rows.findByBatchIdOrderByRowNumber(batchId).stream()
+                .anyMatch(previous -> previous.rowNumber() < rowNumber && key.equals(previous.normalizedKey()))) {
+            errors.add("重复项目：仅保留文件中首条同省、同地市、同名称记录");
+        }
+        ProjectImportCandidate candidate;
+        try {
+            candidate = normalize(excelRow, actor, errors);
+        } catch (IllegalArgumentException exception) {
+            errors.add("行内日期或字段格式无效");
+            candidate = null;
+        }
+        if (candidate != null && existsName(new HashMap<>(), candidate.cityId(), excelRow.get("项目名称"))) {
+            errors.add("项目已存在于目标库");
+        }
+        String before = item.sourcePayload();
+        item.revise(stringify(corrected), stringify(candidate == null ? corrected : candidate),
+                key, stringify(errors), errors.isEmpty());
+        revisions.save(com.pluto.ndi.projects.domain.entity.ProjectImportRowRevisionEntity.create(
+                item, actorId, before, Instant.now(clock)));
+        var allRows = rows.findByBatchIdOrderByRowNumber(batchId);
+        batch.refreshPreviewCounts((int) allRows.stream().filter(row -> "READY".equals(row.status())).count());
+        return summary(batch, allRows);
     }
 
     public ImportBatchSummary confirm(UUID actorId, UUID batchId) {
@@ -182,25 +272,61 @@ public class ProjectImportService {
             locked.beginConfirmation(Instant.now(clock));
             return locked;
         });
+        return writeRemainingRows(actorId, batch.id());
+    }
+
+    public ImportBatchSummary resume(UUID actorId, UUID batchId) {
+        var batch = batches.findById(batchId).filter(item -> item.actorId().equals(actorId))
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        if (!"CONFIRMING".equals(batch.status())) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_ALREADY_CONFIRMED);
+        }
+        if (batch.confirmedAt() == null || batch.confirmedAt().isAfter(Instant.now(clock).minus(Duration.ofMinutes(15)))) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_RECOVERY_NOT_READY);
+        }
+        return writeRemainingRows(actorId, batchId);
+    }
+
+    public void recoverStale() {
+        var stale = batches.findTop20ByStatusAndConfirmedAtBeforeOrderByConfirmedAtAsc(
+                "CONFIRMING", Instant.now(clock).minus(Duration.ofMinutes(15)));
+        for (var batch : stale) {
+            try {
+                resume(batch.actorId(), batch.id());
+            } catch (BusinessException exception) {
+                if (exception.errorCode() != ProjectErrorCode.IMPORT_ALREADY_CONFIRMED
+                        && exception.errorCode() != ProjectErrorCode.IMPORT_RECOVERY_NOT_READY) {
+                    LOGGER.error("导入批次恢复失败，批次编号：{}", batch.id(), exception);
+                }
+            } catch (RuntimeException exception) {
+                LOGGER.error("导入批次恢复失败，批次编号：{}", batch.id(), exception);
+            }
+        }
+    }
+
+    private ImportBatchSummary writeRemainingRows(UUID actorId, UUID batchId) {
         var sourceRows = rows.findByBatchIdOrderByRowNumber(batchId);
-        int imported = 0;
         for (var row : sourceRows) {
             if (!"READY".equals(row.status())) continue;
             try {
-                transactions.executeWithoutResult(status -> writer.importRow(actorId, row));
-                imported++;
+                transactions.execute(status -> writer.importRow(actorId, row.id()));
             } catch (RuntimeException exception) {
                 String reason = exception instanceof IllegalStateException && exception.getMessage() != null
                         ? exception.getMessage() : "确认写入失败，请核查该行的目标约束";
-                transactions.executeWithoutResult(status -> rows.findById(row.id()).orElseThrow()
-                        .fail(stringify(List.of(reason))));
+                transactions.executeWithoutResult(status -> {
+                    var locked = rows.lockById(row.id()).orElseThrow();
+                    if ("READY".equals(locked.status())) locked.fail(stringify(List.of(reason)));
+                });
             }
         }
-        int count = imported;
         transactions.executeWithoutResult(status -> {
-            int skipped = (int) rows.findByBatchIdOrderByRowNumber(batchId).stream()
-                    .filter(row -> "SKIPPED".equals(row.status())).count();
-            batches.findById(batch.id()).orElseThrow().finish(count, skipped);
+            var batch = batches.findByIdAndActorId(batchId, actorId).orElseThrow();
+            if (!"CONFIRMING".equals(batch.status())) return;
+            var latest = rows.findByBatchIdOrderByRowNumber(batchId);
+            if (latest.stream().anyMatch(row -> "READY".equals(row.status()))) return;
+            int skipped = (int) latest.stream().filter(row -> "SKIPPED".equals(row.status())).count();
+            int imported = (int) latest.stream().filter(row -> "IMPORTED".equals(row.status())).count();
+            batch.finish(imported, skipped);
         });
         return find(actorId, batchId);
     }
@@ -307,7 +433,8 @@ public class ProjectImportService {
     private ImportBatchSummary summary(ProjectImportBatchEntity batch, List<ProjectImportRowEntity> items) {
         int skipped = (int) items.stream().filter(row -> "SKIPPED".equals(row.status())).count();
         return new ImportBatchSummary(batch.id(), batch.status(), batch.totalRows(), batch.validRows(),
-                batch.failedRows(), skipped, batch.importedRows(), items.stream().map(row ->
-                new ImportBatchSummary.Row(row.rowNumber(), row.status(), row.errors(), row.projectId())).toList());
+                batch.failedRows(), skipped, batch.importedRows(), batch.confirmedAt(), items.stream().map(row ->
+                new ImportBatchSummary.Row(row.rowNumber(), row.status(), row.errors(), row.projectId(),
+                        row.sourcePayload(), row.revisionNo())).toList());
     }
 }

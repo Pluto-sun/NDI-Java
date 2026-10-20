@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.pluto.ndi.NdiApplication;
@@ -58,6 +59,9 @@ class ProjectImportIT {
                 city.toString(), province.toString(), city.toString().replace("-", ""), "广州市");
         addUser(actor, province, city, "city-test", "地市导入人", "CITY_REPORTER");
         addUser(leader, province, null, "leader-test", "省分负责人", "PROVINCE_REPORTER");
+        int existingProjects = jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class);
+        int existingProgress = jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class);
+        int existingSources = jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class);
 
         var preview = imports.preview(actor, "广东项目.xlsx", workbook());
         assertThat(preview.totalRows()).isEqualTo(3);
@@ -65,13 +69,26 @@ class ProjectImportIT {
         assertThat(preview.failedRows()).isEqualTo(2);
         assertThat(preview.rows().get(1).errorsJson()).contains("重复项目");
         assertThat(preview.rows().get(2).errorsJson()).contains("项目总金额");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isZero();
+        try (var template = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.template(actor)));
+                var failed = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                        imports.failedRows(actor, preview.batchId())))) {
+            assertThat(template.getSheet("导入数据").getRow(0).getCell(0).getStringCellValue())
+                    .isEqualTo("省分");
+            assertThat(template.getSheet("填写说明")).isNotNull();
+            assertThat(failed.getSheet("预检未通过").getPhysicalNumberOfRows()).isEqualTo(3);
+            assertThat(failed.getSheet("预检未通过").getRow(1).getCell(1).getStringCellValue())
+                    .contains("重复项目");
+        }
+        var foreignReport = catchThrowable(() -> imports.failedRows(UUID.randomUUID(), preview.batchId()));
+        assertThat(((BusinessException) foreignReport).errorCode()).isEqualTo(ProjectErrorCode.IMPORT_NOT_FOUND);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class))
+                .isEqualTo(existingProjects);
 
         var done = imports.confirm(actor, preview.batchId());
         assertThat(done.importedRows()).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(existingProjects + 1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class)).isEqualTo(existingProgress + 1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class)).isEqualTo(existingSources + 1);
         assertThat(done.rows().getFirst().status()).isEqualTo("IMPORTED");
 
         var selective = imports.preview(actor, "选择导入.xlsx", workbookWithDistinctNames());
@@ -89,7 +106,7 @@ class ProjectImportIT {
         assertThat(selected.skippedRows()).isEqualTo(1);
         assertThat(selected.failedRows()).isZero();
         assertThat(selected.rows().get(1).status()).isEqualTo("SKIPPED");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(existingProjects + 3);
         assertThat(imports.findMine(actor, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(2);
         var foreign = catchThrowable(() -> imports.find(UUID.randomUUID(), selective.batchId()));
         assertThat(((BusinessException) foreign).errorCode()).isEqualTo(ProjectErrorCode.IMPORT_NOT_FOUND);
@@ -99,10 +116,87 @@ class ProjectImportIT {
         assertThat(((BusinessException) foreignCancel).errorCode()).isEqualTo(ProjectErrorCode.IMPORT_NOT_FOUND);
         var cancelled = imports.cancel(actor, cancellable.batchId());
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(existingProjects + 3);
         var cannotConfirm = catchThrowable(() -> imports.confirm(actor, cancelled.batchId(), List.of(2)));
         assertThat(((BusinessException) cannotConfirm).errorCode())
                 .isEqualTo(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
+    }
+
+    @Test
+    void revisesFailedRowsWithAuditBeforeConfirmation() throws Exception {
+        UUID province = UUID.randomUUID();
+        UUID city = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID leader = UUID.randomUUID();
+        String provinceName = "修正" + province.toString().substring(0, 8) + "省";
+        String cityName = "修正" + city.toString().substring(0, 8) + "市";
+        jdbc.update("INSERT INTO organization_province(id,province_code,province_name,enabled) VALUES (UUID_TO_BIN(?),?,?,true)",
+                province.toString(), province.toString().replace("-", ""), provinceName);
+        jdbc.update("INSERT INTO organization_city(id,province_id,city_code,city_name,enabled) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?,?,true)",
+                city.toString(), province.toString(), city.toString().replace("-", ""), cityName);
+        addUser(actor, province, city, "editor-" + actor, "导入修正人", "CITY_REPORTER");
+        addUser(leader, province, null, "leader-" + leader, "省分负责人", "PROVINCE_REPORTER");
+
+        var preview = imports.preview(actor, "待修正.xlsx", workbookWithLocation(provinceName, cityName));
+        var batchId = preview.batchId();
+        assertThat(preview.rows().get(2).sourceCellsJson()).contains("项目总金额（万）");
+        var missingAmount = imports.reviseRow(actor, batchId, 4, 0,
+                Map.of("项目总金额（万）", "100"));
+        assertThat(missingAmount.validRows()).isEqualTo(2);
+        assertThat(missingAmount.rows().get(2).revisionNo()).isEqualTo(1);
+        var renamedDuplicate = imports.reviseRow(actor, batchId, 3, 0,
+                Map.of("项目名称", "第二条项目"));
+        assertThat(renamedDuplicate.validRows()).isEqualTo(3);
+        assertThat(renamedDuplicate.failedRows()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_import_row_revision", Integer.class))
+                .isGreaterThanOrEqualTo(2);
+
+        var stale = catchThrowable(() -> imports.reviseRow(actor, batchId, 4, 0,
+                Map.of("项目名称", "旧版本")));
+        assertThat(((BusinessException) stale).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_ROW_VERSION_CONFLICT);
+        var unknown = catchThrowable(() -> imports.reviseRow(actor, batchId, 4, 1,
+                Map.of("非模板字段", "值")));
+        assertThat(((BusinessException) unknown).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_ROW_INVALID);
+        var foreign = catchThrowable(() -> imports.reviseRow(UUID.randomUUID(), batchId, 4, 1,
+                Map.of("项目名称", "越权")));
+        assertThat(foreign).isInstanceOf(BusinessException.class);
+
+        var done = imports.confirm(actor, batchId);
+        assertThat(done.importedRows()).isEqualTo(3);
+        var afterConfirmation = catchThrowable(() -> imports.reviseRow(actor, batchId, 4, 1,
+                Map.of("项目名称", "确认后修改")));
+        assertThat(((BusinessException) afterConfirmation).errorCode())
+                .isEqualTo(ProjectErrorCode.IMPORT_ROW_NOT_EDITABLE);
+    }
+
+    @Test
+    void recoversInterruptedConfirmationWithoutReimportingCompletedRows() throws Exception {
+        UUID province = UUID.randomUUID();
+        UUID city = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID leader = UUID.randomUUID();
+        String provinceName = "恢复" + province.toString().substring(0, 8) + "省";
+        String cityName = "恢复" + city.toString().substring(0, 8) + "市";
+        jdbc.update("INSERT INTO organization_province(id,province_code,province_name,enabled) VALUES (UUID_TO_BIN(?),?,?,true)",
+                province.toString(), province.toString().replace("-", ""), provinceName);
+        jdbc.update("INSERT INTO organization_city(id,province_id,city_code,city_name,enabled) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?,?,true)",
+                city.toString(), province.toString(), city.toString().replace("-", ""), cityName);
+        addUser(actor, province, city, "recover-" + actor, "导入恢复人", "CITY_REPORTER");
+        addUser(leader, province, null, "leader-" + leader, "省分负责人", "PROVINCE_REPORTER");
+        var preview = imports.preview(actor, "待恢复.xlsx", workbookWithLocation(provinceName, cityName));
+        jdbc.update("UPDATE project_import_batch SET status = 'CONFIRMING', confirmed_at = DATE_SUB(NOW(6), INTERVAL 16 MINUTE) WHERE id = UUID_TO_BIN(?)",
+                preview.batchId().toString());
+
+        imports.recoverStale();
+        var recovered = imports.find(actor, preview.batchId());
+        assertThat(recovered.status()).isEqualTo("COMPLETED");
+        assertThat(recovered.importedRows()).isEqualTo(1);
+        assertThat(recovered.failedRows()).isEqualTo(2);
+        assertThat(recovered.rows().getFirst().status()).isEqualTo("IMPORTED");
+        imports.recoverStale();
+        assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
 
     private void addUser(UUID id, UUID province, UUID city, String login, String name, String role) {
@@ -149,6 +243,19 @@ class ProjectImportIT {
                 sheet.getRow(row).getCell(4).setCellValue("待导入项目" + row);
             }
             sheet.getRow(3).getCell(10).setCellValue("100");
+            source.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithLocation(String provinceName, String cityName) throws Exception {
+        try (var source = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook()));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = source.getSheet("导入数据");
+            for (int row = 1; row <= 3; row++) {
+                sheet.getRow(row).getCell(0).setCellValue(provinceName);
+                sheet.getRow(row).getCell(1).setCellValue(cityName);
+            }
             source.write(output);
             return output.toByteArray();
         }

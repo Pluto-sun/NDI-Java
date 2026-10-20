@@ -67,10 +67,10 @@ public class ProjectImportWriter {
         this.monthlySnapshots = monthlySnapshots;
     }
 
-    public void importRow(UUID actorId, ProjectImportRowEntity input) {
+    public boolean importRow(UUID actorId, UUID rowId) {
         try {
-            var row = rows.findById(input.id()).orElseThrow();
-            if (!"READY".equals(row.status())) return;
+            var row = rows.lockById(rowId).orElseThrow();
+            if (!"READY".equals(row.status())) return false;
             var candidate = json.readValue(row.rowPayload(), ProjectImportCandidate.class);
             var actor = identity.findProjectActor(actorId).filter(ProjectActor::enabled).orElseThrow();
             if (!identity.canImportProject(actor, candidate.provinceId(), candidate.cityId())) {
@@ -108,11 +108,12 @@ public class ProjectImportWriter {
                 progress.save(ProjectProgressEntity.append(id, item.content(), "", actorId,
                         item.occurredAt(), null));
             }
-            sources.save(ProjectSourceRecordEntity.of(id, "EXCEL_IMPORT", input.id().toString(),
+            sources.save(ProjectSourceRecordEntity.of(id, "EXCEL_IMPORT", row.id().toString(),
                     "EXCEL_IMPORT", now));
             events.save(ProjectChangeEventEntity.create(id, 0,
                     "{\"source\":\"EXCEL_IMPORT\"}", actorId, now));
             row.imported(id);
+            return true;
         } catch (IOException exception) {
             throw new IllegalStateException("导入行解析失败", exception);
         }

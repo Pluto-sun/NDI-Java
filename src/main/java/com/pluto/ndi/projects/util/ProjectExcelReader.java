@@ -30,6 +30,8 @@ public class ProjectExcelReader {
     private static final Pattern PROGRESS_DATE = Pattern.compile("项目进展（(\\d{4})年(\\d{1,2})月(\\d{1,2})日）");
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
+    public static List<String> requiredHeaders() { return REQUIRED; }
+
     public List<ExcelRow> read(byte[] data) throws IOException {
         if (data.length == 0 || data.length > 10 * 1024 * 1024) {
             throw new IllegalArgumentException("Excel 文件大小必须在 1 字节至 10 MB 之间");
