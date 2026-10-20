@@ -9,4 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, UUID> {
 
     List<UserAccountEntity> findByDisplayNameAndProvinceIdAndEnabledTrue(String displayName, UUID provinceId);
+
+    List<UserAccountEntity> findByEnabledTrueOrderByDisplayNameAsc();
+
+    List<UserAccountEntity> findByProvinceIdAndEnabledTrueOrderByDisplayNameAsc(UUID provinceId);
 }

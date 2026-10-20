@@ -1,10 +1,11 @@
 package com.pluto.ndi.organization.service;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.pluto.ndi.organization.domain.entity.CityEntity;
 import com.pluto.ndi.organization.repository.CityRepository;
@@ -47,6 +48,20 @@ class OrganizationService implements OrganizationDirectory {
         if (cityIds.isEmpty()) return Map.of();
         return cityRepository.findAllById(cityIds).stream()
                 .collect(Collectors.toMap(CityEntity::id, CityEntity::cityName));
+    }
+
+    @Override
+    public List<ProvinceOption> findEnabledProvinces() {
+        return provinceRepository.findByEnabledTrueOrderByProvinceNameAsc().stream()
+                .map(item -> new ProvinceOption(item.id(), item.provinceName()))
+                .toList();
+    }
+
+    @Override
+    public List<CityOption> findEnabledCities() {
+        return cityRepository.findByEnabledTrueOrderByCityNameAsc().stream()
+                .map(item -> new CityOption(item.id(), item.provinceId(), item.cityName()))
+                .toList();
     }
 
     private String stripAdministrativeSuffix(String name) {

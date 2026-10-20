@@ -29,6 +29,7 @@ class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/api/v1/projects/dev/actors").permitAll()
                         .requestMatchers("/api/v1/projects/**").authenticated()
                         .anyRequest().denyAll());
         localActorAuthenticationFilter.ifAvailable(filter -> http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));

@@ -1,10 +1,15 @@
 package com.pluto.ndi.identity.service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import com.pluto.ndi.identity.domain.entity.UserAccountEntity;
 import com.pluto.ndi.identity.repository.UserAccountRepository;
+import com.pluto.ndi.identity.repository.UserRoleAssignment;
 import com.pluto.ndi.identity.repository.UserRoleRepository;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +43,44 @@ class IdentityPermissionService implements IdentityDirectory {
                         account.cityId(),
                         account.enabled()
                 ));
+    }
+
+    @Override
+    public Optional<ProjectUser> findProjectUser(UUID userId) {
+        return userAccountRepository.findById(userId)
+                .filter(account -> account.enabled())
+                .map(this::toProjectUser);
+    }
+
+    @Override
+    public List<ProjectUser> findEnabledProjectUsers() {
+        return toProjectUsers(userAccountRepository.findByEnabledTrueOrderByDisplayNameAsc()).stream()
+                .filter(user -> !user.roleCodes().isEmpty())
+                .toList();
+    }
+
+    @Override
+    public List<ProjectUser> findEligibleProvinceLeaders(UUID provinceId) {
+        var provinceUsers = userAccountRepository.findByProvinceIdAndEnabledTrueOrderByDisplayNameAsc(provinceId);
+        return toProjectUsers(provinceUsers).stream()
+                .filter(user -> user.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains))
+                .toList();
+    }
+
+    private ProjectUser toProjectUser(UserAccountEntity account) {
+        return new ProjectUser(account.id(), account.displayName(), account.provinceId(), account.cityId(),
+                roleCodes(account.id()).stream().sorted().toList());
+    }
+
+    private List<ProjectUser> toProjectUsers(List<UserAccountEntity> accounts) {
+        if (accounts.isEmpty()) return List.of();
+        var ids = accounts.stream().map(UserAccountEntity::id).toList();
+        Map<UUID, List<String>> rolesByUser = userRoleRepository.findAssignmentsByUserIds(ids).stream()
+                .collect(Collectors.groupingBy(UserRoleAssignment::userId,
+                        Collectors.mapping(UserRoleAssignment::roleCode, Collectors.toList())));
+        return accounts.stream().map(account -> new ProjectUser(account.id(), account.displayName(),
+                account.provinceId(), account.cityId(),
+                rolesByUser.getOrDefault(account.id(), List.of()).stream().sorted().toList())).toList();
     }
 
     @Override

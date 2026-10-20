@@ -2,6 +2,7 @@ package com.pluto.ndi.identity.repository;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Collection;
 
 import com.pluto.ndi.identity.domain.entity.UserRoleEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,8 @@ public interface UserRoleRepository extends JpaRepository<UserRoleEntity, UserRo
 
     @Query("select role.id.roleCode from UserRoleEntity role where role.id.userId = :userId")
     List<String> findRoleCodesByUserId(UUID userId);
+
+    @Query("select new com.pluto.ndi.identity.repository.UserRoleAssignment(role.id.userId, role.id.roleCode) "
+            + "from UserRoleEntity role where role.id.userId in :userIds")
+    List<UserRoleAssignment> findAssignmentsByUserIds(Collection<UUID> userIds);
 }

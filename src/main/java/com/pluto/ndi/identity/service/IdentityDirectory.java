@@ -2,12 +2,19 @@ package com.pluto.ndi.identity.service;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 
 /** 向项目模块提供账号状态、角色和省分负责人资格。 */
 public interface IdentityDirectory {
 
     Optional<ProjectActor> findProjectActor(UUID userId);
+
+    Optional<ProjectUser> findProjectUser(UUID userId);
+
+    List<ProjectUser> findEnabledProjectUsers();
+
+    List<ProjectUser> findEligibleProvinceLeaders(UUID provinceId);
 
     boolean canCreateProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
