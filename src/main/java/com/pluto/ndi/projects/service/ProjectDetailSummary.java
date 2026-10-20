@@ -21,6 +21,7 @@ public record ProjectDetailSummary(
         String currentStageCode,
         UUID provinceLeaderUserId,
         String cityAccountManagerName,
+        String signingSubjectCode,
         long versionNo,
         List<ProjectSummary.CategoryAmount> categoryAmounts,
         Instant createdAt,

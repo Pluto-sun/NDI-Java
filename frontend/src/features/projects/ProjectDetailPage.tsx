@@ -153,6 +153,10 @@ export function ProjectDetailPage({
                     <dd>{detail.cityAccountManagerName}</dd>
                   </div>
                   <div>
+                    <dt>签约主体</dt>
+                    <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
+                  </div>
+                  <div>
                     <dt>合同编号</dt>
                     <dd>{detail.contractNo ?? '—'}</dd>
                   </div>

@@ -58,6 +58,9 @@ public class ProjectEntity {
     @Column(name = "city_account_manager_name", nullable = false)
     private String cityAccountManagerName;
 
+    @Column(name = "signing_subject_code", nullable = false, length = 20)
+    private String signingSubjectCode;
+
     @Version
     @Column(name = "version_no", nullable = false)
     private long versionNo;
@@ -89,6 +92,7 @@ public class ProjectEntity {
             BigDecimal totalAmount,
             UUID provinceLeaderUserId,
             String cityAccountManagerName,
+            String signingSubjectCode,
             UUID actorId,
             Instant occurredAt
     ) {
@@ -105,6 +109,7 @@ public class ProjectEntity {
         entity.currentStageCode = ProjectStage.SOLUTION_EXCHANGE.name();
         entity.provinceLeaderUserId = provinceLeaderUserId;
         entity.cityAccountManagerName = cityAccountManagerName;
+        entity.signingSubjectCode = signingSubjectCode;
         entity.createdBy = actorId;
         entity.createdAt = occurredAt;
         entity.updatedBy = actorId;
@@ -121,7 +126,7 @@ public class ProjectEntity {
     ) {
         var entity = create(id, projectCode, provinceId, cityId, projectName, customerName,
                 industryCode, customerNeed, totalAmount, provinceLeaderUserId,
-                cityAccountManagerName, actorId, createdAt);
+                cityAccountManagerName, "PROVINCE_SIGN", actorId, createdAt);
         entity.currentStageCode = stage.name();
         entity.contractNo = contractNo;
         entity.signedAmount = signedAmount;
@@ -161,6 +166,8 @@ public class ProjectEntity {
     public BigDecimal totalAmount() {
         return totalAmount;
     }
+
+    public String signingSubjectCode() { return signingSubjectCode; }
 
     public String currentStageCode() {
         return currentStageCode;

@@ -30,6 +30,9 @@ export function CreateProjectPage({
   const [customerNeed, setCustomerNeed] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [cityAccountManagerName, setCityAccountManagerName] = useState('');
+  const [signingSubjectCode, setSigningSubjectCode] = useState<'PROVINCE_SIGN' | 'DS_SIGN'>(
+    'PROVINCE_SIGN',
+  );
   const [initialProgress, setInitialProgress] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [categories, setCategories] = useState<Record<string, string>>({});
@@ -86,6 +89,7 @@ export function CreateProjectPage({
       customerNeed,
       totalAmount,
       cityAccountManagerName,
+      signingSubjectCode,
       initialProgress,
       nextAction,
       categories,
@@ -140,6 +144,7 @@ export function CreateProjectPage({
     setCustomerNeed(data.customerNeed ?? '');
     setTotalAmount(data.totalAmount ?? '');
     setCityAccountManagerName(data.cityAccountManagerName ?? '');
+    setSigningSubjectCode(data.signingSubjectCode === 'DS_SIGN' ? 'DS_SIGN' : 'PROVINCE_SIGN');
     setInitialProgress(data.initialProgress ?? '');
     setNextAction(data.nextAction ?? '');
     setCategories(
@@ -232,6 +237,7 @@ export function CreateProjectPage({
         totalAmount,
         provinceLeaderUserId: leaderId,
         cityAccountManagerName,
+        signingSubjectCode,
         categoryAmounts,
         initialProgress,
         nextAction,
@@ -499,6 +505,20 @@ export function CreateProjectPage({
               value={cityAccountManagerName}
               onChange={(event) => setCityAccountManagerName(event.target.value)}
             />
+          </label>
+          <label>
+            签约主体
+            <select
+              value={signingSubjectCode}
+              onChange={(event) =>
+                setSigningSubjectCode(
+                  event.target.value === 'DS_SIGN' ? 'DS_SIGN' : 'PROVINCE_SIGN',
+                )
+              }
+            >
+              <option value="PROVINCE_SIGN">省分签约</option>
+              <option value="DS_SIGN">数科签约</option>
+            </select>
           </label>
         </div>
         <div className="category-grid">

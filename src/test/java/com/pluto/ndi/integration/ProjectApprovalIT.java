@@ -220,6 +220,28 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void signingSubjectDefaultsToProvinceAndAcceptsDigitalServices() {
+        var defaultId = createProject();
+        assertThat(projectRepository.findById(defaultId).orElseThrow().signingSubjectCode())
+                .isEqualTo("PROVINCE_SIGN");
+
+        var digital = projectService.createProject(cityUserId, new CreateProjectCommand(
+                provinceId, cityId, "数科签约项目", "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                "首次交流", "下一步", null, false, null, "DS_SIGN"));
+        assertThat(projectRepository.findById(digital.id()).orElseThrow().signingSubjectCode())
+                .isEqualTo("DS_SIGN");
+
+        var invalid = catchThrowable(() -> projectService.createProject(cityUserId, new CreateProjectCommand(
+                provinceId, cityId, "错误签约主体项目", "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                "首次交流", "下一步", null, false, null, "UNKNOWN")));
+        assertThat(((BusinessException) invalid).errorCode()).isEqualTo(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
+    }
+
+    @Test
     void approvedNameChangeOnlyUpdatesFormalProjectAfterDecision() {
         var projectId = createProject();
         var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(

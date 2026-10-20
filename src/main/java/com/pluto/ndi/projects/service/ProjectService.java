@@ -110,6 +110,9 @@ public class ProjectService {
         verifyCreationScope(actor, normalized);
         verifyProvinceLeader(normalized);
         verifyIndustry(normalized.industryCode());
+        if (!List.of("PROVINCE_SIGN", "DS_SIGN").contains(normalized.signingSubjectCode())) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
+        }
         var categories = validateCategories(normalized.categoryAmounts(), normalized.totalAmount());
         var draft = normalized.draftId() == null ? null
                 : draftRepository.findByIdAndOwnerId(normalized.draftId(), actorId)
@@ -138,6 +141,7 @@ public class ProjectService {
                 normalized.totalAmount(),
                 normalized.provinceLeaderUserId(),
                 normalized.cityAccountManagerName(),
+                normalized.signingSubjectCode(),
                 actorId,
                 occurredAt
         );
@@ -315,7 +319,9 @@ public class ProjectService {
                 trim(command.nextAction()),
                 command.draftId(),
                 command.confirmNew(),
-                command.duplicateReason() == null ? null : command.duplicateReason().trim()
+                command.duplicateReason() == null ? null : command.duplicateReason().trim(),
+                command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
+                        ? "PROVINCE_SIGN" : command.signingSubjectCode().trim()
         );
     }
 
@@ -339,6 +345,7 @@ public class ProjectService {
             values.put("cityId", project.cityId().toString());
             values.put("currentStageCode", project.currentStageCode());
             values.put("totalAmount", project.totalAmount());
+            values.put("signingSubjectCode", project.signingSubjectCode());
             if (duplicateReason != null) values.put("duplicateReason", duplicateReason);
             var payload = objectMapper.writeValueAsString(values);
             return ProjectChangeEventEntity.create(project.id(), project.versionNo(), payload, actorId, occurredAt);

@@ -20,7 +20,8 @@ public record CreateProjectCommand(
         String nextAction,
         UUID draftId,
         boolean confirmNew,
-        String duplicateReason
+        String duplicateReason,
+        String signingSubjectCode
 ) {
 
     public CreateProjectCommand {
@@ -33,7 +34,17 @@ public record CreateProjectCommand(
             String initialProgress, String nextAction) {
         this(provinceId, cityId, projectName, customerName, industryCode, customerNeed, totalAmount,
                 provinceLeaderUserId, cityAccountManagerName, categoryAmounts, initialProgress, nextAction,
-                null, false, null);
+                null, false, null, null);
+    }
+
+    public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,
+            String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
+            UUID provinceLeaderUserId, String cityAccountManagerName, List<CategoryAmount> categoryAmounts,
+            String initialProgress, String nextAction, UUID draftId, boolean confirmNew,
+            String duplicateReason) {
+        this(provinceId, cityId, projectName, customerName, industryCode, customerNeed, totalAmount,
+                provinceLeaderUserId, cityAccountManagerName, categoryAmounts, initialProgress, nextAction,
+                draftId, confirmNew, duplicateReason, null);
     }
 
     /** 已选择三化类别的预计金额。 */

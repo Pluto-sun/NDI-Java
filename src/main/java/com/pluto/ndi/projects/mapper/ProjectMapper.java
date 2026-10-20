@@ -30,7 +30,8 @@ public class ProjectMapper {
                 project.id(), project.projectCode(), project.provinceId(), project.cityId(),
                 project.projectName(), project.customerName(), project.industryCode(), project.customerNeed(),
                 project.totalAmount(), project.contractNo(), project.signedAmount(), project.currentStageCode(),
-                project.provinceLeaderUserId(), project.cityAccountManagerName(), project.versionNo(), categories,
+                project.provinceLeaderUserId(), project.cityAccountManagerName(), project.signingSubjectCode(),
+                project.versionNo(), categories,
                 project.createdAt(), project.updatedAt()
         );
     }

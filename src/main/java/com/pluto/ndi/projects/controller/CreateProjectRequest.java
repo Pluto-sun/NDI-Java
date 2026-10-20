@@ -28,7 +28,8 @@ public record CreateProjectRequest(
         @NotBlank(message = "下一步动作不得为空") String nextAction,
         UUID draftId,
         Boolean confirmNew,
-        @Size(max = 2000, message = "重复项目新建原因不得超过2000字") String duplicateReason
+        @Size(max = 2000, message = "重复项目新建原因不得超过2000字") String duplicateReason,
+        String signingSubjectCode
 ) {
 
     CreateProjectCommand toCommand() {
@@ -49,7 +50,8 @@ public record CreateProjectRequest(
                 nextAction,
                 draftId,
                 Boolean.TRUE.equals(confirmNew),
-                duplicateReason
+                duplicateReason,
+                signingSubjectCode
         );
     }
 
