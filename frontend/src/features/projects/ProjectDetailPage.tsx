@@ -12,6 +12,8 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
 import { ProjectDocuments } from './ProjectDocuments';
 import { ProjectRequests } from './ProjectRequests';
+import { ProjectProfileForm } from './ProjectProfileForm';
+import { ProjectHistory } from './ProjectHistory';
 
 export function ProjectDetailPage({
   reference,
@@ -31,6 +33,7 @@ export function ProjectDetailPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [documentsVersion, setDocumentsVersion] = useState(0);
+  const [correcting, setCorrecting] = useState<ProjectProgress | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -65,9 +68,10 @@ export function ProjectDetailPage({
     setSaving(true);
     setError('');
     try {
-      await projectsApi.appendProgress(id, content.trim(), nextAction.trim());
+      await projectsApi.appendProgress(id, content.trim(), nextAction.trim(), correcting?.id);
       setContent('');
       setNextAction('');
+      setCorrecting(null);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '进展保存失败');
@@ -183,11 +187,36 @@ export function ProjectDetailPage({
                 </p>
               </div>
             </div>
+            {canProgress && (
+              <ProjectProfileForm
+                project={detail}
+                leaders={leaders}
+                reference={reference}
+                onSaved={setDetail}
+              />
+            )}
             <div className="detail-grid">
               <div className="panel">
                 <h2>项目进展</h2>
                 {canProgress && (
                   <form className="inline-form" onSubmit={append}>
+                    {correcting && (
+                      <Feedback>
+                        正在更正 {dateTime(correcting.occurredAt)}{' '}
+                        的进展。原记录保留，新记录会关联原记录。
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => {
+                            setCorrecting(null);
+                            setContent('');
+                            setNextAction('');
+                          }}
+                        >
+                          取消更正
+                        </button>
+                      </Feedback>
+                    )}
                     <label>
                       进展内容
                       <textarea
@@ -207,7 +236,7 @@ export function ProjectDetailPage({
                       />
                     </label>
                     <button type="submit" className="primary-button" disabled={saving}>
-                      {saving ? '保存中…' : '追加进展'}
+                      {saving ? '保存中…' : correcting ? '提交更正' : '追加进展'}
                     </button>
                   </form>
                 )}
@@ -221,6 +250,24 @@ export function ProjectDetailPage({
                         <time>{dateTime(item.occurredAt)}</time>
                         <p>{item.progressContent}</p>
                         <small>下一步：{item.nextAction}</small>
+                        {item.correctsProgressId && (
+                          <small className="table-subtitle">
+                            更正记录，关联原进展 {item.correctsProgressId}
+                          </small>
+                        )}
+                        {canProgress && (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setCorrecting(item);
+                              setContent(item.progressContent);
+                              setNextAction(item.nextAction);
+                            }}
+                          >
+                            更正此条
+                          </button>
+                        )}
                       </article>
                     ))
                   ) : (
@@ -260,6 +307,7 @@ export function ProjectDetailPage({
                 />
               </div>
             )}
+            <ProjectHistory projectId={detail.id} me={me} reference={reference} />
           </>
         )
       )}

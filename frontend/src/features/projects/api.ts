@@ -15,12 +15,23 @@ import type {
   InitiatorLevel,
   ProjectDocument,
   UploadIntent,
+  ImportBatch,
+  ExportTask,
+  MonthlyWorkbench,
+  TrendPoint,
+  ApprovalNotification,
+  ProjectChange,
+  MonthlyRevision,
 } from './types';
 
 export interface ProjectQuery {
   page: number;
   projectName?: string;
   stage?: string;
+  projectCode?: string;
+  industryCode?: string;
+  cityId?: string;
+  includeTerminated?: boolean;
 }
 
 export const projectsApi = {
@@ -35,24 +46,78 @@ export const projectsApi = {
     request<ProjectUser[]>(
       `/major-change-approvers?provinceId=${encodeURIComponent(provinceId)}&initiatorLevel=${initiatorLevel}`,
     ),
-  list: ({ page, projectName, stage }: ProjectQuery) => {
+  list: ({
+    page,
+    projectName,
+    stage,
+    projectCode,
+    industryCode,
+    cityId,
+    includeTerminated,
+  }: ProjectQuery) => {
     const query = new URLSearchParams({ page: String(page), size: '20' });
     if (projectName?.trim()) query.set('projectName', projectName.trim());
     if (stage) query.set('stage', stage);
+    if (projectCode?.trim()) query.set('projectCode', projectCode.trim());
+    if (industryCode) query.set('industryCode', industryCode);
+    if (cityId) query.set('cityId', cityId);
+    if (includeTerminated !== undefined) query.set('includeTerminated', String(includeTerminated));
     return request<Page<ProjectSummary>>(`?${query}`);
   },
   detail: (id: string) => request<ProjectDetail>(`/${id}`),
   progresses: (id: string) => request<Page<ProjectProgress>>(`/${id}/progress?page=0&size=20`),
   milestones: (id: string) => request<Page<ProjectMilestone>>(`/${id}/milestones?page=0&size=20`),
+  projectApprovals: (id: string, page: number) =>
+    request<Page<ApprovalSummary>>(`/${id}/approvals?page=${page}&size=20`),
+  projectChanges: (id: string, page: number) =>
+    request<Page<ProjectChange>>(`/${id}/changes?page=${page}&size=20`),
+  monthlyRevisions: (id: string, month: string) =>
+    request<MonthlyRevision[]>(`/workbench/history/${id}/revisions?month=${month}`),
   create: (data: CreateProjectInput) =>
     request<ProjectSummary>('', { method: 'POST', ...jsonBody(data) }),
-  appendProgress: (id: string, progressContent: string, nextAction: string) =>
+  appendProgress: (
+    id: string,
+    progressContent: string,
+    nextAction: string,
+    correctsProgressId?: string,
+  ) =>
     request<ProjectProgress>(`/${id}/progress`, {
       method: 'POST',
-      ...jsonBody({ progressContent, nextAction }),
+      ...jsonBody({ progressContent, nextAction, correctsProgressId }),
     }),
+  updateProfile: (
+    id: string,
+    data: {
+      expectedVersion: number;
+      customerName: string;
+      industryCode: string;
+      customerNeed: string;
+      provinceLeaderUserId: string;
+      cityAccountManagerName: string;
+    },
+  ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),
   breakdown: () => request<WorkbenchBreakdown>('/workbench/breakdown'),
+  monthly: (month: string, includeTerminated: boolean) =>
+    request<MonthlyWorkbench>(
+      `/workbench/history?month=${month}&includeTerminated=${includeTerminated}`,
+    ),
+  trend: (from: string, to: string, includeTerminated: boolean) =>
+    request<TrendPoint[]>(
+      `/workbench/trend?from=${from}&to=${to}&includeTerminated=${includeTerminated}`,
+    ),
+  previewImport: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request<ImportBatch>('/imports/preview', { method: 'POST', body });
+  },
+  importBatch: (id: string) => request<ImportBatch>(`/imports/${id}`),
+  confirmImport: (id: string) => request<ImportBatch>(`/imports/${id}/confirm`, { method: 'POST' }),
+  exportProjects: (filter: Omit<ProjectQuery, 'page'>) =>
+    request<ExportTask>('/exports', { method: 'POST', ...jsonBody(filter) }),
+  exportTask: (id: string) => request<ExportTask>(`/exports/${id}`),
+  exportDownload: (id: string) =>
+    request<{ url: string; fileName: string }>(`/exports/${id}/download`),
   documents: (id: string) => request<ProjectDocument[]>(`/${id}/documents`),
   beginUpload: (
     id: string,
@@ -94,6 +159,12 @@ export const projectsApi = {
   ) => request<ApprovalSummary>(`/${id}/major-changes`, { method: 'POST', ...jsonBody(data) }),
   approvalInbox: (page: number) =>
     request<Page<ApprovalTask>>(`/approvals/inbox?page=${page}&size=20`),
+  submittedApprovals: (page: number) =>
+    request<Page<ApprovalSummary>>(`/approvals/submitted?page=${page}&size=20`),
+  notifications: (page: number) =>
+    request<Page<ApprovalNotification>>(`/approval-notifications?page=${page}&size=20`),
+  markNotificationRead: (id: string) =>
+    request<ApprovalNotification>(`/approval-notifications/${id}/read`, { method: 'POST' }),
   approval: (id: string) => request<ApprovalSummary>(`/approvals/${id}`),
   decide: (id: string, approved: boolean, opinion: string) =>
     request<ApprovalSummary>(`/approvals/${id}/decision`, {

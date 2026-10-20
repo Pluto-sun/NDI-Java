@@ -36,6 +36,8 @@ function title(request: ApprovalSummary, reference: ReferenceData) {
 
 export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
   const [items, setItems] = useState<ApprovalTask[]>([]);
+  const [submitted, setSubmitted] = useState<ApprovalSummary[]>([]);
+  const [view, setView] = useState<'inbox' | 'submitted'>('inbox');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -45,11 +47,13 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     let active = true;
     setLoading(true);
     setError('');
-    projectsApi
-      .approvalInbox(page)
+    const source =
+      view === 'inbox' ? projectsApi.approvalInbox(page) : projectsApi.submittedApprovals(page);
+    source
       .then((result) => {
         if (!active) return;
-        setItems(result.items);
+        if (view === 'inbox') setItems(result.items as ApprovalTask[]);
+        else setSubmitted(result.items as ApprovalSummary[]);
         setTotalPages(result.totalPages);
         setTotalElements(result.totalElements);
       })
@@ -62,7 +66,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     return () => {
       active = false;
     };
-  }, [page]);
+  }, [page, view]);
   const label = (code: string | null) =>
     reference.stages.find((item) => item.code === code)?.label ?? code ?? '—';
   return (
@@ -70,9 +74,31 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
       <div className="page-heading">
         <div>
           <span className="eyebrow">项目管理 / 审批</span>
-          <h1>我的审批待办</h1>
-          <p>仅显示当前账号被指定处理的待审申请。</p>
+          <h1>审批与申请</h1>
+          <p>待办仅显示指定给我的申请；已发起列表保留审批结论及撤销记录。</p>
         </div>
+      </div>
+      <div className="action-row" role="group" aria-label="审批视图">
+        <button
+          type="button"
+          className={view === 'inbox' ? 'primary-button' : 'secondary-button'}
+          onClick={() => {
+            setPage(0);
+            setView('inbox');
+          }}
+        >
+          待我审批
+        </button>
+        <button
+          type="button"
+          className={view === 'submitted' ? 'primary-button' : 'secondary-button'}
+          onClick={() => {
+            setPage(0);
+            setView('submitted');
+          }}
+        >
+          我发起的申请
+        </button>
       </div>
       {error && <Feedback tone="error">{error}</Feedback>}
       {loading ? (
@@ -80,7 +106,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
       ) : (
         <div className="panel table-panel">
           <div className="panel-top">
-            <strong>待审批申请</strong>
+            <strong>{view === 'inbox' ? '待审批申请' : '我发起的申请'}</strong>
             <span>共 {totalElements} 条</span>
           </div>
           <div className="table-scroll">
@@ -95,35 +121,69 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr key={item.requestId}>
-                    <td>
-                      <strong>{item.projectName}</strong>
-                      <small className="table-subtitle">
-                        {item.requestType === 'STAGE_ADVANCEMENT' ? '阶段推进' : '重大变更'}
-                      </small>
-                    </td>
-                    <td>
-                      {item.targetStageCode
-                        ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
-                        : `${label(item.fromStageCode)}（阶段不变）`}
-                    </td>
-                    <td>{dateTime(item.submittedAt)}</td>
-                    <td>
-                      {dateTime(item.dueAt)}
-                      {item.overdue && <span className="overdue">已逾期</span>}
-                    </td>
-                    <td>
-                      <Link className="inline-link" to={`/approvals/${item.requestId}`}>
-                        查看并处理
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {view === 'inbox'
+                  ? items.map((item) => (
+                      <tr key={item.requestId}>
+                        <td>
+                          <strong>{item.projectName}</strong>
+                          <small className="table-subtitle">
+                            {item.requestType === 'STAGE_ADVANCEMENT' ? '阶段推进' : '重大变更'}
+                          </small>
+                        </td>
+                        <td>
+                          {item.targetStageCode
+                            ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
+                            : `${label(item.fromStageCode)}（阶段不变）`}
+                        </td>
+                        <td>{dateTime(item.submittedAt)}</td>
+                        <td>
+                          {dateTime(item.dueAt)}
+                          {item.overdue && <span className="overdue">已逾期</span>}
+                        </td>
+                        <td>
+                          <Link className="inline-link" to={`/approvals/${item.requestId}`}>
+                            查看并处理
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  : submitted.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <Link className="table-link" to={`/projects/${item.projectId}`}>
+                            {item.originalProjectName}
+                          </Link>
+                          <small className="table-subtitle">
+                            {item.requestType === 'STAGE_ADVANCEMENT'
+                              ? '阶段推进'
+                              : (changeLabels[item.changeType!] ?? '重大变更')}
+                          </small>
+                        </td>
+                        <td>
+                          {item.targetStageCode
+                            ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
+                            : label(item.fromStageCode)}
+                        </td>
+                        <td>{dateTime(item.submittedAt)}</td>
+                        <td>
+                          {statusLabels[item.status]}
+                          {item.reviewOpinion && (
+                            <small className="table-subtitle">{item.reviewOpinion}</small>
+                          )}
+                        </td>
+                        <td>
+                          <Link className="inline-link" to={`/approvals/${item.id}`}>
+                            查看申请
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
-          {!items.length && <div className="empty-state">暂无待审批申请</div>}
+          {(view === 'inbox' ? !items.length : !submitted.length) && (
+            <div className="empty-state">暂无申请</div>
+          )}
           {totalPages > 1 && (
             <div className="pager">
               <span>

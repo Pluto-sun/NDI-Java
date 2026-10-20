@@ -19,6 +19,11 @@ const CreateProjectPage = lazy(() =>
     default: module.CreateProjectPage,
   })),
 );
+const ImportProjectsPage = lazy(() =>
+  import('../features/projects/ImportProjectsPage').then((module) => ({
+    default: module.ImportProjectsPage,
+  })),
+);
 const ProjectDetailPage = lazy(() =>
   import('../features/projects/ProjectDetailPage').then((module) => ({
     default: module.ProjectDetailPage,
@@ -32,6 +37,11 @@ const ApprovalsPage = lazy(() =>
 const ApprovalDetailPage = lazy(() =>
   import('../features/approvals/ApprovalsPage').then((module) => ({
     default: module.ApprovalDetailPage,
+  })),
+);
+const NotificationsPage = lazy(() =>
+  import('../features/approvals/NotificationsPage').then((module) => ({
+    default: module.NotificationsPage,
   })),
 );
 
@@ -105,6 +115,8 @@ export function App() {
       'PROVINCE_INTELLIGENT_LEADER',
     ].includes(role),
   );
+  const canImport =
+    canCreate || me.roleCodes.some((role) => ['INTERFACE_REVIEWER', 'SYSTEM_ADMIN'].includes(role));
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -125,7 +137,9 @@ export function App() {
             项目列表
           </NavLink>
           <NavLink to="/approvals">审批待办</NavLink>
+          <NavLink to="/notifications">审批通知</NavLink>
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
+          {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
         </nav>
         <div className="sidebar-foot">
           项目管理独立切片
@@ -172,10 +186,15 @@ export function App() {
                 }
               />
               <Route
+                path="/projects/import"
+                element={canImport ? <ImportProjectsPage /> : <Navigate to="/projects" replace />}
+              />
+              <Route
                 path="/projects/:id"
                 element={<ProjectDetailPage reference={reference} me={me} />}
               />
               <Route path="/approvals" element={<ApprovalsPage reference={reference} />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route
                 path="/approvals/:id"
                 element={<ApprovalDetailPage me={me} reference={reference} />}

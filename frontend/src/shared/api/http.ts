@@ -15,6 +15,11 @@ interface ApiEnvelope<T> {
   data: T;
   requestId: string;
 }
+interface ProblemBody {
+  code?: string;
+  detail?: string;
+  title?: string;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -48,11 +53,11 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   } catch {
     throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
   }
-  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  const body = (await response.json().catch(() => null)) as (ApiEnvelope<T> & ProblemBody) | null;
   if (!response.ok || !body || body.code !== 'OK') {
     throw new ApiError(
       body?.code ?? 'HTTP_ERROR',
-      body?.message ?? `请求失败（${response.status}）`,
+      body?.message ?? body?.detail ?? body?.title ?? `请求失败（${response.status}）`,
       response.status,
     );
   }

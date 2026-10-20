@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
-import type { ProjectSummary, ReferenceData } from './types';
+import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
@@ -15,8 +15,22 @@ export function ProjectsPage({
 }) {
   const [name, setName] = useState('');
   const [stage, setStage] = useState('');
-  const [query, setQuery] = useState({ page: 0, projectName: '', stage: '' });
+  const [projectCode, setProjectCode] = useState('');
+  const [industryCode, setIndustryCode] = useState('');
+  const [cityId, setCityId] = useState('');
+  const [includeTerminated, setIncludeTerminated] = useState(true);
+  const [query, setQuery] = useState({
+    page: 0,
+    projectName: '',
+    stage: '',
+    projectCode: '',
+    industryCode: '',
+    cityId: '',
+    includeTerminated: true,
+  });
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
+  const [exportTask, setExportTask] = useState<ExportTask | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
 
@@ -42,6 +56,43 @@ export function ProjectsPage({
     };
   }, [query]);
 
+  useEffect(() => {
+    if (!exportTask || !['PENDING', 'RUNNING'].includes(exportTask.status)) return;
+    const timer = window.setInterval(() => {
+      void projectsApi
+        .exportTask(exportTask.id)
+        .then(setExportTask)
+        .catch((cause) => {
+          setError(cause instanceof Error ? cause.message : '导出状态获取失败');
+        });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [exportTask]);
+
+  async function exportCurrent() {
+    setExportBusy(true);
+    setError('');
+    try {
+      const { page: _page, ...filter } = query;
+      void _page;
+      setExportTask(await projectsApi.exportProjects(filter));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '导出提交失败');
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function download() {
+    if (!exportTask) return;
+    try {
+      const result = await projectsApi.exportDownload(exportTask.id);
+      window.location.assign(result.url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '下载链接获取失败');
+    }
+  }
+
   const label = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
   return (
@@ -50,7 +101,7 @@ export function ProjectsPage({
         <div>
           <span className="eyebrow">PROJECTS</span>
           <h1>项目列表</h1>
-          <p>查看权限范围内的项目主档，按名称和阶段快速定位。</p>
+          <p>查看权限范围内的项目主档，按编号、名称、行业、地市和阶段定位。</p>
         </div>
         {canCreate && (
           <Link className="primary-button" to="/projects/new">
@@ -62,7 +113,15 @@ export function ProjectsPage({
         className="filter-bar"
         onSubmit={(event) => {
           event.preventDefault();
-          setQuery({ page: 0, projectName: name, stage });
+          setQuery({
+            page: 0,
+            projectName: name,
+            stage,
+            projectCode,
+            industryCode,
+            cityId,
+            includeTerminated,
+          });
         }}
       >
         <label>
@@ -71,6 +130,14 @@ export function ProjectsPage({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="输入项目名称"
+          />
+        </label>
+        <label>
+          项目编号
+          <input
+            value={projectCode}
+            onChange={(event) => setProjectCode(event.target.value)}
+            placeholder="输入项目编号"
           />
         </label>
         <label>
@@ -84,10 +151,62 @@ export function ProjectsPage({
             ))}
           </select>
         </label>
+        <label>
+          所属行业
+          <select value={industryCode} onChange={(event) => setIndustryCode(event.target.value)}>
+            <option value="">全部行业</option>
+            {reference.industries.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          归属地市
+          <select value={cityId} onChange={(event) => setCityId(event.target.value)}>
+            <option value="">全部地市</option>
+            {reference.cities.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={includeTerminated}
+            onChange={(event) => setIncludeTerminated(event.target.checked)}
+          />
+          含已终止项目
+        </label>
         <button type="submit" className="secondary-button">
           查询
         </button>
       </form>
+      <div className="action-row">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void exportCurrent()}
+          disabled={exportBusy}
+        >
+          {exportBusy ? '提交中…' : '按当前条件导出 CSV'}
+        </button>
+        {exportTask && (
+          <span role="status">
+            导出任务：{exportTask.status}
+            {exportTask.status === 'COMPLETED' ? ` · ${exportTask.rowCount} 条` : ''}
+            {exportTask.errorMessage ? ` · ${exportTask.errorMessage}` : ''}
+          </span>
+        )}
+        {exportTask?.status === 'COMPLETED' && (
+          <button type="button" className="primary-button" onClick={() => void download()}>
+            下载 CSV
+          </button>
+        )}
+      </div>
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy ? (
         <Loading />

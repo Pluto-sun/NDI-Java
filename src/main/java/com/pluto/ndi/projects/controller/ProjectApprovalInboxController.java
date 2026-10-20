@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ApprovalNotificationSummary;
 import com.pluto.ndi.projects.service.ApprovalTaskSummary;
+import com.pluto.ndi.projects.service.ApprovalSummary;
 import com.pluto.ndi.projects.service.ProjectApprovalInboxService;
 import com.pluto.ndi.projects.service.ProjectApprovalNotificationService;
 import com.pluto.ndi.shared.security.ActorPrincipal;
@@ -52,6 +53,16 @@ public class ProjectApprovalInboxController {
     ) {
         return responseFactory.success(PageResponse.from(
                 inboxService.findPending(actorId(authentication), PageRequest.of(page, size))));
+    }
+
+    @GetMapping("/approvals/submitted")
+    public ApiResponse<PageResponse<ApprovalSummary>> submitted(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
+    ) {
+        return responseFactory.success(PageResponse.from(
+                inboxService.findSubmitted(actorId(authentication), PageRequest.of(page, size))));
     }
 
     @GetMapping("/approval-notifications")

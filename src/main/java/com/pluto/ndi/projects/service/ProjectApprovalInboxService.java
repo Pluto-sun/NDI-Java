@@ -15,7 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 只列出当前账号被指定处理的待审申请。 */
+/** 按当前账号查询待审批与已发起的申请。 */
 @Service
 public class ProjectApprovalInboxService {
 
@@ -33,21 +33,31 @@ public class ProjectApprovalInboxService {
 
     @Transactional(readOnly = true)
     public Page<ApprovalTaskSummary> findPending(UUID actorId, Pageable pageable) {
-        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        requireEnabled(actorId);
         var now = Instant.now(clock);
         return repository.findByApproverIdAndStatusOrderByDueAtAsc(actorId, ApprovalStatus.PENDING, pageable)
                 .map(request -> ApprovalTaskSummary.from(request, now));
     }
 
     @Transactional(readOnly = true)
+    public Page<ApprovalSummary> findSubmitted(UUID actorId, Pageable pageable) {
+        requireEnabled(actorId);
+        return repository.findByInitiatorIdOrderBySubmittedAtDescIdDesc(actorId, pageable)
+                .map(ApprovalSummary::from);
+    }
+
+    @Transactional(readOnly = true)
     public ApprovalInboxCounts counts(UUID actorId) {
-        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        requireEnabled(actorId);
         var now = Instant.now(clock);
         return new ApprovalInboxCounts(
                 repository.countByApproverIdAndStatus(actorId, ApprovalStatus.PENDING),
                 repository.countByApproverIdAndStatusAndDueAtLessThanEqual(
                         actorId, ApprovalStatus.PENDING, now));
+    }
+
+    private void requireEnabled(UUID actorId) {
+        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
     }
 }

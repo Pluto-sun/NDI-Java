@@ -144,3 +144,65 @@ export interface ApprovalTask {
   dueAt: string;
   overdue: boolean;
 }
+export interface ImportBatch {
+  batchId: string;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  failedRows: number;
+  importedRows: number;
+  rows: { rowNumber: number; status: string; errorsJson: string; projectId: string | null }[];
+}
+export interface ExportTask {
+  id: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  rowCount: number | null;
+  requestedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  errorMessage: string | null;
+}
+export interface MonthlyWorkbench {
+  month: string;
+  includeTerminated: boolean;
+  projectCount: number;
+  totalExpectedAmount: number;
+  stages: WorkbenchOverview['stages'];
+  cities: WorkbenchBreakdown['cities'];
+  industries: WorkbenchBreakdown['industries'];
+}
+export interface TrendPoint {
+  month: string;
+  projectCount: number;
+  totalExpectedAmount: number;
+}
+export interface ApprovalNotification {
+  id: string;
+  requestId: string;
+  kind: string;
+  createdAt: string;
+  readAt: string | null;
+}
+export interface ProjectChange {
+  id: string;
+  eventType: string;
+  aggregateVersion: number;
+  payload: string;
+  actorId: string;
+  occurredAt: string;
+}
+export interface MonthlyRevision {
+  month: string;
+  projectId: string;
+  revisionNo: number;
+  sourceKind: string;
+  sourceId: string;
+  reason: string;
+  beforeStageCode: string | null;
+  afterStageCode: string | null;
+  beforeIndustryCode: string | null;
+  afterIndustryCode: string | null;
+  beforeTotalAmount: number | null;
+  afterTotalAmount: number | null;
+  revisedAt: string;
+}

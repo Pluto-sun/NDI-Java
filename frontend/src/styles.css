@@ -268,6 +268,9 @@ a {
   font-size: 15px;
   color: var(--ink);
 }
+.panel-top h2 {
+  margin: 0;
+}
 .table-panel {
   padding: 0;
   overflow: hidden;
@@ -362,6 +365,46 @@ label {
 .filter-bar label {
   min-width: 190px;
   flex: 1;
+}
+.filter-bar .checkbox-label,
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: auto;
+  flex: 0 0 auto;
+  min-height: 42px;
+}
+.checkbox-label input {
+  width: 17px;
+  min-height: 17px;
+  height: 17px;
+  accent-color: var(--red);
+}
+.action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.table-panel > p,
+.table-panel > button {
+  margin: 16px 22px;
+}
+.project-history h3 {
+  margin: 26px 0 12px;
+  font-size: 15px;
+}
+.json-preview {
+  max-width: min(70vw, 620px);
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
 }
 input,
 select,

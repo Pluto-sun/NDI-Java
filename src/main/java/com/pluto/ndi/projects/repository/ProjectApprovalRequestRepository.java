@@ -27,6 +27,12 @@ public interface ProjectApprovalRequestRepository extends JpaRepository<ProjectA
     Page<ProjectApprovalRequestEntity> findByApproverIdAndStatusOrderByDueAtAsc(
             UUID approverId, ApprovalStatus status, Pageable pageable);
 
+    Page<ProjectApprovalRequestEntity> findByInitiatorIdOrderBySubmittedAtDescIdDesc(
+            UUID initiatorId, Pageable pageable);
+
+    Page<ProjectApprovalRequestEntity> findByProjectIdOrderBySubmittedAtDescIdDesc(
+            UUID projectId, Pageable pageable);
+
     long countByApproverIdAndStatus(UUID approverId, ApprovalStatus status);
 
     long countByApproverIdAndStatusAndDueAtLessThanEqual(

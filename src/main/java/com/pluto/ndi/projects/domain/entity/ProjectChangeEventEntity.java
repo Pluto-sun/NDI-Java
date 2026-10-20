@@ -66,4 +66,10 @@ public class ProjectChangeEventEntity {
     }
 
     public UUID id() { return id; }
+    public UUID projectId() { return projectId; }
+    public String eventType() { return eventType; }
+    public long aggregateVersion() { return aggregateVersion; }
+    public String payload() { return payload; }
+    public UUID actorId() { return actorId; }
+    public Instant occurredAt() { return occurredAt; }
 }
