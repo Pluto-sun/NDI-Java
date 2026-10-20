@@ -112,6 +112,22 @@ public class ProjectEntity {
         return entity;
     }
 
+    /** 历史导入保留原阶段与发生时间，不模拟在线审批。 */
+    public static ProjectEntity imported(
+            UUID id, String projectCode, UUID provinceId, UUID cityId, String projectName,
+            String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
+            UUID provinceLeaderUserId, String cityAccountManagerName, ProjectStage stage,
+            String contractNo, BigDecimal signedAmount, UUID actorId, Instant createdAt
+    ) {
+        var entity = create(id, projectCode, provinceId, cityId, projectName, customerName,
+                industryCode, customerNeed, totalAmount, provinceLeaderUserId,
+                cityAccountManagerName, actorId, createdAt);
+        entity.currentStageCode = stage.name();
+        entity.contractNo = contractNo;
+        entity.signedAmount = signedAmount;
+        return entity;
+    }
+
     public UUID id() {
         return id;
     }

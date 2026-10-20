@@ -36,6 +36,8 @@ public class UserAccountEntity {
         return id;
     }
 
+    public String displayName() { return displayName; }
+
     public UUID provinceId() {
         return provinceId;
     }

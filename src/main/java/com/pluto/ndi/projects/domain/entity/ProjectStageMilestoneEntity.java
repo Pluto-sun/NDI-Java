@@ -57,6 +57,15 @@ public class ProjectStageMilestoneEntity {
         return entity;
     }
 
+    public static ProjectStageMilestoneEntity imported(UUID projectId, ProjectStage stage,
+            UUID actorId, Instant occurredAt, String sourceType, String description) {
+        var entity = initial(projectId, actorId, occurredAt);
+        entity.stageCode = stage.name();
+        entity.sourceType = sourceType;
+        entity.descriptionText = description;
+        return entity;
+    }
+
     public static ProjectStageMilestoneEntity approvedAdvance(
             UUID projectId, ProjectStage stage, UUID actorId, Instant stageOccurredAt
     ) {

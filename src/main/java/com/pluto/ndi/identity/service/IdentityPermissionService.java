@@ -85,6 +85,31 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     @Override
+    public Optional<UUID> findEligibleProvinceLeaderByName(String displayName, UUID provinceId) {
+        var matches = userAccountRepository.findByDisplayNameAndProvinceIdAndEnabledTrue(displayName, provinceId)
+                .stream().map(account -> account.id())
+                .filter(id -> isEligibleProvinceLeader(id, provinceId)).toList();
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+    }
+
+    @Override
+    public boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId) {
+        if (!actor.enabled()) {
+            return false;
+        }
+        var roles = roleCodes(actor.id());
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) {
+            return true;
+        }
+        if (!provinceId.equals(actor.provinceId())) {
+            return false;
+        }
+        return roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
+                || roles.contains(INTERFACE_PROJECT_READER_ROLE)
+                || cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
+    }
+
+    @Override
     public boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level) {
         if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
             return false;

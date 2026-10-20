@@ -13,9 +13,14 @@ public class ProjectIndustryReferenceEntity {
     @Column(name = "industry_code", nullable = false)
     private String industryCode;
 
+    @Column(name = "industry_name", nullable = false)
+    private String industryName;
+
     @Column(nullable = false)
     private boolean enabled;
 
     protected ProjectIndustryReferenceEntity() {
     }
+
+    public String industryCode() { return industryCode; }
 }

@@ -18,7 +18,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
-import com.pluto.ndi.organization.domain.OrganizationLocation;
+import com.pluto.ndi.organization.service.OrganizationLocation;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.repository.ProjectCategoryAmountRepository;

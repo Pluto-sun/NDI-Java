@@ -9,4 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CityRepository extends JpaRepository<CityEntity, UUID> {
 
     Optional<CityEntity> findByIdAndProvinceIdAndEnabledTrue(UUID id, UUID provinceId);
+
+    Optional<CityEntity> findByProvinceIdAndCityNameAndEnabledTrue(UUID provinceId, String cityName);
 }

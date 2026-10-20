@@ -30,7 +30,10 @@ public enum ProjectErrorCode implements ErrorCode {
     CONTRACT_NO_CONFLICT(HttpStatus.CONFLICT, "PROJECT_CONTRACT_NO_CONFLICT", "合同编号重复", "合同编号必须在全系统唯一"),
     EXPORT_TOO_LARGE(HttpStatus.BAD_REQUEST, "PROJECT_EXPORT_TOO_LARGE", "导出数据过多", "导出结果不得超过1000条，请缩小筛选范围"),
     EXPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_EXPORT_NOT_FOUND", "导出任务不存在", "未找到指定的项目导出任务"),
-    EXPORT_NOT_READY(HttpStatus.CONFLICT, "PROJECT_EXPORT_NOT_READY", "导出文件尚未就绪", "请在任务完成后下载导出文件");
+    EXPORT_NOT_READY(HttpStatus.CONFLICT, "PROJECT_EXPORT_NOT_READY", "导出文件尚未就绪", "请在任务完成后下载导出文件"),
+    IMPORT_INVALID_FILE(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_INVALID_FILE", "导入文件无效", "请检查模板、文件大小和工作表内容"),
+    IMPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_IMPORT_NOT_FOUND", "导入批次不存在", "批次不存在或不属于当前账号"),
+    IMPORT_ALREADY_CONFIRMED(HttpStatus.CONFLICT, "PROJECT_IMPORT_ALREADY_CONFIRMED", "导入批次已确认", "同一批次只能确认一次");
 
     private final HttpStatus status;
     private final String code;

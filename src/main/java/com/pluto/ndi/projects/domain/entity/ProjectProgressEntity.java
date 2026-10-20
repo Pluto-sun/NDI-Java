@@ -1,6 +1,7 @@
 package com.pluto.ndi.projects.domain.entity;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -32,6 +33,12 @@ public class ProjectProgressEntity {
 
     @Column(name = "corrects_progress_id")
     private UUID correctsProgressId;
+
+    @Column(name = "owner_name", length = 100)
+    private String ownerName;
+
+    @Column(name = "due_date")
+    private LocalDate dueDate;
 
     protected ProjectProgressEntity() {
     }
@@ -65,6 +72,15 @@ public class ProjectProgressEntity {
         return entity;
     }
 
+    public static ProjectProgressEntity imported(UUID projectId, String content,
+            String nextAction, String ownerName, LocalDate dueDate,
+            UUID actorId, Instant occurredAt) {
+        var entity = append(projectId, content, nextAction, actorId, occurredAt, null);
+        entity.ownerName = ownerName;
+        entity.dueDate = dueDate;
+        return entity;
+    }
+
     public UUID id() { return id; }
     public UUID projectId() { return projectId; }
     public String progressContent() { return progressContent; }
@@ -72,4 +88,6 @@ public class ProjectProgressEntity {
     public Instant occurredAt() { return occurredAt; }
     public UUID actorId() { return actorId; }
     public UUID correctsProgressId() { return correctsProgressId; }
+    public String ownerName() { return ownerName; }
+    public LocalDate dueDate() { return dueDate; }
 }

@@ -14,6 +14,8 @@ import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, JpaSpecificationExecutor<ProjectEntity> {
 
+    List<ProjectEntity> findByCityId(UUID cityId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select project from ProjectEntity project where project.id = :id")
     Optional<ProjectEntity> findLockedById(UUID id);

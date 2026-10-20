@@ -28,4 +28,6 @@ public class CityEntity {
 
     protected CityEntity() {
     }
+
+    public UUID id() { return id; }
 }

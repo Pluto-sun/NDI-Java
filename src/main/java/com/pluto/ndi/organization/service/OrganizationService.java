@@ -3,7 +3,6 @@ package com.pluto.ndi.organization.service;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.pluto.ndi.organization.domain.OrganizationLocation;
 import com.pluto.ndi.organization.repository.CityRepository;
 import com.pluto.ndi.organization.repository.ProvinceRepository;
 import org.springframework.stereotype.Service;
@@ -26,5 +25,24 @@ class OrganizationService implements OrganizationDirectory {
         }
         return cityRepository.findByIdAndProvinceIdAndEnabledTrue(cityId, provinceId)
                 .map(ignored -> new OrganizationLocation(provinceId, cityId));
+    }
+
+    @Override
+    public Optional<OrganizationLocation> findEnabledLocationByNames(String provinceName, String cityName) {
+        var province = provinceRepository.findByProvinceNameAndEnabledTrue(provinceName)
+                .or(() -> provinceRepository.findByProvinceNameAndEnabledTrue(stripAdministrativeSuffix(provinceName)));
+        return province.flatMap(item -> cityRepository.findByProvinceIdAndCityNameAndEnabledTrue(
+                        item.id(), cityName)
+                .or(() -> cityRepository.findByProvinceIdAndCityNameAndEnabledTrue(
+                        item.id(), stripAdministrativeSuffix(cityName)))
+                .map(city -> new OrganizationLocation(item.id(), city.id())));
+    }
+
+    private String stripAdministrativeSuffix(String name) {
+        if (name == null) return "";
+        for (var suffix : new String[] {"自治区", "自治州", "地区", "省", "市"}) {
+            if (name.endsWith(suffix)) return name.substring(0, name.length() - suffix.length());
+        }
+        return name;
     }
 }

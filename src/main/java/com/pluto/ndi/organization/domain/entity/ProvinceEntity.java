@@ -25,4 +25,7 @@ public class ProvinceEntity {
 
     protected ProvinceEntity() {
     }
+
+    public UUID id() { return id; }
+    public String provinceName() { return provinceName; }
 }

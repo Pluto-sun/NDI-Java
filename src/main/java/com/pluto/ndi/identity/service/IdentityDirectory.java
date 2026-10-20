@@ -15,6 +15,10 @@ public interface IdentityDirectory {
 
     boolean isEligibleProvinceLeader(UUID userId, UUID provinceId);
 
+    Optional<UUID> findEligibleProvinceLeaderByName(String displayName, UUID provinceId);
+
+    boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId);
+
     boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
 
     boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel);

@@ -1,0 +1,25 @@
+{
+  "source_effective_count": 58,
+  "source_total_amount": "33597.30",
+  "migrated_count": 48,
+  "migrated_total_amount": "29621.30",
+  "target_count": 48,
+  "target_total_amount": "29621.30",
+  "source_stage_counts": {
+    "BIDDING": 11,
+    "SIGNED": 17,
+    "SOLUTION_EXCHANGE": 25,
+    "TERMINATED": 5
+  },
+  "migrated_stage_counts": {
+    "BIDDING": 6,
+    "TERMINATED": 4,
+    "SOLUTION_EXCHANGE": 24,
+    "SIGNED": 14
+  },
+  "migrated_progress_count": 2,
+  "migrated_milestone_count": 49,
+  "migrated_member_count": 143,
+  "milestone_actor_fallback_count": 47,
+  "failed_count": 10
+}
