@@ -55,6 +55,7 @@ public class ProjectService {
     private final ProjectNumberGenerator projectNumberGenerator;
     private final ProjectMapper projectMapper;
     private final ProjectAccessService projectAccessService;
+    private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -70,6 +71,7 @@ public class ProjectService {
             ProjectNumberGenerator projectNumberGenerator,
             ProjectMapper projectMapper,
             ProjectAccessService projectAccessService,
+            ProjectMonthlySnapshotService monthlySnapshots,
             ObjectMapper objectMapper,
             Clock clock
     ) {
@@ -84,6 +86,7 @@ public class ProjectService {
         this.projectNumberGenerator = projectNumberGenerator;
         this.projectMapper = projectMapper;
         this.projectAccessService = projectAccessService;
+        this.monthlySnapshots = monthlySnapshots;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -114,7 +117,8 @@ public class ProjectService {
                 actorId,
                 occurredAt
         );
-        projectRepository.save(project);
+        projectRepository.saveAndFlush(project);
+        monthlySnapshots.recordCreated(project);
 
         categoryAmountRepository.saveAll(categories.stream()
                 .map(category -> ProjectCategoryAmountEntity.create(project.id(), category.categoryCode(), category.expectedAmount()))

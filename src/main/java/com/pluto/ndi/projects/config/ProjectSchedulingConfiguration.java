@@ -3,8 +3,8 @@ package com.pluto.ndi.projects.config;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/** 启用项目审批逾期提醒的周期扫描。 */
+/** 启用项目模块的审批提醒和月末快照调度。 */
 @Configuration
 @EnableScheduling
-class ProjectApprovalSchedulingConfiguration {
+class ProjectSchedulingConfiguration {
 }

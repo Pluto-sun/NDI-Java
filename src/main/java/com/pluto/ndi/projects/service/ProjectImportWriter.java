@@ -47,18 +47,21 @@ public class ProjectImportWriter {
     private final ObjectMapper json;
     private final Clock clock;
     private final JdbcTemplate jdbc;
+    private final ProjectMonthlySnapshotService monthlySnapshots;
 
     public ProjectImportWriter(IdentityDirectory identity, OrganizationDirectory organizations,
             ProjectIndustryReferenceRepository industries, ProjectRepository projects,
             ProjectCategoryAmountRepository categories, ProjectProgressRepository progress,
             ProjectStageMilestoneRepository milestones, ProjectChangeEventRepository events,
             ProjectSourceRecordRepository sources, ProjectImportRowRepository rows,
-            ProjectNumberGenerator numbers, ObjectMapper json, Clock clock, JdbcTemplate jdbc) {
+            ProjectNumberGenerator numbers, ObjectMapper json, Clock clock, JdbcTemplate jdbc,
+            ProjectMonthlySnapshotService monthlySnapshots) {
         this.identity = identity; this.organizations = organizations; this.industries = industries;
         this.projects = projects; this.categories = categories; this.progress = progress;
         this.milestones = milestones; this.events = events; this.sources = sources;
         this.rows = rows; this.numbers = numbers; this.json = json; this.clock = clock;
         this.jdbc = jdbc;
+        this.monthlySnapshots = monthlySnapshots;
     }
 
     public void importRow(UUID actorId, ProjectImportRowEntity input) {
@@ -91,7 +94,8 @@ public class ProjectImportWriter {
                     candidate.industryCode(), candidate.customerNeed(), candidate.totalAmount(),
                     candidate.provinceLeaderUserId(), candidate.cityAccountManagerName(),
                     ProjectStage.valueOf(candidate.stageCode()), null, null, actorId, candidate.occurredAt());
-            projects.save(project);
+            projects.saveAndFlush(project);
+            monthlySnapshots.recordCreated(project);
             for (var category : candidate.categories()) {
                 categories.save(ProjectCategoryAmountEntity.create(id, category.code(), category.amount()));
             }

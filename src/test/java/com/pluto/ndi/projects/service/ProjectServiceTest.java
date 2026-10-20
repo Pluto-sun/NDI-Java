@@ -72,6 +72,7 @@ class ProjectServiceTest {
                 new ProjectNumberGenerator(clock),
                 new com.pluto.ndi.projects.mapper.ProjectMapper(),
                 mock(ProjectAccessService.class),
+                mock(ProjectMonthlySnapshotService.class),
                 new ObjectMapper(),
                 clock
         );
@@ -95,7 +96,7 @@ class ProjectServiceTest {
         assertThat(result.projectCode()).startsWith("NDI-20261019-");
         assertThat(result.currentStageCode()).isEqualTo("SOLUTION_EXCHANGE");
         assertThat(result.categoryAmounts()).hasSize(2);
-        verify(projectRepository).save(any());
+        verify(projectRepository).saveAndFlush(any());
         verify(categoryAmountRepository).saveAll(any());
         verify(stageMilestoneRepository).save(any());
         verify(progressRepository).save(any());

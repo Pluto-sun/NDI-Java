@@ -30,6 +30,7 @@ public class ProjectProfileService {
     private final ProjectRepository projectRepository;
     private final ProjectChangeEventRepository eventRepository;
     private final ProjectService projectService;
+    private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -37,7 +38,7 @@ public class ProjectProfileService {
             ProjectAccessService accessService, IdentityDirectory identityDirectory,
             ProjectIndustryReferenceRepository industryRepository, ProjectRepository projectRepository,
             ProjectChangeEventRepository eventRepository, ProjectService projectService,
-            ObjectMapper objectMapper, Clock clock
+            ProjectMonthlySnapshotService monthlySnapshots, ObjectMapper objectMapper, Clock clock
     ) {
         this.accessService = accessService;
         this.identityDirectory = identityDirectory;
@@ -45,6 +46,7 @@ public class ProjectProfileService {
         this.projectRepository = projectRepository;
         this.eventRepository = eventRepository;
         this.projectService = projectService;
+        this.monthlySnapshots = monthlySnapshots;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -70,13 +72,16 @@ public class ProjectProfileService {
             throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
         }
         var before = snapshot(project);
+        monthlySnapshots.ensureBaseline(project);
         var occurredAt = Instant.now(clock);
         if (project.updateProfile(customerName, industryCode, customerNeed,
                 command.provinceLeaderUserId(), managerName, actorId, occurredAt)) {
             projectRepository.saveAndFlush(project);
-            eventRepository.save(ProjectChangeEventEntity.approvedChange(
+            var event = ProjectChangeEventEntity.approvedChange(
                     projectId, project.versionNo(), "PROJECT_PROFILE_UPDATED",
-                    eventPayload(before, snapshot(project)), actorId, occurredAt));
+                    eventPayload(before, snapshot(project)), actorId, occurredAt);
+            eventRepository.save(event);
+            monthlySnapshots.recordProfileIndustry(project, event.id(), (String) before.get("industryCode"));
         }
         return projectService.findDetail(actorId, projectId);
     }

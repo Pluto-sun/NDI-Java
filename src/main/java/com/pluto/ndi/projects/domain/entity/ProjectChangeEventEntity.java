@@ -64,4 +64,6 @@ public class ProjectChangeEventEntity {
         entity.eventType = eventType;
         return entity;
     }
+
+    public UUID id() { return id; }
 }

@@ -44,6 +44,7 @@ public class ProjectApprovalService {
     private final ProjectChangeEventRepository eventRepository;
     private final ProjectStageService stageService;
     private final ProjectApprovalNotificationService notificationService;
+    private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -55,6 +56,7 @@ public class ProjectApprovalService {
             ProjectStageMilestoneRepository milestoneRepository,
             ProjectChangeEventRepository eventRepository, ProjectStageService stageService,
             ProjectApprovalNotificationService notificationService,
+            ProjectMonthlySnapshotService monthlySnapshots,
             ObjectMapper objectMapper, Clock clock
     ) {
         this.identityDirectory = identityDirectory;
@@ -66,6 +68,7 @@ public class ProjectApprovalService {
         this.eventRepository = eventRepository;
         this.stageService = stageService;
         this.notificationService = notificationService;
+        this.monthlySnapshots = monthlySnapshots;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -151,6 +154,7 @@ public class ProjectApprovalService {
             return ApprovalSummary.from(request);
         }
         if (approved) {
+            monthlySnapshots.ensureBaseline(project);
             var before = projectSnapshot(project);
             if ("STAGE_ADVANCEMENT".equals(request.requestType())) {
                 stageService.applyApproved(project, request, actorId, at);
@@ -159,6 +163,7 @@ public class ProjectApprovalService {
             }
             projectRepository.saveAndFlush(project);
             eventRepository.save(approvedEvent(project, request, before, actorId, at));
+            monthlySnapshots.recordApproved(project, request);
         }
         var status = approved ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED;
         request.finish(status, opinion == null ? null : opinion.trim(), at);
