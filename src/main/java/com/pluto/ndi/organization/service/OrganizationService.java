@@ -1,8 +1,12 @@
 package com.pluto.ndi.organization.service;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
+import com.pluto.ndi.organization.domain.entity.CityEntity;
 import com.pluto.ndi.organization.repository.CityRepository;
 import com.pluto.ndi.organization.repository.ProvinceRepository;
 import org.springframework.stereotype.Service;
@@ -36,6 +40,13 @@ class OrganizationService implements OrganizationDirectory {
                 .or(() -> cityRepository.findByProvinceIdAndCityNameAndEnabledTrue(
                         item.id(), stripAdministrativeSuffix(cityName)))
                 .map(city -> new OrganizationLocation(item.id(), city.id())));
+    }
+
+    @Override
+    public Map<UUID, String> findCityNames(Collection<UUID> cityIds) {
+        if (cityIds.isEmpty()) return Map.of();
+        return cityRepository.findAllById(cityIds).stream()
+                .collect(Collectors.toMap(CityEntity::id, CityEntity::cityName));
     }
 
     private String stripAdministrativeSuffix(String name) {

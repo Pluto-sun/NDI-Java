@@ -39,4 +39,15 @@ public class ProjectApprovalInboxService {
         return repository.findByApproverIdAndStatusOrderByDueAtAsc(actorId, ApprovalStatus.PENDING, pageable)
                 .map(request -> ApprovalTaskSummary.from(request, now));
     }
+
+    @Transactional(readOnly = true)
+    public ApprovalInboxCounts counts(UUID actorId) {
+        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        var now = Instant.now(clock);
+        return new ApprovalInboxCounts(
+                repository.countByApproverIdAndStatus(actorId, ApprovalStatus.PENDING),
+                repository.countByApproverIdAndStatusAndDueAtLessThanEqual(
+                        actorId, ApprovalStatus.PENDING, now));
+    }
 }

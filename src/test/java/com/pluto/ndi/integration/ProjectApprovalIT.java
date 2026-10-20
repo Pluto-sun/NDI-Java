@@ -656,6 +656,74 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void workbenchBreakdownKeepsScopeTotalsAndShowsAssignedApprovalBadge() throws Exception {
+        var activeId = createProject();
+        var terminatedId = createProject();
+        var otherCityId = UUID.randomUUID();
+        var otherCityUserId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '第二地市', true)",
+                otherCityId.toString(), provinceId.toString(), otherCityId.toString().replace("-", ""));
+        jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, '第二地市人员', UUID_TO_BIN(?), UUID_TO_BIN(?), true)",
+                otherCityUserId.toString(), otherCityUserId.toString(), provinceId.toString(), otherCityId.toString());
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'CITY_REPORTER')",
+                otherCityUserId.toString());
+        projectService.createProject(otherCityUserId, new CreateProjectCommand(
+                provinceId, otherCityId, "第二地市项目", "客户", "C26", "化工升级需求",
+                new BigDecimal("70.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("GEWU", new BigDecimal("30.00"))),
+                "已开展交流", "继续跟进"));
+
+        var termination = approvalService.submitMajorChange(cityUserId, terminatedId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户终止项目", null, null, null));
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+        var pending = approvalService.submitMajorChange(cityUserId, activeId, new MajorChangeCommand(
+                MajorChangeType.TOTAL_AMOUNT, ProjectInitiatorLevel.CITY, provinceUserId,
+                "预算调整", null, new BigDecimal("120.00"), null));
+
+        var province = workbenchService.breakdown(provinceUserId, false);
+        assertThat(province.cities()).hasSize(2);
+        assertThat(province.industries()).hasSize(2);
+        assertThat(province.cities().stream().mapToLong(item -> item.projectCount()).sum()).isEqualTo(2);
+        assertThat(province.industries().stream().map(item -> item.expectedAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("170.00");
+        assertThat(province.industries().getFirst().industryName()).isEqualTo("石油、煤炭及其他燃料加工业");
+        assertThat(province.cities().getFirst().cityName()).isEqualTo("测试地市");
+        assertThat(workbenchService.breakdown(cityUserId, false).cities()).hasSize(1);
+        assertThat(workbenchService.breakdown(otherCityUserId, false).industries()).extracting("industryCode")
+                .containsExactly("C26");
+        assertThat(workbenchService.breakdown(otherCityUserId, false).cities()).extracting("cityId")
+                .containsExactly(otherCityId);
+        assertThat(workbenchService.breakdown(provinceUserId, true).industries().getFirst().expectedAmount())
+                .isEqualByComparingTo("200.00");
+
+        var approverOverview = workbenchService.overview(provinceUserId, false);
+        assertThat(approverOverview.approvals().pendingCount()).isEqualTo(1);
+        assertThat(approverOverview.approvals().overdueCount()).isZero();
+        assertThat(workbenchService.overview(cityUserId, false).approvals().pendingCount()).isZero();
+        jdbc.update("UPDATE project_approval_request SET due_at = DATE_SUB(NOW(6), INTERVAL 1 HOUR) WHERE id = UUID_TO_BIN(?)",
+                pending.id().toString());
+        assertThat(workbenchService.overview(provinceUserId, false).approvals().overdueCount()).isEqualTo(1);
+
+        mockMvc.perform(get("/api/v1/projects/workbench/breakdown")
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cities.length()").value(2))
+                .andExpect(jsonPath("$.data.industries.length()").value(2));
+        mockMvc.perform(get("/api/v1/projects/workbench/breakdown")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cities.length()").value(1));
+        mockMvc.perform(get("/api/v1/projects/workbench/overview")
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.approvals.pendingCount").value(1))
+                .andExpect(jsonPath("$.data.approvals.overdueCount").value(1))
+                .andExpect(jsonPath("$.data.approvals.inboxApiPath").value("/api/v1/projects/approvals/inbox"));
+        approvalService.decide(provinceUserId, pending.id(), true, null);
+    }
+
+    @Test
     void projectListCombinesFiltersWithActorScope() throws Exception {
         var activeId = createProject();
         var terminatedId = createProject();

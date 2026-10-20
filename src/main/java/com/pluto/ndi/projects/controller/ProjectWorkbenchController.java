@@ -3,6 +3,7 @@ package com.pluto.ndi.projects.controller;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.service.ProjectWorkbenchBreakdown;
 import com.pluto.ndi.projects.service.ProjectWorkbenchOverview;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
 import com.pluto.ndi.shared.security.ActorPrincipal;
@@ -36,5 +37,15 @@ public class ProjectWorkbenchController {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
         return responseFactory.success(service.overview(principal.userId(), includeTerminated));
+    }
+
+    @GetMapping("/breakdown")
+    public ApiResponse<ProjectWorkbenchBreakdown> breakdown(
+            Authentication authentication, @RequestParam(defaultValue = "false") boolean includeTerminated
+    ) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof ActorPrincipal principal)) {
+            throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
+        }
+        return responseFactory.success(service.breakdown(principal.userId(), includeTerminated));
     }
 }

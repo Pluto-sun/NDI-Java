@@ -23,4 +23,5 @@ public class ProjectIndustryReferenceEntity {
     }
 
     public String industryCode() { return industryCode; }
+    public String industryName() { return industryName; }
 }

@@ -30,4 +30,5 @@ public class CityEntity {
     }
 
     public UUID id() { return id; }
+    public String cityName() { return cityName; }
 }
