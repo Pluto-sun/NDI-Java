@@ -2,11 +2,16 @@ package com.pluto.ndi.projects.controller;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ImportBatchSummary;
 import com.pluto.ndi.projects.service.ImportBatchListItem;
 import com.pluto.ndi.projects.service.ProjectImportService;
+import com.pluto.ndi.projects.util.ProjectExcelReader;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
@@ -43,19 +48,39 @@ public class ProjectImportController {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     private final ProjectImportService service;
     private final ApiResponseFactory responses;
+    private final ObjectMapper json;
 
-    public ProjectImportController(ProjectImportService service, ApiResponseFactory responses) {
-        this.service = service; this.responses = responses;
+    public ProjectImportController(ProjectImportService service, ApiResponseFactory responses,
+            ObjectMapper json) {
+        this.service = service; this.responses = responses; this.json = json;
+    }
+
+    @PostMapping(value = "/inspect", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ProjectExcelReader.WorkbookInspection> inspect(Authentication authentication,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        checkFile(file);
+        return responses.success(service.inspect(actorId(authentication), file.getOriginalFilename(), file.getBytes()));
     }
 
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ImportBatchSummary> preview(Authentication authentication,
-            @RequestParam("file") MultipartFile file) throws IOException {
-        if (file.getSize() > 10 * 1024 * 1024 || file.isEmpty()) {
-            throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "sheetName", required = false) String sheetName,
+            @RequestParam(value = "headerRowNo", required = false) Integer headerRowNo,
+            @RequestParam(value = "mappingJson", required = false) String mappingJson) throws IOException {
+        checkFile(file);
+        Map<String, String> mapping = Map.of();
+        if (mappingJson != null && !mappingJson.isBlank()) {
+            try {
+                mapping = json.readValue(mappingJson, new TypeReference<>() { });
+                if (mapping == null) throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+            } catch (JsonProcessingException exception) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+            }
         }
-        return responses.success(service.preview(actorId(authentication), file.getOriginalFilename(), file.getBytes()));
+        return responses.success(service.preview(actorId(authentication), file.getOriginalFilename(),
+                file.getBytes(), sheetName, headerRowNo, mapping));
     }
 
     @GetMapping("/{batchId}")
@@ -118,5 +143,11 @@ public class ProjectImportController {
                         org.springframework.http.ContentDisposition.attachment()
                                 .filename(name, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(bytes);
+    }
+
+    private void checkFile(MultipartFile file) {
+        if (file.getSize() > 10 * 1024 * 1024 || file.isEmpty()) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+        }
     }
 }

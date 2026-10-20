@@ -205,6 +205,14 @@ export interface ImportBatchListItem {
   createdAt: string;
   confirmedAt: string | null;
 }
+export interface ImportWorkbookInspection {
+  fileName: string;
+  fields: string[];
+  sheets: {
+    name: string;
+    headerCandidates: { rowNo: number; headers: string[] }[];
+  }[];
+}
 export interface ExportTask {
   id: string;
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
-import type { ImportBatch, ImportBatchListItem } from './types';
+import type { ImportBatch, ImportBatchListItem, ImportWorkbookInspection } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
@@ -58,8 +58,21 @@ function downloadWorkbook(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function bestHeaderCandidate(sheet: ImportWorkbookInspection['sheets'][number]) {
+  return (
+    sheet.headerCandidates.find(
+      (candidate) => candidate.headers.includes('省分') && candidate.headers.includes('项目名称'),
+    ) ??
+    [...sheet.headerCandidates].sort((left, right) => right.headers.length - left.headers.length)[0]
+  );
+}
+
 export function ImportProjectsPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [inspection, setInspection] = useState<ImportWorkbookInspection | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState('');
+  const [selectedHeaderRow, setSelectedHeaderRow] = useState(1);
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -70,6 +83,27 @@ export function ImportProjectsPage() {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editedCells, setEditedCells] = useState<Record<string, string>>({});
   const readyRows = batch?.rows.filter((row) => row.status === 'READY') ?? [];
+  const sheet = inspection?.sheets.find((item) => item.name === selectedSheet);
+  const headerCandidate = sheet?.headerCandidates.find((item) => item.rowNo === selectedHeaderRow);
+
+  function selectCandidate(sheetName: string, rowNo: number, source: ImportWorkbookInspection) {
+    const headers =
+      source.sheets
+        .find((item) => item.name === sheetName)
+        ?.headerCandidates.find((item) => item.rowNo === rowNo)?.headers ?? [];
+    setSelectedSheet(sheetName);
+    setSelectedHeaderRow(rowNo);
+    const mapping = Object.fromEntries(
+      source.fields.filter((field) => headers.includes(field)).map((field) => [field, field]),
+    );
+    if (
+      !headers.includes('三化类别') &&
+      headers.some((header) => /^三化类别[一二三四]$/.test(header))
+    ) {
+      mapping['三化类别'] = '__CATEGORY_SLOTS__';
+    }
+    setFieldMapping(mapping);
+  }
 
   useEffect(() => {
     let active = true;
@@ -173,10 +207,50 @@ export function ImportProjectsPage() {
     setError('');
     setBatch(null);
     try {
-      displayBatch(await projectsApi.previewImport(file));
+      const mapping = inspection
+        ? Object.fromEntries(inspection.fields.map((field) => [field, fieldMapping[field] ?? '']))
+        : {};
+      const mappedColumns = Object.values(mapping).filter(Boolean);
+      if (inspection && mappedColumns.length === 0) {
+        setError('请至少映射一个业务字段。');
+        return;
+      }
+      if (inspection && mappedColumns.length !== new Set(mappedColumns).size) {
+        setError('同一 Excel 列不能映射给多个业务字段。');
+        return;
+      }
+      displayBatch(
+        await projectsApi.previewImport(
+          file,
+          inspection
+            ? {
+                sheetName: selectedSheet,
+                headerRowNo: selectedHeaderRow,
+                mapping,
+              }
+            : undefined,
+        ),
+      );
       await refreshPlans();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '预检失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function inspectWorkbook() {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await projectsApi.inspectImport(file);
+      setInspection(result);
+      const preferred = result.sheets.find((item) => item.name === '导入数据') ?? result.sheets[0];
+      const candidate = preferred && bestHeaderCandidate(preferred);
+      if (preferred && candidate) selectCandidate(preferred.name, candidate.rowNo, result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '工作表识别失败');
     } finally {
       setBusy(false);
     }
@@ -298,13 +372,91 @@ export function ImportProjectsPage() {
               type="file"
               accept=".xlsx"
               required
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                setFile(event.target.files?.[0] ?? null);
+                setInspection(null);
+                setFieldMapping({});
+              }}
             />
           </label>
+          <button
+            className="secondary-button"
+            disabled={busy || !file}
+            type="button"
+            onClick={() => void inspectWorkbook()}
+          >
+            识别工作表与表头
+          </button>
           <button className="primary-button" disabled={busy || !file} type="submit">
             {busy ? '处理中…' : '开始预检'}
           </button>
         </form>
+        {inspection && (
+          <div className="import-layout">
+            <p className="subtle">
+              已识别 {inspection.sheets.length}{' '}
+              个工作表。选择表头行并核对字段；留空的必填字段可在预检后逐行修正。
+            </p>
+            <div className="filter-bar">
+              <label>
+                工作表
+                <select
+                  value={selectedSheet}
+                  onChange={(event) => {
+                    const next = inspection.sheets.find((item) => item.name === event.target.value);
+                    const candidate = next && bestHeaderCandidate(next);
+                    if (next && candidate) selectCandidate(next.name, candidate.rowNo, inspection);
+                  }}
+                >
+                  {inspection.sheets.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                表头行
+                <select
+                  value={selectedHeaderRow}
+                  onChange={(event) =>
+                    selectCandidate(selectedSheet, Number(event.target.value), inspection)
+                  }
+                >
+                  {sheet?.headerCandidates.map((item) => (
+                    <option key={item.rowNo} value={item.rowNo}>
+                      第 {item.rowNo} 行：{item.headers.slice(0, 3).join('、')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="import-row-fields">
+              {inspection.fields.map((field) => (
+                <label key={field}>
+                  {field}
+                  <select
+                    value={fieldMapping[field] ?? ''}
+                    onChange={(event) =>
+                      setFieldMapping((current) => ({ ...current, [field]: event.target.value }))
+                    }
+                  >
+                    <option value="">不映射，预检后修正</option>
+                    {field === '三化类别' &&
+                      headerCandidate?.headers.some((header) =>
+                        /^三化类别[一二三四]$/.test(header),
+                      ) && <option value="__CATEGORY_SLOTS__">合并三化类别一至四列</option>}
+                    {headerCandidate?.headers.map((header) => (
+                      <option key={header} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="panel import-plans">
         <div className="panel-top">

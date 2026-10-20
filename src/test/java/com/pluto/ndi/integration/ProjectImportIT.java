@@ -139,6 +139,16 @@ class ProjectImportIT {
 
         var preview = imports.preview(actor, "待修正.xlsx", workbookWithLocation(provinceName, cityName));
         var batchId = preview.batchId();
+        var mappedFile = mappedWorkbook(provinceName, cityName);
+        var inspection = imports.inspect(actor, "外部台账.xlsx", mappedFile);
+        assertThat(inspection.sheets().getFirst().headerCandidates().get(1).rowNo()).isEqualTo(2);
+        var mappedPreview = imports.preview(actor, "外部台账.xlsx", mappedFile,
+                "外部台账", 2, Map.of("省分", "省份", "项目名称", "商机名称"));
+        assertThat(mappedPreview.validRows()).isEqualTo(1);
+        assertThat(mappedPreview.rows().getFirst().rowNumber()).isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+                "SELECT sheet_name FROM project_import_batch WHERE id = UUID_TO_BIN(?)",
+                String.class, mappedPreview.batchId().toString())).isEqualTo("外部台账");
         assertThat(preview.rows().get(2).sourceCellsJson()).contains("项目总金额（万）");
         var missingAmount = imports.reviseRow(actor, batchId, 4, 0,
                 Map.of("项目总金额（万）", "100"));
@@ -256,6 +266,21 @@ class ProjectImportIT {
                 sheet.getRow(row).getCell(0).setCellValue(provinceName);
                 sheet.getRow(row).getCell(1).setCellValue(cityName);
             }
+            source.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] mappedWorkbook(String provinceName, String cityName) throws Exception {
+        try (var source = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                workbookWithLocation(provinceName, cityName)));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = source.getSheet("导入数据");
+            source.setSheetName(source.getSheetIndex(sheet), "外部台账");
+            sheet.shiftRows(0, 3, 1);
+            sheet.createRow(0).createCell(0).setCellValue("导入说明");
+            sheet.getRow(1).getCell(0).setCellValue("省份");
+            sheet.getRow(1).getCell(4).setCellValue("商机名称");
             source.write(output);
             return output.toByteArray();
         }

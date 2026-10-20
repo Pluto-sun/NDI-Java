@@ -49,10 +49,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ProjectImportService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProjectImportService.class);
     private static final Map<String, String> CATEGORY_LABELS = Map.of(
-            "网络化", "NETWORK", "数字化(格物)", "GEWU", "数字化(大数据)", "BIG_DATA",
-            "智能化", "WANGWU", "智能化(万悟)", "WANGWU");
+            "网络化", "NETWORK", "数字化(格物)", "GEWU", "格物", "GEWU",
+            "数字化(大数据)", "BIG_DATA", "大数据", "BIG_DATA",
+            "智能化", "WANGWU", "智能化(万悟)", "WANGWU", "万悟", "WANGWU");
     private static final Map<String, String> STAGE_LABELS = Map.of(
-            "方案交流", "SOLUTION_EXCHANGE", "招投标", "BIDDING", "签约", "SIGNED",
+            "方案交流", "SOLUTION_EXCHANGE", "招投标", "BIDDING", "已中标", "BIDDING", "签约", "SIGNED",
             "计收", "COLLECTION", "已终止", "TERMINATED");
     private static final Map<String, String> AMOUNT_HEADERS = Map.of(
             "NETWORK", "网络化预计金额（万）", "GEWU", "格物预计金额（万）",
@@ -96,11 +97,27 @@ public class ProjectImportService {
 
     @Transactional
     public ImportBatchSummary preview(UUID actorId, String fileName, byte[] bytes) {
+        return preview(actorId, fileName, bytes, null, null, Map.of());
+    }
+
+    public ProjectExcelReader.WorkbookInspection inspect(UUID actorId, String fileName, byte[] bytes) {
+        identity.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        try {
+            return reader.inspect(bytes, safeFileName(fileName));
+        } catch (IOException | RuntimeException exception) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+        }
+    }
+
+    @Transactional
+    public ImportBatchSummary preview(UUID actorId, String fileName, byte[] bytes,
+            String sheetName, Integer headerRowNo, Map<String, String> fieldMapping) {
         var actor = identity.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         List<ProjectExcelReader.ExcelRow> source;
         try {
-            source = reader.read(bytes);
+            source = reader.read(bytes, sheetName, headerRowNo, fieldMapping);
         } catch (IOException | RuntimeException exception) {
             throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
         }
@@ -130,7 +147,7 @@ public class ProjectImportService {
         }
         int valid = (int) output.stream().filter(row -> "READY".equals(row.status())).count();
         var batch = ProjectImportBatchEntity.preview(actorId, safeFileName(fileName), sha256(bytes),
-                output.size(), valid, Instant.now(clock));
+                output.size(), valid, Instant.now(clock), sheetName, headerRowNo, stringify(fieldMapping));
         batches.save(batch);
         var saved = new ArrayList<ProjectImportRowEntity>();
         for (int i = 0; i < output.size(); i++) {

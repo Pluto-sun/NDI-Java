@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Map;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +28,70 @@ class ProjectExcelReaderTest {
         assertThatThrownBy(() -> new ProjectExcelReader().read(workbook(true)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不得包含公式");
+    }
+
+    @Test
+    void inspectsAlternativeSheetAndReadsManuallyMappedHeaders() throws Exception {
+        byte[] data;
+        try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            var sheet = book.createSheet("外部台账");
+            sheet.createRow(0).createCell(0).setCellValue("项目台账");
+            var header = sheet.createRow(1);
+            for (int index = 0; index < HEADERS.size(); index++) {
+                String name = HEADERS.get(index);
+                header.createCell(index).setCellValue(
+                        "省分".equals(name) ? "省份" : "项目名称".equals(name) ? "商机名称" : name);
+            }
+            var row = sheet.createRow(2);
+            row.createCell(0).setCellValue("广东省");
+            row.createCell(2).setCellValue("测试客户");
+            row.createCell(4).setCellValue("映射后的项目");
+            book.write(output);
+            data = output.toByteArray();
+        }
+        var reader = new ProjectExcelReader();
+        var inspection = reader.inspect(data, "外部台账.xlsx");
+        assertThat(inspection.sheets().getFirst().name()).isEqualTo("外部台账");
+        assertThat(inspection.sheets().getFirst().headerCandidates().get(1).headers())
+                .contains("省份", "商机名称");
+        var rows = reader.read(data, "外部台账", 2,
+                Map.of("省分", "省份", "项目名称", "商机名称"));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.getFirst().number()).isEqualTo(3);
+        assertThat(rows.getFirst().get("省分")).isEqualTo("广东省");
+        assertThat(rows.getFirst().get("项目名称")).isEqualTo("映射后的项目");
+        var unmapped = reader.read(data, "外部台账", 2,
+                Map.of("省分", "省份", "项目名称", "商机名称", "客户名称", ""));
+        assertThat(unmapped.getFirst().get("客户名称")).isBlank();
+        assertThatThrownBy(() -> reader.read(data, "外部台账", 2,
+                Map.of("省分", "省份", "项目名称", "省份")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void combinesLegacyCategorySlotsOnlyWhenExplicitlySelected() throws Exception {
+        byte[] data;
+        try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            var sheet = book.createSheet("旧模板");
+            var header = sheet.createRow(0);
+            for (int index = 0; index < HEADERS.size(); index++) {
+                header.createCell(index).setCellValue(index == 8 ? "三化类别一" : HEADERS.get(index));
+            }
+            header.createCell(HEADERS.size()).setCellValue("三化类别二");
+            var row = sheet.createRow(1);
+            row.createCell(0).setCellValue("广东省");
+            row.createCell(4).setCellValue("旧格式项目");
+            row.createCell(8).setCellValue("网络化");
+            row.createCell(HEADERS.size()).setCellValue("格物");
+            book.write(output);
+            data = output.toByteArray();
+        }
+        var rows = new ProjectExcelReader().read(data, "旧模板", 1,
+                Map.of("三化类别", ProjectExcelReader.CATEGORY_SLOTS));
+        assertThat(rows.getFirst().get("三化类别")).isEqualTo("网络化、格物");
+        assertThatThrownBy(() -> new ProjectExcelReader().read(data, "旧模板", 1,
+                Map.of("项目名称", ProjectExcelReader.CATEGORY_SLOTS)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private byte[] workbook(boolean formula) throws Exception {

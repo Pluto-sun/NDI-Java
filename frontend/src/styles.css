@@ -443,6 +443,11 @@ label {
   padding: 20px 10px;
   background: var(--surface-soft, #f7f8fa);
 }
+.import-layout {
+  margin: 20px 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
 .import-row-editor .panel-top {
   padding: 0;
 }

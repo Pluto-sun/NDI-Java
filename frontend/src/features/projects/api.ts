@@ -17,6 +17,7 @@ import type {
   UploadIntent,
   ImportBatch,
   ImportBatchListItem,
+  ImportWorkbookInspection,
   ExportTask,
   MonthlyWorkbench,
   TrendPoint,
@@ -121,9 +122,22 @@ export const projectsApi = {
     request<TrendPoint[]>(
       `/workbench/trend?from=${from}&to=${to}&includeTerminated=${includeTerminated}`,
     ),
-  previewImport: (file: File) => {
+  inspectImport: (file: File) => {
     const body = new FormData();
     body.append('file', file);
+    return request<ImportWorkbookInspection>('/imports/inspect', { method: 'POST', body });
+  },
+  previewImport: (
+    file: File,
+    layout?: { sheetName: string; headerRowNo: number; mapping: Record<string, string> },
+  ) => {
+    const body = new FormData();
+    body.append('file', file);
+    if (layout) {
+      body.append('sheetName', layout.sheetName);
+      body.append('headerRowNo', String(layout.headerRowNo));
+      body.append('mappingJson', JSON.stringify(layout.mapping));
+    }
     return request<ImportBatch>('/imports/preview', { method: 'POST', body });
   },
   importTemplate: () => requestBlob('/imports/template'),
