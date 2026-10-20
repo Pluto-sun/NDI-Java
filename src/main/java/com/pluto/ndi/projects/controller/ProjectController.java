@@ -3,6 +3,8 @@ package com.pluto.ndi.projects.controller;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.service.ProjectQuery;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectSummary;
 import com.pluto.ndi.projects.service.ProjectDetailSummary;
@@ -15,6 +17,7 @@ import com.pluto.ndi.shared.security.ActorPrincipal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -61,10 +64,19 @@ public class ProjectController {
             Authentication authentication,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "页码不得小于0") int page,
             @RequestParam(defaultValue = "20") @Min(value = 1, message = "每页数量不得小于1")
-            @Max(value = 100, message = "每页数量不得超过100") int size
+            @Max(value = 100, message = "每页数量不得超过100") int size,
+            @RequestParam(required = false) @Size(max = 40, message = "项目编号不得超过40个字符") String projectCode,
+            @RequestParam(required = false) @Size(max = 200, message = "项目名称不得超过200个字符") String projectName,
+            @RequestParam(required = false) ProjectStage stage,
+            @RequestParam(required = false) @Size(max = 3, message = "行业代码不得超过3个字符") String industryCode,
+            @RequestParam(required = false) UUID provinceId,
+            @RequestParam(required = false) UUID cityId,
+            @RequestParam(defaultValue = "true") boolean includeTerminated
     ) {
-        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return responseFactory.success(PageResponse.from(projectService.findProjects(actorId(authentication), pageable)));
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        var query = new ProjectQuery(projectCode, projectName, stage, industryCode,
+                provinceId, cityId, includeTerminated);
+        return responseFactory.success(PageResponse.from(projectService.findProjects(actorId(authentication), query, pageable)));
     }
 
     @GetMapping("/{projectId}")

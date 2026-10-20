@@ -15,9 +15,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
+import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectCategory;
+import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.domain.entity.ProjectCategoryAmountEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
@@ -34,6 +36,7 @@ import com.pluto.ndi.projects.util.ProjectNumberGenerator;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -128,12 +131,22 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public Page<ProjectSummary> findProjects(UUID actorId, Pageable pageable) {
-        var actor = requireEnabledActor(actorId);
-        var projects = findProjectsInScope(actor, pageable);
+        return findProjects(actorId, ProjectQuery.all(), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProjectSummary> findProjects(UUID actorId, ProjectQuery query, Pageable pageable) {
+        var scope = readableScope(actorId);
+        var projects = projectRepository.findAll(specification(scope, query), pageable);
         var amountsByProjectId = categoryAmountsByProjectId(projects.getContent().stream()
                 .map(ProjectEntity::id)
                 .toList());
         return projects.map(project -> projectMapper.toSummary(project, amountsByProjectId.getOrDefault(project.id(), List.of())));
+    }
+
+    @Transactional(readOnly = true)
+    public long countProjects(UUID actorId, ProjectQuery query) {
+        return projectRepository.count(specification(readableScope(actorId), query));
     }
 
     @Transactional(readOnly = true)
@@ -149,6 +162,11 @@ public class ProjectService {
         return identityDirectory.findProjectActor(actorId)
                 .filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.CREATION_FORBIDDEN));
+    }
+
+    private ProjectDataScope readableScope(UUID actorId) {
+        return identityDirectory.findReadableProjectScope(requireEnabledActor(actorId))
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
     }
 
     private void verifyLocation(CreateProjectCommand command) {
@@ -204,13 +222,38 @@ public class ProjectService {
                 .toList();
     }
 
-    private Page<ProjectEntity> findProjectsInScope(ProjectActor actor, Pageable pageable) {
-        var scope = identityDirectory.findReadableProjectScope(actor)
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        return switch (scope.level()) {
-            case PROVINCE -> projectRepository.findByProvinceId(scope.organizationId(), pageable);
-            case CITY -> projectRepository.findByCityId(scope.organizationId(), pageable);
+    private Specification<ProjectEntity> specification(ProjectDataScope scope, ProjectQuery query) {
+        return (root, ignored, builder) -> {
+            var conditions = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            conditions.add(builder.equal(root.get(scope.level() == ProjectDataScope.Level.PROVINCE
+                    ? "provinceId" : "cityId"), scope.organizationId()));
+            if (query.projectCode() != null) {
+                conditions.add(builder.equal(root.get("projectCode"), query.projectCode()));
+            }
+            if (query.projectName() != null) {
+                conditions.add(builder.like(root.get("projectName"), "%" + escapeLike(query.projectName()) + "%", '\\'));
+            }
+            if (query.stage() != null) {
+                conditions.add(builder.equal(root.get("currentStageCode"), query.stage().name()));
+            }
+            if (query.industryCode() != null) {
+                conditions.add(builder.equal(root.get("industryCode"), query.industryCode()));
+            }
+            if (query.provinceId() != null) {
+                conditions.add(builder.equal(root.get("provinceId"), query.provinceId()));
+            }
+            if (query.cityId() != null) {
+                conditions.add(builder.equal(root.get("cityId"), query.cityId()));
+            }
+            if (!query.includeTerminated()) {
+                conditions.add(builder.notEqual(root.get("currentStageCode"), ProjectStage.TERMINATED.name()));
+            }
+            return builder.and(conditions.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
+    }
+
+    private String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private Map<UUID, List<ProjectSummary.CategoryAmount>> categoryAmountsByProjectId(Collection<UUID> projectIds) {

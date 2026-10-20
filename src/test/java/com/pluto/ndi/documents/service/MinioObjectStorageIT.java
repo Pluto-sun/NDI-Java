@@ -73,4 +73,21 @@ class MinioObjectStorageIT {
         assertThat(http.send(HttpRequest.newBuilder(URI.create(downloadUrl)).GET().build(),
                 HttpResponse.BodyHandlers.ofByteArray()).body()).isEqualTo(original);
     }
+
+    @Test
+    void storesServerGeneratedCsvAndSignsDownload() throws Exception {
+        var endpoint = "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000);
+        var storage = new MinioObjectStorage(new StorageProperties(
+                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-exports", true));
+        var exportId = UUID.randomUUID();
+        var content = "\uFEFF项目编号\r\nNDI-1\r\n".getBytes(StandardCharsets.UTF_8);
+
+        storage.storeCsv(exportId, content);
+        var response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(storage.signCsvDownload(exportId))).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).isEqualTo(content);
+    }
 }

@@ -1,10 +1,12 @@
 package com.pluto.ndi.documents.service;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 import com.pluto.ndi.documents.config.StorageProperties;
 import com.pluto.ndi.documents.domain.DocumentErrorCode;
@@ -15,6 +17,7 @@ import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.Http;
 import io.minio.MakeBucketArgs;
+import io.minio.PutObjectArgs;
 import io.minio.MinioClient;
 import io.minio.StatObjectArgs;
 import io.minio.SourceObject;
@@ -26,7 +29,7 @@ import org.springframework.stereotype.Component;
 
 /** 将待上传对象复制到仅由服务端写入的正式对象键，防止预签名链接到期前覆盖已验证内容。 */
 @Component
-class MinioObjectStorage implements ObjectStorage {
+class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MinioObjectStorage.class);
     private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
@@ -120,6 +123,28 @@ class MinioObjectStorage implements ObjectStorage {
         } catch (MinioException exception) {
             throw storageFailure(exception);
         }
+    }
+
+    @Override
+    public void storeCsv(UUID exportId, byte[] content) {
+        ensureBucket(properties.bucket());
+        try (var stream = new ByteArrayInputStream(content)) {
+            internalClient.putObject(PutObjectArgs.builder()
+                    .bucket(properties.bucket()).object(exportKey(exportId))
+                    .stream(stream, (long) content.length, -1L)
+                    .contentType("text/csv; charset=utf-8").build());
+        } catch (MinioException | IOException exception) {
+            throw storageFailure(exception);
+        }
+    }
+
+    @Override
+    public String signCsvDownload(UUID exportId) {
+        return signDownload(properties.bucket(), exportKey(exportId));
+    }
+
+    private String exportKey(UUID exportId) {
+        return "exports/projects/" + exportId + ".csv";
     }
 
     private String sha256(String bucket, String objectKey, String mediaType) throws MinioException, IOException {

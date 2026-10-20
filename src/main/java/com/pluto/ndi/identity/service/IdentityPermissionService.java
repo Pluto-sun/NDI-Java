@@ -60,6 +60,9 @@ class IdentityPermissionService implements IdentityDirectory {
             return Optional.empty();
         }
         var roleCodes = roleCodes(actor.id());
+        if (roleCodes.contains(SYSTEM_ADMIN_ROLE)) {
+            return Optional.empty();
+        }
         boolean provinceReader = roleCodes.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains)
                 || roleCodes.contains(INTERFACE_PROJECT_READER_ROLE);
         if (provinceReader && actor.provinceId() != null) {

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.DocumentDirectory;
+import com.pluto.ndi.documents.service.ExportFileDirectory;
 import com.pluto.ndi.documents.service.DocumentSummary;
 import com.pluto.ndi.documents.service.DownloadIntent;
 import com.pluto.ndi.documents.service.UploadCommand;
@@ -34,6 +36,7 @@ import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectDocumentPurpose;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectExportStatus;
 import com.pluto.ndi.projects.repository.ProjectApprovalRequestRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.service.CreateProjectCommand;
@@ -50,6 +53,9 @@ import com.pluto.ndi.projects.service.ProjectWorkbenchService;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
 import com.pluto.ndi.projects.service.ProjectService;
+import com.pluto.ndi.projects.service.ProjectQuery;
+import com.pluto.ndi.projects.service.ProjectExportService;
+import com.pluto.ndi.projects.service.ProjectExportWorker;
 import com.pluto.ndi.projects.service.ProjectStageService;
 import com.pluto.ndi.projects.service.StageAdvanceCommand;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -60,6 +66,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.PageRequest;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -90,6 +97,7 @@ class ProjectApprovalIT {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
+        registry.add("ndi.projects.export.initial-delay-ms", () -> "600000");
     }
 
     @Autowired private JdbcTemplate jdbc;
@@ -107,7 +115,10 @@ class ProjectApprovalIT {
     @Autowired private ProjectDocumentService projectDocumentService;
     @Autowired private ProjectProfileService profileService;
     @Autowired private ProjectWorkbenchService workbenchService;
+    @Autowired private ProjectExportService exportService;
+    @Autowired private ProjectExportWorker exportWorker;
     @MockitoBean private DocumentDirectory documentDirectory;
+    @MockitoBean private ExportFileDirectory exportFileDirectory;
 
     private UUID provinceId;
     private UUID cityId;
@@ -642,6 +653,94 @@ class ProjectApprovalIT {
         var adminRead = catchThrowable(() -> workbenchService.overview(adminId, false));
         assertThat(adminRead).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) adminRead).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+    }
+
+    @Test
+    void projectListCombinesFiltersWithActorScope() throws Exception {
+        var activeId = createProject();
+        var terminatedId = createProject();
+        var termination = approvalService.submitMajorChange(cityUserId, terminatedId, new MajorChangeCommand(
+                MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户停止项目", null, null, null));
+        approvalService.decide(provinceUserId, termination.id(), true, null);
+        var activeCode = projectRepository.findById(activeId).orElseThrow().projectCode();
+
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("projectName", "原项目")
+                        .param("industryCode", "c25")
+                        .param("includeTerminated", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(activeId.toString()));
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("stage", "TERMINATED")
+                        .param("projectCode", activeCode))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("provinceId", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+
+        jdbc.update("UPDATE project_project SET project_name = '进度%目标' WHERE id = UUID_TO_BIN(?)",
+                activeId.toString());
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("projectName", "%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    void exportUsesScopedQueryAndAuditsDownload() throws Exception {
+        createProject();
+        var response = mockMvc.perform(post("/api/v1/projects/exports")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"projectName\":\"原项目\",\"industryCode\":\"C25\",\"includeTerminated\":false}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andReturn().getResponse().getContentAsString();
+        var taskId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(response).path("data").path("id").asText());
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, taskId).status()).isEqualTo(ProjectExportStatus.COMPLETED);
+        var csvBytes = ArgumentCaptor.forClass(byte[].class);
+        verify(exportFileDirectory).storeCsv(eq(taskId), csvBytes.capture());
+        assertThat(new String(csvBytes.getValue(), StandardCharsets.UTF_8)).contains("原项目");
+
+        when(exportFileDirectory.signCsvDownload(taskId)).thenReturn("https://storage.example/export");
+        mockMvc.perform(get("/api/v1/projects/exports/{exportId}/download", taskId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.url").value("https://storage.example/export"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_export_download WHERE export_id = UUID_TO_BIN(?)",
+                Integer.class, taskId.toString())).isEqualTo(1);
+        mockMvc.perform(get("/api/v1/projects/exports/{exportId}/download", taskId)
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isForbidden());
+
+        var anotherCityId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '调岗地市', true)",
+                anotherCityId.toString(), provinceId.toString(), anotherCityId.toString().replace("-", ""));
+        jdbc.update("UPDATE identity_user_account SET city_id = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)",
+                anotherCityId.toString(), cityUserId.toString());
+        mockMvc.perform(get("/api/v1/projects/exports/{exportId}/download", taskId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void administratorCannotExportEvenWithProvinceReporterRole() {
+        var administratorId = UUID.randomUUID();
+        addUser(administratorId, "PROVINCE_REPORTER", false);
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'SYSTEM_ADMIN')",
+                administratorId.toString());
+        var denied = catchThrowable(() -> exportService.submit(administratorId, ProjectQuery.all()));
+        assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
     }
 
     @Test

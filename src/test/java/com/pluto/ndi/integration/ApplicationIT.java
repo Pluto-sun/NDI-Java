@@ -26,6 +26,7 @@ class ApplicationIT {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
+        registry.add("ndi.projects.export.initial-delay-ms", () -> "600000");
     }
 
     @Test
