@@ -30,7 +30,9 @@ public record CreateProjectRequest(
         Boolean confirmNew,
         @Size(max = 2000, message = "重复项目新建原因不得超过2000字") String duplicateReason,
         String signingSubjectCode,
-        List<String> productSupportExpertNames
+        List<String> productSupportExpertNames,
+        String plannedBidMonth,
+        List<String> applicationScenarioCodes
 ) {
 
     CreateProjectCommand toCommand() {
@@ -53,7 +55,9 @@ public record CreateProjectRequest(
                 Boolean.TRUE.equals(confirmNew),
                 duplicateReason,
                 signingSubjectCode,
-                productSupportExpertNames
+                productSupportExpertNames,
+                plannedBidMonth,
+                applicationScenarioCodes
         );
     }
 

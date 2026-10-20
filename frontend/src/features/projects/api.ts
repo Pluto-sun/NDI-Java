@@ -111,6 +111,8 @@ export const projectsApi = {
       provinceLeaderUserId: string;
       cityAccountManagerName: string;
       productSupportExpertNames: string[];
+      plannedBidMonth: string;
+      applicationScenarioCodes: string[];
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),

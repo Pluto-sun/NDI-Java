@@ -2,6 +2,7 @@ package com.pluto.ndi.projects.domain.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -66,6 +67,15 @@ public class ProjectEntity {
 
     @Column(name = "signing_subject_code", nullable = false, length = 20)
     private String signingSubjectCode;
+
+    @Column(name = "planned_bid_month")
+    private LocalDate plannedBidMonth;
+
+    @ElementCollection
+    @CollectionTable(name = "project_application_scenario", joinColumns = @JoinColumn(name = "project_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "scenario_code", nullable = false, length = 40)
+    private List<String> applicationScenarioCodes = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(name = "project_support_expert", joinColumns = @JoinColumn(name = "project_id"))
@@ -181,6 +191,14 @@ public class ProjectEntity {
     }
 
     public String signingSubjectCode() { return signingSubjectCode; }
+    public LocalDate plannedBidMonth() { return plannedBidMonth; }
+    public List<String> applicationScenarioCodes() { return List.copyOf(applicationScenarioCodes); }
+
+    public void replacePlanningAttributes(LocalDate bidMonth, List<String> scenarioCodes) {
+        plannedBidMonth = bidMonth;
+        applicationScenarioCodes.clear();
+        applicationScenarioCodes.addAll(scenarioCodes);
+    }
     public List<String> productSupportExpertNames() { return List.copyOf(productSupportExpertNames); }
 
     public void replaceProductSupportExperts(List<String> names) {
@@ -225,6 +243,7 @@ public class ProjectEntity {
     public boolean updateProfile(
             String customerName, String industryCode, String customerNeed,
             UUID provinceLeaderUserId, String cityAccountManagerName, List<String> expertNames,
+            LocalDate bidMonth, List<String> scenarioCodes,
             UUID actorId, Instant occurredAt
     ) {
         if (Objects.equals(this.customerName, customerName)
@@ -232,7 +251,9 @@ public class ProjectEntity {
                 && Objects.equals(this.customerNeed, customerNeed)
                 && Objects.equals(this.provinceLeaderUserId, provinceLeaderUserId)
                 && Objects.equals(this.cityAccountManagerName, cityAccountManagerName)
-                && Objects.equals(this.productSupportExpertNames, expertNames)) {
+                && Objects.equals(this.productSupportExpertNames, expertNames)
+                && Objects.equals(this.plannedBidMonth, bidMonth)
+                && Objects.equals(this.applicationScenarioCodes, scenarioCodes)) {
             return false;
         }
         this.customerName = customerName;
@@ -241,6 +262,7 @@ public class ProjectEntity {
         this.provinceLeaderUserId = provinceLeaderUserId;
         this.cityAccountManagerName = cityAccountManagerName;
         replaceProductSupportExperts(expertNames);
+        replacePlanningAttributes(bidMonth, scenarioCodes);
         touch(actorId, occurredAt);
         return true;
     }

@@ -26,6 +26,12 @@ export function ProjectProfileForm({
   const [supportExpertsText, setSupportExpertsText] = useState(
     (project.productSupportExpertNames ?? []).join('\n'),
   );
+  const [plannedBidMonth, setPlannedBidMonth] = useState(
+    project.plannedBidMonth?.slice(0, 7) ?? '',
+  );
+  const [applicationScenarioCodes, setApplicationScenarioCodes] = useState(
+    project.applicationScenarioCodes ?? [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -35,6 +41,8 @@ export function ProjectProfileForm({
     setProvinceLeaderUserId(project.provinceLeaderUserId);
     setCityAccountManagerName(project.cityAccountManagerName);
     setSupportExpertsText((project.productSupportExpertNames ?? []).join('\n'));
+    setPlannedBidMonth(project.plannedBidMonth?.slice(0, 7) ?? '');
+    setApplicationScenarioCodes(project.applicationScenarioCodes ?? []);
   }, [project]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,6 +57,8 @@ export function ProjectProfileForm({
         provinceLeaderUserId,
         cityAccountManagerName: cityAccountManagerName.trim(),
         productSupportExpertNames: parseSupportExperts(supportExpertsText),
+        plannedBidMonth,
+        applicationScenarioCodes,
       });
       onSaved(updated);
       setOpen(false);
@@ -135,6 +145,33 @@ export function ProjectProfileForm({
               placeholder="多位专家请换行或用逗号分隔；不自动获得项目权限"
             />
           </label>
+          <label>
+            拟招标月份（选填）
+            <input
+              type="month"
+              value={plannedBidMonth}
+              onChange={(event) => setPlannedBidMonth(event.target.value)}
+            />
+          </label>
+          <fieldset>
+            <legend>应用场景（可多选）</legend>
+            {reference.applicationScenarios.map((scenario) => (
+              <label className="check-label" key={scenario.code}>
+                <input
+                  type="checkbox"
+                  checked={applicationScenarioCodes.includes(scenario.code)}
+                  onChange={(event) =>
+                    setApplicationScenarioCodes((current) =>
+                      event.target.checked
+                        ? [...current, scenario.code]
+                        : current.filter((code) => code !== scenario.code),
+                    )
+                  }
+                />
+                {scenario.label}
+              </label>
+            ))}
+          </fieldset>
           <button className="primary-button" type="submit" disabled={busy || !leaders.length}>
             {busy ? '保存中…' : '保存普通信息'}
           </button>

@@ -11,7 +11,8 @@ public record ProjectReferenceData(
         List<CityOption> cities,
         List<CodeLabel> industries,
         List<CodeLabel> categories,
-        List<CodeLabel> stages
+        List<CodeLabel> stages,
+        List<CodeLabel> applicationScenarios
 ) {
     public ProjectReferenceData {
         provinces = List.copyOf(provinces);
@@ -19,6 +20,7 @@ public record ProjectReferenceData(
         industries = List.copyOf(industries);
         categories = List.copyOf(categories);
         stages = List.copyOf(stages);
+        applicationScenarios = List.copyOf(applicationScenarios);
     }
 
     public record CodeLabel(String code, String label) { }

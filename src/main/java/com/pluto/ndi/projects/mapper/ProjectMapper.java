@@ -32,6 +32,7 @@ public class ProjectMapper {
                 project.totalAmount(), project.contractNo(), project.signedAmount(), project.currentStageCode(),
                 project.provinceLeaderUserId(), project.cityAccountManagerName(), project.signingSubjectCode(),
                 project.productSupportExpertNames(),
+                project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
                 project.createdAt(), project.updatedAt()
         );

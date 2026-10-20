@@ -24,6 +24,7 @@ export interface ReferenceData {
   industries: CodeLabel[];
   categories: CodeLabel[];
   stages: CodeLabel[];
+  applicationScenarios: CodeLabel[];
 }
 export interface CategoryAmount {
   categoryCode: string;
@@ -47,6 +48,8 @@ export interface CreateProjectInput {
   duplicateReason?: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
   productSupportExpertNames: string[];
+  plannedBidMonth: string | null;
+  applicationScenarioCodes: string[];
 }
 export interface ProjectDuplicateCheck {
   status: 'NONE' | 'STRONG_DUPLICATE' | 'DUPLICATE_CANDIDATE';
@@ -68,6 +71,8 @@ export interface ProjectDraftData {
   duplicateReason: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
   productSupportExpertNames?: string[];
+  plannedBidMonth?: string;
+  applicationScenarioCodes?: string[];
 }
 export interface ProjectDraft {
   id: string;
@@ -97,6 +102,8 @@ export interface ProjectDetail extends ProjectSummary {
   cityAccountManagerName: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
   productSupportExpertNames: string[];
+  plannedBidMonth: string | null;
+  applicationScenarioCodes: string[];
   versionNo: number;
   updatedAt: string;
 }

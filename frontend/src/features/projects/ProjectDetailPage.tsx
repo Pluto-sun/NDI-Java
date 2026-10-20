@@ -157,6 +157,22 @@ export function ProjectDetailPage({
                     <dd>{detail.productSupportExpertNames?.join('、') || '—'}</dd>
                   </div>
                   <div>
+                    <dt>拟招标月份</dt>
+                    <dd>{detail.plannedBidMonth?.slice(0, 7) ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>应用场景</dt>
+                    <dd>
+                      {detail.applicationScenarioCodes
+                        ?.map(
+                          (code) =>
+                            reference.applicationScenarios.find((item) => item.code === code)
+                              ?.label ?? code,
+                        )
+                        .join('、') || '—'}
+                    </dd>
+                  </div>
+                  <div>
                     <dt>签约主体</dt>
                     <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
                   </div>

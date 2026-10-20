@@ -36,6 +36,7 @@ import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
 import com.pluto.ndi.projects.util.ProjectExpertNames;
+import com.pluto.ndi.projects.util.ProjectPlanningFields;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -147,6 +148,8 @@ public class ProjectService {
                 occurredAt
         );
         project.replaceProductSupportExperts(normalized.productSupportExpertNames());
+        project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(normalized.plannedBidMonth()),
+                normalized.applicationScenarioCodes());
         projectRepository.saveAndFlush(project);
         monthlySnapshots.recordCreated(project);
 
@@ -307,10 +310,19 @@ public class ProjectService {
 
     private CreateProjectCommand normalize(CreateProjectCommand command) {
         List<String> expertNames;
+        List<String> scenarios;
+        String bidMonth;
         try {
             expertNames = ProjectExpertNames.normalize(command.productSupportExpertNames());
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ProjectErrorCode.INVALID_SUPPORT_EXPERTS);
+        }
+        try {
+            scenarios = ProjectPlanningFields.normalizeScenarios(command.applicationScenarioCodes());
+            var parsedMonth = ProjectPlanningFields.parseBidMonth(command.plannedBidMonth());
+            bidMonth = parsedMonth == null ? null : java.time.YearMonth.from(parsedMonth).toString();
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PLANNING_FIELDS);
         }
         return new CreateProjectCommand(
                 command.provinceId(),
@@ -330,7 +342,7 @@ public class ProjectService {
                 command.duplicateReason() == null ? null : command.duplicateReason().trim(),
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
                         ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
-                expertNames
+                expertNames, bidMonth, scenarios
         );
     }
 
@@ -356,6 +368,8 @@ public class ProjectService {
             values.put("totalAmount", project.totalAmount());
             values.put("signingSubjectCode", project.signingSubjectCode());
             values.put("productSupportExpertNames", project.productSupportExpertNames());
+            values.put("plannedBidMonth", project.plannedBidMonth());
+            values.put("applicationScenarioCodes", project.applicationScenarioCodes());
             if (duplicateReason != null) values.put("duplicateReason", duplicateReason);
             var payload = objectMapper.writeValueAsString(values);
             return ProjectChangeEventEntity.create(project.id(), project.versionNo(), payload, actorId, occurredAt);

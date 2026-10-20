@@ -2,6 +2,7 @@ package com.pluto.ndi.projects.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,8 @@ public record ProjectDetailSummary(
         String cityAccountManagerName,
         String signingSubjectCode,
         List<String> productSupportExpertNames,
+        LocalDate plannedBidMonth,
+        List<String> applicationScenarioCodes,
         long versionNo,
         List<ProjectSummary.CategoryAmount> categoryAmounts,
         Instant createdAt,
@@ -31,5 +34,6 @@ public record ProjectDetailSummary(
     public ProjectDetailSummary {
         categoryAmounts = List.copyOf(categoryAmounts);
         productSupportExpertNames = List.copyOf(productSupportExpertNames);
+        applicationScenarioCodes = List.copyOf(applicationScenarioCodes);
     }
 }

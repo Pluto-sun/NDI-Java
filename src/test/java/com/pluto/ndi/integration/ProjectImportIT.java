@@ -211,6 +211,13 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM project_support_expert WHERE project_id = UUID_TO_BIN(?)",
                 Integer.class, recovered.rows().getFirst().projectId().toString())).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT planned_bid_month FROM project_project WHERE id = UUID_TO_BIN(?)",
+                java.sql.Date.class, recovered.rows().getFirst().projectId().toString()).toLocalDate())
+                .isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_application_scenario WHERE project_id = UUID_TO_BIN(?)",
+                Integer.class, recovered.rows().getFirst().projectId().toString())).isEqualTo(2);
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -301,6 +308,10 @@ class ProjectImportIT {
             sheet.getRow(1).createCell(16).setCellValue("数科签约");
             sheet.getRow(0).createCell(17).setCellValue("产品单位支撑专家");
             sheet.getRow(1).createCell(17).setCellValue("张专家，李专家");
+            sheet.getRow(0).createCell(18).setCellValue("拟招标日期");
+            sheet.getRow(1).createCell(18).setCellValue("2026-11-20");
+            sheet.getRow(0).createCell(19).setCellValue("应用场景");
+            sheet.getRow(1).createCell(19).setCellValue("柔性产线快速换产，质量精准追溯");
             source.write(output);
             return output.toByteArray();
         }

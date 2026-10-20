@@ -656,6 +656,42 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void createsAndMaintainsPlanningAttributesWithVersionedAudit() {
+        var created = projectService.createProject(cityUserId, new CreateProjectCommand(
+                provinceId, cityId, "规划项目-" + UUID.randomUUID(), "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                "完成初步交流", "继续讨论", null, true, "独立规划项目", "PROVINCE_SIGN",
+                List.of(), "2026-11", List.of("FLEXIBLE_PRODUCTION", "QUALITY_TRACEABILITY")));
+        var original = projectService.findDetail(cityUserId, created.id());
+        assertThat(original.plannedBidMonth()).isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+        assertThat(original.applicationScenarioCodes())
+                .containsExactly("FLEXIBLE_PRODUCTION", "QUALITY_TRACEABILITY");
+
+        var updated = profileService.update(cityUserId, created.id(), new UpdateProjectProfileCommand(
+                original.versionNo(), original.customerName(), original.industryCode(), original.customerNeed(),
+                original.provinceLeaderUserId(), original.cityAccountManagerName(),
+                original.productSupportExpertNames(), "", List.of("ENERGY_CONTROL")));
+        assertThat(updated.versionNo()).isEqualTo(original.versionNo() + 1);
+        assertThat(updated.plannedBidMonth()).isNull();
+        assertThat(updated.applicationScenarioCodes()).containsExactly("ENERGY_CONTROL");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_application_scenario WHERE project_id = UUID_TO_BIN(?)
+                """, Integer.class, created.id().toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
+                """, Integer.class, created.id().toString())).isEqualTo(1);
+
+        var invalid = catchThrowable(() -> profileService.update(cityUserId, created.id(),
+                new UpdateProjectProfileCommand(updated.versionNo(), updated.customerName(),
+                        updated.industryCode(), updated.customerNeed(), updated.provinceLeaderUserId(),
+                        updated.cityAccountManagerName(), updated.productSupportExpertNames(),
+                        "2026-13", List.of())));
+        assertThat(((BusinessException) invalid).errorCode()).isEqualTo(ProjectErrorCode.INVALID_PLANNING_FIELDS);
+    }
+
+    @Test
     void protectsNormalProfileUpdateWithRoleVersionReferenceAndTerminalChecks() throws Exception {
         var projectId = createProject();
         var version = projectRepository.findById(projectId).orElseThrow().versionNo();

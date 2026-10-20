@@ -17,10 +17,13 @@ public record UpdateProjectProfileRequest(
         @NotBlank @Size(max = 10_000) String customerNeed,
         @NotNull UUID provinceLeaderUserId,
         @NotBlank @Size(max = 100) String cityAccountManagerName,
-        List<String> productSupportExpertNames
+        List<String> productSupportExpertNames,
+        String plannedBidMonth,
+        List<String> applicationScenarioCodes
 ) {
     public UpdateProjectProfileCommand toCommand() {
         return new UpdateProjectProfileCommand(expectedVersion, customerName, industryCode, customerNeed,
-                provinceLeaderUserId, cityAccountManagerName, productSupportExpertNames);
+                provinceLeaderUserId, cityAccountManagerName, productSupportExpertNames,
+                plannedBidMonth, applicationScenarioCodes);
     }
 }

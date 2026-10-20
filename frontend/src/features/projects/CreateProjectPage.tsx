@@ -32,6 +32,8 @@ export function CreateProjectPage({
   const [totalAmount, setTotalAmount] = useState('');
   const [cityAccountManagerName, setCityAccountManagerName] = useState('');
   const [supportExpertsText, setSupportExpertsText] = useState('');
+  const [plannedBidMonth, setPlannedBidMonth] = useState('');
+  const [applicationScenarioCodes, setApplicationScenarioCodes] = useState<string[]>([]);
   const [signingSubjectCode, setSigningSubjectCode] = useState<'PROVINCE_SIGN' | 'DS_SIGN'>(
     'PROVINCE_SIGN',
   );
@@ -92,6 +94,8 @@ export function CreateProjectPage({
       totalAmount,
       cityAccountManagerName,
       productSupportExpertNames: supportExpertsText.split(/\n/).filter(Boolean),
+      plannedBidMonth,
+      applicationScenarioCodes,
       signingSubjectCode,
       initialProgress,
       nextAction,
@@ -148,6 +152,8 @@ export function CreateProjectPage({
     setTotalAmount(data.totalAmount ?? '');
     setCityAccountManagerName(data.cityAccountManagerName ?? '');
     setSupportExpertsText((data.productSupportExpertNames ?? []).join('\n'));
+    setPlannedBidMonth(data.plannedBidMonth ?? '');
+    setApplicationScenarioCodes(data.applicationScenarioCodes ?? []);
     setSigningSubjectCode(data.signingSubjectCode === 'DS_SIGN' ? 'DS_SIGN' : 'PROVINCE_SIGN');
     setInitialProgress(data.initialProgress ?? '');
     setNextAction(data.nextAction ?? '');
@@ -243,6 +249,8 @@ export function CreateProjectPage({
         provinceLeaderUserId: leaderId,
         cityAccountManagerName,
         productSupportExpertNames,
+        plannedBidMonth,
+        applicationScenarioCodes,
         signingSubjectCode,
         categoryAmounts,
         initialProgress,
@@ -490,7 +498,7 @@ export function CreateProjectPage({
             />
           </label>
         </div>
-        <h2>责任与分类</h2>
+        <h2>责任信息</h2>
         <div className="form-grid">
           <label>
             省分负责人
@@ -536,6 +544,39 @@ export function CreateProjectPage({
             />
           </label>
         </div>
+        <h2>规划信息（选填）</h2>
+        <div className="form-grid">
+          <label>
+            拟招标月份
+            <input
+              type="month"
+              value={plannedBidMonth}
+              onChange={(event) => setPlannedBidMonth(event.target.value)}
+            />
+          </label>
+          <fieldset className="span-two">
+            <legend>应用场景（可多选）</legend>
+            <div className="category-grid">
+              {reference.applicationScenarios.map((scenario) => (
+                <label className="check-label" key={scenario.code}>
+                  <input
+                    type="checkbox"
+                    checked={applicationScenarioCodes.includes(scenario.code)}
+                    onChange={(event) =>
+                      setApplicationScenarioCodes((current) =>
+                        event.target.checked
+                          ? [...current, scenario.code]
+                          : current.filter((code) => code !== scenario.code),
+                      )
+                    }
+                  />
+                  {scenario.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+        <h2>三化分类金额</h2>
         <div className="category-grid">
           {reference.categories.map((item) => (
             <div className="category-item" key={item.code}>

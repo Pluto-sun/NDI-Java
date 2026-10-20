@@ -11,8 +11,16 @@ public record UpdateProjectProfileCommand(
         String customerNeed,
         UUID provinceLeaderUserId,
         String cityAccountManagerName,
-        List<String> productSupportExpertNames
+        List<String> productSupportExpertNames,
+        String plannedBidMonth,
+        List<String> applicationScenarioCodes
 ) {
+    public UpdateProjectProfileCommand(long expectedVersion, String customerName, String industryCode,
+            String customerNeed, UUID provinceLeaderUserId, String cityAccountManagerName,
+            List<String> productSupportExpertNames) {
+        this(expectedVersion, customerName, industryCode, customerNeed, provinceLeaderUserId,
+                cityAccountManagerName, productSupportExpertNames, null, null);
+    }
     public UpdateProjectProfileCommand(long expectedVersion, String customerName, String industryCode,
             String customerNeed, UUID provinceLeaderUserId, String cityAccountManagerName) {
         this(expectedVersion, customerName, industryCode, customerNeed, provinceLeaderUserId,

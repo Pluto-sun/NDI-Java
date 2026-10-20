@@ -58,6 +58,7 @@ class ProjectContextServiceTest {
         assertThat(result.industries()).containsExactly(new ProjectReferenceData.CodeLabel("C13", "农副食品加工业"));
         assertThat(result.categories()).hasSize(4);
         assertThat(result.stages()).hasSize(5);
+        assertThat(result.applicationScenarios()).hasSize(7);
     }
 
     @Test

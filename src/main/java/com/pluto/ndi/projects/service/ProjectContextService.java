@@ -9,6 +9,7 @@ import com.pluto.ndi.identity.service.ProjectUser;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectCategory;
+import com.pluto.ndi.projects.domain.ProjectApplicationScenario;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
@@ -48,6 +49,8 @@ public class ProjectContextService {
                 Arrays.stream(ProjectCategory.values())
                         .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList(),
                 Arrays.stream(ProjectStage.values())
+                        .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList(),
+                Arrays.stream(ProjectApplicationScenario.values())
                         .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList());
     }
 
