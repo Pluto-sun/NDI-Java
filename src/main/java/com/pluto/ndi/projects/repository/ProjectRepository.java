@@ -16,6 +16,13 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
 
     List<ProjectEntity> findByCityId(UUID cityId);
 
+    @Query("""
+            select new com.pluto.ndi.projects.repository.ProjectNameCandidate(
+                project.id, project.projectCode, project.projectName)
+            from ProjectEntity project where project.cityId = :cityId
+            """)
+    List<ProjectNameCandidate> findNamesByCityId(@Param("cityId") UUID cityId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select project from ProjectEntity project where project.id = :id")
     Optional<ProjectEntity> findLockedById(UUID id);

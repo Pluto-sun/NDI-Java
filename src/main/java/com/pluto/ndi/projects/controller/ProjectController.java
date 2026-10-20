@@ -9,6 +9,8 @@ import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.ProjectSummary;
 import com.pluto.ndi.projects.service.ProjectDetailSummary;
 import com.pluto.ndi.projects.service.ProjectProfileService;
+import com.pluto.ndi.projects.service.ProjectDuplicateService;
+import com.pluto.ndi.projects.service.ProjectDuplicateCheck;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -41,13 +43,23 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final ProjectProfileService profileService;
+    private final ProjectDuplicateService duplicateService;
     private final ApiResponseFactory responseFactory;
 
     public ProjectController(ProjectService projectService, ProjectProfileService profileService,
+                             ProjectDuplicateService duplicateService,
                              ApiResponseFactory responseFactory) {
         this.projectService = projectService;
         this.profileService = profileService;
+        this.duplicateService = duplicateService;
         this.responseFactory = responseFactory;
+    }
+
+    @GetMapping("/duplicate-check")
+    public ApiResponse<ProjectDuplicateCheck> duplicateCheck(Authentication authentication,
+            @RequestParam UUID cityId,
+            @RequestParam @Size(min = 2, max = 200) String projectName) {
+        return responseFactory.success(duplicateService.check(actorId(authentication), cityId, projectName));
     }
 
     @PostMapping

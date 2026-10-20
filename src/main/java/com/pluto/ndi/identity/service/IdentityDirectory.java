@@ -22,6 +22,8 @@ public interface IdentityDirectory {
 
     boolean canCreateProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
+    boolean canSaveProjectDraft(ProjectActor actor);
+
     Optional<ProjectDataScope> findReadableProjectScope(ProjectActor actor);
 
     boolean isEligibleProvinceLeader(UUID userId, UUID provinceId);

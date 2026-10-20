@@ -22,6 +22,9 @@ import type {
   ApprovalNotification,
   ProjectChange,
   MonthlyRevision,
+  ProjectDraft,
+  ProjectDraftData,
+  ProjectDuplicateCheck,
 } from './types';
 
 export interface ProjectQuery {
@@ -75,6 +78,17 @@ export const projectsApi = {
     request<MonthlyRevision[]>(`/workbench/history/${id}/revisions?month=${month}`),
   create: (data: CreateProjectInput) =>
     request<ProjectSummary>('', { method: 'POST', ...jsonBody(data) }),
+  duplicateCheck: (cityId: string, projectName: string) =>
+    request<ProjectDuplicateCheck>(
+      `/duplicate-check?cityId=${encodeURIComponent(cityId)}&projectName=${encodeURIComponent(projectName)}`,
+    ),
+  drafts: (page: number) => request<Page<ProjectDraft>>(`/drafts?page=${page}&size=20`),
+  saveDraft: (data: ProjectDraftData, id?: string) =>
+    request<ProjectDraft>(id ? `/drafts/${id}` : '/drafts', {
+      method: id ? 'PUT' : 'POST',
+      ...jsonBody({ title: data.projectName.trim() || '未命名项目草稿', data }),
+    }),
+  deleteDraft: (id: string) => request<null>(`/drafts/${id}`, { method: 'DELETE' }),
   appendProgress: (
     id: string,
     progressContent: string,

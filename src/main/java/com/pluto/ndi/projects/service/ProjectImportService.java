@@ -30,6 +30,7 @@ import com.pluto.ndi.projects.repository.ProjectImportRowRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExcelReader;
+import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -222,15 +223,15 @@ public class ProjectImportService {
 
     private boolean existsName(Map<UUID, Set<String>> cache, UUID cityId, String projectName) {
         return cache.computeIfAbsent(cityId, id -> projects.findByCityId(id).stream()
-                .map(project -> normalized(project.projectName()))
-                .collect(java.util.stream.Collectors.toSet())).contains(normalized(projectName));
+                .map(project -> ProjectNameMatcher.standard(project.projectName()))
+                .collect(java.util.stream.Collectors.toSet())).contains(ProjectNameMatcher.standard(projectName));
     }
 
     private String duplicateKey(ProjectExcelReader.ExcelRow row) {
         if (row.get("省分").isBlank() || row.get("地市").isBlank() || row.get("项目名称").isBlank()) return null;
         return normalized(stripAdministrativeSuffix(row.get("省分"))) + ":"
                 + normalized(stripAdministrativeSuffix(row.get("地市"))) + ":"
-                + normalized(row.get("项目名称"));
+                + ProjectNameMatcher.standard(row.get("项目名称"));
     }
 
     private String stripAdministrativeSuffix(String name) {

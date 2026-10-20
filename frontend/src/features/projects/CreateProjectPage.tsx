@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { projectsApi } from './api';
-import type { ProjectUser, ReferenceData } from './types';
+import type {
+  ProjectDraft,
+  ProjectDraftData,
+  ProjectDuplicateCheck,
+  ProjectUser,
+  ReferenceData,
+} from './types';
+import type { Page } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
 import { amountToCents } from '../../shared/ui/format';
+import { dateTime } from '../../shared/ui/format';
 
 export function CreateProjectPage({
   me,
@@ -27,6 +35,16 @@ export function CreateProjectPage({
   const [categories, setCategories] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftId, setDraftId] = useState<string | undefined>();
+  const [drafts, setDrafts] = useState<Page<ProjectDraft> | null>(null);
+  const [draftPage, setDraftPage] = useState(0);
+  const [message, setMessage] = useState('');
+  const [candidate, setCandidate] = useState<ProjectDuplicateCheck | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+  const [duplicateReason, setDuplicateReason] = useState('');
+  const checkRevision = useRef(0);
   const provinceId = me.provinceId;
   const isCity =
     me.roleCodes.includes('CITY_REPORTER') &&
@@ -43,6 +61,117 @@ export function CreateProjectPage({
       .catch((cause) => setError(cause instanceof Error ? cause.message : '负责人目录加载失败'));
   }, [provinceId]);
 
+  useEffect(() => {
+    let active = true;
+    projectsApi
+      .drafts(draftPage)
+      .then((result) => {
+        if (active) setDrafts(result);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : '草稿列表加载失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftPage, me.id]);
+
+  function formData(): ProjectDraftData {
+    return {
+      cityId,
+      leaderId,
+      projectName,
+      customerName,
+      industryCode,
+      customerNeed,
+      totalAmount,
+      cityAccountManagerName,
+      initialProgress,
+      nextAction,
+      categories,
+      confirmNew,
+      duplicateReason,
+    };
+  }
+
+  async function checkDuplicate() {
+    if (!cityId || projectName.trim().length < 2) return null;
+    const revision = ++checkRevision.current;
+    setChecking(true);
+    try {
+      const result = await projectsApi.duplicateCheck(cityId, projectName.trim());
+      if (revision === checkRevision.current) setCandidate(result);
+      return result;
+    } catch (cause) {
+      if (revision === checkRevision.current)
+        setError(cause instanceof Error ? cause.message : '重名检查失败');
+      return null;
+    } finally {
+      if (revision === checkRevision.current) setChecking(false);
+    }
+  }
+
+  async function saveDraft() {
+    setDraftBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const saved = await projectsApi.saveDraft(formData(), draftId);
+      setDraftId(saved.id);
+      setDraftPage(0);
+      setDrafts(await projectsApi.drafts(0));
+      setMessage('草稿已保存，不会进入项目统计。');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '草稿保存失败');
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  function restoreDraft(draft: ProjectDraft) {
+    if (!window.confirm(`载入草稿“${draft.title}”？当前未保存内容会被替换。`)) return;
+    const data = draft.data;
+    setDraftId(draft.id);
+    setCityId(data.cityId ?? '');
+    setLeaderId(data.leaderId ?? '');
+    setProjectName(data.projectName ?? '');
+    setCustomerName(data.customerName ?? '');
+    setIndustryCode(data.industryCode ?? '');
+    setCustomerNeed(data.customerNeed ?? '');
+    setTotalAmount(data.totalAmount ?? '');
+    setCityAccountManagerName(data.cityAccountManagerName ?? '');
+    setInitialProgress(data.initialProgress ?? '');
+    setNextAction(data.nextAction ?? '');
+    setCategories(
+      data.categories && typeof data.categories === 'object' && !Array.isArray(data.categories)
+        ? data.categories
+        : {},
+    );
+    setConfirmNew(Boolean(data.confirmNew));
+    setDuplicateReason(data.duplicateReason ?? '');
+    setCandidate(null);
+    checkRevision.current += 1;
+    setChecking(false);
+    setMessage(`已载入草稿“${draft.title}”。`);
+    setError('');
+  }
+
+  async function deleteDraft(draft: ProjectDraft) {
+    if (!window.confirm(`删除草稿“${draft.title}”？此操作不能恢复。`)) return;
+    setDraftBusy(true);
+    setError('');
+    try {
+      await projectsApi.deleteDraft(draft.id);
+      if (draftId === draft.id) setDraftId(undefined);
+      setDrafts(await projectsApi.drafts(draftPage));
+      setMessage('草稿已删除。');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '草稿删除失败');
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
   const categoryAmounts = useMemo(
     () =>
       Object.entries(categories).map(([categoryCode, expectedAmount]) => ({
@@ -53,6 +182,10 @@ export function CreateProjectPage({
   );
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (projectName.trim().length < 2) {
+      setError('项目名称至少需要 2 个字符。');
+      return;
+    }
     if (!provinceId || !cityId || !leaderId) {
       setError('请选择地市和省分负责人。');
       return;
@@ -76,6 +209,16 @@ export function CreateProjectPage({
       setError('三化分类金额合计不能超过项目总金额。');
       return;
     }
+    const duplicate = await checkDuplicate();
+    if (!duplicate) return;
+    if (duplicate.status === 'STRONG_DUPLICATE') {
+      setError('同地市已有相同名称的项目，请打开现有项目追加进展。');
+      return;
+    }
+    if (duplicate.status === 'DUPLICATE_CANDIDATE' && (!confirmNew || !duplicateReason.trim())) {
+      setError('发现相似项目。若仍需另建，请勾选确认并填写原因。');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -92,6 +235,9 @@ export function CreateProjectPage({
         categoryAmounts,
         initialProgress,
         nextAction,
+        draftId,
+        confirmNew,
+        duplicateReason: duplicateReason.trim(),
       });
       navigate(`/projects/${created.id}`);
     } catch (cause) {
@@ -113,6 +259,67 @@ export function CreateProjectPage({
           返回列表
         </Link>
       </div>
+      <div className="panel draft-panel">
+        <div className="panel-top">
+          <strong>我的项目草稿</strong>
+          <span>{drafts?.totalElements ?? 0} 条</span>
+        </div>
+        <p className="subtle">草稿仅本人可见；载入草稿前会提示替换当前表单。</p>
+        {drafts?.items.map((draft) => (
+          <div className="draft-item" key={draft.id}>
+            <div>
+              <strong>{draft.title}</strong>
+              <small>{dateTime(draft.updatedAt)}</small>
+            </div>
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={draftBusy}
+                onClick={() => restoreDraft(draft)}
+              >
+                继续填写
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                disabled={draftBusy}
+                onClick={() => void deleteDraft(draft)}
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        ))}
+        {!drafts?.items.length && (
+          <div className="empty-state">暂无草稿。填写过程中可随时保存。</div>
+        )}
+        {(drafts?.totalPages ?? 0) > 1 && (
+          <div className="pager">
+            <span>
+              第 {draftPage + 1} / {drafts?.totalPages} 页
+            </span>
+            <div>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={draftPage === 0}
+                onClick={() => setDraftPage(draftPage - 1)}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={draftPage + 1 >= (drafts?.totalPages ?? 0)}
+                onClick={() => setDraftPage(draftPage + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       <form className="panel form-panel" onSubmit={submit}>
         <h2>基本信息</h2>
         <div className="form-grid">
@@ -128,7 +335,13 @@ export function CreateProjectPage({
             <select
               required
               value={cityId}
-              onChange={(event) => setCityId(event.target.value)}
+              onChange={(event) => {
+                setCityId(event.target.value);
+                setCandidate(null);
+                setConfirmNew(false);
+                setChecking(false);
+                checkRevision.current += 1;
+              }}
               disabled={isCity}
             >
               <option value="">请选择</option>
@@ -145,9 +358,81 @@ export function CreateProjectPage({
               required
               maxLength={200}
               value={projectName}
-              onChange={(event) => setProjectName(event.target.value)}
+              onChange={(event) => {
+                setProjectName(event.target.value);
+                setCandidate(null);
+                setConfirmNew(false);
+                setChecking(false);
+                checkRevision.current += 1;
+              }}
+              onBlur={() => {
+                if (projectName.trim().length >= 2) void checkDuplicate();
+              }}
             />
           </label>
+          <div className="span-two duplicate-check">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!cityId || projectName.trim().length < 2 || checking}
+              onClick={() => void checkDuplicate()}
+            >
+              {checking ? '检查中…' : '检查同地市重名'}
+            </button>
+            {candidate?.status === 'NONE' && (
+              <p role="status" className="subtle">
+                未发现同名或相似项目。
+              </p>
+            )}
+            {candidate && candidate.candidates.length > 0 && (
+              <div className="duplicate-results" role="status">
+                <strong>
+                  {candidate.status === 'STRONG_DUPLICATE'
+                    ? '存在完全同名项目，不能重复创建'
+                    : '发现相似项目，请先核对'}
+                </strong>
+                <ul>
+                  {candidate.candidates.map((item) => (
+                    <li key={item.projectId}>
+                      <Link
+                        className="inline-link"
+                        to={`/projects/${item.projectId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.projectCode} · {item.projectName}
+                      </Link>
+                      <span>相似度 {item.similarity}%</span>
+                    </li>
+                  ))}
+                </ul>
+                {candidate.status === 'DUPLICATE_CANDIDATE' && (
+                  <>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={confirmNew}
+                        onChange={(event) => setConfirmNew(event.target.checked)}
+                      />
+                      确认仍需另建项目
+                    </label>
+                    {confirmNew && (
+                      <label>
+                        另建原因
+                        <textarea
+                          required
+                          maxLength={2000}
+                          rows={2}
+                          value={duplicateReason}
+                          onChange={(event) => setDuplicateReason(event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <label>
             客户名称
             <input
@@ -277,10 +562,19 @@ export function CreateProjectPage({
           </label>
         </div>
         {error && <Feedback tone="error">{error}</Feedback>}
+        {message && <Feedback tone="success">{message}</Feedback>}
         <div className="form-actions">
           <Link className="secondary-button" to="/projects">
             取消
           </Link>
+          <button
+            className="secondary-button"
+            disabled={draftBusy || busy}
+            type="button"
+            onClick={() => void saveDraft()}
+          >
+            {draftBusy ? '保存中…' : draftId ? '更新草稿' : '保存草稿'}
+          </button>
           <button className="primary-button" disabled={busy} type="submit">
             {busy ? '正在创建…' : '创建项目'}
           </button>

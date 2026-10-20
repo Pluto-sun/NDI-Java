@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,6 +31,7 @@ import com.pluto.ndi.projects.repository.ProjectCategoryAmountRepository;
 import com.pluto.ndi.projects.repository.ProjectChangeEventRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectProgressRepository;
+import com.pluto.ndi.projects.repository.ProjectDraftRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
@@ -51,6 +53,9 @@ public class ProjectService {
     private final ProjectCategoryAmountRepository categoryAmountRepository;
     private final ProjectStageMilestoneRepository stageMilestoneRepository;
     private final ProjectProgressRepository progressRepository;
+    private final ProjectDraftRepository draftRepository;
+    private final ProjectDuplicateService duplicates;
+    private final ProjectCityWriteLock cityWriteLock;
     private final ProjectChangeEventRepository changeEventRepository;
     private final ProjectNumberGenerator projectNumberGenerator;
     private final ProjectMapper projectMapper;
@@ -67,6 +72,9 @@ public class ProjectService {
             ProjectCategoryAmountRepository categoryAmountRepository,
             ProjectStageMilestoneRepository stageMilestoneRepository,
             ProjectProgressRepository progressRepository,
+            ProjectDraftRepository draftRepository,
+            ProjectDuplicateService duplicates,
+            ProjectCityWriteLock cityWriteLock,
             ProjectChangeEventRepository changeEventRepository,
             ProjectNumberGenerator projectNumberGenerator,
             ProjectMapper projectMapper,
@@ -82,6 +90,9 @@ public class ProjectService {
         this.categoryAmountRepository = categoryAmountRepository;
         this.stageMilestoneRepository = stageMilestoneRepository;
         this.progressRepository = progressRepository;
+        this.draftRepository = draftRepository;
+        this.duplicates = duplicates;
+        this.cityWriteLock = cityWriteLock;
         this.changeEventRepository = changeEventRepository;
         this.projectNumberGenerator = projectNumberGenerator;
         this.projectMapper = projectMapper;
@@ -100,6 +111,19 @@ public class ProjectService {
         verifyProvinceLeader(normalized);
         verifyIndustry(normalized.industryCode());
         var categories = validateCategories(normalized.categoryAmounts(), normalized.totalAmount());
+        var draft = normalized.draftId() == null ? null
+                : draftRepository.findByIdAndOwnerId(normalized.draftId(), actorId)
+                        .orElseThrow(() -> new BusinessException(ProjectErrorCode.DRAFT_NOT_FOUND));
+        cityWriteLock.lock(normalized.cityId());
+        var duplicate = duplicates.candidates(normalized.cityId(), normalized.projectName());
+        if ("STRONG_DUPLICATE".equals(duplicate.status())) {
+            throw new BusinessException(ProjectErrorCode.DUPLICATE_PROJECT);
+        }
+        if ("DUPLICATE_CANDIDATE".equals(duplicate.status())
+                && (!normalized.confirmNew() || normalized.duplicateReason() == null
+                    || normalized.duplicateReason().isBlank())) {
+            throw new BusinessException(ProjectErrorCode.DUPLICATE_CONFIRMATION_REQUIRED);
+        }
 
         var occurredAt = Instant.now(clock);
         var project = ProjectEntity.create(
@@ -126,7 +150,9 @@ public class ProjectService {
         stageMilestoneRepository.save(ProjectStageMilestoneEntity.initial(project.id(), actorId, occurredAt));
         progressRepository.save(ProjectProgressEntity.initial(
                 project.id(), normalized.initialProgress(), normalized.nextAction(), actorId, occurredAt));
-        changeEventRepository.save(projectCreatedEvent(project, actorId, occurredAt));
+        changeEventRepository.save(projectCreatedEvent(project, actorId, occurredAt,
+                "DUPLICATE_CANDIDATE".equals(duplicate.status()) ? normalized.duplicateReason() : null));
+        if (draft != null) draftRepository.delete(draft);
 
         return projectMapper.toSummary(project, categories.stream()
                 .map(category -> new ProjectSummary.CategoryAmount(category.categoryCode(), category.expectedAmount()))
@@ -286,7 +312,10 @@ public class ProjectService {
                 trim(command.cityAccountManagerName()),
                 command.categoryAmounts(),
                 trim(command.initialProgress()),
-                trim(command.nextAction())
+                trim(command.nextAction()),
+                command.draftId(),
+                command.confirmNew(),
+                command.duplicateReason() == null ? null : command.duplicateReason().trim()
         );
     }
 
@@ -300,16 +329,18 @@ public class ProjectService {
     private ProjectChangeEventEntity projectCreatedEvent(
             ProjectEntity project,
             UUID actorId,
-            Instant occurredAt
+            Instant occurredAt,
+            String duplicateReason
     ) {
         try {
-            var payload = objectMapper.writeValueAsString(Map.of(
-                    "projectCode", project.projectCode(),
-                    "provinceId", project.provinceId().toString(),
-                    "cityId", project.cityId().toString(),
-                    "currentStageCode", project.currentStageCode(),
-                    "totalAmount", project.totalAmount()
-            ));
+            var values = new LinkedHashMap<String, Object>();
+            values.put("projectCode", project.projectCode());
+            values.put("provinceId", project.provinceId().toString());
+            values.put("cityId", project.cityId().toString());
+            values.put("currentStageCode", project.currentStageCode());
+            values.put("totalAmount", project.totalAmount());
+            if (duplicateReason != null) values.put("duplicateReason", duplicateReason);
+            var payload = objectMapper.writeValueAsString(values);
             return ProjectChangeEventEntity.create(project.id(), project.versionNo(), payload, actorId, occurredAt);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("项目创建事件无法序列化", exception);

@@ -45,6 +45,8 @@ public class ProjectApprovalService {
     private final ProjectStageService stageService;
     private final ProjectApprovalNotificationService notificationService;
     private final ProjectMonthlySnapshotService monthlySnapshots;
+    private final ProjectDuplicateService duplicates;
+    private final ProjectCityWriteLock cityWriteLock;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -57,6 +59,7 @@ public class ProjectApprovalService {
             ProjectChangeEventRepository eventRepository, ProjectStageService stageService,
             ProjectApprovalNotificationService notificationService,
             ProjectMonthlySnapshotService monthlySnapshots,
+            ProjectDuplicateService duplicates, ProjectCityWriteLock cityWriteLock,
             ObjectMapper objectMapper, Clock clock
     ) {
         this.identityDirectory = identityDirectory;
@@ -69,6 +72,8 @@ public class ProjectApprovalService {
         this.stageService = stageService;
         this.notificationService = notificationService;
         this.monthlySnapshots = monthlySnapshots;
+        this.duplicates = duplicates;
+        this.cityWriteLock = cityWriteLock;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -152,6 +157,16 @@ public class ProjectApprovalService {
             actionRepository.save(ProjectApprovalActionEntity.create(requestId, "CONFLICT", actorId, at, null));
             notificationService.finished(request, ApprovalNotificationKind.CONFLICT, at);
             return ApprovalSummary.from(request);
+        }
+        if (approved && request.changeType() == MajorChangeType.PROJECT_NAME) {
+            cityWriteLock.lock(project.cityId());
+            if ("STRONG_DUPLICATE".equals(duplicates.candidates(project.cityId(),
+                    request.proposedProjectName(), project.id()).status())) {
+                request.finish(ApprovalStatus.CONFLICT, null, at);
+                actionRepository.save(ProjectApprovalActionEntity.create(requestId, "CONFLICT", actorId, at, null));
+                notificationService.finished(request, ApprovalNotificationKind.CONFLICT, at);
+                return ApprovalSummary.from(request);
+            }
         }
         if (approved) {
             monthlySnapshots.ensureBaseline(project);

@@ -47,6 +47,7 @@ class ProjectServiceTest {
     private ProjectStageMilestoneRepository stageMilestoneRepository;
     private ProjectProgressRepository progressRepository;
     private ProjectChangeEventRepository changeEventRepository;
+    private ProjectDuplicateService duplicateService;
     private ProjectService service;
 
     @BeforeEach
@@ -59,6 +60,7 @@ class ProjectServiceTest {
         stageMilestoneRepository = mock(ProjectStageMilestoneRepository.class);
         progressRepository = mock(ProjectProgressRepository.class);
         changeEventRepository = mock(ProjectChangeEventRepository.class);
+        duplicateService = mock(ProjectDuplicateService.class);
         var clock = Clock.fixed(Instant.parse("2026-10-19T02:00:00Z"), ZoneOffset.UTC);
         service = new ProjectService(
                 identityDirectory,
@@ -68,6 +70,9 @@ class ProjectServiceTest {
                 categoryAmountRepository,
                 stageMilestoneRepository,
                 progressRepository,
+                mock(com.pluto.ndi.projects.repository.ProjectDraftRepository.class),
+                duplicateService,
+                mock(ProjectCityWriteLock.class),
                 changeEventRepository,
                 new ProjectNumberGenerator(clock),
                 new com.pluto.ndi.projects.mapper.ProjectMapper(),
@@ -84,6 +89,7 @@ class ProjectServiceTest {
         when(identityDirectory.isEligibleProvinceLeader(provinceLeaderId, provinceId)).thenReturn(true);
         when(identityDirectory.canCreateProject(any(), eq(provinceId), eq(cityId))).thenReturn(true);
         when(industryReferenceRepository.existsByIndustryCodeAndEnabledTrue("C25")).thenReturn(true);
+        when(duplicateService.candidates(eq(cityId), any())).thenReturn(new ProjectDuplicateCheck("NONE", List.of()));
     }
 
     @Test
@@ -115,6 +121,32 @@ class ProjectServiceTest {
 
         assertThat(exception).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) exception).errorCode()).isEqualTo(ProjectErrorCode.INVALID_CATEGORY_AMOUNT);
+    }
+
+    @Test
+    void rejectsExactDuplicateBeforeWritingProject() {
+        when(duplicateService.candidates(eq(cityId), any())).thenReturn(new ProjectDuplicateCheck(
+                "STRONG_DUPLICATE", List.of()));
+
+        var failure = org.assertj.core.api.Assertions.catchThrowable(() -> service.createProject(
+                actorId, validCommand(new BigDecimal("100.00"), List.of(
+                        new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))))));
+
+        assertThat(((BusinessException) failure).errorCode()).isEqualTo(ProjectErrorCode.DUPLICATE_PROJECT);
+        org.mockito.Mockito.verify(projectRepository, org.mockito.Mockito.never()).saveAndFlush(any());
+    }
+
+    @Test
+    void requiresReasonWhenSimilarProjectExists() {
+        when(duplicateService.candidates(eq(cityId), any())).thenReturn(new ProjectDuplicateCheck(
+                "DUPLICATE_CANDIDATE", List.of()));
+
+        var failure = org.assertj.core.api.Assertions.catchThrowable(() -> service.createProject(
+                actorId, validCommand(new BigDecimal("100.00"), List.of(
+                        new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))))));
+
+        assertThat(((BusinessException) failure).errorCode())
+                .isEqualTo(ProjectErrorCode.DUPLICATE_CONFIRMATION_REQUIRED);
     }
 
     private CreateProjectCommand validCommand(

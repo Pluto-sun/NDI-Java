@@ -3,7 +3,6 @@ package com.pluto.ndi.projects.service;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +26,7 @@ import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.repository.ProjectSourceRecordRepository;
 import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
+import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -47,6 +47,7 @@ public class ProjectImportWriter {
     private final ObjectMapper json;
     private final Clock clock;
     private final JdbcTemplate jdbc;
+    private final ProjectCityWriteLock cityWriteLock;
     private final ProjectMonthlySnapshotService monthlySnapshots;
 
     public ProjectImportWriter(IdentityDirectory identity, OrganizationDirectory organizations,
@@ -55,12 +56,14 @@ public class ProjectImportWriter {
             ProjectStageMilestoneRepository milestones, ProjectChangeEventRepository events,
             ProjectSourceRecordRepository sources, ProjectImportRowRepository rows,
             ProjectNumberGenerator numbers, ObjectMapper json, Clock clock, JdbcTemplate jdbc,
+            ProjectCityWriteLock cityWriteLock,
             ProjectMonthlySnapshotService monthlySnapshots) {
         this.identity = identity; this.organizations = organizations; this.industries = industries;
         this.projects = projects; this.categories = categories; this.progress = progress;
         this.milestones = milestones; this.events = events; this.sources = sources;
         this.rows = rows; this.numbers = numbers; this.json = json; this.clock = clock;
         this.jdbc = jdbc;
+        this.cityWriteLock = cityWriteLock;
         this.monthlySnapshots = monthlySnapshots;
     }
 
@@ -78,13 +81,13 @@ public class ProjectImportWriter {
                     || !industries.existsByIndustryCodeAndEnabledTrue(candidate.industryCode())) {
                 throw new IllegalStateException("组织、行业或责任账号已变化");
             }
-            byte[] cityKey = binary(candidate.cityId());
-            jdbc.queryForObject("SELECT id FROM organization_city WHERE id = ? FOR UPDATE", byte[].class, cityKey);
-            var existingNames = jdbc.query("SELECT project_name FROM project_project WHERE city_id = ? FOR UPDATE",
+            byte[] cityKey = cityWriteLock.binary(candidate.cityId());
+            cityWriteLock.lock(candidate.cityId());
+            var existingNames = jdbc.query("SELECT project_name FROM project_project WHERE city_id = ?",
                     (result, index) -> result.getString(1), cityKey);
             if (existingNames.stream().anyMatch(name ->
-                    ProjectImportService.normalized(name).equals(
-                            ProjectImportService.normalized(candidate.projectName())))) {
+                    ProjectNameMatcher.standard(name).equals(
+                            ProjectNameMatcher.standard(candidate.projectName())))) {
                 throw new IllegalStateException("目标库已有同名项目");
             }
             Instant now = Instant.now(clock);
@@ -115,9 +118,4 @@ public class ProjectImportWriter {
         }
     }
 
-    private byte[] binary(UUID value) {
-        var buffer = ByteBuffer.allocate(16);
-        buffer.putLong(value.getMostSignificantBits()).putLong(value.getLeastSignificantBits());
-        return buffer.array();
-    }
 }

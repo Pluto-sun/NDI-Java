@@ -17,11 +17,23 @@ public record CreateProjectCommand(
         String cityAccountManagerName,
         List<CategoryAmount> categoryAmounts,
         String initialProgress,
-        String nextAction
+        String nextAction,
+        UUID draftId,
+        boolean confirmNew,
+        String duplicateReason
 ) {
 
     public CreateProjectCommand {
         categoryAmounts = List.copyOf(categoryAmounts);
+    }
+
+    public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,
+            String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
+            UUID provinceLeaderUserId, String cityAccountManagerName, List<CategoryAmount> categoryAmounts,
+            String initialProgress, String nextAction) {
+        this(provinceId, cityId, projectName, customerName, industryCode, customerNeed, totalAmount,
+                provinceLeaderUserId, cityAccountManagerName, categoryAmounts, initialProgress, nextAction,
+                null, false, null);
     }
 
     /** 已选择三化类别的预计金额。 */

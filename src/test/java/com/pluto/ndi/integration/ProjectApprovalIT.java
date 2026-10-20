@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import com.pluto.ndi.NdiApplication;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.documents.service.DocumentDirectory;
 import com.pluto.ndi.documents.service.ExportFileDirectory;
 import com.pluto.ndi.documents.service.DocumentSummary;
@@ -102,6 +103,7 @@ class ProjectApprovalIT {
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MockMvc mockMvc;
+    @Autowired private ObjectMapper json;
     @Autowired private ProjectService projectService;
     @Autowired private ProjectApprovalService approvalService;
     @Autowired private ProjectRepository projectRepository;
@@ -125,9 +127,11 @@ class ProjectApprovalIT {
     private UUID cityUserId;
     private UUID provinceUserId;
     private UUID interfaceUserId;
+    private int createdProjectCount;
 
     @BeforeEach
     void seedIdentity() {
+        createdProjectCount = 0;
         provinceId = UUID.randomUUID();
         cityId = UUID.randomUUID();
         cityUserId = UUID.randomUUID();
@@ -140,6 +144,79 @@ class ProjectApprovalIT {
         addUser(cityUserId, "CITY_REPORTER", true);
         addUser(provinceUserId, "PROVINCE_REPORTER", false);
         addUser(interfaceUserId, "INTERFACE_REVIEWER", false);
+    }
+
+    @Test
+    void draftIsPrivateAndConsumedWhenProjectIsCreated() throws Exception {
+        var response = mockMvc.perform(post("/api/v1/projects/drafts")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"title\":\"待完善项目\",\"data\":{\"projectName\":\"待完善项目\"}}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        var draftId = UUID.fromString(json.readTree(response).path("data").path("id").asText());
+        mockMvc.perform(get("/api/v1/projects/drafts")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+        mockMvc.perform(get("/api/v1/projects/drafts")
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+        mockMvc.perform(put("/api/v1/projects/drafts/{draftId}", draftId)
+                        .header("X-NDI-Actor-Id", provinceUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"title\":\"不允许\",\"data\":{}}"))
+                .andExpect(status().isNotFound());
+
+        var foreignDraft = catchThrowable(() -> projectService.createProject(provinceUserId,
+                new CreateProjectCommand(provinceId, cityId, "不能消费别人草稿", "客户", "C25", "客户需求",
+                        new BigDecimal("100.00"), provinceUserId, "客户经理",
+                        List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                        "首次交流", "下一步", draftId, false, null)));
+        assertThat(((BusinessException) foreignDraft).errorCode()).isEqualTo(ProjectErrorCode.DRAFT_NOT_FOUND);
+
+        projectService.createProject(cityUserId, new CreateProjectCommand(
+                provinceId, cityId, "草稿正式项目", "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                "首次交流", "下一步", draftId, false, null));
+        mockMvc.perform(get("/api/v1/projects/drafts")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    void preventsSameCityProjectWithNormalizedName() throws Exception {
+        createProject();
+        mockMvc.perform(get("/api/v1/projects/duplicate-check")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("cityId", cityId.toString())
+                        .param("projectName", "原－项目"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("STRONG_DUPLICATE"));
+        var failure = catchThrowable(() -> projectService.createProject(cityUserId,
+                new CreateProjectCommand(provinceId, cityId, "原－项目", "客户", "C25", "客户需求",
+                        new BigDecimal("100.00"), provinceUserId, "客户经理",
+                        List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                        "首次交流", "下一步")));
+        assertThat(((BusinessException) failure).errorCode()).isEqualTo(ProjectErrorCode.DUPLICATE_PROJECT);
+    }
+
+    @Test
+    void conflictingNameChangeDoesNotOverwriteExistingProject() {
+        var firstId = createProject();
+        var secondId = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, firstId, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "拟改名", "原－项目-2", null, null));
+
+        var decided = approvalService.decide(provinceUserId, request.id(), true, null);
+
+        assertThat(decided.status()).isEqualTo(ApprovalStatus.CONFLICT);
+        assertThat(projectRepository.findById(firstId).orElseThrow().projectName()).isEqualTo("原项目");
+        assertThat(projectRepository.findById(secondId).orElseThrow().projectName()).isEqualTo("原项目-2");
     }
 
     @Test
@@ -965,11 +1042,13 @@ class ProjectApprovalIT {
     }
 
     private UUID createProject() {
+        createdProjectCount += 1;
+        var projectName = createdProjectCount == 1 ? "原项目" : "原项目-" + createdProjectCount;
         return projectService.createProject(cityUserId, new CreateProjectCommand(
-                provinceId, cityId, "原项目", "客户", "C25", "客户需要系统升级",
+                provinceId, cityId, projectName, "客户", "C25", "客户需要系统升级",
                 new BigDecimal("100.00"), provinceUserId, "客户经理",
                 List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
-                "已开展交流", "准备下一次沟通"
+                "已开展交流", "准备下一次沟通", null, true, "集成测试：独立业务项目"
         )).id();
     }
 

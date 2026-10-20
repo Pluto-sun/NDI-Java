@@ -25,7 +25,10 @@ public record CreateProjectRequest(
         @NotBlank(message = "地市客户经理不得为空") @Size(max = 100, message = "地市客户经理不得超过100个字符") String cityAccountManagerName,
         @NotEmpty(message = "至少选择一个三化类别") List<@Valid CategoryAmountRequest> categoryAmounts,
         @NotBlank(message = "首条项目进展不得为空") String initialProgress,
-        @NotBlank(message = "下一步动作不得为空") String nextAction
+        @NotBlank(message = "下一步动作不得为空") String nextAction,
+        UUID draftId,
+        Boolean confirmNew,
+        @Size(max = 2000, message = "重复项目新建原因不得超过2000字") String duplicateReason
 ) {
 
     CreateProjectCommand toCommand() {
@@ -43,7 +46,10 @@ public record CreateProjectRequest(
                         .map(item -> new CreateProjectCommand.CategoryAmount(item.categoryCode(), item.expectedAmount()))
                         .toList(),
                 initialProgress,
-                nextAction
+                nextAction,
+                draftId,
+                Boolean.TRUE.equals(confirmNew),
+                duplicateReason
         );
     }
 

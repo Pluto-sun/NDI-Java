@@ -11,6 +11,7 @@ import type {
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
 import { ApiError } from '../../shared/api/http';
+import { MetricBars } from './MetricBars';
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
@@ -46,6 +47,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     setHistoryBusy(true);
     setHistoryError('');
     setHistory(null);
+    setTrend([]);
     try {
       const snapshot = await projectsApi.monthly(month, includeTerminated);
       setHistory(snapshot);
@@ -110,42 +112,37 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
           <div className="detail-grid">
             <div className="panel">
               <h2>阶段分布</h2>
-              <div className="metric-list">
-                {overview.stages.map((item) => (
-                  <div key={item.stageCode}>
-                    <span>{stage(item.stageCode)}</span>
-                    <strong>{item.projectCount} 个</strong>
-                    <small>{amount(item.expectedAmount)} 万元</small>
-                  </div>
-                ))}
-              </div>
+              <MetricBars
+                items={overview.stages.map((item) => ({
+                  key: item.stageCode,
+                  label: stage(item.stageCode),
+                  count: item.projectCount,
+                  expectedAmount: item.expectedAmount,
+                }))}
+              />
             </div>
             <div className="panel">
-              <h2>行业分布</h2>
-              <div className="metric-list">
-                {breakdown.industries.slice(0, 8).map((item) => (
-                  <div key={item.industryCode}>
-                    <span>{item.industryName}</span>
-                    <strong>{item.projectCount} 个</strong>
-                    <small>{amount(item.expectedAmount)} 万元</small>
-                  </div>
-                ))}
-              </div>
-              {breakdown.industries.length === 0 && <div className="empty-state">暂无统计数据</div>}
+              <h2>行业分布（前八项）</h2>
+              <MetricBars
+                items={breakdown.industries.slice(0, 8).map((item) => ({
+                  key: item.industryCode,
+                  label: item.industryName,
+                  count: item.projectCount,
+                  expectedAmount: item.expectedAmount,
+                }))}
+              />
             </div>
           </div>
           <div className="panel">
             <h2>地市分布</h2>
-            <div className="metric-list">
-              {breakdown.cities.map((item) => (
-                <div key={item.cityId}>
-                  <span>{item.cityName}</span>
-                  <strong>{item.projectCount} 个</strong>
-                  <small>{amount(item.expectedAmount)} 万元</small>
-                </div>
-              ))}
-            </div>
-            {breakdown.cities.length === 0 && <div className="empty-state">暂无统计数据</div>}
+            <MetricBars
+              items={breakdown.cities.map((item) => ({
+                key: item.cityId,
+                label: item.cityName,
+                count: item.projectCount,
+                expectedAmount: item.expectedAmount,
+              }))}
+            />
           </div>
           <div className="panel">
             <h2>历史月报与趋势</h2>
@@ -196,27 +193,25 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                 <div className="detail-grid">
                   <div>
                     <h3>当月阶段分布</h3>
-                    <div className="metric-list">
-                      {history.stages.map((item) => (
-                        <div key={item.stageCode}>
-                          <span>{stage(item.stageCode)}</span>
-                          <strong>{item.projectCount} 个</strong>
-                          <small>{amount(item.expectedAmount)} 万元</small>
-                        </div>
-                      ))}
-                    </div>
+                    <MetricBars
+                      items={history.stages.map((item) => ({
+                        key: item.stageCode,
+                        label: stage(item.stageCode),
+                        count: item.projectCount,
+                        expectedAmount: item.expectedAmount,
+                      }))}
+                    />
                   </div>
                   <div>
                     <h3>近六个月趋势</h3>
-                    <div className="metric-list">
-                      {trend.map((item) => (
-                        <div key={item.month}>
-                          <span>{item.month}</span>
-                          <strong>{item.projectCount} 个</strong>
-                          <small>{amount(item.totalExpectedAmount)} 万元</small>
-                        </div>
-                      ))}
-                    </div>
+                    <MetricBars
+                      items={trend.map((item) => ({
+                        key: item.month,
+                        label: item.month,
+                        count: item.projectCount,
+                        expectedAmount: item.totalExpectedAmount,
+                      }))}
+                    />
                   </div>
                 </div>
               </>

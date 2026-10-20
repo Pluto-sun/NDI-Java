@@ -122,6 +122,14 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     @Override
+    public boolean canSaveProjectDraft(ProjectActor actor) {
+        if (!actor.enabled()) return false;
+        var roles = roleCodes(actor.id());
+        return roles.contains(CITY_PROJECT_CREATOR_ROLE)
+                || roles.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains);
+    }
+
+    @Override
     public Optional<ProjectDataScope> findReadableProjectScope(ProjectActor actor) {
         if (!actor.enabled()) {
             return Optional.empty();

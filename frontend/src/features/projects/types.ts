@@ -42,6 +42,35 @@ export interface CreateProjectInput {
   categoryAmounts: { categoryCode: string; expectedAmount: string }[];
   initialProgress: string;
   nextAction: string;
+  draftId?: string;
+  confirmNew?: boolean;
+  duplicateReason?: string;
+}
+export interface ProjectDuplicateCheck {
+  status: 'NONE' | 'STRONG_DUPLICATE' | 'DUPLICATE_CANDIDATE';
+  candidates: { projectId: string; projectCode: string; projectName: string; similarity: number }[];
+}
+export interface ProjectDraftData {
+  cityId: string;
+  leaderId: string;
+  projectName: string;
+  customerName: string;
+  industryCode: string;
+  customerNeed: string;
+  totalAmount: string;
+  cityAccountManagerName: string;
+  initialProgress: string;
+  nextAction: string;
+  categories: Record<string, string>;
+  confirmNew: boolean;
+  duplicateReason: string;
+}
+export interface ProjectDraft {
+  id: string;
+  title: string;
+  data: ProjectDraftData;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface ProjectSummary {
   id: string;
