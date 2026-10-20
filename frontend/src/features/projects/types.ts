@@ -94,3 +94,53 @@ export interface WorkbenchBreakdown {
     expectedAmount: number;
   }[];
 }
+export type InitiatorLevel = 'CITY' | 'PROVINCE';
+export type DocumentPurpose = 'GENERAL' | 'CUSTOMER_SOLUTION' | 'AWARD_NOTICE';
+export interface ProjectDocument {
+  id: string;
+  purposeCode: DocumentPurpose;
+  originalName: string;
+  mediaType: string;
+  byteSize: number;
+  completedAt: string;
+}
+export interface UploadIntent {
+  documentId: string;
+  method: string;
+  uploadUrl: string;
+  requiredHeaders: Record<string, string>;
+}
+export interface ApprovalSummary {
+  id: string;
+  projectId: string;
+  requestType: 'STAGE_ADVANCEMENT' | 'MAJOR_CHANGE';
+  changeType: 'PROJECT_NAME' | 'TOTAL_AMOUNT' | 'STAGE_ROLLBACK' | 'TERMINATE' | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CONFLICT';
+  initiatorId: string;
+  approverId: string;
+  fromStageCode: string;
+  targetStageCode: string | null;
+  originalProjectName: string;
+  originalTotalAmount: number;
+  proposedProjectName: string | null;
+  proposedTotalAmount: number | null;
+  proposedContractNo: string | null;
+  proposedSignedAmount: number | null;
+  evidenceDocumentId: string | null;
+  stageOccurredAt: string | null;
+  changeReason: string | null;
+  reviewOpinion: string | null;
+  submittedAt: string;
+  dueAt: string;
+}
+export interface ApprovalTask {
+  requestId: string;
+  projectId: string;
+  projectName: string;
+  requestType: string;
+  fromStageCode: string;
+  targetStageCode: string | null;
+  submittedAt: string;
+  dueAt: string;
+  overdue: boolean;
+}

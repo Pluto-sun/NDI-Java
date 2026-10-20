@@ -10,6 +10,8 @@ import type {
 } from './types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
+import { ProjectDocuments } from './ProjectDocuments';
+import { ProjectRequests } from './ProjectRequests';
 
 export function ProjectDetailPage({
   reference,
@@ -28,6 +30,7 @@ export function ProjectDetailPage({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [documentsVersion, setDocumentsVersion] = useState(0);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -75,8 +78,7 @@ export function ProjectDetailPage({
 
   const label = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
-  const canProgress =
-    detail?.currentStageCode !== 'TERMINATED' &&
+  const canCollaborate =
     me.provinceId === detail?.provinceId &&
     (me.roleCodes.some((role) =>
       [
@@ -87,6 +89,7 @@ export function ProjectDetailPage({
       ].includes(role),
     ) ||
       (me.roleCodes.includes('CITY_REPORTER') && me.cityId === detail?.cityId));
+  const canProgress = canCollaborate && detail?.currentStageCode !== 'TERMINATED';
   return (
     <section>
       <div className="page-heading">
@@ -242,6 +245,21 @@ export function ProjectDetailPage({
                 </div>
               </div>
             </div>
+            {canCollaborate && (
+              <div className="detail-grid">
+                <ProjectDocuments
+                  projectId={detail.id}
+                  readOnly={detail.currentStageCode === 'TERMINATED'}
+                  onChanged={() => setDocumentsVersion((value) => value + 1)}
+                />
+                <ProjectRequests
+                  project={detail}
+                  me={me}
+                  reference={reference}
+                  documentsVersion={documentsVersion}
+                />
+              </div>
+            )}
           </>
         )
       )}

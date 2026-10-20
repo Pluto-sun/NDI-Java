@@ -24,6 +24,16 @@ const ProjectDetailPage = lazy(() =>
     default: module.ProjectDetailPage,
   })),
 );
+const ApprovalsPage = lazy(() =>
+  import('../features/approvals/ApprovalsPage').then((module) => ({
+    default: module.ApprovalsPage,
+  })),
+);
+const ApprovalDetailPage = lazy(() =>
+  import('../features/approvals/ApprovalsPage').then((module) => ({
+    default: module.ApprovalDetailPage,
+  })),
+);
 
 export function App() {
   const [actors, setActors] = useState<ProjectUser[]>([]);
@@ -114,6 +124,7 @@ export function App() {
           <NavLink to="/projects" end>
             项目列表
           </NavLink>
+          <NavLink to="/approvals">审批待办</NavLink>
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
         </nav>
         <div className="sidebar-foot">
@@ -163,6 +174,11 @@ export function App() {
               <Route
                 path="/projects/:id"
                 element={<ProjectDetailPage reference={reference} me={me} />}
+              />
+              <Route path="/approvals" element={<ApprovalsPage reference={reference} />} />
+              <Route
+                path="/approvals/:id"
+                element={<ApprovalDetailPage me={me} reference={reference} />}
               />
               <Route
                 path="*"

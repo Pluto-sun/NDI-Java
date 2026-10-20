@@ -67,6 +67,30 @@ class IdentityPermissionService implements IdentityDirectory {
                 .toList();
     }
 
+    @Override
+    public List<ProjectUser> findEligibleStageApprovers(UUID provinceId) {
+        return provinceUsers(provinceId).stream()
+                .filter(user -> user.roleCodes().contains(INTERFACE_PROJECT_READER_ROLE)
+                        && !user.roleCodes().contains(SYSTEM_ADMIN_ROLE))
+                .toList();
+    }
+
+    @Override
+    public List<ProjectUser> findEligibleMajorChangeApprovers(UUID provinceId,
+            ProjectInitiatorLevel initiatorLevel) {
+        return provinceUsers(provinceId).stream()
+                .filter(user -> !user.roleCodes().contains(SYSTEM_ADMIN_ROLE))
+                .filter(user -> switch (initiatorLevel) {
+                    case CITY -> user.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
+                    case PROVINCE -> user.roleCodes().contains(INTERFACE_PROJECT_READER_ROLE);
+                })
+                .toList();
+    }
+
+    private List<ProjectUser> provinceUsers(UUID provinceId) {
+        return toProjectUsers(userAccountRepository.findByProvinceIdAndEnabledTrueOrderByDisplayNameAsc(provinceId));
+    }
+
     private ProjectUser toProjectUser(UserAccountEntity account) {
         return new ProjectUser(account.id(), account.displayName(), account.provinceId(), account.cityId(),
                 roleCodes(account.id()).stream().sorted().toList());

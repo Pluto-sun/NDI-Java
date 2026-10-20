@@ -16,6 +16,10 @@ public interface IdentityDirectory {
 
     List<ProjectUser> findEligibleProvinceLeaders(UUID provinceId);
 
+    List<ProjectUser> findEligibleStageApprovers(UUID provinceId);
+
+    List<ProjectUser> findEligibleMajorChangeApprovers(UUID provinceId, ProjectInitiatorLevel initiatorLevel);
+
     boolean canCreateProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
     Optional<ProjectDataScope> findReadableProjectScope(ProjectActor actor);

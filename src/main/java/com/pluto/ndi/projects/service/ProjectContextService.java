@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectUser;
+import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectCategory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
@@ -52,11 +53,29 @@ public class ProjectContextService {
 
     @Transactional(readOnly = true)
     public List<ProjectUser> provinceLeaders(UUID actorId, UUID provinceId) {
+        requireProvinceScope(actorId, provinceId);
+        return identities.findEligibleProvinceLeaders(provinceId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectUser> stageApprovers(UUID actorId, UUID provinceId) {
+        requireProvinceScope(actorId, provinceId);
+        return identities.findEligibleStageApprovers(provinceId).stream()
+                .filter(user -> !user.id().equals(actorId)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProjectUser> majorChangeApprovers(UUID actorId, UUID provinceId, ProjectInitiatorLevel level) {
+        requireProvinceScope(actorId, provinceId);
+        return identities.findEligibleMajorChangeApprovers(provinceId, level).stream()
+                .filter(user -> !user.id().equals(actorId)).toList();
+    }
+
+    private void requireProvinceScope(UUID actorId, UUID provinceId) {
         var actor = currentUser(actorId);
         if (!provinceId.equals(actor.provinceId()) && !actor.roleCodes().contains("SYSTEM_ADMIN")) {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
-        return identities.findEligibleProvinceLeaders(provinceId);
     }
 
     @Transactional(readOnly = true)

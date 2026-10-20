@@ -77,4 +77,25 @@ class ProjectContextServiceTest {
         assertThat(service.provinceLeaders(actorId, provinceId)).containsExactly(leader);
         verify(identities).findEligibleProvinceLeaders(provinceId);
     }
+
+    @Test
+    void excludesCurrentActorFromStageApprovers() {
+        var reviewer = new ProjectUser(UUID.randomUUID(), "接口人", provinceId, null,
+                List.of("INTERFACE_REVIEWER"));
+        when(identities.findEligibleStageApprovers(provinceId)).thenReturn(List.of(reviewer,
+                new ProjectUser(actorId, "本人", provinceId, null, List.of("INTERFACE_REVIEWER"))));
+
+        assertThat(service.stageApprovers(actorId, provinceId)).containsExactly(reviewer);
+    }
+
+    @Test
+    void findsMajorChangeApproversByInitiatorLevel() {
+        var reviewer = new ProjectUser(UUID.randomUUID(), "接口人", provinceId, null,
+                List.of("INTERFACE_REVIEWER"));
+        when(identities.findEligibleMajorChangeApprovers(provinceId,
+                com.pluto.ndi.identity.service.ProjectInitiatorLevel.PROVINCE)).thenReturn(List.of(reviewer));
+
+        assertThat(service.majorChangeApprovers(actorId, provinceId,
+                com.pluto.ndi.identity.service.ProjectInitiatorLevel.PROVINCE)).containsExactly(reviewer);
+    }
 }

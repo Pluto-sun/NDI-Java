@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.identity.service.ProjectUser;
+import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ProjectContextService;
 import com.pluto.ndi.projects.service.ProjectReferenceData;
@@ -44,6 +45,18 @@ public class ProjectContextController {
     public ApiResponse<List<ProjectUser>> provinceLeaders(Authentication authentication,
             @RequestParam UUID provinceId) {
         return responses.success(service.provinceLeaders(actorId(authentication), provinceId));
+    }
+
+    @GetMapping("/stage-approvers")
+    public ApiResponse<List<ProjectUser>> stageApprovers(Authentication authentication,
+            @RequestParam UUID provinceId) {
+        return responses.success(service.stageApprovers(actorId(authentication), provinceId));
+    }
+
+    @GetMapping("/major-change-approvers")
+    public ApiResponse<List<ProjectUser>> majorChangeApprovers(Authentication authentication,
+            @RequestParam UUID provinceId, @RequestParam ProjectInitiatorLevel initiatorLevel) {
+        return responses.success(service.majorChangeApprovers(actorId(authentication), provinceId, initiatorLevel));
     }
 
     private UUID actorId(Authentication authentication) {

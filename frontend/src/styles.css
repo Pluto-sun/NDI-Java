@@ -612,6 +612,69 @@ select:disabled {
   min-height: 100vh;
   background: #fff;
 }
+.request-panel .request-level {
+  max-width: 300px;
+}
+.request-form {
+  display: grid;
+  gap: 18px;
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 22px;
+}
+.request-form h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.request-form > button {
+  justify-self: start;
+}
+.document-list > div:not(.empty-state) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.document-list strong,
+.document-list small,
+.table-subtitle {
+  display: block;
+}
+.document-list strong {
+  overflow-wrap: anywhere;
+}
+.document-list small,
+.table-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.inline-link {
+  color: var(--red-dark);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.approval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 25px;
+}
+.approval-header h2 {
+  margin: 7px 0 0;
+}
+.approval-detail {
+  max-width: 920px;
+}
+.overdue {
+  display: inline-block;
+  margin-left: 7px;
+  color: var(--red-dark);
+  font-weight: 700;
+}
 .entry-intro {
   padding: 9vh 8vw;
   background: linear-gradient(135deg, #fff 60%, #fff4f5);
