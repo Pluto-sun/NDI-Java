@@ -10,7 +10,7 @@ public record ProjectImportCandidate(
         UUID provinceId, UUID cityId, String projectName, String customerName,
         String industryCode, String customerNeed, BigDecimal totalAmount,
         UUID provinceLeaderUserId, String cityAccountManagerName,
-        String stageCode, List<CategoryAmount> categories, List<Progress> progress,
+        String signingSubjectCode, String stageCode, List<CategoryAmount> categories, List<Progress> progress,
         Instant occurredAt) {
     public record CategoryAmount(String code, BigDecimal amount) { }
     public record Progress(Instant occurredAt, String content) { }

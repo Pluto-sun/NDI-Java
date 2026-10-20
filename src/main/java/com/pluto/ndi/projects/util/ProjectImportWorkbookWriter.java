@@ -32,7 +32,7 @@ public class ProjectImportWorkbookWriter {
     }
 
     public byte[] template() {
-        var headers = new ArrayList<>(ProjectExcelReader.requiredHeaders());
+        var headers = new ArrayList<>(ProjectExcelReader.mappableHeaders());
         var today = LocalDate.now(clock.withZone(ZONE));
         headers.add("项目进展（%d年%d月%d日）".formatted(today.getYear(), today.getMonthValue(), today.getDayOfMonth()));
         try (var book = new XSSFWorkbook()) {
@@ -67,7 +67,7 @@ public class ProjectImportWorkbookWriter {
         try (var book = new XSSFWorkbook()) {
             var sheet = book.createSheet("预检未通过");
             var data = new ArrayList<Map<String, String>>();
-            var headers = new LinkedHashSet<>(ProjectExcelReader.requiredHeaders());
+            var headers = new LinkedHashSet<>(ProjectExcelReader.mappableHeaders());
             var extraHeaders = new TreeSet<String>();
             for (var row : rows) {
                 if (!"FAILED".equals(row.status())) continue;

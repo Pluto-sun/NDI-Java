@@ -30,6 +30,7 @@ public class ProjectExcelReader {
             "项目名称", "省分负责人", "地市客户经理", "项目建设内容", "三化类别",
             "项目阶段", "项目总金额（万）", "网络化预计金额（万）", "格物预计金额（万）",
             "大数据预计金额（万）", "万悟预计金额（万）");
+    private static final List<String> OPTIONAL = List.of("签约主体");
     public static final String CATEGORY_SLOTS = "__CATEGORY_SLOTS__";
     private static final List<String> CATEGORY_SLOT_HEADERS = List.of(
             "三化类别一", "三化类别二", "三化类别三", "三化类别四");
@@ -37,6 +38,11 @@ public class ProjectExcelReader {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     public static List<String> requiredHeaders() { return REQUIRED; }
+    public static List<String> mappableHeaders() {
+        var fields = new ArrayList<>(REQUIRED);
+        fields.addAll(OPTIONAL);
+        return List.copyOf(fields);
+    }
 
     public List<ExcelRow> read(byte[] data) throws IOException {
         return read(data, null, null, Map.of());
@@ -62,7 +68,7 @@ public class ProjectExcelReader {
             if (fieldMapping == null) fieldMapping = Map.of();
             var mappedSources = fieldMapping.values().stream()
                     .filter(value -> value != null && !value.isBlank()).toList();
-            if (fieldMapping.size() > 64 || !REQUIRED.containsAll(fieldMapping.keySet())
+            if (fieldMapping.size() > 64 || !mappableHeaders().containsAll(fieldMapping.keySet())
                     || fieldMapping.values().stream().anyMatch(value -> value == null)
                     || new HashSet<>(mappedSources).size() != mappedSources.size()) {
                 throw new IllegalArgumentException("字段映射目标或来源无效");
@@ -73,7 +79,7 @@ public class ProjectExcelReader {
             }
             var headers = new LinkedHashMap<String, Integer>();
             var usedColumns = new HashSet<Integer>();
-            for (var required : REQUIRED) {
+            for (var required : mappableHeaders()) {
                 var source = fieldMapping.getOrDefault(required, required);
                 if (CATEGORY_SLOTS.equals(source)) {
                     if (!"三化类别".equals(required) || CATEGORY_SLOT_HEADERS.stream()
@@ -149,7 +155,7 @@ public class ProjectExcelReader {
                 sheets.add(new SheetInspection(sheet.getSheetName(), candidates));
             }
             if (sheets.isEmpty()) throw new IllegalArgumentException("Excel 文件中没有工作表");
-            return new WorkbookInspection(fileName, REQUIRED, sheets);
+            return new WorkbookInspection(fileName, mappableHeaders(), sheets);
         }
     }
 

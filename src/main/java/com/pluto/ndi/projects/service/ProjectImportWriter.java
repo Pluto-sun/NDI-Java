@@ -96,7 +96,9 @@ public class ProjectImportWriter {
                     candidate.cityId(), candidate.projectName(), candidate.customerName(),
                     candidate.industryCode(), candidate.customerNeed(), candidate.totalAmount(),
                     candidate.provinceLeaderUserId(), candidate.cityAccountManagerName(),
-                    ProjectStage.valueOf(candidate.stageCode()), null, null, actorId, candidate.occurredAt());
+                    ProjectStage.valueOf(candidate.stageCode()), null, null,
+                    candidate.signingSubjectCode() == null ? "PROVINCE_SIGN" : candidate.signingSubjectCode(),
+                    actorId, candidate.occurredAt());
             projects.saveAndFlush(project);
             monthlySnapshots.recordCreated(project);
             for (var category : candidate.categories()) {

@@ -363,6 +363,12 @@ public class ProjectImportService {
         if (location.isPresent() && leader.isEmpty()) errors.add("省分负责人未唯一匹配本省有效账号");
         var stage = STAGE_LABELS.get(row.get("项目阶段"));
         if (stage == null) errors.add("项目阶段未识别");
+        var signingSubject = switch (row.get("签约主体")) {
+            case "", "省分签约", "省分" -> "PROVINCE_SIGN";
+            case "数科签约", "数科" -> "DS_SIGN";
+            default -> null;
+        };
+        if (signingSubject == null) errors.add("签约主体未识别");
         if ("COLLECTION".equals(stage)) errors.add("计收阶段必须单独提供合同编号及签约金额，本模板暂不支持");
         var total = amount(row.get("项目总金额（万）"), "项目总金额", errors);
         var categories = new ArrayList<ProjectImportCandidate.CategoryAmount>();
@@ -386,7 +392,7 @@ public class ProjectImportService {
         return new ProjectImportCandidate(location.get().provinceId(), location.get().cityId(),
                 row.get("项目名称"), row.get("客户名称"), industry.get().industryCode(),
                 row.get("项目建设内容"), total, leader.get(), row.get("地市客户经理"),
-                stage, List.copyOf(categories), progress, Instant.now(clock));
+                signingSubject, stage, List.copyOf(categories), progress, Instant.now(clock));
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {

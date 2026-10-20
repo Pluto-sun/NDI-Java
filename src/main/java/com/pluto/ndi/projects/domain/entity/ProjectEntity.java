@@ -122,11 +122,12 @@ public class ProjectEntity {
             UUID id, String projectCode, UUID provinceId, UUID cityId, String projectName,
             String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
             UUID provinceLeaderUserId, String cityAccountManagerName, ProjectStage stage,
-            String contractNo, BigDecimal signedAmount, UUID actorId, Instant createdAt
+            String contractNo, BigDecimal signedAmount, String signingSubjectCode,
+            UUID actorId, Instant createdAt
     ) {
         var entity = create(id, projectCode, provinceId, cityId, projectName, customerName,
                 industryCode, customerNeed, totalAmount, provinceLeaderUserId,
-                cityAccountManagerName, "PROVINCE_SIGN", actorId, createdAt);
+                cityAccountManagerName, signingSubjectCode, actorId, createdAt);
         entity.currentStageCode = stage.name();
         entity.contractNo = contractNo;
         entity.signedAmount = signedAmount;

@@ -195,7 +195,7 @@ class ProjectImportIT {
                 city.toString(), province.toString(), city.toString().replace("-", ""), cityName);
         addUser(actor, province, city, "recover-" + actor, "导入恢复人", "CITY_REPORTER");
         addUser(leader, province, null, "leader-" + leader, "省分负责人", "PROVINCE_REPORTER");
-        var preview = imports.preview(actor, "待恢复.xlsx", workbookWithLocation(provinceName, cityName));
+        var preview = imports.preview(actor, "待恢复.xlsx", workbookWithSigningSubject(provinceName, cityName));
         jdbc.update("UPDATE project_import_batch SET status = 'CONFIRMING', confirmed_at = DATE_SUB(NOW(6), INTERVAL 16 MINUTE) WHERE id = UUID_TO_BIN(?)",
                 preview.batchId().toString());
 
@@ -205,6 +205,9 @@ class ProjectImportIT {
         assertThat(recovered.importedRows()).isEqualTo(1);
         assertThat(recovered.failedRows()).isEqualTo(2);
         assertThat(recovered.rows().getFirst().status()).isEqualTo("IMPORTED");
+        assertThat(jdbc.queryForObject(
+                "SELECT signing_subject_code FROM project_project WHERE id = UUID_TO_BIN(?)",
+                String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("DS_SIGN");
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -281,6 +284,18 @@ class ProjectImportIT {
             sheet.createRow(0).createCell(0).setCellValue("导入说明");
             sheet.getRow(1).getCell(0).setCellValue("省份");
             sheet.getRow(1).getCell(4).setCellValue("商机名称");
+            source.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithSigningSubject(String provinceName, String cityName) throws Exception {
+        try (var source = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                workbookWithLocation(provinceName, cityName)));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = source.getSheet("导入数据");
+            sheet.getRow(0).createCell(16).setCellValue("签约主体");
+            sheet.getRow(1).createCell(16).setCellValue("数科签约");
             source.write(output);
             return output.toByteArray();
         }
