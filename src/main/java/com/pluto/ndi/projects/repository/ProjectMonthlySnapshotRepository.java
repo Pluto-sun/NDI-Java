@@ -167,15 +167,21 @@ public class ProjectMonthlySnapshotRepository {
             case "industry" -> "industry_name";
             default -> "stage_code";
         };
-        var scopeColumn = scope.level() == ProjectDataScope.Level.PROVINCE ? "province_id" : "city_id";
+        var scopeSql = switch (scope.level()) {
+            case NATIONAL -> "";
+            case PROVINCE -> "AND province_id = UUID_TO_BIN(?) ";
+            case CITY -> "AND city_id = UUID_TO_BIN(?) ";
+        };
         var sql = "SELECT " + column + " AS code, " + nameColumn + " AS display_name, "
                 + "COUNT(*) AS project_count, COALESCE(SUM(total_amount), 0) AS amount "
-                + "FROM project_monthly_snapshot WHERE month_start = ? AND " + scopeColumn + " = UUID_TO_BIN(?) "
+                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeSql
                 + (includeTerminated ? "" : "AND stage_code <> 'TERMINATED' ")
                 + "GROUP BY " + column + ", " + nameColumn;
+        var arguments = scope.level() == ProjectDataScope.Level.NATIONAL
+                ? new Object[] {date(month)} : new Object[] {date(month), scope.organizationId().toString()};
         return jdbc.query(sql, (rs, rowNum) -> new Group(rs.getString("code"),
                 rs.getString("display_name"), rs.getLong("project_count"),
-                rs.getBigDecimal("amount")), date(month), scope.organizationId().toString());
+                rs.getBigDecimal("amount")), arguments);
     }
 
     public List<ProjectMonthlyRevision> revisions(UUID projectId, YearMonth month) {

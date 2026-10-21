@@ -863,9 +863,58 @@ class ProjectApprovalIT {
 
         var adminId = UUID.randomUUID();
         addUser(adminId, "SYSTEM_ADMIN", false);
-        var adminRead = catchThrowable(() -> workbenchService.overview(adminId, false));
-        assertThat(adminRead).isInstanceOf(BusinessException.class);
-        assertThat(((BusinessException) adminRead).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        assertThat(workbenchService.overview(adminId, false).projectCount()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void nationalReadersCanViewAcrossProvincesWithoutBusinessWritePermission() {
+        var localProjectId = createProject();
+        var otherProvinceId = UUID.randomUUID();
+        var otherCityId = UUID.randomUUID();
+        var otherLeaderId = UUID.randomUUID();
+        var otherCityUserId = UUID.randomUUID();
+        var groupUserId = UUID.randomUUID();
+        var adminUserId = UUID.randomUUID();
+        var otherProjectName = "跨省项目-" + otherCityId;
+        jdbc.update("INSERT INTO organization_province (id, province_code, province_name, enabled) VALUES (UUID_TO_BIN(?), ?, ?, true)",
+                otherProvinceId.toString(), otherProvinceId.toString().replace("-", ""), "跨省测试省分");
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, true)",
+                otherCityId.toString(), otherProvinceId.toString(), otherCityId.toString().replace("-", ""), "跨省测试地市");
+        addUserInProvince(otherLeaderId, otherProvinceId, null, "PROVINCE_REPORTER");
+        addUserInProvince(otherCityUserId, otherProvinceId, otherCityId, "CITY_REPORTER");
+        var otherProjectId = projectService.createProject(otherCityUserId, new CreateProjectCommand(
+                otherProvinceId, otherCityId, otherProjectName, "客户", "C25", "跨省需求",
+                new BigDecimal("70.00"), otherLeaderId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("30.00"))),
+                "完成初次沟通", "继续跟进")).id();
+        addUserInProvince(groupUserId, null, null, "GROUP_REVIEWER");
+        addUserInProvince(adminUserId, null, null, "SYSTEM_ADMIN");
+
+        var otherProvinceQuery = new ProjectQuery(null, otherProjectName, null, null,
+                otherProvinceId, null, true);
+        assertThat(projectService.findProjects(groupUserId, otherProvinceQuery, PageRequest.of(0, 20))
+                .getContent()).extracting(project -> project.id()).containsExactly(otherProjectId);
+        assertThat(projectService.findProjects(adminUserId, otherProvinceQuery, PageRequest.of(0, 20))
+                .getContent()).extracting(project -> project.id()).containsExactly(otherProjectId);
+        assertThat(projectService.findProjects(provinceUserId, otherProvinceQuery, PageRequest.of(0, 20))
+                .getContent()).isEmpty();
+        assertThat(projectService.findDetail(groupUserId, localProjectId).id()).isEqualTo(localProjectId);
+        assertThat(projectService.findDetail(groupUserId, otherProjectId).id()).isEqualTo(otherProjectId);
+        for (var role : List.of("DS_TECH", "DS_INTELLIGENCE", "GD_DPASS")) {
+            var nationalUserId = UUID.randomUUID();
+            addUserInProvince(nationalUserId, null, null, role);
+            assertThat(projectService.findDetail(nationalUserId, otherProjectId).id()).isEqualTo(otherProjectId);
+        }
+        assertThat(workbenchService.breakdown(groupUserId, false).cities())
+                .extracting(city -> city.cityId()).contains(cityId, otherCityId);
+        assertThat(workbenchService.overview(adminUserId, false).projectCount())
+                .isGreaterThan(workbenchService.overview(provinceUserId, false).projectCount());
+        var export = exportService.submit(groupUserId, otherProvinceQuery);
+        assertThat(exportService.find(groupUserId, export.id()).status()).isEqualTo(ProjectExportStatus.PENDING);
+        jdbc.update("DELETE FROM project_export_task WHERE id = UUID_TO_BIN(?)", export.id().toString());
+        var denied = catchThrowable(() -> progressService.append(groupUserId, otherProjectId,
+                new AppendProgressCommand("不可写入", "不可写入", null)));
+        assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
     }
 
     @Test
@@ -1015,13 +1064,20 @@ class ProjectApprovalIT {
     }
 
     @Test
-    void administratorCannotExportEvenWithProvinceReporterRole() {
+    void administratorCanExportButCannotCreateEvenWithProvinceReporterRole() {
         var administratorId = UUID.randomUUID();
         addUser(administratorId, "PROVINCE_REPORTER", false);
         jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), 'SYSTEM_ADMIN')",
                 administratorId.toString());
-        var denied = catchThrowable(() -> exportService.submit(administratorId, ProjectQuery.all()));
-        assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        var export = exportService.submit(administratorId, ProjectQuery.all());
+        assertThat(export.status()).isEqualTo(ProjectExportStatus.PENDING);
+        jdbc.update("DELETE FROM project_export_task WHERE id = UUID_TO_BIN(?)", export.id().toString());
+        var denied = catchThrowable(() -> projectService.createProject(administratorId, new CreateProjectCommand(
+                provinceId, cityId, "管理员不得创建", "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("20.00"))),
+                "项目交流", "继续跟进")));
+        assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.CREATION_FORBIDDEN);
     }
 
     @Test
@@ -1217,6 +1273,17 @@ class ProjectApprovalIT {
         jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), ?, true)",
                 userId.toString(), userId.toString(), roleCode, provinceId.toString(),
                 cityUser ? uuidBytes(cityId) : null);
+        jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), ?)",
+                userId.toString(), roleCode);
+    }
+
+    private void addUserInProvince(UUID userId, UUID userProvinceId, UUID userCityId, String roleCode) {
+        jdbc.update("""
+                INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled)
+                VALUES (UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), true)
+                """, userId.toString(), userId.toString(), roleCode,
+                userProvinceId == null ? null : userProvinceId.toString(),
+                userCityId == null ? null : userCityId.toString());
         jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), ?)",
                 userId.toString(), roleCode);
     }

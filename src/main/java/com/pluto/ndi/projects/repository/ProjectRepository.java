@@ -33,6 +33,36 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
             select project.currentStageCode as stageCode, count(project) as projectCount,
                    sum(project.totalAmount) as expectedAmount
             from ProjectEntity project
+            where :includeTerminated = true or project.currentStageCode <> 'TERMINATED'
+            group by project.currentStageCode
+            """)
+    List<ProjectStageAggregate> summarizeCurrentStagesNational(
+            @Param("includeTerminated") boolean includeTerminated);
+
+    @Query("""
+            select project.cityId as cityId, count(project) as projectCount,
+                   sum(project.totalAmount) as expectedAmount
+            from ProjectEntity project
+            where :includeTerminated = true or project.currentStageCode <> 'TERMINATED'
+            group by project.cityId
+            """)
+    List<ProjectCityAggregate> summarizeCurrentCitiesNational(
+            @Param("includeTerminated") boolean includeTerminated);
+
+    @Query("""
+            select project.industryCode as industryCode, count(project) as projectCount,
+                   sum(project.totalAmount) as expectedAmount
+            from ProjectEntity project
+            where :includeTerminated = true or project.currentStageCode <> 'TERMINATED'
+            group by project.industryCode
+            """)
+    List<ProjectIndustryAggregate> summarizeCurrentIndustriesNational(
+            @Param("includeTerminated") boolean includeTerminated);
+
+    @Query("""
+            select project.currentStageCode as stageCode, count(project) as projectCount,
+                   sum(project.totalAmount) as expectedAmount
+            from ProjectEntity project
             where project.provinceId = :provinceId
               and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
             group by project.currentStageCode

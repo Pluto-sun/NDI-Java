@@ -107,14 +107,16 @@ export function App() {
       />
     );
 
-  const canCreate = me.roleCodes.some((role) =>
-    [
-      'CITY_REPORTER',
-      'PROVINCE_REPORTER',
-      'PROVINCE_DIGITAL_LEADER',
-      'PROVINCE_INTELLIGENT_LEADER',
-    ].includes(role),
-  );
+  const canCreate =
+    !me.roleCodes.includes('SYSTEM_ADMIN') &&
+    me.roleCodes.some((role) =>
+      [
+        'CITY_REPORTER',
+        'PROVINCE_REPORTER',
+        'PROVINCE_DIGITAL_LEADER',
+        'PROVINCE_INTELLIGENT_LEADER',
+      ].includes(role),
+    );
   const canImport =
     canCreate || me.roleCodes.some((role) => ['INTERFACE_REVIEWER', 'SYSTEM_ADMIN'].includes(role));
   return (

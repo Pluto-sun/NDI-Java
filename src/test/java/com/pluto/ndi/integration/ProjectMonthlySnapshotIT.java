@@ -115,6 +115,10 @@ class ProjectMonthlySnapshotIT {
         clock.moveTo(2026, 7, 1);
         snapshots.generateDue();
         snapshots.generateDue();
+        var nationalReaderId = UUID.randomUUID();
+        addUser(nationalReaderId, provinceId, null, "GROUP_REVIEWER");
+        assertThat(snapshots.workbench(nationalReaderId, YearMonth.of(2026, 6), false).projectCount())
+                .isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_monthly_snapshot WHERE month_start = '2026-06-01'",
                 Long.class)).isEqualTo(2);
         assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 6), false).totalExpectedAmount())

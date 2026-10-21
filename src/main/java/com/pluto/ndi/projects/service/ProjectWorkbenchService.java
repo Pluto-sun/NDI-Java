@@ -49,6 +49,7 @@ public class ProjectWorkbenchService {
     public ProjectWorkbenchOverview overview(UUID actorId, boolean includeTerminated) {
         var scope = readableScope(actorId);
         var aggregates = switch (scope.level()) {
+            case NATIONAL -> projectRepository.summarizeCurrentStagesNational(includeTerminated);
             case PROVINCE -> projectRepository.summarizeCurrentStagesByProvince(
                     scope.organizationId(), includeTerminated);
             case CITY -> projectRepository.summarizeCurrentStagesByCity(
@@ -63,6 +64,10 @@ public class ProjectWorkbenchService {
         List<ProjectCityAggregate> cityAggregates;
         List<ProjectIndustryAggregate> industryAggregates;
         switch (scope.level()) {
+            case NATIONAL -> {
+                cityAggregates = projectRepository.summarizeCurrentCitiesNational(includeTerminated);
+                industryAggregates = projectRepository.summarizeCurrentIndustriesNational(includeTerminated);
+            }
             case PROVINCE -> {
                 cityAggregates = projectRepository.summarizeCurrentCitiesByProvince(
                         scope.organizationId(), includeTerminated);

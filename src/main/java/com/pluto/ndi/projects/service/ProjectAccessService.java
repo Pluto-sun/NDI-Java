@@ -29,6 +29,7 @@ public class ProjectAccessService {
         var scope = identityDirectory.findReadableProjectScope(actor)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         boolean inScope = switch (scope.level()) {
+            case NATIONAL -> true;
             case PROVINCE -> scope.organizationId().equals(project.provinceId());
             case CITY -> scope.organizationId().equals(project.cityId());
         };

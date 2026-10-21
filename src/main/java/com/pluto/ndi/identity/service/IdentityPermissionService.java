@@ -25,6 +25,8 @@ class IdentityPermissionService implements IdentityDirectory {
     private static final String CITY_PROJECT_CREATOR_ROLE = "CITY_REPORTER";
     private static final String INTERFACE_PROJECT_READER_ROLE = "INTERFACE_REVIEWER";
     private static final String SYSTEM_ADMIN_ROLE = "SYSTEM_ADMIN";
+    private static final Set<String> NATIONAL_PROJECT_READ_ROLES = Set.of(
+            "GROUP_REVIEWER", "DS_TECH", "DS_INTELLIGENCE", "GD_DPASS", SYSTEM_ADMIN_ROLE);
 
     private final UserAccountRepository userAccountRepository;
     private final UserRoleRepository userRoleRepository;
@@ -113,6 +115,7 @@ class IdentityPermissionService implements IdentityDirectory {
             return false;
         }
         var roleCodes = roleCodes(actor.id());
+        if (roleCodes.contains(SYSTEM_ADMIN_ROLE)) return false;
         boolean provinceCreator = provinceId.equals(actor.provinceId())
                 && roleCodes.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains);
         boolean cityCreator = provinceId.equals(actor.provinceId())
@@ -125,6 +128,7 @@ class IdentityPermissionService implements IdentityDirectory {
     public boolean canSaveProjectDraft(ProjectActor actor) {
         if (!actor.enabled()) return false;
         var roles = roleCodes(actor.id());
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) return false;
         return roles.contains(CITY_PROJECT_CREATOR_ROLE)
                 || roles.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains);
     }
@@ -135,8 +139,8 @@ class IdentityPermissionService implements IdentityDirectory {
             return Optional.empty();
         }
         var roleCodes = roleCodes(actor.id());
-        if (roleCodes.contains(SYSTEM_ADMIN_ROLE)) {
-            return Optional.empty();
+        if (roleCodes.stream().anyMatch(NATIONAL_PROJECT_READ_ROLES::contains)) {
+            return Optional.of(new ProjectDataScope(ProjectDataScope.Level.NATIONAL, null));
         }
         boolean provinceReader = roleCodes.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains)
                 || roleCodes.contains(INTERFACE_PROJECT_READER_ROLE);

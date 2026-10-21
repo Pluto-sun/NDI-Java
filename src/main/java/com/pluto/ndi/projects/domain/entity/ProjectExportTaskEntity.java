@@ -28,7 +28,7 @@ public class ProjectExportTaskEntity {
     @Column(name = "scope_level", nullable = false)
     private ProjectDataScope.Level scopeLevel;
 
-    @Column(name = "scope_organization_id", nullable = false)
+    @Column(name = "scope_organization_id")
     private UUID scopeOrganizationId;
 
     @Column(name = "filter_json", nullable = false, columnDefinition = "json")

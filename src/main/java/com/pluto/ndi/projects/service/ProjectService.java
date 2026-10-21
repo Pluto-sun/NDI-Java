@@ -271,8 +271,10 @@ public class ProjectService {
     private Specification<ProjectEntity> specification(ProjectDataScope scope, ProjectQuery query) {
         return (root, ignored, builder) -> {
             var conditions = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
-            conditions.add(builder.equal(root.get(scope.level() == ProjectDataScope.Level.PROVINCE
-                    ? "provinceId" : "cityId"), scope.organizationId()));
+            if (scope.level() != ProjectDataScope.Level.NATIONAL) {
+                conditions.add(builder.equal(root.get(scope.level() == ProjectDataScope.Level.PROVINCE
+                        ? "provinceId" : "cityId"), scope.organizationId()));
+            }
             if (query.projectCode() != null) {
                 conditions.add(builder.equal(root.get("projectCode"), query.projectCode()));
             }
