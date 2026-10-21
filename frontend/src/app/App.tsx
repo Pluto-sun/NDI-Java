@@ -14,6 +14,7 @@ import {
 import { authApi, type AccountProfile, type AuthenticationMode } from '../features/auth/api';
 import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
+import { NotificationNavLinks } from '../features/approvals/NotificationNavLinks';
 
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
@@ -209,8 +210,7 @@ export function App() {
           <NavLink to="/projects" end>
             项目列表
           </NavLink>
-          <NavLink to="/approvals">审批待办</NavLink>
-          <NavLink to="/notifications">消息通知</NavLink>
+          <NotificationNavLinks key={me.id} actorId={me.id} />
           {mode === 'SESSION' && <NavLink to="/account">个人设置</NavLink>}
           {me.roleCodes.includes('SYSTEM_ADMIN') && (
             <NavLink to="/admin/accounts">账号与组织</NavLink>

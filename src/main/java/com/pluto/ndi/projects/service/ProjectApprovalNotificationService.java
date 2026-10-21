@@ -3,9 +3,11 @@ package com.pluto.ndi.projects.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
 
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
+import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.projects.domain.ApprovalNotificationKind;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.entity.ProjectApprovalRequestEntity;
@@ -14,6 +16,7 @@ import com.pluto.ndi.projects.repository.ProjectApprovalNotificationRepository;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,9 +48,29 @@ public class ProjectApprovalNotificationService {
 
     @Transactional(readOnly = true)
     public Page<ApprovalNotificationSummary> findMine(UUID actorId, Pageable pageable) {
+        return findMine(actorId, pageable, false);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ApprovalNotificationSummary> findMine(UUID actorId, Pageable pageable, boolean unreadOnly) {
         var actor = requireEnabled(actorId);
         var scope = identityDirectory.findReadableProjectScope(actor);
-        org.springframework.data.jpa.domain.Specification<ProjectApprovalNotificationEntity> specification = (notice, query, builder) -> {
+        var specification = visibleTo(actorId, scope);
+        if (unreadOnly) specification = specification.and((notice, query, builder) -> builder.isNull(notice.get("readAt")));
+        return repository.findAll(specification, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(),
+                        pageable.getPageSize(), org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt", "id")))
+                .map(ApprovalNotificationSummary::from);
+    }
+
+    @Transactional(readOnly = true)
+    public long unreadCount(UUID actorId) {
+        var actor = requireEnabled(actorId);
+        return repository.count(visibleTo(actorId, identityDirectory.findReadableProjectScope(actor))
+                .and((notice, query, builder) -> builder.isNull(notice.get("readAt"))));
+    }
+
+    private Specification<ProjectApprovalNotificationEntity> visibleTo(UUID actorId, Optional<ProjectDataScope> scope) {
+        return (notice, query, builder) -> {
             var request = query.from(ProjectApprovalRequestEntity.class);
             var project = query.from(com.pluto.ndi.projects.domain.entity.ProjectEntity.class);
             var readable = scope.map(value -> com.pluto.ndi.projects.mapper.ProjectScopeCriteria.predicate(value, project, builder))
@@ -56,16 +79,17 @@ public class ProjectApprovalNotificationService {
                     builder.equal(notice.get("requestId"), request.get("id")), builder.equal(request.get("projectId"), project.get("id")),
                     builder.or(builder.equal(request.get("initiatorId"), actorId), readable));
         };
-        return repository.findAll(specification, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(),
-                        pageable.getPageSize(), org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt", "id")))
-                .map(ApprovalNotificationSummary::from);
     }
 
     @Transactional
     public ApprovalNotificationSummary markRead(UUID actorId, UUID notificationId) {
-        requireEnabled(actorId);
+        var actor = requireEnabled(actorId);
         var notification = repository.findByIdAndRecipientId(notificationId, actorId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOTIFICATION_NOT_FOUND));
+        if (!repository.exists(visibleTo(actorId, identityDirectory.findReadableProjectScope(actor))
+                .and((notice, query, builder) -> builder.equal(notice.get("id"), notificationId)))) {
+            throw new BusinessException(ProjectErrorCode.NOTIFICATION_NOT_FOUND);
+        }
         notification.markRead(Instant.now(clock));
         return ApprovalNotificationSummary.from(notification);
     }

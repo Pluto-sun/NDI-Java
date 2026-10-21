@@ -321,6 +321,12 @@ export interface ApprovalNotification {
   createdAt: string;
   readAt: string | null;
 }
+export interface NotificationCounts {
+  count: number;
+  approvalUnreadCount: number;
+  inactivityPendingCount: number;
+  pendingApprovalCount: number;
+}
 export interface ProjectChange {
   id: string;
   eventType: string;

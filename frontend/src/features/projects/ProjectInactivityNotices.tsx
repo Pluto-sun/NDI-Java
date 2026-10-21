@@ -4,6 +4,7 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 import { inactivityApi, type InactivityCase } from './inactivityApi';
 import type { ProjectUser } from './types';
+import { refreshNotificationCounts } from '../approvals/notificationEvents';
 
 export function ProjectInactivityNotices() {
   const [items, setItems] = useState<InactivityCase[]>([]);
@@ -98,6 +99,7 @@ export function ProjectInactivityNotices() {
                   key={item.id}
                   item={item}
                   onForwarded={() => {
+                    refreshNotificationCounts();
                     setMessage('督办已转发，处理记录已保留。');
                     setPage(0);
                     setRevision((value) => value + 1);

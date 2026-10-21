@@ -119,9 +119,9 @@ public class ProjectInactivityService {
     public Page<ProjectInactivitySummary> findMine(UUID actorId, boolean history, Pageable page) {
         var actor = identities.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        var scope = identities.findReadableProjectScope(actor)
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        var cases = mapper.findMine(actorId, scope, history, page);
+        var scope = identities.findReadableProjectScope(actor);
+        if (scope.isEmpty()) return Page.empty(page);
+        var cases = mapper.findMine(actorId, scope.get(), history, page);
         var dispatches = mapper.dispatchEvents(cases.stream().map(ProjectInactivityCase::id).toList());
         return cases.map(item -> {
             var events = new ArrayList<>(dispatches.getOrDefault(item.id(), List.of()));
@@ -140,6 +140,13 @@ public class ProjectInactivityService {
                     "RESOLVED".equals(item.status()) ? "RESOLVED" : history ? "FORWARDED" : "OPEN",
                     item.lastActivityAt(), item.createdAt(), item.closedAt(), canForward, List.copyOf(events));
         });
+    }
+
+    @Transactional(readOnly = true)
+    public long pendingCount(UUID actorId) {
+        var actor = identities.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        return identities.findReadableProjectScope(actor).map(scope -> mapper.pendingCount(actorId, scope)).orElse(0L);
     }
 
     @Transactional(readOnly = true)

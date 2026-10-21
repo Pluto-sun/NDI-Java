@@ -12,6 +12,7 @@ import type {
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
 import { changeFieldLabels, changeValue } from '../projects/majorChangeFields';
+import { refreshNotificationCounts } from './notificationEvents';
 
 const statusLabels: Record<ApprovalSummary['status'], string> = {
   PENDING: '待审批',
@@ -261,6 +262,7 @@ export function ApprovalDetailPage({
     try {
       const result = await projectsApi.decide(id, approved, opinion.trim());
       setItem(result);
+      refreshNotificationCounts();
       setMessage(
         approved ? '审批已通过，项目正式数据已更新。' : '申请已驳回，项目正式数据未变化。',
       );
@@ -288,6 +290,7 @@ export function ApprovalDetailPage({
     try {
       setItem(await projectsApi.withdraw(id));
       setMessage('申请已撤销。');
+      refreshNotificationCounts();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '撤销失败');
     } finally {

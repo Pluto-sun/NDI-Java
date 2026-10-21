@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
 import type { ApprovalNotification } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 import { ProjectInactivityNotices } from '../projects/ProjectInactivityNotices';
+import { refreshNotificationCounts } from './notificationEvents';
 
 const labels: Record<string, string> = {
   SUBMITTED: '有新的审批申请',
@@ -16,16 +17,20 @@ const labels: Record<string, string> = {
 };
 
 export function NotificationsPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<ApprovalNotification[]>([]);
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(0);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const [reading, setReading] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     setBusy(true);
     projectsApi
-      .notifications(page)
+      .notifications(page, unreadOnly)
       .then((result) => {
         if (active) {
           setItems(result.items);
@@ -42,13 +47,23 @@ export function NotificationsPage() {
     return () => {
       active = false;
     };
-  }, [page]);
-  async function read(item: ApprovalNotification) {
+  }, [page, unreadOnly, revision]);
+  async function read(item: ApprovalNotification, open = false) {
+    setError('');
+    setReading(item.id);
     try {
-      const updated = await projectsApi.markNotificationRead(item.id);
-      setItems((current) => current.map((value) => (value.id === updated.id ? updated : value)));
+      await projectsApi.markNotificationRead(item.id);
+      refreshNotificationCounts();
+      if (open) {
+        void navigate(`/approvals/${item.requestId}`);
+        return;
+      }
+      if (unreadOnly && items.length === 1 && page > 0) setPage(page - 1);
+      setRevision((value) => value + 1);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '标记已读失败');
+    } finally {
+      setReading(null);
     }
   }
   return (
@@ -62,6 +77,19 @@ export function NotificationsPage() {
       </div>
       <ProjectInactivityNotices />
       <h2>审批通知</h2>
+      <p className="subtle">消息标记已读不会完成审批；督办需转发或更新项目后闭环。</p>
+      <label className="checkbox-label">
+        <input
+          type="checkbox"
+          checked={unreadOnly}
+          disabled={reading !== null}
+          onChange={(event) => {
+            setUnreadOnly(event.target.checked);
+            setPage(0);
+          }}
+        />
+        仅看未读审批通知
+      </label>
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy ? (
         <Loading />
@@ -81,7 +109,23 @@ export function NotificationsPage() {
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td>
-                      <Link className="table-link" to={`/approvals/${item.requestId}`}>
+                      <Link
+                        className="table-link"
+                        to={`/approvals/${item.requestId}`}
+                        onClick={(event) => {
+                          if (
+                            item.readAt ||
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.altKey ||
+                            event.button !== 0
+                          )
+                            return;
+                          event.preventDefault();
+                          if (!reading) void read(item, true);
+                        }}
+                      >
                         {labels[item.kind] ?? item.kind}
                       </Link>
                     </td>
@@ -92,9 +136,10 @@ export function NotificationsPage() {
                         <button
                           type="button"
                           className="text-button"
+                          disabled={reading !== null}
                           onClick={() => void read(item)}
                         >
-                          标记已读
+                          {reading === item.id ? '正在标记…' : '标记已读'}
                         </button>
                       )}
                     </td>

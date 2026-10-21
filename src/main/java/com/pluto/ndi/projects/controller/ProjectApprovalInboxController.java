@@ -34,15 +34,18 @@ public class ProjectApprovalInboxController {
     private final ProjectApprovalInboxService inboxService;
     private final ProjectApprovalNotificationService notificationService;
     private final ApiResponseFactory responseFactory;
+    private final com.pluto.ndi.projects.service.ProjectNotificationSummaryService notificationCounts;
 
     public ProjectApprovalInboxController(
             ProjectApprovalInboxService inboxService,
             ProjectApprovalNotificationService notificationService,
-            ApiResponseFactory responseFactory
+            ApiResponseFactory responseFactory,
+            com.pluto.ndi.projects.service.ProjectNotificationSummaryService notificationCounts
     ) {
         this.inboxService = inboxService;
         this.notificationService = notificationService;
         this.responseFactory = responseFactory;
+        this.notificationCounts = notificationCounts;
     }
 
     @GetMapping("/approvals/inbox")
@@ -69,10 +72,16 @@ public class ProjectApprovalInboxController {
     public ApiResponse<PageResponse<ApprovalNotificationSummary>> notifications(
             Authentication authentication,
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "false") boolean unreadOnly
     ) {
         return responseFactory.success(PageResponse.from(
-                notificationService.findMine(actorId(authentication), PageRequest.of(page, size))));
+                notificationService.findMine(actorId(authentication), PageRequest.of(page, size), unreadOnly)));
+    }
+
+    @GetMapping("/notification-counts")
+    public ApiResponse<com.pluto.ndi.projects.service.ProjectNotificationCounts> notificationCounts(Authentication authentication) {
+        return responseFactory.success(notificationCounts.counts(actorId(authentication)));
     }
 
     @PostMapping("/approval-notifications/{notificationId}/read")

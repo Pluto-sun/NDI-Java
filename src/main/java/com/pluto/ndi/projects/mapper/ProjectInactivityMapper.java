@@ -211,6 +211,14 @@ public class ProjectInactivityMapper {
         return new PageImpl<>(rows, page, count);
     }
 
+    public long pendingCount(UUID actorId, ProjectDataScope scope) {
+        var parameters = new MapSqlParameterSource("actor", actorId.toString());
+        // 一项督办可能有多条通知，按待处理事项计数，避免升级和转发造成重复累计。
+        return jdbc.queryForObject("SELECT COUNT(*)" + FROM + MINE
+                + ProjectScopeSql.named(scope, "p.province_id", "p.city_id", parameters)
+                + " AND c.status = 'OPEN' AND " + PENDING, parameters, Long.class);
+    }
+
     public Map<UUID, List<ProjectInactivityEvent>> dispatchEvents(List<UUID> caseIds) {
         var result = new HashMap<UUID, List<ProjectInactivityEvent>>();
         if (caseIds.isEmpty()) return result;

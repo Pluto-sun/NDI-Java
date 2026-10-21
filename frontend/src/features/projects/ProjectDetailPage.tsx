@@ -13,6 +13,7 @@ import { amount, businessDate, dateTime } from '../../shared/ui/format';
 import { ProjectDocuments } from './ProjectDocuments';
 import { ProjectRequests } from './ProjectRequests';
 import { ProjectProfileForm } from './ProjectProfileForm';
+import { refreshNotificationCounts } from '../approvals/notificationEvents';
 import { ProjectHistory } from './ProjectHistory';
 
 export function ProjectDetailPage({
@@ -89,6 +90,7 @@ export function ProjectDetailPage({
       setCorrecting(null);
       await load();
       setNotice('项目进展已保存。');
+      refreshNotificationCounts();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '进展保存失败');
     } finally {
@@ -254,7 +256,10 @@ export function ProjectDetailPage({
                 project={detail}
                 leaders={leaders}
                 reference={reference}
-                onSaved={setDetail}
+                onSaved={(project) => {
+                  setDetail(project);
+                  refreshNotificationCounts();
+                }}
               />
             )}
             <div className="detail-grid">

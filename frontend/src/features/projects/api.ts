@@ -242,8 +242,15 @@ export const projectsApi = {
     request<Page<ApprovalTask>>(`/approvals/inbox?page=${page}&size=20`),
   submittedApprovals: (page: number) =>
     request<Page<ApprovalSummary>>(`/approvals/submitted?page=${page}&size=20`),
-  notifications: (page: number) =>
-    request<Page<ApprovalNotification>>(`/approval-notifications?page=${page}&size=20`),
+  notifications: (page: number, unreadOnly = false) =>
+    request<Page<ApprovalNotification>>(
+      `/approval-notifications?page=${page}&size=20&unreadOnly=${unreadOnly}`,
+    ),
+  notificationCounts: (signal?: AbortSignal) =>
+    request<import('./types').NotificationCounts>('/notification-counts', {
+      signal,
+      cache: 'no-store',
+    }),
   markNotificationRead: (id: string) =>
     request<ApprovalNotification>(`/approval-notifications/${id}/read`, { method: 'POST' }),
   approval: (id: string) => request<ApprovalSummary>(`/approvals/${id}`),

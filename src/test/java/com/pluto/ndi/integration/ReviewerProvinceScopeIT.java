@@ -66,6 +66,7 @@ class ReviewerProvinceScopeIT {
     @Autowired ProjectExportTaskRepository exportTasks;
     @Autowired ProjectInactivityService inactivity;
     @Autowired ProjectImportService imports;
+    @Autowired ProjectNotificationSummaryService notificationCounts;
     private final PageRequest page = PageRequest.of(0, 20);
     private final String password = "reviewer-test-password";
     UUID admin;
@@ -237,6 +238,49 @@ class ReviewerProvinceScopeIT {
         assertThat(inbox.findPending(reviewer.id(), page)).isEmpty();
         assertThat(approvals.findApproval(reviewer.id(), pending.id()).canReview()).isFalse();
         denied(() -> approvals.decide(reviewer.id(), pending.id(), true, null));
+    }
+
+    @Test void unreadMessagesAndActionableTasksAreDistinctAndInactivityCountsDeduplicateNotices() {
+        var first = change(a); change(b);
+        long rows = jdbc.queryForObject("SELECT COUNT(*) FROM project_approval_notification", Long.class);
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(2, 2, 0, 2));
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(2, 2, 0, 2));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_approval_notification", Long.class)).isEqualTo(rows);
+        var notice = notifications.findMine(reviewer.id(), page, true).getContent().getFirst();
+        var read = notifications.markRead(reviewer.id(), notice.id());
+        clock.move(month, 16);
+        assertThat(notifications.markRead(reviewer.id(), notice.id()).readAt()).isEqualTo(read.readAt());
+        assertThat(notifications.findMine(reviewer.id(), page, true).getTotalElements()).isEqualTo(1);
+        assertThat(notifications.findMine(reviewer.id(), page).getTotalElements()).isEqualTo(2);
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(1, 1, 0, 2));
+        inactivity.trigger(admin, a.project(), 30); inactivity.trigger(admin, a.project(), 33);
+        var caseId = inactivity.findMine(reviewer.id(), false, page).getContent().getFirst().id();
+        jdbc.update("INSERT INTO project_inactivity_notice (id,case_id,recipient_id,kind,created_at) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),UUID_TO_BIN(?),'GROUP',CURRENT_TIMESTAMP(6))",
+                UUID.randomUUID().toString(), caseId.toString(), reviewer.id().toString());
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(2, 1, 1, 2));
+        assertThat(inactivity.findMine(reviewer.id(), false, page).getTotalElements()).isEqualTo(1);
+        approvals.decide(reviewer.id(), first.id(), true, null);
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(1, 1, 0, 1));
+        for (var unread : notifications.findMine(reviewer.id(), page, true)) notifications.markRead(reviewer.id(), unread.id());
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(0, 0, 0, 1));
+    }
+
+    @Test void scopeChangesFilterUnreadCountsAndPreventMarkingHiddenOrForeignNotifications() {
+        change(a); var second = change(b);
+        var hidden = notifications.findMine(reviewer.id(), page, true).stream()
+                .filter(item -> item.requestId().equals(second.id())).findFirst().orElseThrow();
+        denied(() -> notifications.markRead(c.reporter(), hidden.id()));
+        inactivity.trigger(admin, b.project(), 30); inactivity.trigger(admin, b.project(), 33);
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(3, 2, 1, 2));
+        reviewer = mapping(reviewer, a.province());
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(1, 1, 0, 1));
+        denied(() -> notifications.markRead(reviewer.id(), hidden.id()));
+        assertThat(jdbc.queryForObject("SELECT read_at FROM project_approval_notification WHERE id=UUID_TO_BIN(?)", java.sql.Timestamp.class, hidden.id().toString())).isNull();
+        reviewer = mapping(reviewer);
+        assertThat(notificationCounts.counts(reviewer.id())).isEqualTo(new ProjectNotificationCounts(0, 0, 0, 0));
+        assertThat(inactivity.findMine(reviewer.id(), false, page)).isEmpty();
+        jdbc.update("UPDATE identity_user_account SET enabled=false WHERE id=UUID_TO_BIN(?)", reviewer.id().toString());
+        denied(() -> notificationCounts.counts(reviewer.id()));
     }
 
     private AdminAccountView mapping(AdminAccountView user, UUID... ids) {
