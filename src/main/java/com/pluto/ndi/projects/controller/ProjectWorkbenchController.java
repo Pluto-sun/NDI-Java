@@ -17,6 +17,7 @@ import com.pluto.ndi.projects.service.ProjectMapView;
 import com.pluto.ndi.projects.service.ProjectMapBoundaryClient;
 import com.pluto.ndi.projects.service.ProjectMonthlySnapshotService;
 import com.pluto.ndi.projects.service.ProjectMonthlyTrendPoint;
+import com.pluto.ndi.projects.service.ProjectStageTrendPoint;
 import com.pluto.ndi.projects.service.ProjectMonthlyWorkbench;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.ApiResponse;
@@ -103,6 +104,15 @@ public class ProjectWorkbenchController {
             @RequestParam(defaultValue = "false") boolean includeTerminated) {
         return responseFactory.success(monthlySnapshots.trend(actorId(authentication),
                 parseMonth(from), parseMonth(to), includeTerminated));
+    }
+
+    @GetMapping("/stage-trend")
+    public ApiResponse<List<ProjectStageTrendPoint>> stageTrend(Authentication authentication,
+            @RequestParam String from, @RequestParam String to,
+            @RequestParam(defaultValue = "false") boolean includeTerminated,
+            @RequestParam(required = false, name = "stage") List<ProjectStage> stages) {
+        return responseFactory.success(monthlySnapshots.stageTrend(actorId(authentication),
+                parseMonth(from), parseMonth(to), includeTerminated, stages));
     }
 
     @GetMapping("/history/{projectId}/revisions")

@@ -279,6 +279,13 @@ export interface TrendPoint {
   projectCount: number;
   totalExpectedAmount: number;
 }
+export interface StageTrendPoint {
+  month: string;
+  stageCode: string;
+  projectCount: number;
+  totalExpectedAmount: number;
+  categoryTotals: MonthlyWorkbench['categoryTotals'];
+}
 export interface ApprovalNotification {
   id: string;
   requestId: string;

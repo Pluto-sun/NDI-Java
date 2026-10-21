@@ -51,6 +51,7 @@ public enum ProjectErrorCode implements ErrorCode {
     IMPORT_RECOVERY_NOT_READY(HttpStatus.CONFLICT, "PROJECT_IMPORT_RECOVERY_NOT_READY", "导入恢复尚不可用", "批次开始确认不足 15 分钟，请稍后刷新或重试"),
     SNAPSHOT_NOT_READY(HttpStatus.NOT_FOUND, "PROJECT_SNAPSHOT_NOT_READY", "月末快照尚未生成", "该月份未生成可查询的月末快照"),
     INVALID_SNAPSHOT_MONTH(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SNAPSHOT_MONTH", "月末查询范围无效", "趋势查询起止月份必须有序且不超过 24 个月"),
+    INVALID_SNAPSHOT_FILTER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_SNAPSHOT_FILTER", "月末筛选条件无效", "默认口径不含已终止项目；如需筛选已终止阶段，请显式纳入已终止项目"),
     INVALID_MAP_ADCODE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_MAP_ADCODE", "地图编码无效", "地图边界必须使用六位行政区划代码"),
     MAP_BOUNDARY_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "PROJECT_MAP_BOUNDARY_UNAVAILABLE", "地图边界不可用", "地图边界服务暂不可用，请稍后重试");
 

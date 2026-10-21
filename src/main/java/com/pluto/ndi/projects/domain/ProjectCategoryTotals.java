@@ -9,6 +9,10 @@ import com.pluto.ndi.projects.domain.entity.ProjectCategoryAmountEntity;
 public record ProjectCategoryTotals(BigDecimal network, BigDecimal gewu,
                                     BigDecimal bigData, BigDecimal wangwu) {
 
+    public static ProjectCategoryTotals zero() {
+        return new ProjectCategoryTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
     public static ProjectCategoryTotals from(Collection<ProjectCategoryAmountEntity> amounts) {
         var network = BigDecimal.ZERO;
         var gewu = BigDecimal.ZERO;

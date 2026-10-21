@@ -4,15 +4,15 @@ import { projectsApi } from '../projects/api';
 import type {
   MonthlyWorkbench,
   ReferenceData,
-  TrendPoint,
+  StageTrendPoint,
   WorkbenchBreakdown,
   WorkbenchOverview,
 } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
-import { ApiError } from '../../shared/api/http';
 import { MetricBars } from './MetricBars';
 import { ProjectMapCard } from './ProjectMapCard';
+import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
@@ -23,10 +23,19 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     date.setMonth(date.getMonth() - 1);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [fromMonth, setFromMonth] = useState(month);
   const [includeTerminated, setIncludeTerminated] = useState(false);
+  const [selectedStages, setSelectedStages] = useState<string[]>(['SOLUTION_EXCHANGE']);
+  const [trendMetric, setTrendMetric] = useState<StageTrendMetric>('projectCount');
   const [history, setHistory] = useState<MonthlyWorkbench | null>(null);
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [trend, setTrend] = useState<StageTrendPoint[]>([]);
+  const [loadedTrend, setLoadedTrend] = useState<{
+    from: string;
+    to: string;
+    stages: string[];
+  } | null>(null);
   const [historyError, setHistoryError] = useState('');
+  const [trendError, setTrendError] = useState('');
   const [historyBusy, setHistoryBusy] = useState(false);
   useEffect(() => {
     let active = true;
@@ -47,26 +56,23 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   async function loadHistory() {
     setHistoryBusy(true);
     setHistoryError('');
+    setTrendError('');
     setHistory(null);
     setTrend([]);
+    setLoadedTrend(null);
+    if (!selectedStages.length || fromMonth > month) {
+      setHistoryError('请选择至少一个阶段，且起始月份不得晚于报表月份。');
+      setHistoryBusy(false);
+      return;
+    }
     try {
       const snapshot = await projectsApi.monthly(month, includeTerminated);
       setHistory(snapshot);
-      for (let offset = 5; offset >= 0; offset -= 1) {
-        const start = new Date(`${month}-01T12:00:00`);
-        start.setMonth(start.getMonth() - offset);
-        const from = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
-        try {
-          setTrend(await projectsApi.trend(from, month, includeTerminated));
-          break;
-        } catch (cause) {
-          if (
-            !(cause instanceof ApiError) ||
-            cause.code !== 'PROJECT_SNAPSHOT_NOT_READY' ||
-            offset === 0
-          )
-            throw cause;
-        }
+      try {
+        setTrend(await projectsApi.stageTrend(fromMonth, month, includeTerminated, selectedStages));
+        setLoadedTrend({ from: fromMonth, to: month, stages: [...selectedStages] });
+      } catch (cause) {
+        setTrendError(cause instanceof Error ? cause.message : '阶段趋势加载失败');
       }
     } catch (cause) {
       setHistoryError(cause instanceof Error ? cause.message : '历史月报加载失败');
@@ -76,6 +82,14 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   }
   const stage = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
+  const trendMetrics: { value: StageTrendMetric; label: string }[] = [
+    { value: 'projectCount', label: '项目数量' },
+    { value: 'totalExpectedAmount', label: '项目总金额' },
+    { value: 'network', label: '网络化金额' },
+    { value: 'gewu', label: '格物金额' },
+    { value: 'bigData', label: '大数据金额' },
+    { value: 'wangwu', label: '万悟金额' },
+  ];
   const categoryAmounts = history
     ? [
         { code: 'NETWORK', value: history.categoryTotals.network },
@@ -158,14 +172,25 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
           <div className="panel">
             <h2>历史月报与趋势</h2>
             <p className="subtle">
-              每月 1 日生成上个月月末快照；跨月审批通过后的修订计入相应历史月份。
+              每月 1 日生成上个月月末快照；趋势中的每个月都是当月月末状态，不跨月累加项目金额。
+              跨月审批通过后，会修订对应历史月份。
             </p>
             <div className="filter-bar">
               <label>
-                报表月份
+                趋势起始月份
+                <input
+                  type="month"
+                  value={fromMonth}
+                  max={month}
+                  onChange={(event) => setFromMonth(event.target.value)}
+                />
+              </label>
+              <label>
+                报表／趋势结束月份
                 <input
                   type="month"
                   value={month}
+                  min={fromMonth}
                   onChange={(event) => setMonth(event.target.value)}
                 />
               </label>
@@ -173,20 +198,65 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                 <input
                   type="checkbox"
                   checked={includeTerminated}
-                  onChange={(event) => setIncludeTerminated(event.target.checked)}
+                  onChange={(event) => {
+                    setIncludeTerminated(event.target.checked);
+                    if (!event.target.checked) {
+                      setSelectedStages((items) => items.filter((item) => item !== 'TERMINATED'));
+                    }
+                  }}
                 />
                 含已终止项目
               </label>
               <button
                 type="button"
                 className="secondary-button"
-                disabled={!month || historyBusy}
+                disabled={!month || !fromMonth || historyBusy}
                 onClick={() => void loadHistory()}
               >
-                {historyBusy ? '加载中…' : '查看月报'}
+                {historyBusy ? '加载中…' : '查看月报与趋势'}
               </button>
             </div>
+            <div className="stage-trend-filters">
+              <fieldset>
+                <legend>趋势阶段</legend>
+                {reference.stages
+                  .filter((item) => includeTerminated || item.code !== 'TERMINATED')
+                  .map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      aria-pressed={selectedStages.includes(item.code)}
+                      onClick={() =>
+                        setSelectedStages((items) =>
+                          items.includes(item.code)
+                            ? items.filter((code) => code !== item.code)
+                            : [...items, item.code],
+                        )
+                      }
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+              </fieldset>
+              <label>
+                趋势指标
+                <select
+                  value={trendMetric}
+                  onChange={(event) => setTrendMetric(event.target.value as StageTrendMetric)}
+                >
+                  {trendMetrics.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="subtle">
+              修改月份、阶段或终止口径后，请点击“查看月报与趋势”；指标切换会直接更新已加载图表。
+            </p>
             {historyError && <Feedback tone="error">{historyError}</Feedback>}
+            {trendError && <Feedback tone="error">趋势暂不可用：{trendError}</Feedback>}
             {history && (
               <>
                 <div className="kpi-grid">
@@ -231,18 +301,22 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                       }))}
                     />
                   </div>
-                  <div>
-                    <h3>近六个月趋势</h3>
-                    <MetricBars
-                      items={trend.map((item) => ({
-                        key: item.month,
-                        label: item.month,
-                        count: item.projectCount,
-                        expectedAmount: item.totalExpectedAmount,
-                      }))}
-                    />
-                  </div>
                 </div>
+                <h3>月度阶段趋势</h3>
+                {loadedTrend && (
+                  <p className="subtle">
+                    已加载 {loadedTrend.from} 至 {loadedTrend.to} 的月末状态。
+                  </p>
+                )}
+                <StageTrendChart
+                  points={trend}
+                  stages={loadedTrend?.stages ?? []}
+                  stageName={stage}
+                  metric={trendMetric}
+                  metricLabel={
+                    trendMetrics.find((item) => item.value === trendMetric)?.label ?? trendMetric
+                  }
+                />
               </>
             )}
           </div>

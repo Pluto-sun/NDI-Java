@@ -17,6 +17,7 @@ import java.util.UUID;
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.MajorChangeType;
+import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.service.CreateProjectCommand;
 import com.pluto.ndi.projects.service.MajorChangeCommand;
@@ -174,6 +175,18 @@ class ProjectMonthlySnapshotIT {
         assertThat(snapshots.trend(leaderId, YearMonth.of(2026, 6), YearMonth.of(2026, 8), false))
                 .hasSize(3).extracting("totalExpectedAmount")
                 .containsExactly(new BigDecimal("220.00"), new BigDecimal("250.00"), new BigDecimal("250.00"));
+        var stageTrend = snapshots.stageTrend(leaderId, YearMonth.of(2026, 6),
+                YearMonth.of(2026, 8), false,
+                List.of(ProjectStage.SOLUTION_EXCHANGE, ProjectStage.BIDDING));
+        assertThat(stageTrend).hasSize(6);
+        assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("SOLUTION_EXCHANGE"))
+                .extracting("totalExpectedAmount")
+                .containsExactly(new BigDecimal("220.00"), new BigDecimal("250.00"),
+                        new BigDecimal("250.00"));
+        assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("BIDDING"))
+                .allSatisfy(item -> assertThat(item.projectCount()).isZero());
+        assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("SOLUTION_EXCHANGE"))
+                .allSatisfy(item -> assertThat(item.categoryTotals().gewu()).isEqualByComparingTo("60.00"));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_monthly_snapshot_revision WHERE source_id = UUID_TO_BIN(?)",
                 Long.class, late.id().toString())).isEqualTo(2);
         mvc.perform(get("/api/v1/projects/workbench/history")
@@ -186,6 +199,18 @@ class ProjectMonthlySnapshotIT {
                         .header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(3));
+        mvc.perform(get("/api/v1/projects/workbench/stage-trend")
+                        .param("from", "2026-06").param("to", "2026-08")
+                        .param("stage", "SOLUTION_EXCHANGE", "BIDDING")
+                        .header("X-NDI-Actor-Id", leaderId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(6))
+                .andExpect(jsonPath("$.data[0].categoryTotals.gewu").value(60.00));
+        mvc.perform(get("/api/v1/projects/workbench/stage-trend")
+                        .param("from", "2026-06").param("to", "2026-08")
+                        .param("stage", "TERMINATED")
+                        .header("X-NDI-Actor-Id", leaderId.toString()))
+                .andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/projects/workbench/history/{projectId}/revisions", projectId)
                         .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
@@ -193,6 +218,25 @@ class ProjectMonthlySnapshotIT {
         mvc.perform(get("/api/v1/projects/workbench/history")
                         .param("month", "2026-09").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isNotFound());
+
+        var otherCityId = UUID.randomUUID();
+        var otherReporterId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '快照其他市', true)",
+                otherCityId.toString(), provinceId.toString(), otherCityId.toString().replace("-", ""));
+        addUser(otherReporterId, provinceId, otherCityId, "CITY_REPORTER");
+        clock.moveTo(2026, 9, 28);
+        create(provinceId, otherCityId, leaderId, otherReporterId, "其他地市项目");
+        clock.moveTo(2026, 10, 1);
+        snapshots.generateDue();
+        assertThat(snapshots.stageTrend(otherReporterId, YearMonth.of(2026, 9),
+                YearMonth.of(2026, 9), false, List.of(ProjectStage.SOLUTION_EXCHANGE)))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.projectCount()).isEqualTo(1);
+                    assertThat(item.categoryTotals().gewu()).isEqualByComparingTo("30.00");
+                });
+        assertThat(snapshots.stageTrend(leaderId, YearMonth.of(2026, 9),
+                YearMonth.of(2026, 9), false, List.of(ProjectStage.SOLUTION_EXCHANGE)))
+                .singleElement().satisfies(item -> assertThat(item.projectCount()).isEqualTo(3));
     }
 
     private UUID create(UUID provinceId, UUID cityId, UUID leaderId, UUID reporterId, String name) {

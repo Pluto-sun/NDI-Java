@@ -21,6 +21,7 @@ import type {
   ExportTask,
   MonthlyWorkbench,
   TrendPoint,
+  StageTrendPoint,
   ApprovalNotification,
   ProjectChange,
   MonthlyRevision,
@@ -141,6 +142,11 @@ export const projectsApi = {
     request<TrendPoint[]>(
       `/workbench/trend?from=${from}&to=${to}&includeTerminated=${includeTerminated}`,
     ),
+  stageTrend: (from: string, to: string, includeTerminated: boolean, stages: string[]) => {
+    const query = new URLSearchParams({ from, to, includeTerminated: String(includeTerminated) });
+    stages.forEach((stage) => query.append('stage', stage));
+    return request<StageTrendPoint[]>(`/workbench/stage-trend?${query}`);
+  },
   inspectImport: (file: File) => {
     const body = new FormData();
     body.append('file', file);

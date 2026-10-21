@@ -279,6 +279,39 @@ public class ProjectMonthlySnapshotService {
     }
 
     @Transactional(readOnly = true)
+    public List<ProjectStageTrendPoint> stageTrend(UUID actorId, YearMonth from, YearMonth to,
+            boolean includeTerminated, List<ProjectStage> requestedStages) {
+        var scope = readableScope(actorId);
+        if (from == null || to == null || from.isAfter(to) || from.plusMonths(23).isBefore(to)) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SNAPSHOT_MONTH);
+        }
+        requireCompleted(from);
+        requireCompleted(to);
+        var stages = requestedStages == null || requestedStages.isEmpty()
+                ? Arrays.stream(ProjectStage.values())
+                        .filter(stage -> includeTerminated || stage != ProjectStage.TERMINATED).toList()
+                : requestedStages.stream().distinct().toList();
+        if (!includeTerminated && stages.contains(ProjectStage.TERMINATED)) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SNAPSHOT_FILTER);
+        }
+        var groups = snapshots.stageTrend(from, to, scope,
+                stages.stream().map(ProjectStage::name).toList());
+        var indexed = groups.stream().collect(Collectors.toMap(
+                item -> new TrendKey(item.month(), item.stageCode()), item -> item));
+        var result = new ArrayList<ProjectStageTrendPoint>();
+        for (var month = from; !month.isAfter(to); month = month.plusMonths(1)) {
+            for (var stage : stages) {
+                var group = indexed.get(new TrendKey(month, stage.name()));
+                result.add(new ProjectStageTrendPoint(month, stage.name(),
+                        group == null ? 0 : group.projectCount(),
+                        group == null ? BigDecimal.ZERO : group.totalAmount(),
+                        group == null ? ProjectCategoryTotals.zero() : group.categoryTotals()));
+            }
+        }
+        return result;
+    }
+
+    @Transactional(readOnly = true)
     public List<ProjectMonthlyRevision> revisions(UUID actorId, UUID projectId, YearMonth month) {
         access.requireReadable(actorId, projectId);
         requireCompleted(month);
@@ -322,4 +355,5 @@ public class ProjectMonthlySnapshotService {
     }
 
     private record PendingSnapshot(UUID projectId, MutableState state) { }
+    private record TrendKey(YearMonth month, String stageCode) { }
 }

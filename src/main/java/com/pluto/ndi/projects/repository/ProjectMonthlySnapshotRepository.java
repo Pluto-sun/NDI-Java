@@ -13,6 +13,8 @@ import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
 import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** 月末快照、统计事件与修订记录的数据库访问。 */
@@ -20,9 +22,11 @@ import org.springframework.stereotype.Repository;
 public class ProjectMonthlySnapshotRepository {
 
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate namedJdbc;
 
     public ProjectMonthlySnapshotRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+        this.namedJdbc = new NamedParameterJdbcTemplate(jdbc);
     }
 
     public void initialize(YearMonth activationMonth) {
@@ -222,6 +226,37 @@ public class ProjectMonthlySnapshotRepository {
                 rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount")), arguments);
     }
 
+    public List<StageTrendGroup> stageTrend(YearMonth from, YearMonth to,
+            ProjectDataScope scope, List<String> stageCodes) {
+        var scopeSql = switch (scope.level()) {
+            case NATIONAL -> "";
+            case PROVINCE -> "AND province_id = UUID_TO_BIN(:organizationId) ";
+            case CITY -> "AND city_id = UUID_TO_BIN(:organizationId) ";
+        };
+        var sql = """
+                SELECT month_start, stage_code, COUNT(*) AS project_count,
+                       COALESCE(SUM(total_amount), 0) AS total_amount,
+                       COALESCE(SUM(network_amount), 0) AS network_amount,
+                       COALESCE(SUM(gewu_amount), 0) AS gewu_amount,
+                       COALESCE(SUM(big_data_amount), 0) AS big_data_amount,
+                       COALESCE(SUM(wangwu_amount), 0) AS wangwu_amount
+                FROM project_monthly_snapshot
+                WHERE month_start BETWEEN :fromMonth AND :toMonth
+                """ + scopeSql + "AND stage_code IN (:stageCodes) GROUP BY month_start, stage_code";
+        var parameters = new MapSqlParameterSource()
+                .addValue("fromMonth", date(from)).addValue("toMonth", date(to))
+                .addValue("stageCodes", stageCodes);
+        if (scope.organizationId() != null) {
+            parameters.addValue("organizationId", scope.organizationId().toString());
+        }
+        return namedJdbc.query(sql, parameters, (rs, rowNum) -> new StageTrendGroup(
+                YearMonth.from(rs.getDate("month_start").toLocalDate()),
+                rs.getString("stage_code"), rs.getLong("project_count"),
+                rs.getBigDecimal("total_amount"), new ProjectCategoryTotals(
+                        rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
+                        rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount"))));
+    }
+
     public List<ProjectMonthlyRevision> revisions(UUID projectId, YearMonth month) {
         return jdbc.query("""
                 SELECT revision_no, source_kind, BIN_TO_UUID(source_id) AS source_id, reason,
@@ -258,4 +293,6 @@ public class ProjectMonthlySnapshotRepository {
                            ProjectCategoryTotals categories, int revisionNo) { }
 
     public record Group(String code, String name, long projectCount, BigDecimal amount) { }
+    public record StageTrendGroup(YearMonth month, String stageCode, long projectCount,
+                                  BigDecimal totalAmount, ProjectCategoryTotals categoryTotals) { }
 }
