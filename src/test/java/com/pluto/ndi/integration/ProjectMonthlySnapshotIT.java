@@ -23,6 +23,7 @@ import com.pluto.ndi.projects.service.CreateProjectCommand;
 import com.pluto.ndi.projects.service.MajorChangeCommand;
 import com.pluto.ndi.projects.service.ProjectApprovalService;
 import com.pluto.ndi.projects.service.ProjectMonthlySnapshotService;
+import com.pluto.ndi.projects.service.ProjectMapService;
 import com.pluto.ndi.projects.service.ProjectProfileService;
 import com.pluto.ndi.projects.service.ProjectService;
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
@@ -85,6 +86,7 @@ class ProjectMonthlySnapshotIT {
     @Autowired private ProjectApprovalService approvals;
     @Autowired private ProjectProfileService profiles;
     @Autowired private ProjectMonthlySnapshotService snapshots;
+    @Autowired private ProjectMapService maps;
     @Autowired private MockMvc mvc;
 
     @Test
@@ -126,6 +128,12 @@ class ProjectMonthlySnapshotIT {
                 .isEqualByComparingTo("200.00");
         assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 6), false)
                 .categoryTotals().gewu()).isEqualByComparingTo("60.00");
+        assertThat(maps.view(leaderId, null, YearMonth.of(2026, 6), false, null).regions())
+                .filteredOn(region -> region.id().equals(cityId))
+                .singleElement().satisfies(region -> {
+                    assertThat(region.expectedAmount()).isEqualByComparingTo("200.00");
+                    assertThat(region.categoryTotals().gewu()).isEqualByComparingTo("60.00");
+                });
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isZero();
 
@@ -134,6 +142,15 @@ class ProjectMonthlySnapshotIT {
         var june = snapshots.workbench(leaderId, YearMonth.of(2026, 6), false);
         assertThat(june.totalExpectedAmount()).isEqualByComparingTo("220.00");
         assertThat(june.categoryTotals().gewu()).isEqualByComparingTo("60.00");
+        assertThat(maps.view(leaderId, null, YearMonth.of(2026, 6), false, null).regions())
+                .filteredOn(region -> region.id().equals(cityId))
+                .singleElement().satisfies(region ->
+                        assertThat(region.expectedAmount()).isEqualByComparingTo("220.00"));
+        mvc.perform(get("/api/v1/projects/workbench/map")
+                        .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.month").value("2026-06"))
+                .andExpect(jsonPath("$.data.regions[0].categoryTotals.gewu").value(60.00));
         assertThat(june.industries()).extracting("industryCode").containsExactly("C25");
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isEqualTo(1);
@@ -237,6 +254,20 @@ class ProjectMonthlySnapshotIT {
         assertThat(snapshots.stageTrend(leaderId, YearMonth.of(2026, 9),
                 YearMonth.of(2026, 9), false, List.of(ProjectStage.SOLUTION_EXCHANGE)))
                 .singleElement().satisfies(item -> assertThat(item.projectCount()).isEqualTo(3));
+        assertThat(maps.view(otherReporterId, null, YearMonth.of(2026, 9), false, null).regions())
+                .filteredOn(region -> region.id().equals(otherCityId))
+                .singleElement().satisfies(region -> {
+                    assertThat(region.authorized()).isTrue();
+                    assertThat(region.projectCount()).isEqualTo(1);
+                    assertThat(region.categoryTotals().gewu()).isEqualByComparingTo("30.00");
+                });
+        assertThat(maps.view(otherReporterId, null, YearMonth.of(2026, 9), false, null).regions())
+                .filteredOn(region -> region.id().equals(cityId))
+                .singleElement().satisfies(region -> {
+                    assertThat(region.authorized()).isFalse();
+                    assertThat(region.expectedAmount()).isZero();
+                    assertThat(region.categoryTotals().gewu()).isZero();
+                });
     }
 
     private UUID create(UUID provinceId, UUID cityId, UUID leaderId, UUID reporterId, String name) {

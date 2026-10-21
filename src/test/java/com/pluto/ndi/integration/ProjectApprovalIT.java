@@ -906,6 +906,13 @@ class ProjectApprovalIT {
                     assertThat(region.authorized()).isFalse();
                     assertThat(region.projectCount()).isZero();
                     assertThat(region.expectedAmount()).isEqualByComparingTo("0");
+                    assertThat(region.categoryTotals().network()).isZero();
+                });
+        assertThat(mapService.current(provinceUserId, null, false, null).regions())
+                .filteredOn(region -> region.id().equals(otherCityId))
+                .singleElement().satisfies(region -> {
+                    assertThat(region.expectedAmount()).isEqualByComparingTo("70.00");
+                    assertThat(region.categoryTotals().network()).isEqualByComparingTo("30.00");
                 });
         assertThat(workbenchService.overview(interfaceUserId, false).totalExpectedAmount())
                 .isEqualByComparingTo("170.00");

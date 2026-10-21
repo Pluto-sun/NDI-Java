@@ -1,6 +1,7 @@
 package com.pluto.ndi.projects.service;
 
 import java.math.BigDecimal;
+import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
@@ -15,10 +16,10 @@ import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.organization.service.ProvinceOption;
 import com.pluto.ndi.organization.service.RegionAdcodeCatalog;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import com.pluto.ndi.projects.domain.ProjectStage;
-import com.pluto.ndi.projects.repository.ProjectCityAggregate;
-import com.pluto.ndi.projects.repository.ProjectProvinceAggregate;
-import com.pluto.ndi.projects.repository.ProjectRepository;
+import com.pluto.ndi.projects.repository.ProjectMapMetric;
+import com.pluto.ndi.projects.repository.ProjectMapMetricRepository;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,18 +31,27 @@ public class ProjectMapService {
     private final IdentityDirectory identities;
     private final OrganizationDirectory organizations;
     private final RegionAdcodeCatalog adcodes;
-    private final ProjectRepository projects;
+    private final ProjectMapMetricRepository metrics;
+    private final ProjectMonthlySnapshotService monthlySnapshots;
 
     public ProjectMapService(IdentityDirectory identities, OrganizationDirectory organizations,
-            RegionAdcodeCatalog adcodes, ProjectRepository projects) {
+            RegionAdcodeCatalog adcodes, ProjectMapMetricRepository metrics,
+            ProjectMonthlySnapshotService monthlySnapshots) {
         this.identities = identities;
         this.organizations = organizations;
         this.adcodes = adcodes;
-        this.projects = projects;
+        this.metrics = metrics;
+        this.monthlySnapshots = monthlySnapshots;
     }
 
     @Transactional(readOnly = true)
     public ProjectMapView current(UUID actorId, UUID requestedProvinceId,
+            boolean includeTerminated, ProjectStage stage) {
+        return view(actorId, requestedProvinceId, null, includeTerminated, stage);
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectMapView view(UUID actorId, UUID requestedProvinceId, YearMonth month,
             boolean includeTerminated, ProjectStage stage) {
         var scope = scope(actorId);
         var provinceId = switch (scope.level()) {
@@ -49,34 +59,39 @@ public class ProjectMapService {
             case PROVINCE -> requireOwnProvince(scope.organizationId(), requestedProvinceId);
             case CITY -> requireOwnProvince(cityProvinceId(scope.organizationId()), requestedProvinceId);
         };
+        if (month != null) monthlySnapshots.requireCompleted(month);
+        if (stage == ProjectStage.TERMINATED && !includeTerminated) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SNAPSHOT_FILTER);
+        }
         var stageCode = stage == null ? null : stage.name();
         if (provinceId == null) {
-            var metrics = projects.summarizeMapProvinces(includeTerminated, stageCode).stream()
-                    .collect(Collectors.toMap(ProjectProvinceAggregate::getProvinceId, Function.identity()));
+            var byProvince = metrics.summarize(month, null, includeTerminated, stageCode).stream()
+                    .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
             var regions = organizations.findEnabledProvinces().stream()
                     .map(province -> {
-                        var item = metrics.get(province.id());
+                        var item = byProvince.get(province.id());
                         return new ProjectMapView.Region(province.id(), province.name(),
                                 adcodes.province(province.name()),
-                                item == null ? 0 : item.getProjectCount(),
-                                item == null ? BigDecimal.ZERO : item.getExpectedAmount(), true);
+                                item == null ? 0 : item.projectCount(),
+                                item == null ? BigDecimal.ZERO : item.expectedAmount(),
+                                item == null ? ProjectCategoryTotals.zero() : item.categoryTotals(), true);
                     }).sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
             return new ProjectMapView("NATIONAL", "100000", null,
-                    includeTerminated, stageCode, regions);
+                    month, includeTerminated, stageCode, regions);
         }
         var province = organizations.findEnabledProvinces().stream()
                 .filter(item -> item.id().equals(provinceId)).findFirst()
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
-        Map<UUID, ProjectCityAggregate> metrics = projects.summarizeMapCities(
-                provinceId, includeTerminated, stageCode).stream()
-                .collect(Collectors.toMap(ProjectCityAggregate::getCityId, Function.identity()));
+        Map<UUID, ProjectMapMetric> byCity = metrics.summarize(
+                month, provinceId, includeTerminated, stageCode).stream()
+                .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
         var regions = organizations.findEnabledCities().stream()
                 .filter(city -> city.provinceId().equals(provinceId))
-                .map(city -> cityRegion(scope, province, city, metrics.get(city.id())))
+                .map(city -> cityRegion(scope, province, city, byCity.get(city.id())))
                 .sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
         return new ProjectMapView("PROVINCE", adcodes.province(province.name()),
                 new ProjectMapView.Province(province.id(), province.name()),
-                includeTerminated, stageCode, regions);
+                month, includeTerminated, stageCode, regions);
     }
 
     @Transactional(readOnly = true)
@@ -98,13 +113,15 @@ public class ProjectMapService {
     }
 
     private ProjectMapView.Region cityRegion(ProjectDataScope scope, ProvinceOption province,
-            CityOption city, ProjectCityAggregate metric) {
+            CityOption city, ProjectMapMetric metric) {
         var authorized = scope.level() != ProjectDataScope.Level.CITY
                 || scope.organizationId().equals(city.id());
         return new ProjectMapView.Region(city.id(), city.name(),
                 adcodes.city(province.name(), city.name()),
-                !authorized || metric == null ? 0 : metric.getProjectCount(),
-                !authorized || metric == null ? BigDecimal.ZERO : metric.getExpectedAmount(), authorized);
+                !authorized || metric == null ? 0 : metric.projectCount(),
+                !authorized || metric == null ? BigDecimal.ZERO : metric.expectedAmount(),
+                !authorized || metric == null ? ProjectCategoryTotals.zero() : metric.categoryTotals(),
+                authorized);
     }
 
     private UUID requireOwnProvince(UUID ownProvinceId, UUID requestedProvinceId) {

@@ -60,32 +60,6 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
             @Param("includeTerminated") boolean includeTerminated);
 
     @Query("""
-            select project.provinceId as provinceId, count(project) as projectCount,
-                   sum(project.totalAmount) as expectedAmount
-            from ProjectEntity project
-            where (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
-              and (:stageCode is null or project.currentStageCode = :stageCode)
-            group by project.provinceId
-            """)
-    List<ProjectProvinceAggregate> summarizeMapProvinces(
-            @Param("includeTerminated") boolean includeTerminated,
-            @Param("stageCode") String stageCode);
-
-    @Query("""
-            select project.cityId as cityId, count(project) as projectCount,
-                   sum(project.totalAmount) as expectedAmount
-            from ProjectEntity project
-            where project.provinceId = :provinceId
-              and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
-              and (:stageCode is null or project.currentStageCode = :stageCode)
-            group by project.cityId
-            """)
-    List<ProjectCityAggregate> summarizeMapCities(
-            @Param("provinceId") UUID provinceId,
-            @Param("includeTerminated") boolean includeTerminated,
-            @Param("stageCode") String stageCode);
-
-    @Query("""
             select project.currentStageCode as stageCode, count(project) as projectCount,
                    sum(project.totalAmount) as expectedAmount
             from ProjectEntity project

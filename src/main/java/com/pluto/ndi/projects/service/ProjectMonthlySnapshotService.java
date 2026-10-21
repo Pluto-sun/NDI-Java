@@ -325,7 +325,8 @@ public class ProjectMonthlySnapshotService {
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
     }
 
-    private void requireCompleted(YearMonth month) {
+    /** 供工作台月报和历史地图复用的已生成月份校验。 */
+    public void requireCompleted(YearMonth month) {
         if (month == null || month.isBefore(snapshots.activationMonth())
                 || snapshots.lastCompletedMonth().filter(last -> !month.isAfter(last)).isEmpty()) {
             throw new BusinessException(ProjectErrorCode.SNAPSHOT_NOT_READY);

@@ -30,6 +30,7 @@ export interface ProjectMapView {
   level: 'NATIONAL' | 'PROVINCE';
   mapAdcode: string | null;
   province: ProvinceOption | null;
+  month: string | null;
   includeTerminated: boolean;
   stageCode: string | null;
   regions: {
@@ -38,6 +39,7 @@ export interface ProjectMapView {
     adcode: string | null;
     projectCount: number;
     expectedAmount: number;
+    categoryTotals: MonthlyWorkbench['categoryTotals'];
     authorized: boolean;
   }[];
 }

@@ -66,9 +66,11 @@ public class ProjectWorkbenchController {
     @GetMapping("/map")
     public ApiResponse<ProjectMapView> map(Authentication authentication,
             @RequestParam(required = false) UUID provinceId,
+            @RequestParam(required = false) String month,
             @RequestParam(defaultValue = "false") boolean includeTerminated,
             @RequestParam(required = false) ProjectStage stage) {
-        return responseFactory.success(maps.current(actorId(authentication), provinceId, includeTerminated, stage));
+        return responseFactory.success(maps.view(actorId(authentication), provinceId,
+                month == null ? null : parseMonth(month), includeTerminated, stage));
     }
 
     @GetMapping("/map/boundaries/{adcode}")

@@ -942,6 +942,28 @@ select:disabled {
   gap: 20px;
   align-items: start;
 }
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.map-controls button,
+.map-region-filter-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.map-controls button:hover:not(:disabled),
+.map-region-filter-actions button:hover {
+  background: var(--red-soft);
+}
+.map-controls .map-reset {
+  padding: 0 10px;
+}
 .map-canvas {
   min-height: 330px;
   display: grid;
@@ -972,6 +994,9 @@ select:disabled {
 .map-shape-unavailable {
   fill: #e7e1e3;
 }
+.map-shape-unselected {
+  fill: #e7e1e3;
+}
 .map-shape-zero {
   fill: #f7dfe2;
 }
@@ -988,6 +1013,33 @@ select:disabled {
   margin: 0 0 12px;
   font-size: 15px;
 }
+.map-region-filter {
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.map-region-filter summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.map-region-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.map-region-filter-options {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.map-region-filter-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
 .map-regions ol {
   max-height: 445px;
   overflow: auto;
@@ -1000,7 +1052,8 @@ select:disabled {
   border-bottom: 1px solid var(--line);
 }
 .map-regions li > button,
-.map-regions li > a {
+.map-regions li > a,
+.map-region-readonly {
   width: 100%;
   min-height: 44px;
   display: flex;
@@ -1145,6 +1198,11 @@ select:disabled {
   color: var(--red-dark);
   font-weight: 700;
   text-decoration: underline;
+}
+button.inline-link {
+  border: 0;
+  padding: 2px 6px;
+  background: transparent;
 }
 .approval-header {
   display: flex;
