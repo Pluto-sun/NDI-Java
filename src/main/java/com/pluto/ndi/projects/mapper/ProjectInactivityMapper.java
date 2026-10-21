@@ -19,6 +19,7 @@ import com.pluto.ndi.identity.service.ProjectReminderAudience;
 import com.pluto.ndi.projects.domain.ProjectInactivityCase;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
 import com.pluto.ndi.projects.service.ProjectInactivityEvent;
+import com.pluto.ndi.projects.service.ProjectInactivityAudit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -245,6 +246,28 @@ public class ProjectInactivityMapper {
                 .addValue("project", projectId.toString()).addValue("case", caseId == null ? null : caseId.toString())
                 .addValue("note", note).addValue("epoch", BigDecimal.valueOf(at.getEpochSecond())
                         .add(BigDecimal.valueOf(at.getNano(), 9))));
+    }
+
+    public Page<ProjectInactivityAudit> auditHistory(UUID projectId, Pageable page) {
+        // 固定业务事件白名单，避免把身份、导出等其他审计内容混入项目读取接口。
+        var filter = """
+                FROM system_audit_event a LEFT JOIN identity_user_account u ON u.id = a.actor_id
+                WHERE a.resource_type = 'PROJECT' AND a.resource_id = UUID_TO_BIN(:project)
+                  AND a.event_type IN ('INACTIVITY_MANUAL_TRIGGER', 'INACTIVITY_REMINDER_PROVINCE',
+                    'INACTIVITY_REMINDER_INTERFACE', 'INACTIVITY_REMINDER_GROUP',
+                    'INACTIVITY_FORWARD', 'INACTIVITY_RESOLVED')
+                """;
+        var parameters = new MapSqlParameterSource("project", projectId.toString())
+                .addValue("limit", page.getPageSize()).addValue("offset", page.getOffset());
+        long count = jdbc.queryForObject("SELECT COUNT(*) " + filter, parameters, Long.class);
+        var rows = jdbc.query("""
+                SELECT BIN_TO_UUID(a.id) id, a.event_type, a.occurred_at,
+                  CASE WHEN a.actor_id IS NULL THEN '系统' ELSE COALESCE(u.display_name, '账号已不可用') END actor_name,
+                  JSON_UNQUOTE(JSON_EXTRACT(a.detail, '$.note')) note
+                """ + filter + " ORDER BY a.occurred_at DESC, a.id DESC LIMIT :limit OFFSET :offset", parameters,
+                (row, number) -> new ProjectInactivityAudit(uuid(row, "id"), row.getString("event_type"),
+                        row.getString("actor_name"), row.getString("note"), instant(row, "occurred_at")));
+        return new PageImpl<>(rows, page, count);
     }
 
     private ProjectInactivityCase mapCase(ResultSet row, int number) throws SQLException {

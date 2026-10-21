@@ -268,6 +268,44 @@ class ProjectInactivityIT {
     }
 
     @Test
+    void auditHistoryIsScopedPaginatedAndLimitedToReminderEvents() throws Exception {
+        var project = create();
+        var before = projectRepository.findById(project).orElseThrow();
+        var triggered = inactivity.trigger(administrator, project, 30);
+        inactivity.trigger(administrator, project, 30);
+        inactivity.forward(leader, triggered.caseId(), cityUser, "请补充进展");
+        progresses.append(cityUser, project, new AppendProgressCommand("已更新客户需求", "准备方案", null));
+        mapper.audit(project, null, administrator, "UNRELATED_SECRET", "不应返回的其他审计", Instant.now());
+        inactivity.trigger(administrator, create("其他项目"), 30);
+        var history = inactivity.auditHistory(cityUser, project, page);
+        assertThat(history.getTotalElements()).isEqualTo(5);
+        assertThat(history).extracting(item -> item.action()).contains("INACTIVITY_REMINDER_PROVINCE",
+                "INACTIVITY_MANUAL_TRIGGER", "INACTIVITY_FORWARD", "INACTIVITY_RESOLVED")
+                .doesNotContain("UNRELATED_SECRET");
+        assertThat(history).extracting(item -> item.actorName()).doesNotContainNull().contains("系统");
+        var first = inactivity.auditHistory(administrator, project, PageRequest.of(0, 2));
+        var second = inactivity.auditHistory(administrator, project, PageRequest.of(1, 2));
+        assertThat(first).hasSize(2);
+        assertThat(second).hasSize(2);
+        assertThat(first.getContent()).doesNotContainAnyElementsOf(second.getContent());
+        assertThat(inactivity.auditHistory(administrator, project, PageRequest.of(9, 2))).isEmpty();
+        mvc.perform(get("/api/v1/projects/{id}/inactivity-audit", project)
+                        .header("X-NDI-Actor-Id", cityUser.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(5));
+        mvc.perform(get("/api/v1/projects/{id}/inactivity-audit?size=101", project)
+                        .header("X-NDI-Actor-Id", cityUser.toString())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/projects/{id}/inactivity-audit", project)).andExpect(status().isUnauthorized());
+        var otherCity = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '其他地市', true)",
+                otherCity.toString(), provinceId.toString(), otherCity.toString().replace("-", ""));
+        var outsider = addUser("CITY_REPORTER", provinceId, otherCity);
+        mvc.perform(get("/api/v1/projects/{id}/inactivity-audit", project)
+                        .header("X-NDI-Actor-Id", outsider.toString())).andExpect(status().isForbidden());
+        // 督办演练自身不改变项目版本；追加进展也沿用独立活动版本。
+        assertThat(projectRepository.findById(project).orElseThrow().versionNo()).isEqualTo(before.versionNo());
+    }
+
+    @Test
     void serializesConcurrentScansAndForwards() throws Exception {
         var project = create();
         var lastAt = age(project, 40);

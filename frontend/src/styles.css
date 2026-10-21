@@ -1179,6 +1179,21 @@ select:disabled {
 .inactivity-events {
   padding-left: 24px;
 }
+.inactivity-admin,
+.project-inactivity-audit {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inactivity-admin label,
+.inactivity-admin select {
+  min-width: 0;
+  max-width: 100%;
+}
+.inactivity-admin .pager,
+.project-inactivity-audit .pager {
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .inactivity-events li {
   padding: 6px 0;
   overflow-wrap: anywhere;

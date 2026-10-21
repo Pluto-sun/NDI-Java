@@ -150,6 +150,12 @@ public class ProjectInactivityService {
     }
 
     @Transactional(readOnly = true)
+    public Page<ProjectInactivityAudit> auditHistory(UUID actorId, UUID projectId, Pageable page) {
+        access.requireReadable(actorId, projectId);
+        return mapper.auditHistory(projectId, page);
+    }
+
+    @Transactional(readOnly = true)
     public List<ProjectUser> recipients(UUID actorId, UUID caseId) {
         var item = findCase(caseId);
         var project = access.requireReadable(actorId, item.projectId());

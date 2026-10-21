@@ -7,6 +7,7 @@ import com.pluto.ndi.identity.service.ProjectUser;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ProjectInactivityService;
 import com.pluto.ndi.projects.service.ProjectInactivitySummary;
+import com.pluto.ndi.projects.service.ProjectInactivityAudit;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
@@ -66,6 +67,15 @@ public class ProjectInactivityController {
     }
 
     public record TriggerRequest(@NotNull UUID projectId, @Min(30) @Max(36) int days) { }
+
+    @GetMapping("/{projectId}/inactivity-audit")
+    public ApiResponse<PageResponse<ProjectInactivityAudit>> auditHistory(Authentication authentication,
+            @PathVariable UUID projectId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return responses.success(PageResponse.from(service.auditHistory(actorId(authentication), projectId,
+                PageRequest.of(page, size))));
+    }
 
     @PostMapping("/admin/inactivity-reminders/trigger")
     public ApiResponse<ProjectInactivityService.ScanResult> trigger(Authentication authentication,

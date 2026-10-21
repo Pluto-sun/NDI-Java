@@ -191,8 +191,10 @@ class ReviewerProvinceScopeIT {
             inactivity.trigger(admin, region.project(), 30); inactivity.trigger(admin, region.project(), 33);
         }
         assertThat(inactivity.findMine(reviewer.id(), false, page).getContent()).hasSize(2);
+        assertThat(inactivity.auditHistory(reviewer.id(), b.project(), page)).isNotEmpty();
         reviewer = mapping(reviewer, a.province());
         assertThat(inactivity.findMine(reviewer.id(), false, page).getContent()).hasSize(1);
+        denied(() -> inactivity.auditHistory(reviewer.id(), b.project(), page));
     }
 
     @Test void importPreflightAndConfirmationBothRespectCurrentProvinceMappings() throws Exception {
