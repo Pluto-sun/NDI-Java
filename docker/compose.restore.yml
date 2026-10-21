@@ -1,0 +1,41 @@
+name: ndi-java-restore
+
+# 只创建独立恢复目标，不共享应用或浏览器验收的数据卷。
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ndi_restore
+      MYSQL_USER: ${NDI_RESTORE_DB_USERNAME:?请设置恢复目标数据库账号}
+      MYSQL_PASSWORD: ${NDI_RESTORE_DB_PASSWORD:?请设置恢复目标数据库口令}
+      MYSQL_ROOT_PASSWORD: ${NDI_RESTORE_MYSQL_ROOT_PASSWORD:?请设置恢复目标独立 root 口令}
+    ports:
+      - "127.0.0.1:13318:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 --user=\"$$MYSQL_USER\" -D ndi_restore -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+    volumes:
+      - restore-mysql-data:/var/lib/mysql
+
+  minio:
+    image: netiedge/minio:RELEASE.2025-01-20T14-49-07Z@sha256:e6c282005f6c8496256f8fd07e9a8b82073344c217ea87436d9af888db67eb0e
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${NDI_RESTORE_MINIO_ACCESS_KEY:?请设置恢复目标 MinIO 账号}
+      MINIO_ROOT_PASSWORD: ${NDI_RESTORE_MINIO_SECRET_KEY:?请设置恢复目标 MinIO 口令}
+    ports:
+      - "127.0.0.1:19010:9000"
+      - "127.0.0.1:19011:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+    volumes:
+      - restore-minio-data:/data
+
+volumes:
+  restore-mysql-data:
+  restore-minio-data:

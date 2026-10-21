@@ -11,6 +11,7 @@ const statuses: Record<BackupTask['status'], string> = {
   FAILED: '失败',
 };
 const errors: Record<string, string> = {
+  RESTORED: '该任务来自恢复快照，已中止；需要时请重新创建备份。',
   INTERRUPTED: '工作进程中断，请核查存储后重新发起。',
   ACTOR_REVOKED: '发起人的管理员权限已失效，任务未执行。',
   LIMIT_EXCEEDED: '超过归档容量或运行预算，请调整配置。',
