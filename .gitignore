@@ -17,5 +17,6 @@ tmp/e2e-results/
 tmp/e2e-report/
 tmp/e2e-logs/
 .env
+var/backups/
 .env.*
 !.env.example

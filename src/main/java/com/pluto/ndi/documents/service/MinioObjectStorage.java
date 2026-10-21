@@ -144,7 +144,7 @@ class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
     }
 
     private String exportKey(UUID exportId) {
-        return "exports/projects/" + exportId + ".csv";
+        return com.pluto.ndi.documents.util.ObjectStorageKeys.projectExport(exportId);
     }
 
     private String sha256(String bucket, String objectKey, String mediaType) throws MinioException, IOException {
