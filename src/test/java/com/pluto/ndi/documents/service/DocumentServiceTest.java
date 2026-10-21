@@ -68,4 +68,28 @@ class DocumentServiceTest {
         assertThat(exception).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) exception).errorCode()).isEqualTo(DocumentErrorCode.INVALID_UPLOAD);
     }
+
+    @Test
+    void softDeletePreventsReadAndUploadCompletion() {
+        var projectId = UUID.randomUUID();
+        var actorId = UUID.randomUUID();
+        var document = DocumentEntity.pending(UUID.randomUUID(), "PROJECT", projectId, "GENERAL",
+                "ndi-documents", "staging/test", "objects/test", "资料.pdf", "application/pdf",
+                3, "a".repeat(64), actorId, Instant.now(clock));
+        document.markAvailable("etag", Instant.now(clock));
+        when(repository.findLockedById(document.id())).thenReturn(Optional.of(document));
+        when(repository.findById(document.id())).thenReturn(Optional.of(document));
+
+        var wrongScope = catchThrowable(() -> service.delete("PROJECT", UUID.randomUUID(), document.id()));
+        assertThat(((BusinessException) wrongScope).errorCode()).isEqualTo(DocumentErrorCode.ACCESS_FORBIDDEN);
+        assertThat(document.status()).isEqualTo(DocumentStatus.AVAILABLE);
+
+        service.delete("PROJECT", projectId, document.id());
+        assertThat(document.status()).isEqualTo(DocumentStatus.DELETED);
+        assertThat(service.isUsable("PROJECT", projectId, document.id(), "GENERAL")).isFalse();
+        var download = catchThrowable(() -> service.download("PROJECT", projectId, document.id()));
+        assertThat(((BusinessException) download).errorCode()).isEqualTo(DocumentErrorCode.NOT_AVAILABLE);
+        var completion = catchThrowable(() -> service.completeUpload("PROJECT", projectId, actorId, document.id()));
+        assertThat(((BusinessException) completion).errorCode()).isEqualTo(DocumentErrorCode.NOT_FOUND);
+    }
 }

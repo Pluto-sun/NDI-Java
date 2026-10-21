@@ -99,6 +99,13 @@ public class DocumentEntity {
         this.completedAt = completedAt;
     }
 
+    public void markDeleted() {
+        if (status == DocumentStatus.DELETED) {
+            throw new IllegalStateException("文档已删除");
+        }
+        status = DocumentStatus.DELETED;
+    }
+
     public UUID id() { return id; }
     public String scopeType() { return scopeType; }
     public UUID scopeId() { return scopeId; }

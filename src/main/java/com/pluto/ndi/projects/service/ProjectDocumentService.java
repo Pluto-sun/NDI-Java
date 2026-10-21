@@ -13,6 +13,7 @@ import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.projects.domain.ProjectDocumentPurpose;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.repository.ProjectApprovalRequestRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
@@ -25,14 +26,19 @@ public class ProjectDocumentService {
     private final IdentityDirectory identityDirectory;
     private final ProjectRepository projectRepository;
     private final DocumentDirectory documentDirectory;
+    private final ProjectApprovalRequestRepository approvalRepository;
+    private final ProjectAccessService accessService;
 
     public ProjectDocumentService(
             IdentityDirectory identityDirectory, ProjectRepository projectRepository,
-            DocumentDirectory documentDirectory
+            DocumentDirectory documentDirectory, ProjectApprovalRequestRepository approvalRepository,
+            ProjectAccessService accessService
     ) {
         this.identityDirectory = identityDirectory;
         this.projectRepository = projectRepository;
         this.documentDirectory = documentDirectory;
+        this.approvalRepository = approvalRepository;
+        this.accessService = accessService;
     }
 
     @Transactional
@@ -61,8 +67,22 @@ public class ProjectDocumentService {
         return documentDirectory.listAvailable("PROJECT", projectId);
     }
 
+    @Transactional
+    public void delete(UUID actorId, UUID projectId, UUID documentId) {
+        requireScope(actorId, projectId, true);
+        // 先由文档模块校验归属，再检查审批引用；引用检查失败时事务回滚状态变更。
+        documentDirectory.delete("PROJECT", projectId, documentId);
+        if (approvalRepository.existsByEvidenceDocumentId(documentId)) {
+            throw new BusinessException(ProjectErrorCode.DOCUMENT_IN_USE);
+        }
+    }
+
     private void requireScope(UUID actorId, UUID projectId, boolean writing) {
-        var project = (writing ? projectRepository.findLockedById(projectId) : projectRepository.findById(projectId))
+        if (!writing) {
+            accessService.requireReadable(actorId, projectId);
+            return;
+        }
+        var project = projectRepository.findLockedById(projectId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
         var actor = identityDirectory.findProjectActor(actorId)
                 .filter(ProjectActor::enabled)
@@ -70,7 +90,7 @@ public class ProjectDocumentService {
         if (!identityDirectory.canUploadProjectDocument(actor, project.provinceId(), project.cityId())) {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
-        if (writing && ProjectStage.TERMINATED.name().equals(project.currentStageCode())) {
+        if (ProjectStage.TERMINATED.name().equals(project.currentStageCode())) {
             throw new BusinessException(ProjectErrorCode.TERMINATED_READ_ONLY);
         }
     }

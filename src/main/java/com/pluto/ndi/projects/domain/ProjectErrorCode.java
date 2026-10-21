@@ -36,6 +36,7 @@ public enum ProjectErrorCode implements ErrorCode {
     APPROVAL_VERSION_CONFLICT(HttpStatus.CONFLICT, "PROJECT_APPROVAL_VERSION_CONFLICT", "项目版本冲突", "项目数据已变化，请刷新后重新发起申请"),
     INVALID_STAGE_ADVANCEMENT(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_STAGE_ADVANCEMENT", "阶段推进内容无效", "只能申请相邻正向阶段，且阶段日期与字段必须完整"),
     STAGE_EVIDENCE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_STAGE_EVIDENCE_REQUIRED", "阶段材料无效", "必须提供属于本项目且已完成上传校验的指定材料"),
+    DOCUMENT_IN_USE(HttpStatus.CONFLICT, "PROJECT_DOCUMENT_IN_USE", "项目资料已被引用", "审批申请已关联该资料，不允许删除"),
     CONTRACT_NO_CONFLICT(HttpStatus.CONFLICT, "PROJECT_CONTRACT_NO_CONFLICT", "合同编号重复", "合同编号必须在全系统唯一"),
     EXPORT_TOO_LARGE(HttpStatus.BAD_REQUEST, "PROJECT_EXPORT_TOO_LARGE", "导出数据过多", "导出结果不得超过1000条，请缩小筛选范围"),
     EXPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_EXPORT_NOT_FOUND", "导出任务不存在", "未找到指定的项目导出任务"),

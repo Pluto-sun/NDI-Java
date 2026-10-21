@@ -3,6 +3,7 @@ package com.pluto.ndi.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -1216,6 +1217,35 @@ class ProjectApprovalIT {
                         .header("X-NDI-Actor-Id", cityUserId.toString()))
                 .andExpect(status().isConflict());
         verify(documentDirectory).beginUpload(eq("PROJECT"), eq(projectId), eq(cityUserId), any(UploadCommand.class));
+    }
+
+    @Test
+    void documentDeletionChecksPermissionAndProtectsApprovalEvidence() throws Exception {
+        var projectId = createProject();
+        var generalId = createAvailableDocument(projectId, "GENERAL");
+        var solutionId = createAvailableDocument(projectId, "CUSTOMER_SOLUTION");
+        var nationalReader = UUID.randomUUID();
+        addUserInProvince(nationalReader, null, null, "GROUP_REVIEWER");
+        when(documentDirectory.listAvailable("PROJECT", projectId)).thenReturn(List.of(
+                new DocumentSummary(generalId, projectId, "GENERAL", "资料.pdf", "application/pdf",
+                        3, "0".repeat(64), DocumentStatus.AVAILABLE, Instant.now())));
+        assertThat(projectDocumentService.listAvailable(nationalReader, projectId)).hasSize(1);
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/documents/{documentId}", projectId, generalId)
+                        .header("X-NDI-Actor-Id", nationalReader.toString()))
+                .andExpect(status().isForbidden());
+
+        when(documentDirectory.isUsable("PROJECT", projectId, solutionId, "CUSTOMER_SOLUTION")).thenReturn(true);
+        stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId,
+                LocalDate.now(ZoneId.of("Asia/Shanghai")), solutionId, null, null, null, null));
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/documents/{documentId}", projectId, solutionId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROJECT_DOCUMENT_IN_USE"));
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/documents/{documentId}", projectId, generalId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk());
+        verify(documentDirectory).delete("PROJECT", projectId, generalId);
     }
 
     @Test

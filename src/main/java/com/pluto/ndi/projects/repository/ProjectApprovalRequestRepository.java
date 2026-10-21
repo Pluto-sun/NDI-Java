@@ -17,6 +17,8 @@ import jakarta.persistence.LockModeType;
 public interface ProjectApprovalRequestRepository extends JpaRepository<ProjectApprovalRequestEntity, UUID> {
     boolean existsByProjectIdAndStatus(UUID projectId, ApprovalStatus status);
 
+    boolean existsByEvidenceDocumentId(UUID evidenceDocumentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select request from ProjectApprovalRequestEntity request where request.id = :id")
     Optional<ProjectApprovalRequestEntity> findLockedById(UUID id);

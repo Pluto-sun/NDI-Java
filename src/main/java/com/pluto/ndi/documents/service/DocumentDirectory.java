@@ -15,4 +15,6 @@ public interface DocumentDirectory {
     DownloadIntent download(String scopeType, UUID scopeId, UUID documentId);
 
     List<DocumentSummary> listAvailable(String scopeType, UUID scopeId);
+
+    void delete(String scopeType, UUID scopeId, UUID documentId);
 }

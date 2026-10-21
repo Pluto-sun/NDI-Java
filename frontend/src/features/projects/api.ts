@@ -210,6 +210,8 @@ export const projectsApi = {
     request<ProjectDocument>(`/${id}/documents/${documentId}/complete`, { method: 'POST' }),
   downloadUrl: (id: string, documentId: string) =>
     request<{ downloadUrl: string }>(`/${id}/documents/${documentId}/download-url`),
+  deleteDocument: (id: string, documentId: string) =>
+    request<void>(`/${id}/documents/${documentId}`, { method: 'DELETE' }),
   submitStage: (
     id: string,
     data: {

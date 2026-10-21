@@ -104,6 +104,24 @@ export function ProjectDocuments({
     }
   }
 
+  async function remove(item: ProjectDocument) {
+    if (!window.confirm(`确定删除资料“${item.originalName}”吗？删除后无法在项目资料中查看。`))
+      return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await projectsApi.deleteDocument(projectId, item.id);
+      setItems(await projectsApi.documents(projectId));
+      setMessage('资料已删除。');
+      onChanged?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '删除失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="panel">
       <h2>项目资料</h2>
@@ -153,6 +171,17 @@ export function ProjectDocuments({
               <button type="button" className="text-button" onClick={() => void download(item)}>
                 下载
               </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => void remove(item)}
+                  aria-label={`删除资料 ${item.originalName}`}
+                >
+                  删除
+                </button>
+              )}
             </div>
           ))
         ) : (

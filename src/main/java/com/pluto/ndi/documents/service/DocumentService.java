@@ -75,6 +75,9 @@ class DocumentService implements DocumentDirectory {
         if (document.status() == DocumentStatus.AVAILABLE) {
             return DocumentSummary.from(document);
         }
+        if (document.status() == DocumentStatus.DELETED) {
+            throw new BusinessException(DocumentErrorCode.NOT_FOUND);
+        }
         var etag = storage.sealAndVerify(
                 document.bucketName(), document.stagingObjectKey(), document.objectKey(),
                 document.byteSize(), document.mediaType(), document.sha256Hex());
@@ -117,6 +120,18 @@ class DocumentService implements DocumentDirectory {
         return repository.findByScopeTypeAndScopeIdAndStatusOrderByCreatedAtDesc(
                         scopeType, scopeId, DocumentStatus.AVAILABLE)
                 .stream().map(DocumentSummary::from).toList();
+    }
+
+    @Override
+    @Transactional
+    public void delete(String scopeType, UUID scopeId, UUID documentId) {
+        var document = repository.findLockedById(documentId)
+                .orElseThrow(() -> new BusinessException(DocumentErrorCode.NOT_FOUND));
+        requireScope(document, scopeType, scopeId);
+        if (document.status() == DocumentStatus.DELETED) {
+            throw new BusinessException(DocumentErrorCode.NOT_FOUND);
+        }
+        document.markDeleted();
     }
 
     private void validate(String scopeType, UUID scopeId, UUID actorId, UploadCommand command) {

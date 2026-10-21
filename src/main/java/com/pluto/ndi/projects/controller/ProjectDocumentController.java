@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +64,13 @@ public class ProjectDocumentController {
     @GetMapping
     public ApiResponse<List<DocumentSummary>> list(Authentication authentication, @PathVariable UUID projectId) {
         return responseFactory.success(service.listAvailable(actorId(authentication), projectId));
+    }
+
+    @DeleteMapping("/{documentId}")
+    public ApiResponse<Void> delete(Authentication authentication, @PathVariable UUID projectId,
+            @PathVariable UUID documentId) {
+        service.delete(actorId(authentication), projectId, documentId);
+        return responseFactory.success(null);
     }
 
     private UUID actorId(Authentication authentication) {
