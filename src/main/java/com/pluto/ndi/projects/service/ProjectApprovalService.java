@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.UUID;
+import java.util.List;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,8 +17,10 @@ import com.pluto.ndi.projects.domain.ApprovalNotificationKind;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectChangeField;
 import com.pluto.ndi.projects.domain.entity.ProjectApprovalActionEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectApprovalRequestEntity;
+import com.pluto.ndi.projects.domain.entity.ProjectApprovalFieldChange;
 import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectStageMilestoneEntity;
@@ -28,6 +31,8 @@ import com.pluto.ndi.projects.repository.ProjectChangeEventRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.shared.web.BusinessException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +55,8 @@ public class ProjectApprovalService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final ProjectInactivityService inactivity;
+    private final ProjectMajorChangeFields fieldChanges;
+    private final EntityManager entityManager;
 
     public ProjectApprovalService(
             IdentityDirectory identityDirectory, ProjectRepository projectRepository,
@@ -61,7 +68,8 @@ public class ProjectApprovalService {
             ProjectApprovalNotificationService notificationService,
             ProjectMonthlySnapshotService monthlySnapshots,
             ProjectDuplicateService duplicates, ProjectCityWriteLock cityWriteLock,
-            ObjectMapper objectMapper, Clock clock, ProjectInactivityService inactivity
+            ObjectMapper objectMapper, Clock clock, ProjectInactivityService inactivity,
+            ProjectMajorChangeFields fieldChanges, EntityManager entityManager
     ) {
         this.identityDirectory = identityDirectory;
         this.projectRepository = projectRepository;
@@ -78,6 +86,8 @@ public class ProjectApprovalService {
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.inactivity = inactivity;
+        this.fieldChanges = fieldChanges;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -101,9 +111,14 @@ public class ProjectApprovalService {
             throw new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS);
         }
         var reason = requiredText(command.reason(), 2000);
+        var changes = command.changeType() == MajorChangeType.FIELD_CHANGES
+                ? fieldChanges.validate(project, command.items()) : List.<ProjectApprovalFieldChange>of();
         validateChange(project, command);
         var at = Instant.now(clock);
-        var request = ProjectApprovalRequestEntity.majorChange(
+        var request = command.changeType() == MajorChangeType.FIELD_CHANGES
+                ? ProjectApprovalRequestEntity.majorChangeFields(command.initiatorLevel(), actorId, command.approverId(),
+                        project, changes, reason, at)
+                : ProjectApprovalRequestEntity.majorChange(
                 command.changeType(), command.initiatorLevel(), actorId, command.approverId(),
                 project,
                 command.targetStage() == null ? null : command.targetStage().name(),
@@ -153,6 +168,7 @@ public class ProjectApprovalService {
         }
         var at = Instant.now(clock);
         if (project.versionNo() != request.baseVersion()
+                || approved && request.changeType() == MajorChangeType.FIELD_CHANGES && fieldChanges.conflicts(project, request)
                 || approved && "STAGE_ADVANCEMENT".equals(request.requestType())
                 && stageService.hasBusinessConflict(project, request)) {
             request.finish(ApprovalStatus.CONFLICT, null, at);
@@ -160,7 +176,7 @@ public class ProjectApprovalService {
             notificationService.finished(request, ApprovalNotificationKind.CONFLICT, at);
             return ApprovalSummary.from(request);
         }
-        if (approved && request.changeType() == MajorChangeType.PROJECT_NAME) {
+        if (approved && request.proposedProjectName() != null) {
             cityWriteLock.lock(project.cityId());
             if ("STRONG_DUPLICATE".equals(duplicates.candidates(project.cityId(),
                     request.proposedProjectName(), project.id()).status())) {
@@ -179,6 +195,10 @@ public class ProjectApprovalService {
                 applyChange(project, request, actorId, at);
             }
             projectRepository.saveAndFlush(project);
+            // 仅子表金额变化且修改人、时刻相同时，仍须推进聚合版本以保护后续审批。
+            if (request.changeType() == MajorChangeType.FIELD_CHANGES && project.versionNo() == request.baseVersion()) {
+                entityManager.lock(project, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
+            }
             eventRepository.save(approvedEvent(project, request, before, actorId, at));
             monthlySnapshots.recordApproved(project, request);
             inactivity.resolveAfterActivity(project, actorId, at);
@@ -256,7 +276,14 @@ public class ProjectApprovalService {
                     throw new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE);
                 }
             }
+            case FIELD_CHANGES -> {
+                if (command.projectName() != null || command.totalAmount() != null || command.targetStage() != null) {
+                    throw new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE);
+                }
+                return;
+            }
         }
+        if (!command.items().isEmpty()) throw new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE);
         if (command.changeType() != MajorChangeType.PROJECT_NAME && command.projectName() != null
                 || command.changeType() != MajorChangeType.TOTAL_AMOUNT && command.totalAmount() != null
                 || command.changeType() != MajorChangeType.STAGE_ROLLBACK
@@ -274,6 +301,13 @@ public class ProjectApprovalService {
                         ? ProjectStage.TERMINATED : ProjectStage.valueOf(request.targetStageCode());
                 project.changeStage(target, actorId, at);
                 milestoneRepository.save(ProjectStageMilestoneEntity.approvedChange(project.id(), target, actorId, at));
+            }
+            case FIELD_CHANGES -> {
+                fieldChanges.apply(project, request, actorId, at);
+                if (request.fieldChanges().stream().anyMatch(item -> item.fieldCode() == ProjectChangeField.STAGE)) {
+                    milestoneRepository.save(ProjectStageMilestoneEntity.approvedChange(project.id(),
+                            ProjectStage.valueOf(project.currentStageCode()), actorId, at));
+                }
             }
         }
     }
@@ -307,6 +341,7 @@ public class ProjectApprovalService {
         snapshot.put("stageCode", project.currentStageCode());
         snapshot.put("contractNo", project.contractNo());
         snapshot.put("signedAmount", project.signedAmount());
+        snapshot.put("categoryAmounts", fieldChanges.amounts(project.id()));
         return snapshot;
     }
 

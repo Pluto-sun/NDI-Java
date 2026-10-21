@@ -29,6 +29,7 @@ import type {
   ProjectMapView,
   ProjectDraft,
   ProjectDraftData,
+  ProjectChangeField,
   ProjectDuplicateCheck,
 } from './types';
 
@@ -234,6 +235,7 @@ export const projectsApi = {
       projectName?: string;
       totalAmount?: string;
       targetStage?: string;
+      items?: { fieldCode: ProjectChangeField; newValue: string }[];
     },
   ) => request<ApprovalSummary>(`/${id}/major-changes`, { method: 'POST', ...jsonBody(data) }),
   approvalInbox: (page: number) =>

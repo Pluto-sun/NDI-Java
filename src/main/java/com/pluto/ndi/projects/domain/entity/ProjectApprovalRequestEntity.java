@@ -3,10 +3,18 @@ package com.pluto.ndi.projects.domain.entity;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
 
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.MajorChangeType;
+import com.pluto.ndi.projects.domain.ProjectChangeField;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -105,6 +113,12 @@ public class ProjectApprovalRequestEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
+    @ElementCollection
+    @CollectionTable(name = "project_approval_field_change", joinColumns = @JoinColumn(name = "request_id"))
+    @OrderColumn(name = "sort_order")
+    @BatchSize(size = 50)
+    private List<ProjectApprovalFieldChange> fieldChanges = new ArrayList<>();
+
     protected ProjectApprovalRequestEntity() {
     }
 
@@ -136,6 +150,22 @@ public class ProjectApprovalRequestEntity {
         entity.submittedAt = submittedAt;
         entity.dueAt = submittedAt.plusSeconds(48 * 60 * 60);
         return entity;
+    }
+
+    public static ProjectApprovalRequestEntity majorChangeFields(ProjectInitiatorLevel level, UUID initiatorId,
+            UUID approverId, ProjectEntity project, List<ProjectApprovalFieldChange> changes, String reason, Instant at) {
+        var target = proposed(changes, ProjectChangeField.STAGE);
+        var name = proposed(changes, ProjectChangeField.PROJECT_NAME);
+        var amount = proposed(changes, ProjectChangeField.TOTAL_AMOUNT);
+        var entity = majorChange(MajorChangeType.FIELD_CHANGES, level, initiatorId, approverId, project,
+                target, name, amount == null ? null : new BigDecimal(amount), reason, at);
+        entity.fieldChanges.addAll(changes);
+        return entity;
+    }
+
+    private static String proposed(List<ProjectApprovalFieldChange> changes, ProjectChangeField field) {
+        return changes.stream().filter(item -> item.fieldCode() == field).map(ProjectApprovalFieldChange::proposedValue)
+                .findFirst().orElse(null);
     }
 
     public static ProjectApprovalRequestEntity stageAdvancement(
@@ -207,4 +237,5 @@ public class ProjectApprovalRequestEntity {
     public Instant submittedAt() { return submittedAt; }
     public Instant dueAt() { return dueAt; }
     public Instant decidedAt() { return decidedAt; }
+    public List<ProjectApprovalFieldChange> fieldChanges() { return List.copyOf(fieldChanges); }
 }

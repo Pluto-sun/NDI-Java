@@ -47,4 +47,6 @@ public class ProjectCategoryAmountEntity {
     public BigDecimal expectedAmount() {
         return expectedAmount;
     }
+
+    public void changeExpectedAmount(BigDecimal value) { expectedAmount = value; }
 }

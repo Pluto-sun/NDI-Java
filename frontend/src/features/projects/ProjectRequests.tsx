@@ -9,6 +9,7 @@ import type {
   ReferenceData,
 } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
+import { MajorChangeForm } from './MajorChangeForm';
 
 const nextStages: Record<string, string | undefined> = {
   SOLUTION_EXCHANGE: 'BIDDING',
@@ -19,13 +20,6 @@ const evidencePurpose: Record<string, string | undefined> = {
   BIDDING: 'CUSTOMER_SOLUTION',
   SIGNED: 'AWARD_NOTICE',
 };
-const stageOrder = ['SOLUTION_EXCHANGE', 'BIDDING', 'SIGNED', 'COLLECTION'];
-const changeTypes = [
-  ['PROJECT_NAME', '项目名称'],
-  ['TOTAL_AMOUNT', '项目总金额'],
-  ['STAGE_ROLLBACK', '阶段回退'],
-  ['TERMINATE', '终止项目'],
-] as const;
 
 function levels(me: ProjectUser, project: ProjectDetail): InitiatorLevel[] {
   const result: InitiatorLevel[] = [];
@@ -59,16 +53,10 @@ export function ProjectRequests({
   const [changeApprovers, setChangeApprovers] = useState<ProjectUser[]>([]);
   const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [stageApproverId, setStageApproverId] = useState('');
-  const [changeApproverId, setChangeApproverId] = useState('');
   const [stageDate, setStageDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [evidenceId, setEvidenceId] = useState('');
   const [contractNo, setContractNo] = useState('');
   const [signedAmount, setSignedAmount] = useState('');
-  const [changeType, setChangeType] = useState<(typeof changeTypes)[number][0]>('PROJECT_NAME');
-  const [reason, setReason] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [targetStage, setTargetStage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [requestId, setRequestId] = useState('');
@@ -102,7 +90,6 @@ export function ProjectRequests({
 
   useEffect(() => {
     setStageApproverId('');
-    setChangeApproverId('');
   }, [level]);
   if (!availableLevels.length || project.currentStageCode === 'TERMINATED') return null;
 
@@ -128,30 +115,6 @@ export function ProjectRequests({
       setRequestId(result.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '阶段推进申请失败');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitChange(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!changeApproverId) return;
-    setBusy(true);
-    setError('');
-    setRequestId('');
-    try {
-      const result = await projectsApi.submitMajorChange(project.id, {
-        changeType,
-        initiatorLevel: level,
-        approverId: changeApproverId,
-        reason: reason.trim(),
-        ...(changeType === 'PROJECT_NAME' ? { projectName: projectName.trim() } : {}),
-        ...(changeType === 'TOTAL_AMOUNT' ? { totalAmount } : {}),
-        ...(changeType === 'STAGE_ROLLBACK' ? { targetStage } : {}),
-      });
-      setRequestId(result.id);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '重大变更申请失败');
     } finally {
       setBusy(false);
     }
@@ -262,103 +225,19 @@ export function ProjectRequests({
           </button>
         </form>
       )}
-      <form className="request-form" onSubmit={submitChange}>
-        <h3>重大变更</h3>
-        <div className="form-grid">
-          <label>
-            变更类型
-            <select
-              value={changeType}
-              onChange={(event) => setChangeType(event.target.value as typeof changeType)}
-            >
-              {changeTypes.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            指定审批人
-            <select
-              required
-              value={changeApproverId}
-              onChange={(event) => setChangeApproverId(event.target.value)}
-            >
-              <option value="">请选择审批人</option>
-              {changeApprovers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-          {changeType === 'PROJECT_NAME' && (
-            <label className="span-two">
-              新项目名称
-              <input
-                required
-                maxLength={200}
-                value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
-              />
-            </label>
-          )}
-          {changeType === 'TOTAL_AMOUNT' && (
-            <label className="span-two">
-              调整后总金额（万元）
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                value={totalAmount}
-                onChange={(event) => setTotalAmount(event.target.value)}
-              />
-            </label>
-          )}
-          {changeType === 'STAGE_ROLLBACK' && (
-            <label className="span-two">
-              回退至
-              <select
-                required
-                value={targetStage}
-                onChange={(event) => setTargetStage(event.target.value)}
-              >
-                <option value="">请选择前序阶段</option>
-                {reference.stages
-                  .filter(
-                    (item) =>
-                      stageOrder.includes(item.code) &&
-                      stageOrder.indexOf(item.code) < stageOrder.indexOf(project.currentStageCode),
-                  )
-                  .map((item) => (
-                    <option key={item.code} value={item.code}>
-                      {item.label}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
-          <label className="span-two">
-            变更原因
-            <textarea
-              required
-              maxLength={2000}
-              rows={3}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </label>
-        </div>
-        <button
-          type="submit"
-          className="secondary-button"
-          disabled={busy || !changeApprovers.length || !!requestId}
-        >
-          {busy ? '提交中…' : '提交重大变更申请'}
-        </button>
-      </form>
+      <MajorChangeForm
+        project={project}
+        level={level}
+        approvers={changeApprovers}
+        reference={reference}
+        busy={busy}
+        disabled={!!requestId}
+        onBusyChange={setBusy}
+        onSubmitted={(id) => {
+          setError('');
+          setRequestId(id);
+        }}
+      />
     </div>
   );
 }

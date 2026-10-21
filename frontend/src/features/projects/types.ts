@@ -191,11 +191,25 @@ export interface UploadIntent {
   uploadUrl: string;
   requiredHeaders: Record<string, string>;
 }
+export type ProjectChangeField =
+  | 'PROJECT_NAME'
+  | 'TOTAL_AMOUNT'
+  | 'NETWORK_AMOUNT'
+  | 'GEWU_AMOUNT'
+  | 'BIG_DATA_AMOUNT'
+  | 'WANGWU_AMOUNT'
+  | 'STAGE';
 export interface ApprovalSummary {
   id: string;
   projectId: string;
   requestType: 'STAGE_ADVANCEMENT' | 'MAJOR_CHANGE';
-  changeType: 'PROJECT_NAME' | 'TOTAL_AMOUNT' | 'STAGE_ROLLBACK' | 'TERMINATE' | null;
+  changeType:
+    'PROJECT_NAME' | 'TOTAL_AMOUNT' | 'STAGE_ROLLBACK' | 'TERMINATE' | 'FIELD_CHANGES' | null;
+  fieldChanges: {
+    fieldCode: ProjectChangeField;
+    originalValue: string | null;
+    proposedValue: string;
+  }[];
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CONFLICT';
   initiatorId: string;
   approverId: string;
@@ -327,4 +341,6 @@ export interface MonthlyRevision {
   beforeTotalAmount: number | null;
   afterTotalAmount: number | null;
   revisedAt: string;
+  beforeCategories: MonthlyWorkbench['categoryTotals'] | null;
+  afterCategories: MonthlyWorkbench['categoryTotals'] | null;
 }

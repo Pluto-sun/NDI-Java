@@ -403,6 +403,35 @@ label {
   height: 17px;
   accent-color: var(--red);
 }
+.change-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.change-fieldset legend {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.change-field-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+}
+.field-change-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+.field-change-table th,
+.field-change-table td {
+  padding: 12px 8px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.field-change-table th:first-child {
+  width: 24%;
+}
 .action-row {
   display: flex;
   align-items: center;

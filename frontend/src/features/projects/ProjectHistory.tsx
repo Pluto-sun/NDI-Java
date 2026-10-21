@@ -34,6 +34,15 @@ function readablePayload(value: string) {
   }
 }
 
+const categoryKeys = ['network', 'gewu', 'bigData', 'wangwu'] as const;
+function hasCategoryChanges(item: MonthlyRevision) {
+  return (
+    !!item.beforeCategories &&
+    !!item.afterCategories &&
+    categoryKeys.some((key) => item.beforeCategories![key] !== item.afterCategories![key])
+  );
+}
+
 export function ProjectHistory({
   projectId,
   me,
@@ -238,6 +247,41 @@ export function ProjectHistory({
                     item.afterTotalAmount != null &&
                     `金额：${item.beforeTotalAmount} → ${item.afterTotalAmount} 万元`}
                 </small>
+                {hasCategoryChanges(item) && (
+                  <div className="table-scroll">
+                    <table className="field-change-table" aria-label="分类金额修订对照">
+                      <thead>
+                        <tr>
+                          <th>分类</th>
+                          <th>修订前（万元）</th>
+                          <th>修订后（万元）</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryKeys
+                          .filter(
+                            (code) => item.beforeCategories![code] !== item.afterCategories![code],
+                          )
+                          .map((code) => (
+                            <tr key={code}>
+                              <td>
+                                {
+                                  {
+                                    network: '网络化',
+                                    gewu: '格物',
+                                    bigData: '大数据',
+                                    wangwu: '万悟',
+                                  }[code]
+                                }
+                              </td>
+                              <td>{item.beforeCategories![code]}</td>
+                              <td>{item.afterCategories![code]}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </article>
             ))}
           </div>

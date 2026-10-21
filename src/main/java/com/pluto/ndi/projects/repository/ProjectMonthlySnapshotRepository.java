@@ -102,7 +102,7 @@ public class ProjectMonthlySnapshotRepository {
                        ,network_amount, gewu_amount, big_data_amount, wangwu_amount
                 FROM project_monthly_state_event
                 WHERE project_id = UUID_TO_BIN(?) AND effective_month <= ?
-                ORDER BY effective_month, baseline DESC, recorded_at, id
+                ORDER BY effective_month, baseline DESC, recorded_at, event_sequence
                 """, (rs, rowNum) -> new Event(projectId,
                         YearMonth.from(rs.getDate("effective_month").toLocalDate()),
                         rs.getTimestamp("recorded_at").toInstant(), rs.getString("source_kind"),
@@ -169,12 +169,16 @@ public class ProjectMonthlySnapshotRepository {
                 INSERT INTO project_monthly_snapshot_revision
                     (id, month_start, project_id, revision_no, source_kind, source_id, reason,
                      before_stage_code, after_stage_code, before_industry_code, after_industry_code,
-                     before_total_amount, after_total_amount, revised_at)
-                VALUES (UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?)
+                     before_total_amount, after_total_amount, revised_at,
+                     before_network_amount, after_network_amount, before_gewu_amount, after_gewu_amount,
+                     before_big_data_amount, after_big_data_amount, before_wangwu_amount, after_wangwu_amount)
+                VALUES (UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, UUID.randomUUID().toString(), date(after.month()), after.projectId().toString(),
                 before.revisionNo() + 1, source.sourceKind(), source.sourceId().toString(), source.reason(),
                 before.stageCode(), after.stageCode(), before.industryCode(), after.industryCode(),
-                before.totalAmount(), after.totalAmount(), Timestamp.from(at));
+                before.totalAmount(), after.totalAmount(), Timestamp.from(at),
+                before.categories().network(), after.categories().network(), before.categories().gewu(), after.categories().gewu(),
+                before.categories().bigData(), after.categories().bigData(), before.categories().wangwu(), after.categories().wangwu());
     }
 
     public List<Group> group(YearMonth month, ProjectDataScope scope, boolean includeTerminated, String dimension) {
@@ -261,7 +265,9 @@ public class ProjectMonthlySnapshotRepository {
         return jdbc.query("""
                 SELECT revision_no, source_kind, BIN_TO_UUID(source_id) AS source_id, reason,
                        before_stage_code, after_stage_code, before_industry_code, after_industry_code,
-                       before_total_amount, after_total_amount, revised_at
+                       before_total_amount, after_total_amount, revised_at,
+                       before_network_amount, after_network_amount, before_gewu_amount, after_gewu_amount,
+                       before_big_data_amount, after_big_data_amount, before_wangwu_amount, after_wangwu_amount
                 FROM project_monthly_snapshot_revision
                 WHERE project_id = UUID_TO_BIN(?) AND month_start = ? ORDER BY revision_no
                 """, (rs, rowNum) -> new ProjectMonthlyRevision(month, projectId,
@@ -270,7 +276,11 @@ public class ProjectMonthlySnapshotRepository {
                         rs.getString("before_stage_code"), rs.getString("after_stage_code"),
                         rs.getString("before_industry_code"), rs.getString("after_industry_code"),
                         rs.getBigDecimal("before_total_amount"), rs.getBigDecimal("after_total_amount"),
-                        rs.getTimestamp("revised_at").toInstant()), projectId.toString(), date(month));
+                        rs.getTimestamp("revised_at").toInstant(),
+                        categories(rs.getBigDecimal("before_network_amount"), rs.getBigDecimal("before_gewu_amount"),
+                                rs.getBigDecimal("before_big_data_amount"), rs.getBigDecimal("before_wangwu_amount")),
+                        categories(rs.getBigDecimal("after_network_amount"), rs.getBigDecimal("after_gewu_amount"),
+                                rs.getBigDecimal("after_big_data_amount"), rs.getBigDecimal("after_wangwu_amount"))), projectId.toString(), date(month));
     }
 
     private static Date date(YearMonth month) { return Date.valueOf(month.atDay(1)); }

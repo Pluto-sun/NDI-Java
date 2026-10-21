@@ -250,6 +250,8 @@ public class ProjectEntity {
     public String cityAccountManagerName() { return cityAccountManagerName; }
     public Instant updatedAt() { return updatedAt; }
 
+    public void recordCategoryAmountChange(UUID actorId, Instant at) { touch(actorId, at); }
+
     public void rename(String newName, UUID actorId, Instant occurredAt) {
         projectName = newName;
         touch(actorId, occurredAt);

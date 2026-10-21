@@ -3,6 +3,7 @@ package com.pluto.ndi.projects.service;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.MajorChangeType;
@@ -36,7 +37,8 @@ public record ApprovalSummary(
         String reviewOpinion,
         Instant submittedAt,
         Instant dueAt,
-        Instant decidedAt
+        Instant decidedAt,
+        List<ApprovalFieldChangeSummary> fieldChanges
 ) {
     public static ApprovalSummary from(ProjectApprovalRequestEntity request) {
         return new ApprovalSummary(
@@ -49,7 +51,9 @@ public record ApprovalSummary(
                 request.proposedContractNo(), request.proposedSignedAmount(),
                 request.proposedProgressContent(), request.proposedNextAction(),
                 request.changeReason(), request.reviewOpinion(),
-                request.submittedAt(), request.dueAt(), request.decidedAt()
+                request.submittedAt(), request.dueAt(), request.decidedAt(),
+                request.fieldChanges().stream().map(item -> new ApprovalFieldChangeSummary(
+                        item.fieldCode(), item.originalValue(), item.proposedValue())).toList()
         );
     }
 }

@@ -10,5 +10,6 @@ public record ProjectMonthlyRevision(
         YearMonth month, UUID projectId, int revisionNo, String sourceKind, UUID sourceId,
         String reason, String beforeStageCode, String afterStageCode,
         String beforeIndustryCode, String afterIndustryCode,
-        BigDecimal beforeTotalAmount, BigDecimal afterTotalAmount, Instant revisedAt
+        BigDecimal beforeTotalAmount, BigDecimal afterTotalAmount, Instant revisedAt,
+        ProjectCategoryTotals beforeCategories, ProjectCategoryTotals afterCategories
 ) { }

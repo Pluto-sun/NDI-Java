@@ -5,5 +5,6 @@ public enum MajorChangeType {
     PROJECT_NAME,
     TOTAL_AMOUNT,
     STAGE_ROLLBACK,
-    TERMINATE
+    TERMINATE,
+    FIELD_CHANGES
 }

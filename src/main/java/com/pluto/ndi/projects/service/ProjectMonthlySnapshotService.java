@@ -19,6 +19,7 @@ import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.MajorChangeType;
+import com.pluto.ndi.projects.domain.ProjectChangeField;
 import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
@@ -119,11 +120,16 @@ public class ProjectMonthlySnapshotService {
     }
 
     public void recordApproved(ProjectEntity project, ProjectApprovalRequestEntity request) {
+        var changedFields = request.fieldChanges().stream().map(item -> item.fieldCode()).toList();
         var stage = "STAGE_ADVANCEMENT".equals(request.requestType())
                 || request.changeType() == MajorChangeType.STAGE_ROLLBACK
-                || request.changeType() == MajorChangeType.TERMINATE ? project.currentStageCode() : null;
-        var amount = request.changeType() == MajorChangeType.TOTAL_AMOUNT ? project.totalAmount() : null;
-        if (stage == null && amount == null) return;
+                || request.changeType() == MajorChangeType.TERMINATE
+                || changedFields.contains(ProjectChangeField.STAGE) ? project.currentStageCode() : null;
+        var amount = request.changeType() == MajorChangeType.TOTAL_AMOUNT
+                || changedFields.contains(ProjectChangeField.TOTAL_AMOUNT) ? project.totalAmount() : null;
+        var categoryTotals = changedFields.stream().anyMatch(field -> field.categoryCode() != null)
+                ? ProjectCategoryTotals.from(categories.findByProjectIdIn(List.of(project.id()))) : null;
+        if (stage == null && amount == null && categoryTotals == null) return;
         var submittedMonth = monthOf(request.submittedAt());
         var effectiveMonth = submittedMonth.isBefore(snapshots.activationMonth())
                 ? snapshots.activationMonth() : submittedMonth;
@@ -131,7 +137,7 @@ public class ProjectMonthlySnapshotService {
                 ? "阶段推进审批通过：" + request.fromStageCode() + "→" + request.targetStageCode()
                 : request.changeReason();
         var change = new Event(project.id(), effectiveMonth, Instant.now(clock), "APPROVAL", request.id(),
-                reason, false, null, null, null, stage, amount, null);
+                reason, false, null, null, null, stage, amount, categoryTotals);
         snapshots.insertEvent(change);
         reviseExisting(project.id(), effectiveMonth, change);
     }

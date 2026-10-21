@@ -11,6 +11,7 @@ import type {
 } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
+import { changeFieldLabels, changeValue } from '../projects/majorChangeFields';
 
 const statusLabels: Record<ApprovalSummary['status'], string> = {
   PENDING: '待审批',
@@ -24,6 +25,7 @@ const changeLabels: Record<NonNullable<ApprovalSummary['changeType']>, string> =
   TOTAL_AMOUNT: '金额变更',
   STAGE_ROLLBACK: '阶段回退',
   TERMINATE: '项目终止',
+  FIELD_CHANGES: '重大变更',
 };
 
 function title(request: ApprovalSummary, reference: ReferenceData) {
@@ -333,13 +335,13 @@ export function ApprovalDetailPage({
                 {dateTime(item.submittedAt)} / {dateTime(item.dueAt)}
               </dd>
             </div>
-            {item.proposedProjectName && (
+            {item.proposedProjectName && !item.fieldChanges?.length && (
               <div>
                 <dt>新名称</dt>
                 <dd>{item.proposedProjectName}</dd>
               </div>
             )}
-            {item.proposedTotalAmount != null && (
+            {item.proposedTotalAmount != null && !item.fieldChanges?.length && (
               <div>
                 <dt>调整后总金额</dt>
                 <dd>{amount(item.proposedTotalAmount)} 万元</dd>
@@ -398,6 +400,28 @@ export function ApprovalDetailPage({
               </div>
             )}
           </dl>
+          {!!item.fieldChanges?.length && (
+            <div className="table-scroll">
+              <table className="field-change-table" aria-label="重大变更字段对照">
+                <thead>
+                  <tr>
+                    <th>变更字段</th>
+                    <th>提交时原值</th>
+                    <th>申请目标值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {item.fieldChanges.map((field) => (
+                    <tr key={field.fieldCode}>
+                      <td>{changeFieldLabels[field.fieldCode]}</td>
+                      <td>{changeValue(field.fieldCode, field.originalValue, reference)}</td>
+                      <td>{changeValue(field.fieldCode, field.proposedValue, reference)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {item.status === 'PENDING' && item.approverId === me.id && (
             <form
               className="request-form"
