@@ -1,0 +1,1364 @@
+{
+  "source": "element-china-area-data@6.1.0",
+  "level": "province-city",
+  "provinces": [
+    {
+      "sourceCode": "11",
+      "name": "北京",
+      "cities": [
+        {
+          "sourceCode": "11",
+          "name": "北京"
+        }
+      ]
+    },
+    {
+      "sourceCode": "12",
+      "name": "天津",
+      "cities": [
+        {
+          "sourceCode": "12",
+          "name": "天津"
+        }
+      ]
+    },
+    {
+      "sourceCode": "13",
+      "name": "河北",
+      "cities": [
+        {
+          "sourceCode": "1301",
+          "name": "石家庄"
+        },
+        {
+          "sourceCode": "1302",
+          "name": "唐山"
+        },
+        {
+          "sourceCode": "1303",
+          "name": "秦皇岛"
+        },
+        {
+          "sourceCode": "1304",
+          "name": "邯郸"
+        },
+        {
+          "sourceCode": "1305",
+          "name": "邢台"
+        },
+        {
+          "sourceCode": "1306",
+          "name": "保定"
+        },
+        {
+          "sourceCode": "1307",
+          "name": "张家口"
+        },
+        {
+          "sourceCode": "1308",
+          "name": "承德"
+        },
+        {
+          "sourceCode": "1309",
+          "name": "沧州"
+        },
+        {
+          "sourceCode": "1310",
+          "name": "廊坊"
+        },
+        {
+          "sourceCode": "1311",
+          "name": "衡水"
+        }
+      ]
+    },
+    {
+      "sourceCode": "14",
+      "name": "山西",
+      "cities": [
+        {
+          "sourceCode": "1401",
+          "name": "太原"
+        },
+        {
+          "sourceCode": "1402",
+          "name": "大同"
+        },
+        {
+          "sourceCode": "1403",
+          "name": "阳泉"
+        },
+        {
+          "sourceCode": "1404",
+          "name": "长治"
+        },
+        {
+          "sourceCode": "1405",
+          "name": "晋城"
+        },
+        {
+          "sourceCode": "1406",
+          "name": "朔州"
+        },
+        {
+          "sourceCode": "1407",
+          "name": "晋中"
+        },
+        {
+          "sourceCode": "1408",
+          "name": "运城"
+        },
+        {
+          "sourceCode": "1409",
+          "name": "忻州"
+        },
+        {
+          "sourceCode": "1410",
+          "name": "临汾"
+        },
+        {
+          "sourceCode": "1411",
+          "name": "吕梁"
+        }
+      ]
+    },
+    {
+      "sourceCode": "15",
+      "name": "内蒙古",
+      "cities": [
+        {
+          "sourceCode": "1501",
+          "name": "呼和浩特"
+        },
+        {
+          "sourceCode": "1502",
+          "name": "包头"
+        },
+        {
+          "sourceCode": "1503",
+          "name": "乌海"
+        },
+        {
+          "sourceCode": "1504",
+          "name": "赤峰"
+        },
+        {
+          "sourceCode": "1505",
+          "name": "通辽"
+        },
+        {
+          "sourceCode": "1506",
+          "name": "鄂尔多斯"
+        },
+        {
+          "sourceCode": "1507",
+          "name": "呼伦贝尔"
+        },
+        {
+          "sourceCode": "1508",
+          "name": "巴彦淖尔"
+        },
+        {
+          "sourceCode": "1509",
+          "name": "乌兰察布"
+        },
+        {
+          "sourceCode": "1522",
+          "name": "兴安"
+        },
+        {
+          "sourceCode": "1525",
+          "name": "锡林郭勒"
+        },
+        {
+          "sourceCode": "1529",
+          "name": "阿拉善"
+        }
+      ]
+    },
+    {
+      "sourceCode": "21",
+      "name": "辽宁",
+      "cities": [
+        {
+          "sourceCode": "2101",
+          "name": "沈阳"
+        },
+        {
+          "sourceCode": "2102",
+          "name": "大连"
+        },
+        {
+          "sourceCode": "2103",
+          "name": "鞍山"
+        },
+        {
+          "sourceCode": "2104",
+          "name": "抚顺"
+        },
+        {
+          "sourceCode": "2105",
+          "name": "本溪"
+        },
+        {
+          "sourceCode": "2106",
+          "name": "丹东"
+        },
+        {
+          "sourceCode": "2107",
+          "name": "锦州"
+        },
+        {
+          "sourceCode": "2108",
+          "name": "营口"
+        },
+        {
+          "sourceCode": "2109",
+          "name": "阜新"
+        },
+        {
+          "sourceCode": "2110",
+          "name": "辽阳"
+        },
+        {
+          "sourceCode": "2111",
+          "name": "盘锦"
+        },
+        {
+          "sourceCode": "2112",
+          "name": "铁岭"
+        },
+        {
+          "sourceCode": "2113",
+          "name": "朝阳"
+        },
+        {
+          "sourceCode": "2114",
+          "name": "葫芦岛"
+        }
+      ]
+    },
+    {
+      "sourceCode": "22",
+      "name": "吉林",
+      "cities": [
+        {
+          "sourceCode": "2201",
+          "name": "长春"
+        },
+        {
+          "sourceCode": "2202",
+          "name": "吉林"
+        },
+        {
+          "sourceCode": "2203",
+          "name": "四平"
+        },
+        {
+          "sourceCode": "2204",
+          "name": "辽源"
+        },
+        {
+          "sourceCode": "2205",
+          "name": "通化"
+        },
+        {
+          "sourceCode": "2206",
+          "name": "白山"
+        },
+        {
+          "sourceCode": "2207",
+          "name": "松原"
+        },
+        {
+          "sourceCode": "2208",
+          "name": "白城"
+        },
+        {
+          "sourceCode": "2224",
+          "name": "延边朝鲜族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "23",
+      "name": "黑龙江",
+      "cities": [
+        {
+          "sourceCode": "2301",
+          "name": "哈尔滨"
+        },
+        {
+          "sourceCode": "2302",
+          "name": "齐齐哈尔"
+        },
+        {
+          "sourceCode": "2303",
+          "name": "鸡西"
+        },
+        {
+          "sourceCode": "2304",
+          "name": "鹤岗"
+        },
+        {
+          "sourceCode": "2305",
+          "name": "双鸭山"
+        },
+        {
+          "sourceCode": "2306",
+          "name": "大庆"
+        },
+        {
+          "sourceCode": "2307",
+          "name": "伊春"
+        },
+        {
+          "sourceCode": "2308",
+          "name": "佳木斯"
+        },
+        {
+          "sourceCode": "2309",
+          "name": "七台河"
+        },
+        {
+          "sourceCode": "2310",
+          "name": "牡丹江"
+        },
+        {
+          "sourceCode": "2311",
+          "name": "黑河"
+        },
+        {
+          "sourceCode": "2312",
+          "name": "绥化"
+        },
+        {
+          "sourceCode": "2327",
+          "name": "大兴安岭"
+        }
+      ]
+    },
+    {
+      "sourceCode": "31",
+      "name": "上海",
+      "cities": [
+        {
+          "sourceCode": "31",
+          "name": "上海"
+        }
+      ]
+    },
+    {
+      "sourceCode": "32",
+      "name": "江苏",
+      "cities": [
+        {
+          "sourceCode": "3201",
+          "name": "南京"
+        },
+        {
+          "sourceCode": "3202",
+          "name": "无锡"
+        },
+        {
+          "sourceCode": "3203",
+          "name": "徐州"
+        },
+        {
+          "sourceCode": "3204",
+          "name": "常州"
+        },
+        {
+          "sourceCode": "3205",
+          "name": "苏州"
+        },
+        {
+          "sourceCode": "3206",
+          "name": "南通"
+        },
+        {
+          "sourceCode": "3207",
+          "name": "连云港"
+        },
+        {
+          "sourceCode": "3208",
+          "name": "淮安"
+        },
+        {
+          "sourceCode": "3209",
+          "name": "盐城"
+        },
+        {
+          "sourceCode": "3210",
+          "name": "扬州"
+        },
+        {
+          "sourceCode": "3211",
+          "name": "镇江"
+        },
+        {
+          "sourceCode": "3212",
+          "name": "泰州"
+        },
+        {
+          "sourceCode": "3213",
+          "name": "宿迁"
+        }
+      ]
+    },
+    {
+      "sourceCode": "33",
+      "name": "浙江",
+      "cities": [
+        {
+          "sourceCode": "3301",
+          "name": "杭州"
+        },
+        {
+          "sourceCode": "3302",
+          "name": "宁波"
+        },
+        {
+          "sourceCode": "3303",
+          "name": "温州"
+        },
+        {
+          "sourceCode": "3304",
+          "name": "嘉兴"
+        },
+        {
+          "sourceCode": "3305",
+          "name": "湖州"
+        },
+        {
+          "sourceCode": "3306",
+          "name": "绍兴"
+        },
+        {
+          "sourceCode": "3307",
+          "name": "金华"
+        },
+        {
+          "sourceCode": "3308",
+          "name": "衢州"
+        },
+        {
+          "sourceCode": "3309",
+          "name": "舟山"
+        },
+        {
+          "sourceCode": "3310",
+          "name": "台州"
+        },
+        {
+          "sourceCode": "3311",
+          "name": "丽水"
+        }
+      ]
+    },
+    {
+      "sourceCode": "34",
+      "name": "安徽",
+      "cities": [
+        {
+          "sourceCode": "3401",
+          "name": "合肥"
+        },
+        {
+          "sourceCode": "3402",
+          "name": "芜湖"
+        },
+        {
+          "sourceCode": "3403",
+          "name": "蚌埠"
+        },
+        {
+          "sourceCode": "3404",
+          "name": "淮南"
+        },
+        {
+          "sourceCode": "3405",
+          "name": "马鞍山"
+        },
+        {
+          "sourceCode": "3406",
+          "name": "淮北"
+        },
+        {
+          "sourceCode": "3407",
+          "name": "铜陵"
+        },
+        {
+          "sourceCode": "3408",
+          "name": "安庆"
+        },
+        {
+          "sourceCode": "3410",
+          "name": "黄山"
+        },
+        {
+          "sourceCode": "3411",
+          "name": "滁州"
+        },
+        {
+          "sourceCode": "3412",
+          "name": "阜阳"
+        },
+        {
+          "sourceCode": "3413",
+          "name": "宿州"
+        },
+        {
+          "sourceCode": "3415",
+          "name": "六安"
+        },
+        {
+          "sourceCode": "3416",
+          "name": "亳州"
+        },
+        {
+          "sourceCode": "3417",
+          "name": "池州"
+        },
+        {
+          "sourceCode": "3418",
+          "name": "宣城"
+        }
+      ]
+    },
+    {
+      "sourceCode": "35",
+      "name": "福建",
+      "cities": [
+        {
+          "sourceCode": "3501",
+          "name": "福州"
+        },
+        {
+          "sourceCode": "3502",
+          "name": "厦门"
+        },
+        {
+          "sourceCode": "3503",
+          "name": "莆田"
+        },
+        {
+          "sourceCode": "3504",
+          "name": "三明"
+        },
+        {
+          "sourceCode": "3505",
+          "name": "泉州"
+        },
+        {
+          "sourceCode": "3506",
+          "name": "漳州"
+        },
+        {
+          "sourceCode": "3507",
+          "name": "南平"
+        },
+        {
+          "sourceCode": "3508",
+          "name": "龙岩"
+        },
+        {
+          "sourceCode": "3509",
+          "name": "宁德"
+        }
+      ]
+    },
+    {
+      "sourceCode": "36",
+      "name": "江西",
+      "cities": [
+        {
+          "sourceCode": "3601",
+          "name": "南昌"
+        },
+        {
+          "sourceCode": "3602",
+          "name": "景德镇"
+        },
+        {
+          "sourceCode": "3603",
+          "name": "萍乡"
+        },
+        {
+          "sourceCode": "3604",
+          "name": "九江"
+        },
+        {
+          "sourceCode": "3605",
+          "name": "新余"
+        },
+        {
+          "sourceCode": "3606",
+          "name": "鹰潭"
+        },
+        {
+          "sourceCode": "3607",
+          "name": "赣州"
+        },
+        {
+          "sourceCode": "3608",
+          "name": "吉安"
+        },
+        {
+          "sourceCode": "3609",
+          "name": "宜春"
+        },
+        {
+          "sourceCode": "3610",
+          "name": "抚州"
+        },
+        {
+          "sourceCode": "3611",
+          "name": "上饶"
+        }
+      ]
+    },
+    {
+      "sourceCode": "37",
+      "name": "山东",
+      "cities": [
+        {
+          "sourceCode": "3701",
+          "name": "济南"
+        },
+        {
+          "sourceCode": "3702",
+          "name": "青岛"
+        },
+        {
+          "sourceCode": "3703",
+          "name": "淄博"
+        },
+        {
+          "sourceCode": "3704",
+          "name": "枣庄"
+        },
+        {
+          "sourceCode": "3705",
+          "name": "东营"
+        },
+        {
+          "sourceCode": "3706",
+          "name": "烟台"
+        },
+        {
+          "sourceCode": "3707",
+          "name": "潍坊"
+        },
+        {
+          "sourceCode": "3708",
+          "name": "济宁"
+        },
+        {
+          "sourceCode": "3709",
+          "name": "泰安"
+        },
+        {
+          "sourceCode": "3710",
+          "name": "威海"
+        },
+        {
+          "sourceCode": "3711",
+          "name": "日照"
+        },
+        {
+          "sourceCode": "3713",
+          "name": "临沂"
+        },
+        {
+          "sourceCode": "3714",
+          "name": "德州"
+        },
+        {
+          "sourceCode": "3715",
+          "name": "聊城"
+        },
+        {
+          "sourceCode": "3716",
+          "name": "滨州"
+        },
+        {
+          "sourceCode": "3717",
+          "name": "菏泽"
+        }
+      ]
+    },
+    {
+      "sourceCode": "41",
+      "name": "河南",
+      "cities": [
+        {
+          "sourceCode": "41",
+          "name": "河南"
+        }
+      ]
+    },
+    {
+      "sourceCode": "42",
+      "name": "湖北",
+      "cities": [
+        {
+          "sourceCode": "42",
+          "name": "湖北"
+        }
+      ]
+    },
+    {
+      "sourceCode": "43",
+      "name": "湖南",
+      "cities": [
+        {
+          "sourceCode": "4301",
+          "name": "长沙"
+        },
+        {
+          "sourceCode": "4302",
+          "name": "株洲"
+        },
+        {
+          "sourceCode": "4303",
+          "name": "湘潭"
+        },
+        {
+          "sourceCode": "4304",
+          "name": "衡阳"
+        },
+        {
+          "sourceCode": "4305",
+          "name": "邵阳"
+        },
+        {
+          "sourceCode": "4306",
+          "name": "岳阳"
+        },
+        {
+          "sourceCode": "4307",
+          "name": "常德"
+        },
+        {
+          "sourceCode": "4308",
+          "name": "张家界"
+        },
+        {
+          "sourceCode": "4309",
+          "name": "益阳"
+        },
+        {
+          "sourceCode": "4310",
+          "name": "郴州"
+        },
+        {
+          "sourceCode": "4311",
+          "name": "永州"
+        },
+        {
+          "sourceCode": "4312",
+          "name": "怀化"
+        },
+        {
+          "sourceCode": "4313",
+          "name": "娄底"
+        },
+        {
+          "sourceCode": "4331",
+          "name": "湘西土家族苗族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "44",
+      "name": "广东",
+      "cities": [
+        {
+          "sourceCode": "4401",
+          "name": "广州"
+        },
+        {
+          "sourceCode": "4402",
+          "name": "韶关"
+        },
+        {
+          "sourceCode": "4403",
+          "name": "深圳"
+        },
+        {
+          "sourceCode": "4404",
+          "name": "珠海"
+        },
+        {
+          "sourceCode": "4405",
+          "name": "汕头"
+        },
+        {
+          "sourceCode": "4406",
+          "name": "佛山"
+        },
+        {
+          "sourceCode": "4407",
+          "name": "江门"
+        },
+        {
+          "sourceCode": "4408",
+          "name": "湛江"
+        },
+        {
+          "sourceCode": "4409",
+          "name": "茂名"
+        },
+        {
+          "sourceCode": "4412",
+          "name": "肇庆"
+        },
+        {
+          "sourceCode": "4413",
+          "name": "惠州"
+        },
+        {
+          "sourceCode": "4414",
+          "name": "梅州"
+        },
+        {
+          "sourceCode": "4415",
+          "name": "汕尾"
+        },
+        {
+          "sourceCode": "4416",
+          "name": "河源"
+        },
+        {
+          "sourceCode": "4417",
+          "name": "阳江"
+        },
+        {
+          "sourceCode": "4418",
+          "name": "清远"
+        },
+        {
+          "sourceCode": "4419",
+          "name": "东莞"
+        },
+        {
+          "sourceCode": "4420",
+          "name": "中山"
+        },
+        {
+          "sourceCode": "4451",
+          "name": "潮州"
+        },
+        {
+          "sourceCode": "4452",
+          "name": "揭阳"
+        },
+        {
+          "sourceCode": "4453",
+          "name": "云浮"
+        }
+      ]
+    },
+    {
+      "sourceCode": "45",
+      "name": "广西",
+      "cities": [
+        {
+          "sourceCode": "4501",
+          "name": "南宁"
+        },
+        {
+          "sourceCode": "4502",
+          "name": "柳州"
+        },
+        {
+          "sourceCode": "4503",
+          "name": "桂林"
+        },
+        {
+          "sourceCode": "4504",
+          "name": "梧州"
+        },
+        {
+          "sourceCode": "4505",
+          "name": "北海"
+        },
+        {
+          "sourceCode": "4506",
+          "name": "防城港"
+        },
+        {
+          "sourceCode": "4507",
+          "name": "钦州"
+        },
+        {
+          "sourceCode": "4508",
+          "name": "贵港"
+        },
+        {
+          "sourceCode": "4509",
+          "name": "玉林"
+        },
+        {
+          "sourceCode": "4510",
+          "name": "百色"
+        },
+        {
+          "sourceCode": "4511",
+          "name": "贺州"
+        },
+        {
+          "sourceCode": "4512",
+          "name": "河池"
+        },
+        {
+          "sourceCode": "4513",
+          "name": "来宾"
+        },
+        {
+          "sourceCode": "4514",
+          "name": "崇左"
+        }
+      ]
+    },
+    {
+      "sourceCode": "46",
+      "name": "海南",
+      "cities": [
+        {
+          "sourceCode": "46",
+          "name": "海南"
+        }
+      ]
+    },
+    {
+      "sourceCode": "50",
+      "name": "重庆",
+      "cities": [
+        {
+          "sourceCode": "50",
+          "name": "重庆"
+        }
+      ]
+    },
+    {
+      "sourceCode": "51",
+      "name": "四川",
+      "cities": [
+        {
+          "sourceCode": "5101",
+          "name": "成都"
+        },
+        {
+          "sourceCode": "5103",
+          "name": "自贡"
+        },
+        {
+          "sourceCode": "5104",
+          "name": "攀枝花"
+        },
+        {
+          "sourceCode": "5105",
+          "name": "泸州"
+        },
+        {
+          "sourceCode": "5106",
+          "name": "德阳"
+        },
+        {
+          "sourceCode": "5107",
+          "name": "绵阳"
+        },
+        {
+          "sourceCode": "5108",
+          "name": "广元"
+        },
+        {
+          "sourceCode": "5109",
+          "name": "遂宁"
+        },
+        {
+          "sourceCode": "5110",
+          "name": "内江"
+        },
+        {
+          "sourceCode": "5111",
+          "name": "乐山"
+        },
+        {
+          "sourceCode": "5113",
+          "name": "南充"
+        },
+        {
+          "sourceCode": "5114",
+          "name": "眉山"
+        },
+        {
+          "sourceCode": "5115",
+          "name": "宜宾"
+        },
+        {
+          "sourceCode": "5116",
+          "name": "广安"
+        },
+        {
+          "sourceCode": "5117",
+          "name": "达州"
+        },
+        {
+          "sourceCode": "5118",
+          "name": "雅安"
+        },
+        {
+          "sourceCode": "5119",
+          "name": "巴中"
+        },
+        {
+          "sourceCode": "5120",
+          "name": "资阳"
+        },
+        {
+          "sourceCode": "5132",
+          "name": "阿坝藏族羌族"
+        },
+        {
+          "sourceCode": "5133",
+          "name": "甘孜藏族"
+        },
+        {
+          "sourceCode": "5134",
+          "name": "凉山彝族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "52",
+      "name": "贵州",
+      "cities": [
+        {
+          "sourceCode": "5201",
+          "name": "贵阳"
+        },
+        {
+          "sourceCode": "5202",
+          "name": "六盘水"
+        },
+        {
+          "sourceCode": "5203",
+          "name": "遵义"
+        },
+        {
+          "sourceCode": "5204",
+          "name": "安顺"
+        },
+        {
+          "sourceCode": "5205",
+          "name": "毕节"
+        },
+        {
+          "sourceCode": "5206",
+          "name": "铜仁"
+        },
+        {
+          "sourceCode": "5223",
+          "name": "黔西南布依族苗族"
+        },
+        {
+          "sourceCode": "5226",
+          "name": "黔东南苗族侗族"
+        },
+        {
+          "sourceCode": "5227",
+          "name": "黔南布依族苗族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "53",
+      "name": "云南",
+      "cities": [
+        {
+          "sourceCode": "5301",
+          "name": "昆明"
+        },
+        {
+          "sourceCode": "5303",
+          "name": "曲靖"
+        },
+        {
+          "sourceCode": "5304",
+          "name": "玉溪"
+        },
+        {
+          "sourceCode": "5305",
+          "name": "保山"
+        },
+        {
+          "sourceCode": "5306",
+          "name": "昭通"
+        },
+        {
+          "sourceCode": "5307",
+          "name": "丽江"
+        },
+        {
+          "sourceCode": "5308",
+          "name": "普洱"
+        },
+        {
+          "sourceCode": "5309",
+          "name": "临沧"
+        },
+        {
+          "sourceCode": "5323",
+          "name": "楚雄彝族"
+        },
+        {
+          "sourceCode": "5325",
+          "name": "红河哈尼族彝族"
+        },
+        {
+          "sourceCode": "5326",
+          "name": "文山壮族苗族"
+        },
+        {
+          "sourceCode": "5328",
+          "name": "西双版纳傣族"
+        },
+        {
+          "sourceCode": "5329",
+          "name": "大理白族"
+        },
+        {
+          "sourceCode": "5331",
+          "name": "德宏傣族景颇族"
+        },
+        {
+          "sourceCode": "5333",
+          "name": "怒江傈僳族"
+        },
+        {
+          "sourceCode": "5334",
+          "name": "迪庆藏族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "54",
+      "name": "西藏",
+      "cities": [
+        {
+          "sourceCode": "5401",
+          "name": "拉萨"
+        },
+        {
+          "sourceCode": "5402",
+          "name": "日喀则"
+        },
+        {
+          "sourceCode": "5403",
+          "name": "昌都"
+        },
+        {
+          "sourceCode": "5404",
+          "name": "林芝"
+        },
+        {
+          "sourceCode": "5405",
+          "name": "山南"
+        },
+        {
+          "sourceCode": "5406",
+          "name": "那曲"
+        },
+        {
+          "sourceCode": "5425",
+          "name": "阿里"
+        }
+      ]
+    },
+    {
+      "sourceCode": "61",
+      "name": "陕西",
+      "cities": [
+        {
+          "sourceCode": "6101",
+          "name": "西安"
+        },
+        {
+          "sourceCode": "6102",
+          "name": "铜川"
+        },
+        {
+          "sourceCode": "6103",
+          "name": "宝鸡"
+        },
+        {
+          "sourceCode": "6104",
+          "name": "咸阳"
+        },
+        {
+          "sourceCode": "6105",
+          "name": "渭南"
+        },
+        {
+          "sourceCode": "6106",
+          "name": "延安"
+        },
+        {
+          "sourceCode": "6107",
+          "name": "汉中"
+        },
+        {
+          "sourceCode": "6108",
+          "name": "榆林"
+        },
+        {
+          "sourceCode": "6109",
+          "name": "安康"
+        },
+        {
+          "sourceCode": "6110",
+          "name": "商洛"
+        }
+      ]
+    },
+    {
+      "sourceCode": "62",
+      "name": "甘肃",
+      "cities": [
+        {
+          "sourceCode": "6201",
+          "name": "兰州"
+        },
+        {
+          "sourceCode": "6202",
+          "name": "嘉峪关"
+        },
+        {
+          "sourceCode": "6203",
+          "name": "金昌"
+        },
+        {
+          "sourceCode": "6204",
+          "name": "白银"
+        },
+        {
+          "sourceCode": "6205",
+          "name": "天水"
+        },
+        {
+          "sourceCode": "6206",
+          "name": "武威"
+        },
+        {
+          "sourceCode": "6207",
+          "name": "张掖"
+        },
+        {
+          "sourceCode": "6208",
+          "name": "平凉"
+        },
+        {
+          "sourceCode": "6209",
+          "name": "酒泉"
+        },
+        {
+          "sourceCode": "6210",
+          "name": "庆阳"
+        },
+        {
+          "sourceCode": "6211",
+          "name": "定西"
+        },
+        {
+          "sourceCode": "6212",
+          "name": "陇南"
+        },
+        {
+          "sourceCode": "6229",
+          "name": "临夏回族"
+        },
+        {
+          "sourceCode": "6230",
+          "name": "甘南藏族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "63",
+      "name": "青海",
+      "cities": [
+        {
+          "sourceCode": "6301",
+          "name": "西宁"
+        },
+        {
+          "sourceCode": "6302",
+          "name": "海东"
+        },
+        {
+          "sourceCode": "6322",
+          "name": "海北藏族"
+        },
+        {
+          "sourceCode": "6323",
+          "name": "黄南藏族"
+        },
+        {
+          "sourceCode": "6325",
+          "name": "海南藏族"
+        },
+        {
+          "sourceCode": "6326",
+          "name": "果洛藏族"
+        },
+        {
+          "sourceCode": "6327",
+          "name": "玉树藏族"
+        },
+        {
+          "sourceCode": "6328",
+          "name": "海西蒙古族藏族"
+        }
+      ]
+    },
+    {
+      "sourceCode": "64",
+      "name": "宁夏",
+      "cities": [
+        {
+          "sourceCode": "6401",
+          "name": "银川"
+        },
+        {
+          "sourceCode": "6402",
+          "name": "石嘴山"
+        },
+        {
+          "sourceCode": "6403",
+          "name": "吴忠"
+        },
+        {
+          "sourceCode": "6404",
+          "name": "固原"
+        },
+        {
+          "sourceCode": "6405",
+          "name": "中卫"
+        }
+      ]
+    },
+    {
+      "sourceCode": "65",
+      "name": "新疆",
+      "cities": [
+        {
+          "sourceCode": "65",
+          "name": "新疆"
+        }
+      ]
+    }
+  ]
+}

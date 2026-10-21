@@ -12,6 +12,7 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
 import { ApiError } from '../../shared/api/http';
 import { MetricBars } from './MetricBars';
+import { ProjectMapCard } from './ProjectMapCard';
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
@@ -109,6 +110,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
               <small>其中逾期 {overview.approvals.overdueCount} 条</small>
             </div>
           </div>
+          <ProjectMapCard reference={reference} />
           <div className="detail-grid">
             <div className="panel">
               <h2>阶段分布</h2>

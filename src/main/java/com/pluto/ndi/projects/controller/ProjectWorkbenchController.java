@@ -2,14 +2,19 @@ package com.pluto.ndi.projects.controller;
 
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
 import com.pluto.ndi.projects.service.ProjectWorkbenchBreakdown;
 import com.pluto.ndi.projects.service.ProjectWorkbenchOverview;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
+import com.pluto.ndi.projects.service.ProjectMapService;
+import com.pluto.ndi.projects.service.ProjectMapView;
+import com.pluto.ndi.projects.service.ProjectMapBoundaryClient;
 import com.pluto.ndi.projects.service.ProjectMonthlySnapshotService;
 import com.pluto.ndi.projects.service.ProjectMonthlyTrendPoint;
 import com.pluto.ndi.projects.service.ProjectMonthlyWorkbench;
@@ -18,6 +23,9 @@ import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,13 +39,35 @@ public class ProjectWorkbenchController {
 
     private final ProjectWorkbenchService service;
     private final ProjectMonthlySnapshotService monthlySnapshots;
+    private final ProjectMapService maps;
+    private final ProjectMapBoundaryClient boundaries;
     private final ApiResponseFactory responseFactory;
 
     public ProjectWorkbenchController(ProjectWorkbenchService service,
-            ProjectMonthlySnapshotService monthlySnapshots, ApiResponseFactory responseFactory) {
+            ProjectMonthlySnapshotService monthlySnapshots, ProjectMapService maps,
+            ProjectMapBoundaryClient boundaries, ApiResponseFactory responseFactory) {
         this.service = service;
         this.monthlySnapshots = monthlySnapshots;
+        this.maps = maps;
+        this.boundaries = boundaries;
         this.responseFactory = responseFactory;
+    }
+
+    @GetMapping("/map")
+    public ApiResponse<ProjectMapView> map(Authentication authentication,
+            @RequestParam(required = false) UUID provinceId,
+            @RequestParam(defaultValue = "false") boolean includeTerminated,
+            @RequestParam(required = false) ProjectStage stage) {
+        return responseFactory.success(maps.current(actorId(authentication), provinceId, includeTerminated, stage));
+    }
+
+    @GetMapping("/map/boundaries/{adcode}")
+    public ResponseEntity<byte[]> boundary(Authentication authentication, @PathVariable String adcode) {
+        maps.requireBoundaryAccess(actorId(authentication), adcode);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/geo+json"))
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePrivate())
+                .body(boundaries.fetch(adcode));
     }
 
     @GetMapping("/overview")

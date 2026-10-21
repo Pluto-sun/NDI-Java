@@ -24,6 +24,7 @@ import type {
   ApprovalNotification,
   ProjectChange,
   MonthlyRevision,
+  ProjectMapView,
   ProjectDraft,
   ProjectDraftData,
   ProjectDuplicateCheck,
@@ -124,6 +125,13 @@ export const projectsApi = {
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),
+  map: (provinceId: string | null, includeTerminated: boolean, stage?: string) => {
+    const query = new URLSearchParams({ includeTerminated: String(includeTerminated) });
+    if (provinceId) query.set('provinceId', provinceId);
+    if (stage) query.set('stage', stage);
+    return request<ProjectMapView>(`/workbench/map?${query}`);
+  },
+  mapBoundary: (adcode: string) => requestBlob(`/workbench/map/boundaries/${adcode}`),
   breakdown: () => request<WorkbenchBreakdown>('/workbench/breakdown'),
   monthly: (month: string, includeTerminated: boolean) =>
     request<MonthlyWorkbench>(

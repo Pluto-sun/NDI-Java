@@ -748,6 +748,104 @@ select:disabled {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.map-panel {
+  margin-bottom: 18px;
+}
+.map-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 18px;
+}
+.map-heading p {
+  margin-top: -10px;
+}
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(230px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.map-canvas {
+  min-height: 330px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fdfafb;
+}
+.map-canvas svg {
+  width: 100%;
+  max-height: 480px;
+}
+.map-canvas path {
+  stroke: #fff;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  transition: fill 120ms ease;
+}
+.map-canvas path[role='button'] {
+  cursor: pointer;
+}
+.map-canvas path[role='button']:hover,
+.map-canvas path[role='button']:focus-visible {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  outline: none;
+}
+.map-shape-unavailable {
+  fill: #e7e1e3;
+}
+.map-shape-zero {
+  fill: #f7dfe2;
+}
+.map-shape-low {
+  fill: #eea8b0;
+}
+.map-shape-medium {
+  fill: #db6470;
+}
+.map-shape-high {
+  fill: #a92230;
+}
+.map-regions h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.map-regions ol {
+  max-height: 445px;
+  overflow: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.map-regions li {
+  padding: 5px 0 9px;
+  border-bottom: 1px solid var(--line);
+}
+.map-regions li > button,
+.map-regions li > a {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 5px 7px;
+  text-align: left;
+  border-radius: 7px;
+}
+.map-regions li > button:hover,
+.map-regions li > a:hover {
+  background: var(--red-soft);
+}
+.map-regions small {
+  display: block;
+  margin-left: 7px;
+  color: var(--muted);
+}
 .inline-form {
   display: grid;
   gap: 14px;
@@ -948,6 +1046,9 @@ select:disabled {
   margin-top: 18px;
 }
 @media (max-width: 900px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
   .app-shell {
     grid-template-columns: 180px minmax(0, 1fr);
   }

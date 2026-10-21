@@ -26,6 +26,21 @@ export interface ReferenceData {
   stages: CodeLabel[];
   applicationScenarios: CodeLabel[];
 }
+export interface ProjectMapView {
+  level: 'NATIONAL' | 'PROVINCE';
+  mapAdcode: string | null;
+  province: ProvinceOption | null;
+  includeTerminated: boolean;
+  stageCode: string | null;
+  regions: {
+    id: string;
+    name: string;
+    adcode: string | null;
+    projectCount: number;
+    expectedAmount: number;
+    authorized: boolean;
+  }[];
+}
 export interface CategoryAmount {
   categoryCode: string;
   expectedAmount: number;

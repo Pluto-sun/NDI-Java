@@ -52,6 +52,8 @@ import com.pluto.ndi.projects.service.ProjectProgressService;
 import com.pluto.ndi.projects.service.ProjectDocumentService;
 import com.pluto.ndi.projects.service.ProjectProfileService;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
+import com.pluto.ndi.projects.service.ProjectMapService;
+import com.pluto.ndi.projects.service.ProjectMapBoundaryClient;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
 import com.pluto.ndi.projects.service.ProjectService;
@@ -118,10 +120,12 @@ class ProjectApprovalIT {
     @Autowired private ProjectDocumentService projectDocumentService;
     @Autowired private ProjectProfileService profileService;
     @Autowired private ProjectWorkbenchService workbenchService;
+    @Autowired private ProjectMapService mapService;
     @Autowired private ProjectExportService exportService;
     @Autowired private ProjectExportWorker exportWorker;
     @MockitoBean private DocumentDirectory documentDirectory;
     @MockitoBean private ExportFileDirectory exportFileDirectory;
+    @MockitoBean private ProjectMapBoundaryClient mapBoundaryClient;
 
     private UUID provinceId;
     private UUID cityId;
@@ -858,6 +862,13 @@ class ProjectApprovalIT {
         assertThat(workbenchService.overview(cityUserId, false).projectCount()).isEqualTo(1);
         assertThat(workbenchService.overview(otherCityUserId, false).projectCount()).isEqualTo(1);
         assertThat(workbenchService.overview(provinceUserId, false).projectCount()).isEqualTo(2);
+        assertThat(mapService.current(cityUserId, null, false, null).regions())
+                .filteredOn(region -> region.id().equals(otherCityId))
+                .singleElement().satisfies(region -> {
+                    assertThat(region.authorized()).isFalse();
+                    assertThat(region.projectCount()).isZero();
+                    assertThat(region.expectedAmount()).isEqualByComparingTo("0");
+                });
         assertThat(workbenchService.overview(interfaceUserId, false).totalExpectedAmount())
                 .isEqualByComparingTo("170.00");
 
@@ -867,7 +878,7 @@ class ProjectApprovalIT {
     }
 
     @Test
-    void nationalReadersCanViewAcrossProvincesWithoutBusinessWritePermission() {
+    void nationalReadersCanViewAcrossProvincesWithoutBusinessWritePermission() throws Exception {
         var localProjectId = createProject();
         var otherProvinceId = UUID.randomUUID();
         var otherCityId = UUID.randomUUID();
@@ -907,6 +918,25 @@ class ProjectApprovalIT {
         }
         assertThat(workbenchService.breakdown(groupUserId, false).cities())
                 .extracting(city -> city.cityId()).contains(cityId, otherCityId);
+        var map = mapService.current(groupUserId, null, false, null);
+        assertThat(map.level()).isEqualTo("NATIONAL");
+        assertThat(map.regions()).filteredOn(region -> region.id().equals(provinceId)
+                || region.id().equals(otherProvinceId))
+                .extracting(region -> region.projectCount()).containsExactlyInAnyOrder(1L, 1L);
+        assertThat(mapService.current(cityUserId, null, false, null).level()).isEqualTo("PROVINCE");
+        var foreignMap = catchThrowable(() -> mapService.current(cityUserId, otherProvinceId, false, null));
+        assertThat(((BusinessException) foreignMap).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        when(mapBoundaryClient.fetch("100000"))
+                .thenReturn("{\"type\":\"FeatureCollection\",\"features\":[]}".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(get("/api/v1/projects/workbench/map/boundaries/100000")
+                        .header("X-NDI-Actor-Id", groupUserId.toString()))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/projects/workbench/map/boundaries/100000")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/projects/workbench/map/boundaries/not-a-code")
+                        .header("X-NDI-Actor-Id", groupUserId.toString()))
+                .andExpect(status().isBadRequest());
         assertThat(workbenchService.overview(adminUserId, false).projectCount())
                 .isGreaterThan(workbenchService.overview(provinceUserId, false).projectCount());
         var export = exportService.submit(groupUserId, otherProvinceQuery);
@@ -915,6 +945,14 @@ class ProjectApprovalIT {
         var denied = catchThrowable(() -> progressService.append(groupUserId, otherProjectId,
                 new AppendProgressCommand("不可写入", "不可写入", null)));
         assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN);
+        jdbc.update("UPDATE project_project SET current_stage_code = 'TERMINATED' WHERE id = UUID_TO_BIN(?)",
+                localProjectId.toString());
+        assertThat(mapService.current(groupUserId, null, false, null).regions())
+                .filteredOn(region -> region.id().equals(provinceId))
+                .singleElement().satisfies(region -> assertThat(region.projectCount()).isZero());
+        assertThat(mapService.current(groupUserId, null, true, ProjectStage.TERMINATED).regions())
+                .filteredOn(region -> region.id().equals(provinceId))
+                .singleElement().satisfies(region -> assertThat(region.projectCount()).isEqualTo(1));
     }
 
     @Test

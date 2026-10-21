@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
@@ -13,11 +13,13 @@ export function ProjectsPage({
   reference: ReferenceData;
   canCreate: boolean;
 }) {
+  const [searchParams] = useSearchParams();
+  const initialCityId = searchParams.get('cityId') ?? '';
   const [name, setName] = useState('');
   const [stage, setStage] = useState('');
   const [projectCode, setProjectCode] = useState('');
   const [industryCode, setIndustryCode] = useState('');
-  const [cityId, setCityId] = useState('');
+  const [cityId, setCityId] = useState(initialCityId);
   const [includeTerminated, setIncludeTerminated] = useState(true);
   const [query, setQuery] = useState({
     page: 0,
@@ -25,7 +27,7 @@ export function ProjectsPage({
     stage: '',
     projectCode: '',
     industryCode: '',
-    cityId: '',
+    cityId: initialCityId,
     includeTerminated: true,
   });
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
