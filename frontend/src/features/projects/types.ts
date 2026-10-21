@@ -122,6 +122,9 @@ export interface ProjectProgress {
   nextAction: string;
   occurredAt: string;
   correctsProgressId: string | null;
+  progressDate: string | null;
+  ownerName: string | null;
+  dueDate: string | null;
 }
 export interface ProjectMilestone {
   id: string;

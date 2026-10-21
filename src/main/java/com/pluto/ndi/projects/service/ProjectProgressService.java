@@ -2,6 +2,8 @@ package com.pluto.ndi.projects.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProjectProgressService {
 
     private static final int MAX_TEXT_LENGTH = 10_000;
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final ProjectAccessService accessService;
     private final ProjectProgressRepository progressRepository;
@@ -40,12 +43,20 @@ public class ProjectProgressService {
         accessService.requireAppendable(actorId, projectId);
         var content = requiredText(command == null ? null : command.progressContent());
         var nextAction = requiredText(command.nextAction());
-        if (command.correctsProgressId() != null && progressRepository.findById(command.correctsProgressId())
-                .filter(progress -> progress.projectId().equals(projectId)).isEmpty()) {
-            throw new BusinessException(ProjectErrorCode.PROGRESS_NOT_FOUND);
+        if (command.correctsProgressId() != null) {
+            progressRepository.findById(command.correctsProgressId())
+                    .filter(progress -> progress.projectId().equals(projectId))
+                    .orElseThrow(() -> new BusinessException(ProjectErrorCode.PROGRESS_NOT_FOUND));
         }
+        var ownerName = command.ownerName() == null ? null : command.ownerName().trim();
+        if (ownerName != null && ownerName.length() > 100) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PROGRESS);
+        }
+        var progressDate = command.progressDate() == null
+                ? LocalDate.now(clock.withZone(BUSINESS_ZONE)) : command.progressDate();
         var progress = ProjectProgressEntity.append(
-                projectId, content, nextAction, actorId, Instant.now(clock), command.correctsProgressId());
+                projectId, content, nextAction, actorId, Instant.now(clock), command.correctsProgressId(),
+                progressDate, ownerName == null || ownerName.isEmpty() ? null : ownerName, command.dueDate());
         return ProjectProgressSummary.from(progressRepository.save(progress));
     }
 

@@ -3,6 +3,8 @@ package com.pluto.ndi.projects.service;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -114,8 +116,10 @@ public class ProjectImportWriter {
             milestones.save(ProjectStageMilestoneEntity.imported(id, ProjectStage.valueOf(candidate.stageCode()),
                     actorId, candidate.occurredAt(), "EXCEL_IMPORT", "Excel 导入阶段"));
             for (var item : candidate.progress()) {
-                progress.save(ProjectProgressEntity.append(id, item.content(), "", actorId,
-                        item.occurredAt(), null));
+                progress.save(ProjectProgressEntity.imported(id, item.content(), "",
+                        candidate.cityAccountManagerName(), null,
+                        LocalDate.ofInstant(item.occurredAt(), ZoneId.of("Asia/Shanghai")),
+                        actorId, item.occurredAt()));
             }
             sources.save(ProjectSourceRecordEntity.of(id, "EXCEL_IMPORT", row.id().toString(),
                     "EXCEL_IMPORT", now));

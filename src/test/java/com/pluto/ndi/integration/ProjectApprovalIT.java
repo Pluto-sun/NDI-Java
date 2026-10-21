@@ -535,6 +535,8 @@ class ProjectApprovalIT {
         var projectId = createProject();
         var original = progressService.findProgress(cityUserId, projectId, PageRequest.of(0, 20))
                 .getContent().getFirst();
+        assertThat(original.progressDate()).isNotNull();
+        assertThat(original.ownerName()).isEqualTo("客户经理");
         var version = projectRepository.findById(projectId).orElseThrow().versionNo();
         var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
                 MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
@@ -546,6 +548,7 @@ class ProjectApprovalIT {
                 new AppendProgressCommand("原始交流记录更正", "重新确认需求", original.id()));
 
         assertThat(added.progressContent()).isEqualTo("接口人补充进展");
+        assertThat(added.progressDate()).isNotNull();
         assertThat(correction.correctsProgressId()).isEqualTo(original.id());
         assertThat(progressService.findProgress(cityUserId, projectId, PageRequest.of(0, 20)).getContent())
                 .extracting(progress -> progress.id()).contains(original.id(), added.id(), correction.id());
@@ -568,9 +571,21 @@ class ProjectApprovalIT {
         mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
                         .header("X-NDI-Actor-Id", cityUserId.toString())
                         .contentType("application/json")
-                        .content("{\"progressContent\":\"接口新增进展\",\"nextAction\":\"继续跟进\"}"))
+                        .content("{\"progressContent\":\"接口新增进展\",\"nextAction\":\"继续跟进\","
+                                + "\"progressDate\":\"2026-06-18\",\"ownerName\":\" 张经理 \","
+                                + "\"dueDate\":\"2026-06-30\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.progressContent").value("接口新增进展"));
+                .andExpect(jsonPath("$.data.progressContent").value("接口新增进展"))
+                .andExpect(jsonPath("$.data.progressDate").value("2026-06-18"))
+                .andExpect(jsonPath("$.data.ownerName").value("张经理"))
+                .andExpect(jsonPath("$.data.dueDate").value("2026-06-30"));
+        mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("{\"progressContent\":\"沿用旧客户端\",\"nextAction\":\"继续跟进\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.progressDate").isNotEmpty())
+                .andExpect(jsonPath("$.data.ownerName").doesNotExist());
         mockMvc.perform(post("/api/v1/projects/{projectId}/progress", projectId)
                         .header("X-NDI-Actor-Id", cityUserId.toString())
                         .contentType("application/json")

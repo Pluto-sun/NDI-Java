@@ -93,13 +93,18 @@ export const projectsApi = {
   deleteDraft: (id: string) => request<null>(`/drafts/${id}`, { method: 'DELETE' }),
   appendProgress: (
     id: string,
-    progressContent: string,
-    nextAction: string,
-    correctsProgressId?: string,
+    data: {
+      progressContent: string;
+      nextAction: string;
+      correctsProgressId?: string;
+      progressDate?: string;
+      ownerName?: string;
+      dueDate?: string;
+    },
   ) =>
     request<ProjectProgress>(`/${id}/progress`, {
       method: 'POST',
-      ...jsonBody({ progressContent, nextAction, correctsProgressId }),
+      ...jsonBody(data),
     }),
   updateProfile: (
     id: string,

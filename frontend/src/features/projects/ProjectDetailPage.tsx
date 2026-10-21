@@ -9,7 +9,7 @@ import type {
   ReferenceData,
 } from './types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { amount, dateTime } from '../../shared/ui/format';
+import { amount, businessDate, dateTime } from '../../shared/ui/format';
 import { ProjectDocuments } from './ProjectDocuments';
 import { ProjectRequests } from './ProjectRequests';
 import { ProjectProfileForm } from './ProjectProfileForm';
@@ -29,7 +29,11 @@ export function ProjectDetailPage({
   const [leaders, setLeaders] = useState<ProjectUser[]>([]);
   const [content, setContent] = useState('');
   const [nextAction, setNextAction] = useState('');
+  const [progressDate, setProgressDate] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [documentsVersion, setDocumentsVersion] = useState(0);
@@ -67,12 +71,24 @@ export function ProjectDetailPage({
     if (!id) return;
     setSaving(true);
     setError('');
+    setNotice('');
     try {
-      await projectsApi.appendProgress(id, content.trim(), nextAction.trim(), correcting?.id);
+      await projectsApi.appendProgress(id, {
+        progressContent: content.trim(),
+        nextAction: nextAction.trim(),
+        correctsProgressId: correcting?.id,
+        progressDate: progressDate || undefined,
+        ownerName: ownerName.trim() || undefined,
+        dueDate: dueDate || undefined,
+      });
       setContent('');
       setNextAction('');
+      setProgressDate('');
+      setOwnerName('');
+      setDueDate('');
       setCorrecting(null);
       await load();
+      setNotice('项目进展已保存。');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '进展保存失败');
     } finally {
@@ -111,6 +127,7 @@ export function ProjectDetailPage({
         )}
       </div>
       {error && <Feedback tone="error">{error}</Feedback>}
+      {notice && <Feedback tone="success">{notice}</Feedback>}
       {loading ? (
         <Loading />
       ) : (
@@ -253,6 +270,9 @@ export function ProjectDetailPage({
                             setCorrecting(null);
                             setContent('');
                             setNextAction('');
+                            setProgressDate('');
+                            setOwnerName('');
+                            setDueDate('');
                           }}
                         >
                           取消更正
@@ -277,6 +297,34 @@ export function ProjectDetailPage({
                         onChange={(event) => setNextAction(event.target.value)}
                       />
                     </label>
+                    <div className="form-grid">
+                      <label>
+                        进展发生日期（选填）
+                        <input
+                          type="date"
+                          value={progressDate}
+                          onChange={(event) => setProgressDate(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        负责人（选填）
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={ownerName}
+                          onChange={(event) => setOwnerName(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        计划完成日期（选填）
+                        <input
+                          type="date"
+                          value={dueDate}
+                          onChange={(event) => setDueDate(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <p className="subtle">发生日期不填则按提交当天记录；记录写入时间另行保留。</p>
                     <button type="submit" className="primary-button" disabled={saving}>
                       {saving ? '保存中…' : correcting ? '提交更正' : '追加进展'}
                     </button>
@@ -289,9 +337,17 @@ export function ProjectDetailPage({
                   {progress.length ? (
                     progress.map((item) => (
                       <article key={item.id}>
-                        <time>{dateTime(item.occurredAt)}</time>
+                        <time>进展日期：{item.progressDate ?? businessDate(item.occurredAt)}</time>
                         <p>{item.progressContent}</p>
                         <small>下一步：{item.nextAction}</small>
+                        {(item.ownerName || item.dueDate) && (
+                          <small className="table-subtitle">
+                            {item.ownerName && `负责人：${item.ownerName}`}
+                            {item.ownerName && item.dueDate && ' · '}
+                            {item.dueDate && `计划完成：${item.dueDate}`}
+                          </small>
+                        )}
+                        <small className="table-subtitle">记录于 {dateTime(item.occurredAt)}</small>
                         {item.correctsProgressId && (
                           <small className="table-subtitle">
                             更正记录，关联原进展 {item.correctsProgressId}
@@ -305,6 +361,10 @@ export function ProjectDetailPage({
                               setCorrecting(item);
                               setContent(item.progressContent);
                               setNextAction(item.nextAction);
+                              setProgressDate(item.progressDate ?? businessDate(item.occurredAt));
+                              setOwnerName(item.ownerName ?? '');
+                              setDueDate(item.dueDate ?? '');
+                              setNotice('');
                             }}
                           >
                             更正此条

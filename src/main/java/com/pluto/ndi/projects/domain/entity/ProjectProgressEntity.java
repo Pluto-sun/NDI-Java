@@ -28,6 +28,9 @@ public class ProjectProgressEntity {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
+    @Column(name = "progress_date")
+    private LocalDate progressDate;
+
     @Column(name = "actor_id", nullable = false)
     private UUID actorId;
 
@@ -44,22 +47,17 @@ public class ProjectProgressEntity {
     }
 
     public static ProjectProgressEntity initial(
-            UUID projectId,
-            String progressContent,
-            String nextAction,
-            UUID actorId,
-            Instant occurredAt
+            UUID projectId, String progressContent, String nextAction, String ownerName,
+            UUID actorId, Instant occurredAt, LocalDate progressDate
     ) {
-        return append(projectId, progressContent, nextAction, actorId, occurredAt, null);
+        return append(projectId, progressContent, nextAction, actorId, occurredAt,
+                null, progressDate, ownerName, null);
     }
 
     public static ProjectProgressEntity append(
-            UUID projectId,
-            String progressContent,
-            String nextAction,
-            UUID actorId,
-            Instant occurredAt,
-            UUID correctsProgressId
+            UUID projectId, String progressContent, String nextAction, UUID actorId,
+            Instant occurredAt, UUID correctsProgressId, LocalDate progressDate,
+            String ownerName, LocalDate dueDate
     ) {
         var entity = new ProjectProgressEntity();
         entity.id = UUID.randomUUID();
@@ -69,16 +67,17 @@ public class ProjectProgressEntity {
         entity.actorId = actorId;
         entity.occurredAt = occurredAt;
         entity.correctsProgressId = correctsProgressId;
+        entity.progressDate = progressDate;
+        entity.ownerName = ownerName;
+        entity.dueDate = dueDate;
         return entity;
     }
 
     public static ProjectProgressEntity imported(UUID projectId, String content,
-            String nextAction, String ownerName, LocalDate dueDate,
+            String nextAction, String ownerName, LocalDate dueDate, LocalDate progressDate,
             UUID actorId, Instant occurredAt) {
-        var entity = append(projectId, content, nextAction, actorId, occurredAt, null);
-        entity.ownerName = ownerName;
-        entity.dueDate = dueDate;
-        return entity;
+        return append(projectId, content, nextAction, actorId, occurredAt,
+                null, progressDate, ownerName, dueDate);
     }
 
     public UUID id() { return id; }
@@ -86,6 +85,7 @@ public class ProjectProgressEntity {
     public String progressContent() { return progressContent; }
     public String nextAction() { return nextAction; }
     public Instant occurredAt() { return occurredAt; }
+    public LocalDate progressDate() { return progressDate; }
     public UUID actorId() { return actorId; }
     public UUID correctsProgressId() { return correctsProgressId; }
     public String ownerName() { return ownerName; }

@@ -1,6 +1,7 @@
 package com.pluto.ndi.projects.service;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.entity.ProjectProgressEntity;
@@ -13,12 +14,16 @@ public record ProjectProgressSummary(
         String nextAction,
         UUID actorId,
         Instant occurredAt,
-        UUID correctsProgressId
+        UUID correctsProgressId,
+        LocalDate progressDate,
+        String ownerName,
+        LocalDate dueDate
 ) {
     public static ProjectProgressSummary from(ProjectProgressEntity progress) {
         return new ProjectProgressSummary(
                 progress.id(), progress.projectId(), progress.progressContent(), progress.nextAction(),
-                progress.actorId(), progress.occurredAt(), progress.correctsProgressId()
+                progress.actorId(), progress.occurredAt(), progress.correctsProgressId(),
+                progress.progressDate(), progress.ownerName(), progress.dueDate()
         );
     }
 }

@@ -3,6 +3,8 @@ package com.pluto.ndi.projects.service;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -161,7 +163,9 @@ public class ProjectService {
                 .toList());
         stageMilestoneRepository.save(ProjectStageMilestoneEntity.initial(project.id(), actorId, occurredAt));
         progressRepository.save(ProjectProgressEntity.initial(
-                project.id(), normalized.initialProgress(), normalized.nextAction(), actorId, occurredAt));
+                project.id(), normalized.initialProgress(), normalized.nextAction(),
+                normalized.cityAccountManagerName(), actorId, occurredAt,
+                LocalDate.ofInstant(occurredAt, ZoneId.of("Asia/Shanghai"))));
         changeEventRepository.save(projectCreatedEvent(project, actorId, occurredAt,
                 "DUPLICATE_CANDIDATE".equals(duplicate.status()) ? normalized.duplicateReason() : null));
         if (draft != null) draftRepository.delete(draft);

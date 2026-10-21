@@ -3,6 +3,7 @@ package com.pluto.ndi.projects.service;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
 
@@ -115,7 +116,8 @@ public class ProjectStageService {
         if (request.proposedProgressContent() != null) {
             progressRepository.save(ProjectProgressEntity.initial(
                     project.id(), request.proposedProgressContent(), request.proposedNextAction(),
-                    request.initiatorId(), request.stageOccurredAt()));
+                    null, request.initiatorId(), request.stageOccurredAt(),
+                    LocalDate.ofInstant(request.stageOccurredAt(), BUSINESS_ZONE)));
         }
     }
 
