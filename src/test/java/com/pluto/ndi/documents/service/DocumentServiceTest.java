@@ -88,7 +88,7 @@ class DocumentServiceTest {
         assertThat(document.status()).isEqualTo(DocumentStatus.DELETED);
         assertThat(service.isUsable("PROJECT", projectId, document.id(), "GENERAL")).isFalse();
         var download = catchThrowable(() -> service.download("PROJECT", projectId, document.id()));
-        assertThat(((BusinessException) download).errorCode()).isEqualTo(DocumentErrorCode.NOT_AVAILABLE);
+        assertThat(((BusinessException) download).errorCode()).isEqualTo(DocumentErrorCode.NOT_FOUND);
         var completion = catchThrowable(() -> service.completeUpload("PROJECT", projectId, actorId, document.id()));
         assertThat(((BusinessException) completion).errorCode()).isEqualTo(DocumentErrorCode.NOT_FOUND);
     }

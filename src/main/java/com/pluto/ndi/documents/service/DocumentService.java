@@ -105,6 +105,9 @@ class DocumentService implements DocumentDirectory {
         var document = repository.findById(documentId)
                 .orElseThrow(() -> new BusinessException(DocumentErrorCode.NOT_FOUND));
         requireScope(document, scopeType, scopeId);
+        if (document.status() == DocumentStatus.DELETED) {
+            throw new BusinessException(DocumentErrorCode.NOT_FOUND);
+        }
         if (document.status() != DocumentStatus.AVAILABLE) {
             throw new BusinessException(DocumentErrorCode.NOT_AVAILABLE);
         }
