@@ -154,6 +154,16 @@ export interface WorkbenchOverview {
   stages: { stageCode: string; projectCount: number; expectedAmount: number }[];
   approvals: { pendingCount: number; overdueCount: number };
 }
+export interface ProjectRecentActivity {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  province: string;
+  city: string;
+  summary: string;
+  operatorName: string;
+  occurredAt: string;
+}
 export interface WorkbenchBreakdown {
   cities: { cityId: string; cityName: string; projectCount: number; expectedAmount: number }[];
   industries: {

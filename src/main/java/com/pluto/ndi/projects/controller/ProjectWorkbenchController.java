@@ -12,6 +12,8 @@ import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
 import com.pluto.ndi.projects.service.ProjectWorkbenchBreakdown;
 import com.pluto.ndi.projects.service.ProjectWorkbenchOverview;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
+import com.pluto.ndi.projects.service.ProjectActivityService;
+import com.pluto.ndi.projects.service.ProjectRecentActivity;
 import com.pluto.ndi.projects.service.ProjectMapService;
 import com.pluto.ndi.projects.service.ProjectMapView;
 import com.pluto.ndi.projects.service.ProjectMapBoundaryClient;
@@ -39,19 +41,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectWorkbenchController {
 
     private final ProjectWorkbenchService service;
+    private final ProjectActivityService activities;
     private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ProjectMapService maps;
     private final ProjectMapBoundaryClient boundaries;
     private final ApiResponseFactory responseFactory;
 
-    public ProjectWorkbenchController(ProjectWorkbenchService service,
+    public ProjectWorkbenchController(ProjectWorkbenchService service, ProjectActivityService activities,
             ProjectMonthlySnapshotService monthlySnapshots, ProjectMapService maps,
             ProjectMapBoundaryClient boundaries, ApiResponseFactory responseFactory) {
         this.service = service;
+        this.activities = activities;
         this.monthlySnapshots = monthlySnapshots;
         this.maps = maps;
         this.boundaries = boundaries;
         this.responseFactory = responseFactory;
+    }
+
+    @GetMapping("/recent-activities")
+    public ApiResponse<List<ProjectRecentActivity>> recentActivities(Authentication authentication) {
+        return responseFactory.success(activities.recent(actorId(authentication)));
     }
 
     @GetMapping("/map")

@@ -37,6 +37,9 @@ public class ProjectProgressEntity {
     @Column(name = "corrects_progress_id")
     private UUID correctsProgressId;
 
+    @Column(name = "source_type", nullable = false, length = 20)
+    private String sourceType;
+
     @Column(name = "owner_name", length = 100)
     private String ownerName;
 
@@ -50,8 +53,10 @@ public class ProjectProgressEntity {
             UUID projectId, String progressContent, String nextAction, String ownerName,
             UUID actorId, Instant occurredAt, LocalDate progressDate
     ) {
-        return append(projectId, progressContent, nextAction, actorId, occurredAt,
+        var entity = append(projectId, progressContent, nextAction, actorId, occurredAt,
                 null, progressDate, ownerName, null);
+        entity.sourceType = "INITIAL";
+        return entity;
     }
 
     public static ProjectProgressEntity append(
@@ -67,6 +72,7 @@ public class ProjectProgressEntity {
         entity.actorId = actorId;
         entity.occurredAt = occurredAt;
         entity.correctsProgressId = correctsProgressId;
+        entity.sourceType = correctsProgressId == null ? "APPENDED" : "CORRECTED";
         entity.progressDate = progressDate;
         entity.ownerName = ownerName;
         entity.dueDate = dueDate;
@@ -76,8 +82,10 @@ public class ProjectProgressEntity {
     public static ProjectProgressEntity imported(UUID projectId, String content,
             String nextAction, String ownerName, LocalDate dueDate, LocalDate progressDate,
             UUID actorId, Instant occurredAt) {
-        return append(projectId, content, nextAction, actorId, occurredAt,
+        var entity = append(projectId, content, nextAction, actorId, occurredAt,
                 null, progressDate, ownerName, dueDate);
+        entity.sourceType = "IMPORTED";
+        return entity;
     }
 
     public UUID id() { return id; }
@@ -88,6 +96,7 @@ public class ProjectProgressEntity {
     public LocalDate progressDate() { return progressDate; }
     public UUID actorId() { return actorId; }
     public UUID correctsProgressId() { return correctsProgressId; }
+    public String sourceType() { return sourceType; }
     public String ownerName() { return ownerName; }
     public LocalDate dueDate() { return dueDate; }
 }

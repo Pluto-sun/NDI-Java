@@ -13,6 +13,7 @@ import { amount } from '../../shared/ui/format';
 import { MetricBars } from './MetricBars';
 import { ProjectMapCard } from './ProjectMapCard';
 import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
+import { RecentActivitiesCard } from './RecentActivitiesCard';
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
@@ -169,6 +170,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
               }))}
             />
           </div>
+          <RecentActivitiesCard />
           <div className="panel">
             <h2>历史月报与趋势</h2>
             <p className="subtle">

@@ -9,6 +9,7 @@ import type {
   ReferenceData,
   WorkbenchBreakdown,
   WorkbenchOverview,
+  ProjectRecentActivity,
   ApprovalSummary,
   ApprovalTask,
   DocumentPurpose,
@@ -126,6 +127,7 @@ export const projectsApi = {
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),
+  recentActivities: () => request<ProjectRecentActivity[]>('/workbench/recent-activities'),
   map: (provinceId: string | null, includeTerminated: boolean, stage?: string) => {
     const query = new URLSearchParams({ includeTerminated: String(includeTerminated) });
     if (provinceId) query.set('provinceId', provinceId);

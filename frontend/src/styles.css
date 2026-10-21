@@ -322,6 +322,23 @@ tbody tr:last-child td {
   color: #8a7b80;
   font-size: 12px;
 }
+.recent-activities .panel-top {
+  gap: 16px;
+  padding: 0 0 16px;
+  margin-bottom: 10px;
+}
+.recent-activities .panel-top h2 {
+  margin-bottom: 6px;
+}
+.recent-activities .panel-top .subtle {
+  margin: 0;
+}
+.recent-activities table {
+  min-width: 700px;
+}
+.recent-activities-more {
+  margin-top: 16px;
+}
 .number {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -1237,6 +1254,10 @@ select:disabled {
   }
 }
 @media (max-width: 620px) {
+  .recent-activities .panel-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .category-amount-bars li {
     grid-template-columns: minmax(0, 1fr) auto;
   }

@@ -52,6 +52,7 @@ import com.pluto.ndi.projects.service.ProjectProgressService;
 import com.pluto.ndi.projects.service.ProjectDocumentService;
 import com.pluto.ndi.projects.service.ProjectProfileService;
 import com.pluto.ndi.projects.service.ProjectWorkbenchService;
+import com.pluto.ndi.projects.service.ProjectActivityService;
 import com.pluto.ndi.projects.service.ProjectMapService;
 import com.pluto.ndi.projects.service.ProjectMapBoundaryClient;
 import com.pluto.ndi.projects.service.AppendProgressCommand;
@@ -120,6 +121,7 @@ class ProjectApprovalIT {
     @Autowired private ProjectDocumentService projectDocumentService;
     @Autowired private ProjectProfileService profileService;
     @Autowired private ProjectWorkbenchService workbenchService;
+    @Autowired private ProjectActivityService activityService;
     @Autowired private ProjectMapService mapService;
     @Autowired private ProjectExportService exportService;
     @Autowired private ProjectExportWorker exportWorker;
@@ -836,6 +838,42 @@ class ProjectApprovalIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.projectCount").value(2))
                 .andExpect(jsonPath("$.data.stages[4].projectCount").value(1));
+    }
+
+    @Test
+    void recentActivitiesRespectCityScopeAndExcludePendingChanges() throws Exception {
+        var projectId = createProject();
+        var secondCityId = UUID.randomUUID();
+        var secondCityUserId = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, '第二地市', true)",
+                secondCityId.toString(), provinceId.toString(), secondCityId.toString().replace("-", ""));
+        addUserInProvince(secondCityUserId, provinceId, secondCityId, "CITY_REPORTER");
+        var otherProjectId = projectService.createProject(secondCityUserId, new CreateProjectCommand(
+                provinceId, secondCityId, "异地项目", "客户", "C25", "升级需求",
+                new BigDecimal("90.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("30.00"))),
+                "初次交流", "继续跟进")).id();
+        progressService.append(cityUserId, projectId, new AppendProgressCommand("推进方案", "准备招标", null));
+        var pending = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
+                MajorChangeType.TOTAL_AMOUNT, ProjectInitiatorLevel.CITY, provinceUserId,
+                "客户追加预算", null, new BigDecimal("120.00"), null));
+
+        var beforeApproval = activityService.recent(cityUserId);
+        assertThat(beforeApproval).hasSize(2);
+        assertThat(beforeApproval).extracting(item -> item.projectId()).containsOnly(projectId);
+        assertThat(beforeApproval).extracting(item -> item.summary())
+                .contains("追加项目进展").noneMatch(item -> item.contains("重大变更"));
+        assertThat(activityService.recent(provinceUserId)).extracting(item -> item.projectId())
+                .contains(projectId, otherProjectId);
+
+        approvalService.decide(provinceUserId, pending.id(), true, null);
+        mockMvc.perform(get("/api/v1/projects/workbench/recent-activities")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].projectId").value(projectId.toString()))
+                .andExpect(jsonPath("$.data[0].summary").value("重大变更审批通过"));
+        assertThat(activityService.recent(secondCityUserId)).extracting(item -> item.projectId())
+                .containsOnly(otherProjectId);
     }
 
     @Test
