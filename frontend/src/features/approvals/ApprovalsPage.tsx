@@ -423,6 +423,7 @@ export function ApprovalDetailPage({
             </div>
           )}
           {item.status === 'PENDING' &&
+            item.canReview &&
             item.approverId === me.id &&
             !me.roleCodes.includes('SYSTEM_ADMIN') && (
               <form

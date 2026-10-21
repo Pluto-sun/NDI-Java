@@ -39,10 +39,18 @@ public class ProjectMapMetricRepository {
 
     public List<ProjectMapMetric> summarize(YearMonth month, UUID provinceId,
             boolean includeTerminated, String stageCode) {
+        return summarize(month, provinceId, includeTerminated, stageCode,
+                new com.pluto.ndi.identity.service.ProjectDataScope(com.pluto.ndi.identity.service.ProjectDataScope.Level.NATIONAL, null));
+    }
+
+    public List<ProjectMapMetric> summarize(YearMonth month, UUID provinceId,
+            boolean includeTerminated, String stageCode, com.pluto.ndi.identity.service.ProjectDataScope scope) {
         var historical = month != null;
         var regionColumn = provinceId == null ? "province_id" : "city_id";
         var stageColumn = historical ? "stage_code" : "current_stage_code";
         var categoryPrefix = historical ? "project" : "category";
+        var parameters = new MapSqlParameterSource();
+        var scopeFilter = com.pluto.ndi.projects.mapper.ProjectScopeSql.named(scope, "project.province_id", "project.city_id", parameters);
         var sql = "SELECT BIN_TO_UUID(project." + regionColumn + ") AS region_id, "
                 + "COUNT(*) AS project_count, COALESCE(SUM(project.total_amount), 0) AS expected_amount, "
                 + "COALESCE(SUM(" + categoryPrefix + ".network_amount), 0) AS network_amount, "
@@ -50,11 +58,11 @@ public class ProjectMapMetricRepository {
                 + "COALESCE(SUM(" + categoryPrefix + ".big_data_amount), 0) AS big_data_amount, "
                 + "COALESCE(SUM(" + categoryPrefix + ".wangwu_amount), 0) AS wangwu_amount "
                 + (historical ? MONTHLY_FROM : CURRENT_FROM)
+                + scopeFilter
                 + (provinceId == null ? "" : " AND project.province_id = UUID_TO_BIN(:provinceId)")
                 + (includeTerminated ? "" : " AND project." + stageColumn + " <> 'TERMINATED'")
                 + (stageCode == null ? "" : " AND project." + stageColumn + " = :stageCode")
                 + " GROUP BY project." + regionColumn;
-        var parameters = new MapSqlParameterSource();
         if (historical) parameters.addValue("month", Date.valueOf(month.atDay(1)));
         if (provinceId != null) parameters.addValue("provinceId", provinceId.toString());
         if (stageCode != null) parameters.addValue("stageCode", stageCode);

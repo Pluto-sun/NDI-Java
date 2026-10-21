@@ -46,10 +46,10 @@ class ProjectActivityServiceTest {
         when(identities.findProjectActor(actorId)).thenReturn(Optional.of(actor));
         when(identities.findReadableProjectScope(actor)).thenReturn(Optional.of(
                 new ProjectDataScope(ProjectDataScope.Level.PROVINCE, provinceId)));
-        when(events.findRecentActivities(since, "PROVINCE", provinceId, page)).thenReturn(List.of(
+        when(events.findRecentActivities(since, "PROVINCE", provinceId, java.util.Set.of(provinceId), page)).thenReturn(List.of(
                 row(projectId, NOW.minusSeconds(10), "STAGE_ADVANCEMENT_APPROVED",
                         "{\"before\":{\"stageCode\":\"BIDDING\"},\"after\":{\"stageCode\":\"SIGNED\"}}")));
-        when(progresses.findRecentActivities(since, "PROVINCE", provinceId, page)).thenReturn(List.of(
+        when(progresses.findRecentActivities(since, "PROVINCE", provinceId, java.util.Set.of(provinceId), page)).thenReturn(List.of(
                 row(projectId, NOW.minusSeconds(5), "PROGRESS_APPENDED", null)));
 
         var result = service.recent(actorId);
@@ -57,8 +57,8 @@ class ProjectActivityServiceTest {
         assertThat(result).extracting(ProjectRecentActivity::summary)
                 .containsExactly("追加项目进展", "阶段推进审批通过：签约");
         assertThat(result).allMatch(activity -> activity.projectId().equals(projectId));
-        verify(events).findRecentActivities(since, "PROVINCE", provinceId, page);
-        verify(progresses).findRecentActivities(since, "PROVINCE", provinceId, page);
+        verify(events).findRecentActivities(since, "PROVINCE", provinceId, java.util.Set.of(provinceId), page);
+        verify(progresses).findRecentActivities(since, "PROVINCE", provinceId, java.util.Set.of(provinceId), page);
     }
 
     @Test
@@ -71,6 +71,7 @@ class ProjectActivityServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.errorCode()).isEqualTo(ProjectErrorCode.ACCESS_FORBIDDEN));
         verify(events, never()).findRecentActivities(
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }

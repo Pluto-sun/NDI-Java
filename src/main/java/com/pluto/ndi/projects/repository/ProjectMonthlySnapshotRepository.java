@@ -193,18 +193,13 @@ public class ProjectMonthlySnapshotRepository {
             case "industry" -> "industry_name";
             default -> "stage_code";
         };
-        var scopeSql = switch (scope.level()) {
-            case NATIONAL -> "";
-            case PROVINCE -> "AND province_id = UUID_TO_BIN(?) ";
-            case CITY -> "AND city_id = UUID_TO_BIN(?) ";
-        };
+        var scopeFilter = com.pluto.ndi.projects.mapper.ProjectScopeSql.positional(scope, "province_id", "city_id");
         var sql = "SELECT " + column + " AS code, " + nameColumn + " AS display_name, "
                 + "COUNT(*) AS project_count, COALESCE(SUM(total_amount), 0) AS amount "
-                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeSql
+                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeFilter.sql()
                 + (includeTerminated ? "" : "AND stage_code <> 'TERMINATED' ")
                 + "GROUP BY " + column + ", " + nameColumn;
-        var arguments = scope.level() == ProjectDataScope.Level.NATIONAL
-                ? new Object[] {date(month)} : new Object[] {date(month), scope.organizationId().toString()};
+        var arguments = scopeFilter.after(date(month));
         return jdbc.query(sql, (rs, rowNum) -> new Group(rs.getString("code"),
                 rs.getString("display_name"), rs.getLong("project_count"),
                 rs.getBigDecimal("amount")), arguments);
@@ -212,19 +207,14 @@ public class ProjectMonthlySnapshotRepository {
 
     public ProjectCategoryTotals categoryTotals(YearMonth month, ProjectDataScope scope,
             boolean includeTerminated) {
-        var scopeSql = switch (scope.level()) {
-            case NATIONAL -> "";
-            case PROVINCE -> "AND province_id = UUID_TO_BIN(?) ";
-            case CITY -> "AND city_id = UUID_TO_BIN(?) ";
-        };
+        var scopeFilter = com.pluto.ndi.projects.mapper.ProjectScopeSql.positional(scope, "province_id", "city_id");
         var sql = "SELECT COALESCE(SUM(network_amount), 0) AS network_amount, "
                 + "COALESCE(SUM(gewu_amount), 0) AS gewu_amount, "
                 + "COALESCE(SUM(big_data_amount), 0) AS big_data_amount, "
                 + "COALESCE(SUM(wangwu_amount), 0) AS wangwu_amount "
-                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeSql
+                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeFilter.sql()
                 + (includeTerminated ? "" : "AND stage_code <> 'TERMINATED'");
-        var arguments = scope.level() == ProjectDataScope.Level.NATIONAL
-                ? new Object[] {date(month)} : new Object[] {date(month), scope.organizationId().toString()};
+        var arguments = scopeFilter.after(date(month));
         return jdbc.queryForObject(sql, (rs, rowNum) -> new ProjectCategoryTotals(
                 rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
                 rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount")), arguments);
@@ -232,11 +222,10 @@ public class ProjectMonthlySnapshotRepository {
 
     public List<StageTrendGroup> stageTrend(YearMonth from, YearMonth to,
             ProjectDataScope scope, List<String> stageCodes) {
-        var scopeSql = switch (scope.level()) {
-            case NATIONAL -> "";
-            case PROVINCE -> "AND province_id = UUID_TO_BIN(:organizationId) ";
-            case CITY -> "AND city_id = UUID_TO_BIN(:organizationId) ";
-        };
+        var parameters = new MapSqlParameterSource()
+                .addValue("fromMonth", date(from)).addValue("toMonth", date(to))
+                .addValue("stageCodes", stageCodes);
+        var scopeSql = com.pluto.ndi.projects.mapper.ProjectScopeSql.named(scope, "province_id", "city_id", parameters);
         var sql = """
                 SELECT month_start, stage_code, COUNT(*) AS project_count,
                        COALESCE(SUM(total_amount), 0) AS total_amount,
@@ -247,12 +236,6 @@ public class ProjectMonthlySnapshotRepository {
                 FROM project_monthly_snapshot
                 WHERE month_start BETWEEN :fromMonth AND :toMonth
                 """ + scopeSql + "AND stage_code IN (:stageCodes) GROUP BY month_start, stage_code";
-        var parameters = new MapSqlParameterSource()
-                .addValue("fromMonth", date(from)).addValue("toMonth", date(to))
-                .addValue("stageCodes", stageCodes);
-        if (scope.organizationId() != null) {
-            parameters.addValue("organizationId", scope.organizationId().toString());
-        }
         return namedJdbc.query(sql, parameters, (rs, rowNum) -> new StageTrendGroup(
                 YearMonth.from(rs.getDate("month_start").toLocalDate()),
                 rs.getString("stage_code"), rs.getLong("project_count"),

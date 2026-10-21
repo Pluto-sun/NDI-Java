@@ -100,7 +100,9 @@ export function ProjectDetailPage({
     reference.stages.find((item) => item.code === code)?.label ?? code;
   const canCollaborate =
     !me.roleCodes.includes('SYSTEM_ADMIN') &&
-    me.provinceId === detail?.provinceId &&
+    (me.roleCodes.includes('INTERFACE_REVIEWER')
+      ? !!detail && me.reviewerProvinceIds.includes(detail.provinceId)
+      : me.provinceId === detail?.provinceId) &&
     (me.roleCodes.some((role) =>
       [
         'PROVINCE_REPORTER',

@@ -137,8 +137,21 @@ public class ProjectApprovalService {
         if (!actorId.equals(request.initiatorId()) && !actorId.equals(request.approverId())) {
             throw new BusinessException(ProjectErrorCode.APPROVAL_FORBIDDEN);
         }
-        enabledActor(actorId);
-        return ApprovalSummary.from(request);
+        var actor = enabledActor(actorId);
+        var project = projectRepository.findById(request.projectId())
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
+        if (!actorId.equals(request.initiatorId())) {
+            var scope = identityDirectory.findReadableProjectScope(actor)
+                    .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+            boolean readable = switch (scope.level()) {
+                case NATIONAL -> true;
+                case PROVINCE -> scope.provinceIds().contains(project.provinceId());
+                case CITY -> scope.organizationId().equals(project.cityId());
+            };
+            if (!readable) throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
+        }
+        return ApprovalSummary.from(request, request.status() == ApprovalStatus.PENDING
+                && actorId.equals(request.approverId()) && isEligibleApprover(actorId, project, request));
     }
 
     @Transactional

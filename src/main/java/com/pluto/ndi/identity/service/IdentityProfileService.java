@@ -22,10 +22,13 @@ public class IdentityProfileService {
     private final PasswordEncoder passwords;
     private final AuditWriter audit;
     private final Clock clock;
+    private final com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers;
     public IdentityProfileService(UserAccountRepository accounts, UserRoleRepository roles,
-            UserSessionRepository sessions, PasswordEncoder passwords, AuditWriter audit, Clock clock) {
+            UserSessionRepository sessions, PasswordEncoder passwords, AuditWriter audit, Clock clock,
+            com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers) {
         this.accounts = accounts; this.roles = roles; this.sessions = sessions;
         this.passwords = passwords; this.audit = audit; this.clock = clock;
+        this.reviewers = reviewers;
     }
 
     @Transactional(readOnly = true)
@@ -74,6 +77,6 @@ public class IdentityProfileService {
     }
     private IdentityUserView view(UserAccountEntity user) {
         return new IdentityUserView(user.id(), user.loginName(), user.displayName(), user.email(),
-                user.provinceId(), user.cityId(), roles.findRoleCodesByUserId(user.id()));
+                user.provinceId(), user.cityId(), roles.findRoleCodesByUserId(user.id()), reviewers.provinces(user.id()));
     }
 }

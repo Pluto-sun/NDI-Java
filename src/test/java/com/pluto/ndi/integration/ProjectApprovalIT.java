@@ -1388,6 +1388,7 @@ class ProjectApprovalIT {
                 cityUser ? uuidBytes(cityId) : null);
         jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), ?)",
                 userId.toString(), roleCode);
+        if (roleCode.equals("INTERFACE_REVIEWER")) jdbc.update("INSERT INTO identity_reviewer_province (reviewer_id, province_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", userId.toString(), provinceId.toString());
     }
 
     private void addUserInProvince(UUID userId, UUID userProvinceId, UUID userCityId, String roleCode) {
@@ -1399,6 +1400,7 @@ class ProjectApprovalIT {
                 userCityId == null ? null : userCityId.toString());
         jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), ?)",
                 userId.toString(), roleCode);
+        if (roleCode.equals("INTERFACE_REVIEWER") && userProvinceId != null) jdbc.update("INSERT INTO identity_reviewer_province (reviewer_id, province_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", userId.toString(), userProvinceId.toString());
     }
 
     private byte[] uuidBytes(UUID value) {

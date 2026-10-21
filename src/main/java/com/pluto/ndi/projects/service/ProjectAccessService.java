@@ -30,7 +30,7 @@ public class ProjectAccessService {
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         boolean inScope = switch (scope.level()) {
             case NATIONAL -> true;
-            case PROVINCE -> scope.organizationId().equals(project.provinceId());
+            case PROVINCE -> scope.provinceIds().contains(project.provinceId());
             case CITY -> scope.organizationId().equals(project.cityId());
         };
         if (!inScope) {

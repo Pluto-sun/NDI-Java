@@ -11,6 +11,7 @@ export interface AdminAccount {
   passwordInitialized: boolean;
   version: number;
   roleCodes: string[];
+  reviewerProvinceIds: string[];
 }
 export interface AccountValues {
   loginName: string;
@@ -28,9 +29,10 @@ export interface AdminConfiguration {
 const root = '/api/v1/admin';
 export const adminApi = {
   configuration: () => requestAt<AdminConfiguration>(root, '/configuration'),
-  accounts: (search: string, enabled: string, page: number) => {
+  accounts: (search: string, enabled: string, page: number, role?: string) => {
     const query = new URLSearchParams({ search, page: String(page), size: '20' });
     if (enabled) query.set('enabled', enabled);
+    if (role) query.set('role', role);
     return requestAt<Page<AdminAccount>>(root, `/users?${query}`);
   },
   create: (account: AccountValues, password: string) =>
@@ -52,4 +54,11 @@ export const adminApi = {
     }),
   createCity: (provinceId: string, name: string) =>
     requestAt(root, '/cities', { method: 'POST', ...jsonBody({ provinceId, name }) }),
+  saveReviewerMappings: (
+    reviewers: { reviewerId: string; version: number; provinceIds: string[] }[],
+  ) =>
+    requestAt<AdminAccount[]>(root, '/reviewer-province-maps', {
+      method: 'PUT',
+      ...jsonBody({ reviewers }),
+    }),
 };

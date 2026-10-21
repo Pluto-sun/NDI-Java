@@ -1223,6 +1223,10 @@ select:disabled {
   font-size: 12px;
   color: #9a858b;
 }
+.reviewer-scope-card,
+.reviewer-save-bar {
+  margin-bottom: 20px;
+}
 .account-password-panel {
   margin-top: 24px;
 }

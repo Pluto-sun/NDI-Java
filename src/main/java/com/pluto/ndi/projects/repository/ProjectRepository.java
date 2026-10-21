@@ -14,6 +14,21 @@ import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, JpaSpecificationExecutor<ProjectEntity> {
 
+    @Query("select project.currentStageCode as stageCode, count(project) as projectCount, sum(project.totalAmount) as expectedAmount "
+            + "from ProjectEntity project where project.provinceId in :provinceIds "
+            + "and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED') group by project.currentStageCode")
+    List<ProjectStageAggregate> summarizeCurrentStagesByProvinces(java.util.Set<UUID> provinceIds, boolean includeTerminated);
+
+    @Query("select project.cityId as cityId, count(project) as projectCount, sum(project.totalAmount) as expectedAmount "
+            + "from ProjectEntity project where project.provinceId in :provinceIds "
+            + "and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED') group by project.cityId")
+    List<ProjectCityAggregate> summarizeCurrentCitiesByProvinces(java.util.Set<UUID> provinceIds, boolean includeTerminated);
+
+    @Query("select project.industryCode as industryCode, count(project) as projectCount, sum(project.totalAmount) as expectedAmount "
+            + "from ProjectEntity project where project.provinceId in :provinceIds "
+            + "and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED') group by project.industryCode")
+    List<ProjectIndustryAggregate> summarizeCurrentIndustriesByProvinces(java.util.Set<UUID> provinceIds, boolean includeTerminated);
+
     List<ProjectEntity> findByCityId(UUID cityId);
 
     @Query("""
@@ -63,17 +78,6 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
             select project.currentStageCode as stageCode, count(project) as projectCount,
                    sum(project.totalAmount) as expectedAmount
             from ProjectEntity project
-            where project.provinceId = :provinceId
-              and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
-            group by project.currentStageCode
-            """)
-    List<ProjectStageAggregate> summarizeCurrentStagesByProvince(
-            @Param("provinceId") UUID provinceId, @Param("includeTerminated") boolean includeTerminated);
-
-    @Query("""
-            select project.currentStageCode as stageCode, count(project) as projectCount,
-                   sum(project.totalAmount) as expectedAmount
-            from ProjectEntity project
             where project.cityId = :cityId
               and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
             group by project.currentStageCode
@@ -85,34 +89,12 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
             select project.cityId as cityId, count(project) as projectCount,
                    sum(project.totalAmount) as expectedAmount
             from ProjectEntity project
-            where project.provinceId = :provinceId
-              and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
-            group by project.cityId
-            """)
-    List<ProjectCityAggregate> summarizeCurrentCitiesByProvince(
-            @Param("provinceId") UUID provinceId, @Param("includeTerminated") boolean includeTerminated);
-
-    @Query("""
-            select project.cityId as cityId, count(project) as projectCount,
-                   sum(project.totalAmount) as expectedAmount
-            from ProjectEntity project
             where project.cityId = :cityId
               and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
             group by project.cityId
             """)
     List<ProjectCityAggregate> summarizeCurrentCitiesByCity(
             @Param("cityId") UUID cityId, @Param("includeTerminated") boolean includeTerminated);
-
-    @Query("""
-            select project.industryCode as industryCode, count(project) as projectCount,
-                   sum(project.totalAmount) as expectedAmount
-            from ProjectEntity project
-            where project.provinceId = :provinceId
-              and (:includeTerminated = true or project.currentStageCode <> 'TERMINATED')
-            group by project.industryCode
-            """)
-    List<ProjectIndustryAggregate> summarizeCurrentIndustriesByProvince(
-            @Param("provinceId") UUID provinceId, @Param("includeTerminated") boolean includeTerminated);
 
     @Query("""
             select project.industryCode as industryCode, count(project) as projectCount,

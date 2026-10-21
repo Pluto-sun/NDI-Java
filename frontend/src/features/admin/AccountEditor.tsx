@@ -20,7 +20,7 @@ export function AccountEditor({
           displayName: user.displayName,
           email: user.email ?? '',
           roleCodes: user.roleCodes,
-          provinceId: user.provinceId,
+          provinceId: user.roleCodes.includes('INTERFACE_REVIEWER') ? null : user.provinceId,
           cityId: user.cityId,
         }
       : {
@@ -46,7 +46,7 @@ export function AccountEditor({
   const scopes = configuration.roles
     .filter((role) => values.roleCodes.includes(role.code))
     .map((role) => role.scope);
-  const hasProvince = scopes.some((scope) => ['PROVINCE', 'CITY', 'REVIEWER'].includes(scope));
+  const hasProvince = scopes.some((scope) => ['PROVINCE', 'CITY'].includes(scope));
   const hasCity = scopes.includes('CITY');
   function changeRole(code: string, checked: boolean) {
     const role = configuration.roles.find((item) => item.code === code);
@@ -61,7 +61,7 @@ export function AccountEditor({
     setValues({
       ...values,
       roleCodes,
-      provinceId: role?.scope === 'NATIONAL' ? null : values.provinceId,
+      provinceId: ['NATIONAL', 'REVIEWER'].includes(role?.scope ?? '') ? null : values.provinceId,
       cityId: role?.scope === 'CITY' ? values.cityId : null,
     });
   }
@@ -205,7 +205,7 @@ export function AccountEditor({
       )}
       {scopes.includes('REVIEWER') && (
         <Feedback>
-          本切片保留单省范围；多省负责范围及跨模块权限将在下一切片统一接入。未指定省份的接口人尚无项目权限。
+          接口人不绑定单个属地。创建账号后，请到“接口人范围”配置负责省份，支持多个省份；未配置时没有项目权限。
         </Feedback>
       )}
       <div className="form-actions">

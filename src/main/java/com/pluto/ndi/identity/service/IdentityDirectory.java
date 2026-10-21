@@ -26,6 +26,8 @@ public interface IdentityDirectory {
 
     Optional<ProjectDataScope> findReadableProjectScope(ProjectActor actor);
 
+    ProjectApprovalScope findApprovalScope(UUID actorId);
+
     boolean isEligibleProvinceLeader(UUID userId, UUID provinceId);
 
     Optional<UUID> findEligibleProvinceLeaderByName(String displayName, UUID provinceId);

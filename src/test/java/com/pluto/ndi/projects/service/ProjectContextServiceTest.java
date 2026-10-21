@@ -40,6 +40,8 @@ class ProjectContextServiceTest {
         service = new ProjectContextService(identities, organizations, industries);
         when(identities.findProjectUser(actorId)).thenReturn(Optional.of(new ProjectUser(
                 actorId, "省分负责人", provinceId, null, List.of("PROVINCE_REPORTER"))));
+        when(identities.findReadableProjectScope(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(
+                new com.pluto.ndi.identity.service.ProjectDataScope(com.pluto.ndi.identity.service.ProjectDataScope.Level.PROVINCE, provinceId)));
     }
 
     @Test

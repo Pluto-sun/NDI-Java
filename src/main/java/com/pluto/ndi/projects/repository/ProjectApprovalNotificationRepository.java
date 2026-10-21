@@ -13,7 +13,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
-public interface ProjectApprovalNotificationRepository extends JpaRepository<ProjectApprovalNotificationEntity, UUID> {
+public interface ProjectApprovalNotificationRepository extends JpaRepository<ProjectApprovalNotificationEntity, UUID>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<ProjectApprovalNotificationEntity> {
 
     Page<ProjectApprovalNotificationEntity> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
 

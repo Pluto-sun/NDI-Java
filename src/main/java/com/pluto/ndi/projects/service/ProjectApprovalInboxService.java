@@ -35,7 +35,10 @@ public class ProjectApprovalInboxService {
     public Page<ApprovalTaskSummary> findPending(UUID actorId, Pageable pageable) {
         requireEnabled(actorId);
         var now = Instant.now(clock);
-        return repository.findByApproverIdAndStatusOrderByDueAtAsc(actorId, ApprovalStatus.PENDING, pageable)
+        var scope = identityDirectory.findApprovalScope(actorId);
+        if (scope.empty()) return Page.empty(pageable);
+        return repository.findAll(pending(actorId, scope, null), org.springframework.data.domain.PageRequest.of(
+                        pageable.getPageNumber(), pageable.getPageSize(), org.springframework.data.domain.Sort.by("dueAt", "id")))
                 .map(request -> ApprovalTaskSummary.from(request, now));
     }
 
@@ -50,14 +53,34 @@ public class ProjectApprovalInboxService {
     public ApprovalInboxCounts counts(UUID actorId) {
         requireEnabled(actorId);
         var now = Instant.now(clock);
+        var scope = identityDirectory.findApprovalScope(actorId);
+        if (scope.empty()) return new ApprovalInboxCounts(0, 0);
         return new ApprovalInboxCounts(
-                repository.countByApproverIdAndStatus(actorId, ApprovalStatus.PENDING),
-                repository.countByApproverIdAndStatusAndDueAtLessThanEqual(
-                        actorId, ApprovalStatus.PENDING, now));
+                repository.count(pending(actorId, scope, null)),
+                repository.count(pending(actorId, scope, now)));
     }
 
-    private void requireEnabled(UUID actorId) {
-        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
+    private org.springframework.data.jpa.domain.Specification<com.pluto.ndi.projects.domain.entity.ProjectApprovalRequestEntity> pending(
+            UUID actorId, com.pluto.ndi.identity.service.ProjectApprovalScope scope, Instant dueAt) {
+        return (request, query, builder) -> {
+            var project = query.from(com.pluto.ndi.projects.domain.entity.ProjectEntity.class);
+            var interfaceProvince = project.get("provinceId").in(scope.interfaceProvinceIds());
+            var leaderProvince = project.get("provinceId").in(scope.provinceLeaderProvinceIds());
+            var eligible = builder.or(
+                    builder.and(builder.equal(request.get("requestType"), "STAGE_ADVANCEMENT"), interfaceProvince),
+                    builder.and(builder.equal(request.get("requestType"), "MAJOR_CHANGE"),
+                            builder.equal(request.get("initiatorLevel"), com.pluto.ndi.identity.service.ProjectInitiatorLevel.PROVINCE), interfaceProvince),
+                    builder.and(builder.equal(request.get("requestType"), "MAJOR_CHANGE"),
+                            builder.equal(request.get("initiatorLevel"), com.pluto.ndi.identity.service.ProjectInitiatorLevel.CITY), leaderProvince));
+            var base = builder.and(builder.equal(project.get("id"), request.get("projectId")),
+                    builder.equal(request.get("approverId"), actorId), builder.equal(request.get("status"), ApprovalStatus.PENDING),
+                    eligible);
+            return dueAt == null ? base : builder.and(base, builder.lessThanOrEqualTo(request.get("dueAt"), dueAt));
+        };
+    }
+
+    private ProjectActor requireEnabled(UUID actorId) {
+        return identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
     }
 }

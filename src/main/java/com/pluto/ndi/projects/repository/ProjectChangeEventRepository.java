@@ -26,11 +26,11 @@ public interface ProjectChangeEventRepository extends JpaRepository<ProjectChang
             join UserAccountEntity operator on operator.id = event.actorId
             where event.occurredAt >= :since
               and (:scopeLevel = 'NATIONAL'
-                   or (:scopeLevel = 'PROVINCE' and project.provinceId = :scopeId)
+                   or (:scopeLevel = 'PROVINCE' and project.provinceId in :provinceIds)
                    or (:scopeLevel = 'CITY' and project.cityId = :scopeId))
             order by event.occurredAt desc, event.id desc
             """)
     List<ProjectActivitySourceRow> findRecentActivities(
             @Param("since") Instant since, @Param("scopeLevel") String scopeLevel,
-            @Param("scopeId") UUID scopeId, Pageable pageable);
+            @Param("scopeId") UUID scopeId, @Param("provinceIds") java.util.Set<UUID> provinceIds, Pageable pageable);
 }

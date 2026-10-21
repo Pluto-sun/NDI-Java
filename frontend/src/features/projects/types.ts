@@ -17,6 +17,7 @@ export interface ProjectUser {
   provinceId: string | null;
   cityId: string | null;
   roleCodes: string[];
+  reviewerProvinceIds: string[];
 }
 export interface ReferenceData {
   provinces: ProvinceOption[];
@@ -200,6 +201,7 @@ export type ProjectChangeField =
   | 'WANGWU_AMOUNT'
   | 'STAGE';
 export interface ApprovalSummary {
+  canReview: boolean;
   id: string;
   projectId: string;
   requestType: 'STAGE_ADVANCEMENT' | 'MAJOR_CHANGE';

@@ -30,10 +30,13 @@ class IdentityPermissionService implements IdentityDirectory {
 
     private final UserAccountRepository userAccountRepository;
     private final UserRoleRepository userRoleRepository;
+    private final com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers;
 
-    IdentityPermissionService(UserAccountRepository userAccountRepository, UserRoleRepository userRoleRepository) {
+    IdentityPermissionService(UserAccountRepository userAccountRepository, UserRoleRepository userRoleRepository,
+            com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers) {
         this.userAccountRepository = userAccountRepository;
         this.userRoleRepository = userRoleRepository;
+        this.reviewers = reviewers;
     }
 
     @Override
@@ -71,7 +74,7 @@ class IdentityPermissionService implements IdentityDirectory {
 
     @Override
     public List<ProjectUser> findEligibleStageApprovers(UUID provinceId) {
-        return provinceUsers(provinceId).stream()
+        return toProjectUsers(userAccountRepository.findAllById(reviewers.reviewers(provinceId)).stream().filter(UserAccountEntity::enabled).toList()).stream()
                 .filter(user -> user.roleCodes().contains(INTERFACE_PROJECT_READER_ROLE)
                         && !user.roleCodes().contains(SYSTEM_ADMIN_ROLE))
                 .toList();
@@ -80,12 +83,10 @@ class IdentityPermissionService implements IdentityDirectory {
     @Override
     public List<ProjectUser> findEligibleMajorChangeApprovers(UUID provinceId,
             ProjectInitiatorLevel initiatorLevel) {
+        if (initiatorLevel == ProjectInitiatorLevel.PROVINCE) return findEligibleStageApprovers(provinceId);
         return provinceUsers(provinceId).stream()
                 .filter(user -> !user.roleCodes().contains(SYSTEM_ADMIN_ROLE))
-                .filter(user -> switch (initiatorLevel) {
-                    case CITY -> user.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
-                    case PROVINCE -> user.roleCodes().contains(INTERFACE_PROJECT_READER_ROLE);
-                })
+                .filter(user -> user.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains))
                 .toList();
     }
 
@@ -95,18 +96,20 @@ class IdentityPermissionService implements IdentityDirectory {
 
     private ProjectUser toProjectUser(UserAccountEntity account) {
         return new ProjectUser(account.id(), account.displayName(), account.provinceId(), account.cityId(),
-                roleCodes(account.id()).stream().sorted().toList());
+                roleCodes(account.id()).stream().sorted().toList(), reviewers.provinces(account.id()));
     }
 
     private List<ProjectUser> toProjectUsers(List<UserAccountEntity> accounts) {
         if (accounts.isEmpty()) return List.of();
         var ids = accounts.stream().map(UserAccountEntity::id).toList();
+        var mappedProvinces = reviewers.assignments(ids);
         Map<UUID, List<String>> rolesByUser = userRoleRepository.findAssignmentsByUserIds(ids).stream()
                 .collect(Collectors.groupingBy(UserRoleAssignment::userId,
                         Collectors.mapping(UserRoleAssignment::roleCode, Collectors.toList())));
         return accounts.stream().map(account -> new ProjectUser(account.id(), account.displayName(),
                 account.provinceId(), account.cityId(),
-                rolesByUser.getOrDefault(account.id(), List.of()).stream().sorted().toList())).toList();
+                rolesByUser.getOrDefault(account.id(), List.of()).stream().sorted().toList(),
+                mappedProvinces.getOrDefault(account.id(), List.of()))).toList();
     }
 
     @Override
@@ -142,8 +145,12 @@ class IdentityPermissionService implements IdentityDirectory {
         if (roleCodes.stream().anyMatch(NATIONAL_PROJECT_READ_ROLES::contains)) {
             return Optional.of(new ProjectDataScope(ProjectDataScope.Level.NATIONAL, null));
         }
-        boolean provinceReader = roleCodes.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains)
-                || roleCodes.contains(INTERFACE_PROJECT_READER_ROLE);
+        boolean provinceReader = roleCodes.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains);
+        if (roleCodes.contains(INTERFACE_PROJECT_READER_ROLE)) {
+            var provinces = new java.util.HashSet<>(reviewers.provinces(actor.id()));
+            if (provinceReader && actor.provinceId() != null) provinces.add(actor.provinceId());
+            return provinces.isEmpty() ? Optional.empty() : Optional.of(ProjectDataScope.provinces(provinces));
+        }
         if (provinceReader && actor.provinceId() != null) {
             return Optional.of(new ProjectDataScope(ProjectDataScope.Level.PROVINCE, actor.provinceId()));
         }
@@ -180,11 +187,11 @@ class IdentityPermissionService implements IdentityDirectory {
         if (roles.contains(SYSTEM_ADMIN_ROLE)) {
             return true;
         }
+        if (roles.contains(INTERFACE_PROJECT_READER_ROLE) && reviewers.provinces(actor.id()).contains(provinceId)) return true;
         if (!provinceId.equals(actor.provinceId())) {
             return false;
         }
         return roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
-                || roles.contains(INTERFACE_PROJECT_READER_ROLE)
                 || cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
     }
 
@@ -205,15 +212,8 @@ class IdentityPermissionService implements IdentityDirectory {
 
     @Override
     public boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel) {
-        return findProjectActor(userId)
-                .filter(ProjectActor::enabled)
-                .filter(actor -> provinceId.equals(actor.provinceId()))
-                .map(actor -> roleCodes(actor.id()))
-                .map(roles -> !roles.contains(SYSTEM_ADMIN_ROLE) && switch (initiatorLevel) {
-                    case CITY -> roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
-                    case PROVINCE -> roles.contains(INTERFACE_PROJECT_READER_ROLE);
-                })
-                .orElse(false);
+        if (initiatorLevel == ProjectInitiatorLevel.PROVINCE) return isEligibleStageApprover(userId, provinceId);
+        return findApprovalScope(userId).provinceLeaderProvinceIds().contains(provinceId);
     }
 
     @Override
@@ -223,12 +223,19 @@ class IdentityPermissionService implements IdentityDirectory {
 
     @Override
     public boolean isEligibleStageApprover(UUID userId, UUID provinceId) {
-        return findProjectActor(userId)
-                .filter(ProjectActor::enabled)
-                .filter(actor -> provinceId.equals(actor.provinceId()))
-                .map(actor -> roleCodes(actor.id()))
-                .map(roles -> roles.contains(INTERFACE_PROJECT_READER_ROLE) && !roles.contains(SYSTEM_ADMIN_ROLE))
-                .orElse(false);
+        return findApprovalScope(userId).interfaceProvinceIds().contains(provinceId);
+    }
+
+    @Override
+    public ProjectApprovalScope findApprovalScope(UUID actorId) {
+        var actor = findProjectActor(actorId).filter(ProjectActor::enabled).orElse(null);
+        if (actor == null) return ProjectApprovalScope.none();
+        var roles = roleCodes(actorId);
+        if (roles.contains(SYSTEM_ADMIN_ROLE)) return ProjectApprovalScope.none();
+        var interfaceProvinces = roles.contains(INTERFACE_PROJECT_READER_ROLE) ? Set.copyOf(reviewers.provinces(actorId)) : Set.<UUID>of();
+        var leaderProvinces = actor.provinceId() != null && roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
+                ? Set.of(actor.provinceId()) : Set.<UUID>of();
+        return new ProjectApprovalScope(interfaceProvinces, leaderProvinces);
     }
 
     @Override
@@ -255,15 +262,16 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     private boolean hasProjectCollaborationScope(ProjectActor actor, UUID provinceId, UUID cityId) {
-        if (!actor.enabled() || !provinceId.equals(actor.provinceId())) {
+        if (!actor.enabled()) {
             return false;
         }
         var roles = roleCodes(actor.id());
         if (roles.contains(SYSTEM_ADMIN_ROLE)) {
             return false;
         }
+        if (roles.contains(INTERFACE_PROJECT_READER_ROLE) && reviewers.provinces(actor.id()).contains(provinceId)) return true;
+        if (!provinceId.equals(actor.provinceId())) return false;
         return roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains)
-                || roles.contains(INTERFACE_PROJECT_READER_ROLE)
                 || cityId.equals(actor.cityId()) && roles.contains(CITY_PROJECT_CREATOR_ROLE);
     }
 

@@ -24,8 +24,8 @@ public class IdentityAdministrationController {
     @GetMapping("/users")
     public ApiResponse<PageResponse<AdminAccountView>> users(Authentication auth, @RequestParam(defaultValue = "") String search,
             @RequestParam(required = false) Boolean enabled, @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return responses.success(PageResponse.from(service.list(actorId(auth), search, enabled, page, size)));
+            @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) String role) {
+        return responses.success(PageResponse.from(service.list(actorId(auth), search, enabled, page, size, role)));
     }
     @GetMapping("/configuration")
     public ApiResponse<IdentityAdministrationService.Configuration> configuration(Authentication auth) {
@@ -53,6 +53,16 @@ public class IdentityAdministrationController {
     public ApiResponse<CityOption> city(Authentication auth, @Valid @RequestBody CityRequest body) {
         return responses.success(service.createCity(actorId(auth), body.provinceId(), body.name()));
     }
+    @PutMapping("/users/{id}/reviewer-provinces")
+    public ApiResponse<AdminAccountView> reviewerProvinces(Authentication auth, @PathVariable UUID id, @Valid @RequestBody ReviewerRequest body) {
+        return responses.success(service.saveReviewerMappings(actorId(auth), List.of(
+                new IdentityAdministrationService.ReviewerMappingCommand(id, body.version(), body.provinceIds()))).getFirst());
+    }
+    @PutMapping("/reviewer-province-maps")
+    public ApiResponse<List<AdminAccountView>> reviewerMappings(Authentication auth, @Valid @RequestBody ReviewerBatchRequest body) {
+        return responses.success(service.saveReviewerMappings(actorId(auth), body.reviewers().stream().map(item ->
+                new IdentityAdministrationService.ReviewerMappingCommand(item.reviewerId(), item.version(), item.provinceIds())).toList()));
+    }
     private UUID actorId(Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof ActorPrincipal actor)) {
             throw new BusinessException(IdentityErrorCode.ADMIN_REQUIRED);
@@ -72,4 +82,8 @@ public class IdentityAdministrationController {
         @Override public String toString() { return "ResetRequest[凭据已隐藏]"; }
     }
     public record CityRequest(@NotNull UUID provinceId, @NotBlank @Size(max = 50) String name) { }
+    public record ReviewerRequest(@NotNull @Min(0) Long version, @NotNull @Size(max = 100) List<@NotNull UUID> provinceIds) { }
+    public record ReviewerBatchItem(@NotNull UUID reviewerId, @NotNull @Min(0) Long version,
+            @NotNull @Size(max = 100) List<@NotNull UUID> provinceIds) { }
+    public record ReviewerBatchRequest(@NotEmpty @Size(max = 200) List<@NotNull @Valid ReviewerBatchItem> reviewers) { }
 }

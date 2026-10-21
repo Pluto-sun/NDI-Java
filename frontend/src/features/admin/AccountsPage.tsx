@@ -188,13 +188,21 @@ export function AccountsPage({
                           .join('、')}
                         <br />
                         <span className="subtle">
-                          {user.provinceId
-                            ? (configuration?.provinces.find(
-                                (province) => province.id === user.provinceId,
-                              )?.name ?? '归属省分不可用')
-                            : user.roleCodes.includes('INTERFACE_REVIEWER')
-                              ? '未配置负责范围'
-                              : '全国'}
+                          {user.roleCodes.includes('INTERFACE_REVIEWER')
+                            ? user.reviewerProvinceIds
+                                .map(
+                                  (id) =>
+                                    configuration?.provinces.find((province) => province.id === id)
+                                      ?.name ?? '省分不可用',
+                                )
+                                .join('、') || '未配置负责范围'
+                            : user.provinceId
+                              ? (configuration?.provinces.find(
+                                  (province) => province.id === user.provinceId,
+                                )?.name ?? '归属省分不可用')
+                              : user.roleCodes.includes('INTERFACE_REVIEWER')
+                                ? '未配置负责范围'
+                                : '全国'}
                           {user.cityId
                             ? ` / ${configuration?.cities.find((city) => city.id === user.cityId)?.name ?? '归属地市不可用'}`
                             : ''}

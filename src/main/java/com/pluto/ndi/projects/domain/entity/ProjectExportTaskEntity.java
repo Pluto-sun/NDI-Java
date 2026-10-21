@@ -31,6 +31,10 @@ public class ProjectExportTaskEntity {
     @Column(name = "scope_organization_id")
     private UUID scopeOrganizationId;
 
+    @Column(name = "scope_province_ids", columnDefinition = "json")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private java.util.List<UUID> scopeProvinceIds;
+
     @Column(name = "filter_json", nullable = false, columnDefinition = "json")
     @JdbcTypeCode(SqlTypes.JSON)
     private String filterJson;
@@ -64,6 +68,7 @@ public class ProjectExportTaskEntity {
         task.requestedBy = actorId;
         task.scopeLevel = scope.level();
         task.scopeOrganizationId = scope.organizationId();
+        task.scopeProvinceIds = scope.provinceIds().stream().sorted().toList();
         task.filterJson = filterJson;
         task.status = ProjectExportStatus.PENDING;
         task.requestedAt = requestedAt;
@@ -72,7 +77,8 @@ public class ProjectExportTaskEntity {
 
     public UUID id() { return id; }
     public UUID requestedBy() { return requestedBy; }
-    public ProjectDataScope scope() { return new ProjectDataScope(scopeLevel, scopeOrganizationId); }
+    public ProjectDataScope scope() { return new ProjectDataScope(scopeLevel, scopeOrganizationId,
+            scopeProvinceIds == null ? java.util.Set.of() : java.util.Set.copyOf(scopeProvinceIds)); }
     public String filterJson() { return filterJson; }
     public ProjectExportStatus status() { return status; }
     public Integer rowCount() { return rowCount; }

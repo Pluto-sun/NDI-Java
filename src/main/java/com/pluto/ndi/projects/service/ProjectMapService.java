@@ -56,7 +56,12 @@ public class ProjectMapService {
         var scope = scope(actorId);
         var provinceId = switch (scope.level()) {
             case NATIONAL -> requestedProvinceId;
-            case PROVINCE -> requireOwnProvince(scope.organizationId(), requestedProvinceId);
+            case PROVINCE -> {
+                if (requestedProvinceId != null && !scope.provinceIds().contains(requestedProvinceId)) {
+                    throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
+                }
+                yield requestedProvinceId != null ? requestedProvinceId : scope.organizationId();
+            }
             case CITY -> requireOwnProvince(cityProvinceId(scope.organizationId()), requestedProvinceId);
         };
         if (month != null) monthlySnapshots.requireCompleted(month);
@@ -65,9 +70,10 @@ public class ProjectMapService {
         }
         var stageCode = stage == null ? null : stage.name();
         if (provinceId == null) {
-            var byProvince = metrics.summarize(month, null, includeTerminated, stageCode).stream()
+            var byProvince = metrics.summarize(month, null, includeTerminated, stageCode, scope).stream()
                     .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
             var regions = organizations.findEnabledProvinces().stream()
+                    .filter(province -> scope.level() == ProjectDataScope.Level.NATIONAL || scope.provinceIds().contains(province.id()))
                     .map(province -> {
                         var item = byProvince.get(province.id());
                         return new ProjectMapView.Region(province.id(), province.name(),
@@ -83,7 +89,7 @@ public class ProjectMapService {
                 .filter(item -> item.id().equals(provinceId)).findFirst()
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
         Map<UUID, ProjectMapMetric> byCity = metrics.summarize(
-                month, provinceId, includeTerminated, stageCode).stream()
+                month, provinceId, includeTerminated, stageCode, scope).stream()
                 .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
         var regions = organizations.findEnabledCities().stream()
                 .filter(city -> city.provinceId().equals(provinceId))
@@ -100,15 +106,16 @@ public class ProjectMapService {
             throw new BusinessException(ProjectErrorCode.INVALID_MAP_ADCODE);
         }
         var scope = scope(actorId);
-        if ("100000".equals(adcode) && scope.level() == ProjectDataScope.Level.NATIONAL) return;
-        var province = organizations.findEnabledProvinces().stream()
-                .filter(item -> adcode.equals(adcodes.province(item.name()))).findFirst()
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        if ("100000".equals(adcode) && (scope.level() == ProjectDataScope.Level.NATIONAL || scope.provinceIds().size() > 1)) return;
+        var matchingProvinces = organizations.findEnabledProvinces().stream()
+                .filter(item -> adcode.equals(adcodes.province(item.name()))).map(ProvinceOption::id)
+                .collect(Collectors.toSet());
+        if (matchingProvinces.isEmpty()) throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         if (scope.level() == ProjectDataScope.Level.NATIONAL
                 || scope.level() == ProjectDataScope.Level.PROVINCE
-                    && scope.organizationId().equals(province.id())
+                    && scope.provinceIds().stream().anyMatch(matchingProvinces::contains)
                 || scope.level() == ProjectDataScope.Level.CITY
-                    && cityProvinceId(scope.organizationId()).equals(province.id())) return;
+                    && matchingProvinces.contains(cityProvinceId(scope.organizationId()))) return;
         throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
     }
 

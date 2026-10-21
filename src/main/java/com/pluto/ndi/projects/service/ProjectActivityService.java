@@ -52,8 +52,8 @@ public class ProjectActivityService {
         var since = Instant.now(clock).minus(30, ChronoUnit.DAYS);
         var page = PageRequest.of(0, MAX_ACTIVITIES);
         return Stream.concat(
-                events.findRecentActivities(since, scope.level().name(), scope.organizationId(), page).stream(),
-                progresses.findRecentActivities(since, scope.level().name(), scope.organizationId(), page).stream())
+                events.findRecentActivities(since, scope.level().name(), scope.organizationId(), scope.provinceIds(), page).stream(),
+                progresses.findRecentActivities(since, scope.level().name(), scope.organizationId(), scope.provinceIds(), page).stream())
                 .sorted(Comparator.comparing(ProjectActivitySourceRow::occurredAt).reversed()
                         .thenComparing(ProjectActivitySourceRow::id))
                 .limit(MAX_ACTIVITIES)

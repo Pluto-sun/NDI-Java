@@ -9,7 +9,7 @@ import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.entity.ProjectApprovalRequestEntity;
 
-/** 审批申请的只读展示数据。 */
+/** 审批只读视图；可审批标记仅供页面提示，提交时仍须重新鉴权。 */
 public record ApprovalSummary(
         UUID id,
         UUID projectId,
@@ -38,9 +38,14 @@ public record ApprovalSummary(
         Instant submittedAt,
         Instant dueAt,
         Instant decidedAt,
-        List<ApprovalFieldChangeSummary> fieldChanges
+        List<ApprovalFieldChangeSummary> fieldChanges,
+        boolean canReview
 ) {
     public static ApprovalSummary from(ProjectApprovalRequestEntity request) {
+        return from(request, false);
+    }
+
+    public static ApprovalSummary from(ProjectApprovalRequestEntity request, boolean canReview) {
         return new ApprovalSummary(
                 request.id(), request.projectId(), request.requestType(), request.changeType(), request.status(),
                 request.initiatorId(), request.approverId(), request.baseVersion(),
@@ -53,7 +58,7 @@ public record ApprovalSummary(
                 request.changeReason(), request.reviewOpinion(),
                 request.submittedAt(), request.dueAt(), request.decidedAt(),
                 request.fieldChanges().stream().map(item -> new ApprovalFieldChangeSummary(
-                        item.fieldCode(), item.originalValue(), item.proposedValue())).toList()
+                        item.fieldCode(), item.originalValue(), item.proposedValue())).toList(), canReview
         );
     }
 }

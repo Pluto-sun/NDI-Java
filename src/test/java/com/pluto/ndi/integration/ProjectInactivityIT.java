@@ -343,6 +343,7 @@ class ProjectInactivityIT {
                 """, id.toString(), id.toString(), role + "-" + id.toString().substring(0, 5),
                 province == null ? null : province.toString(), city == null ? null : city.toString());
         jdbc.update("INSERT INTO identity_user_role (user_id, role_code) VALUES (UUID_TO_BIN(?), ?)", id.toString(), role);
+        if (role.equals("INTERFACE_REVIEWER") && province != null) jdbc.update("INSERT INTO identity_reviewer_province (reviewer_id, province_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", id.toString(), province.toString());
         return id;
     }
 

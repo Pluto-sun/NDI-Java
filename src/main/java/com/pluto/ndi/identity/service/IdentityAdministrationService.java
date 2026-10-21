@@ -29,28 +29,40 @@ public class IdentityAdministrationService {
     private final OrganizationAdministrationService organizationAdmin;
     private final AuditWriter audit;
     private final Clock clock;
+    private final com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers;
 
     public IdentityAdministrationService(UserAccountRepository accounts, UserRoleRepository roles,
             UserSessionRepository sessions, PasswordEncoder passwords, OrganizationDirectory organizations,
-            OrganizationAdministrationService organizationAdmin, AuditWriter audit, Clock clock) {
+            OrganizationAdministrationService organizationAdmin, AuditWriter audit, Clock clock,
+            com.pluto.ndi.identity.mapper.ReviewerProvinceMapper reviewers) {
         this.accounts = accounts; this.roles = roles; this.sessions = sessions; this.passwords = passwords;
         this.organizations = organizations; this.organizationAdmin = organizationAdmin; this.audit = audit; this.clock = clock;
+        this.reviewers = reviewers;
     }
 
     @Transactional(readOnly = true)
     public Page<AdminAccountView> list(UUID actorId, String search, Boolean enabled, int page, int size) {
+        return list(actorId, search, enabled, page, size, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AdminAccountView> list(UUID actorId, String search, Boolean enabled, int page, int size, String role) {
         requireAdministrator(actorId);
         if (page < 0 || size < 1 || size > 100 || search != null && search.length() > 100) {
             throw new BusinessException(IdentityErrorCode.ACCOUNT_INVALID);
         }
         String term = search == null ? "" : search.strip().toLowerCase(Locale.ROOT);
         String pattern = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        var result = accounts.search(term, pattern, enabled, PageRequest.of(page, size, Sort.by("loginName", "id")));
+        if (role != null && Arrays.stream(AccountRole.values()).noneMatch(item -> item.name().equals(role))) {
+            throw new BusinessException(IdentityErrorCode.ROLE_SCOPE_INVALID);
+        }
+        var result = accounts.search(term, pattern, enabled, role, PageRequest.of(page, size, Sort.by("loginName", "id")));
         var ids = result.getContent().stream().map(UserAccountEntity::id).toList();
+        var mapped = reviewers.assignments(ids);
         Map<UUID, List<String>> assignments = ids.isEmpty() ? Map.of() : roles.findAssignmentsByUserIds(ids).stream()
                 .collect(Collectors.groupingBy(UserRoleAssignment::userId,
                         Collectors.mapping(UserRoleAssignment::roleCode, Collectors.toList())));
-        return result.map(user -> view(user, assignments.getOrDefault(user.id(), List.of())));
+        return result.map(user -> view(user, assignments.getOrDefault(user.id(), List.of()), mapped.getOrDefault(user.id(), List.of())));
     }
 
     @Transactional(readOnly = true)
@@ -92,6 +104,7 @@ public class IdentityAdministrationService {
         if (authorizationChanged) revoke(user);
         flushAccount();
         replaceRoles(userId, normalized.roleCodes());
+        if (!normalized.roleCodes().contains("INTERFACE_REVIEWER")) reviewers.replace(userId, List.of());
         if (wasUsableAdmin && !usableAdmin(user, normalized.roleCodes())) protectLastAdministrator();
         audit.record(actorId, "IDENTITY_ACCOUNT", userId, "IDENTITY_ACCOUNT_UPDATED", Map.of(
                 "before", previous, "after", snapshot(user, normalized.roleCodes()), "sessionsRevoked", authorizationChanged));
@@ -105,6 +118,7 @@ public class IdentityAdministrationService {
         var assigned = roles.findRoleCodesByUserId(userId);
         boolean wasUsableAdmin = usableAdmin(user, assigned);
         if (user.enabled() != enabled) { user.setEnabled(enabled); revoke(user); }
+        if (!enabled) reviewers.replace(userId, List.of());
         flushAccount();
         if (wasUsableAdmin && !enabled) protectLastAdministrator();
         audit.record(actorId, "IDENTITY_ACCOUNT", userId, "IDENTITY_ACCOUNT_ENABLED_CHANGED", Map.of("enabled", enabled));
@@ -126,6 +140,37 @@ public class IdentityAdministrationService {
         lockAdministrator(actorId);
         return organizationAdmin.createCity(actorId, provinceId, name);
     }
+
+    public List<AdminAccountView> saveReviewerMappings(UUID actorId, List<ReviewerMappingCommand> commands) {
+        lockAdministrator(actorId);
+        if (commands == null || commands.isEmpty() || commands.size() > 200
+                || commands.stream().map(ReviewerMappingCommand::reviewerId).distinct().count() != commands.size()) {
+            throw new BusinessException(IdentityErrorCode.ROLE_SCOPE_INVALID);
+        }
+        var enabledProvinces = organizations.findEnabledProvinces().stream().map(ProvinceOption::id).collect(Collectors.toSet());
+        var result = new ArrayList<AdminAccountView>();
+        for (var command : commands.stream().sorted(Comparator.comparing(ReviewerMappingCommand::reviewerId)).toList()) {
+            var user = requireTarget(command.reviewerId(), command.version());
+            var assigned = roles.findRoleCodesByUserId(user.id());
+            if (!user.enabled() || !assigned.contains("INTERFACE_REVIEWER") || assigned.contains("SYSTEM_ADMIN")
+                    || command.provinceIds() == null || command.provinceIds().size() > 100
+                    || new HashSet<>(command.provinceIds()).size() != command.provinceIds().size()
+                    || !enabledProvinces.containsAll(command.provinceIds())) {
+                throw new BusinessException(IdentityErrorCode.ROLE_SCOPE_INVALID);
+            }
+            var previous = reviewers.provinces(user.id());
+            if (!new HashSet<>(previous).equals(new HashSet<>(command.provinceIds()))) {
+                reviewers.replace(user.id(), command.provinceIds());
+                revoke(user); flushAccount();
+                audit.record(actorId, "IDENTITY_ACCOUNT", user.id(), "IDENTITY_REVIEWER_PROVINCES_UPDATED",
+                        Map.of("before", previous, "after", command.provinceIds().stream().sorted().toList()));
+            }
+            result.add(view(user, assigned));
+        }
+        return List.copyOf(result);
+    }
+
+    public record ReviewerMappingCommand(UUID reviewerId, long version, List<UUID> provinceIds) { }
 
     private void requireAdministrator(UUID id) {
         var user = accounts.findById(id).filter(UserAccountEntity::enabled)
@@ -190,15 +235,18 @@ public class IdentityAdministrationService {
         boolean valid = switch (selected.getFirst().scope()) {
             case PROVINCE -> validProvince && cityId == null;
             case CITY -> validProvince && cityId != null && organizations.findEnabledLocation(provinceId, cityId).isPresent();
-            case REVIEWER -> cityId == null && (provinceId == null || validProvince);
+            case REVIEWER -> cityId == null && provinceId == null;
             case NATIONAL -> provinceId == null && cityId == null;
         };
         if (!valid) throw new BusinessException(IdentityErrorCode.ROLE_SCOPE_INVALID);
         return new AdminAccountCommand(login, name, email, assigned.stream().sorted().toList(), provinceId, cityId);
     }
     private AdminAccountView view(UserAccountEntity user, List<String> assigned) {
+        return view(user, assigned, reviewers.provinces(user.id()));
+    }
+    private AdminAccountView view(UserAccountEntity user, List<String> assigned, List<UUID> mappedProvinces) {
         return new AdminAccountView(user.id(), user.loginName(), user.displayName(), user.email(), user.provinceId(),
-                user.cityId(), user.enabled(), user.passwordHash() != null, user.managementVersion(), assigned.stream().sorted().toList());
+                user.cityId(), user.enabled(), user.passwordHash() != null, user.managementVersion(), assigned.stream().sorted().toList(), mappedProvinces);
     }
 
     private Map<String, Object> snapshot(UserAccountEntity user, List<String> assigned) {

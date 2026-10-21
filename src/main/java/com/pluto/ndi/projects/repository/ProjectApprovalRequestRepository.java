@@ -14,7 +14,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import jakarta.persistence.LockModeType;
 
-public interface ProjectApprovalRequestRepository extends JpaRepository<ProjectApprovalRequestEntity, UUID> {
+public interface ProjectApprovalRequestRepository extends JpaRepository<ProjectApprovalRequestEntity, UUID>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<ProjectApprovalRequestEntity> {
     boolean existsByProjectIdAndStatus(UUID projectId, ApprovalStatus status);
 
     boolean existsByEvidenceDocumentId(UUID evidenceDocumentId);

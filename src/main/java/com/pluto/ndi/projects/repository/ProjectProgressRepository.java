@@ -30,11 +30,11 @@ public interface ProjectProgressRepository extends JpaRepository<ProjectProgress
             where progress.occurredAt >= :since
               and progress.sourceType <> 'INITIAL'
               and (:scopeLevel = 'NATIONAL'
-                   or (:scopeLevel = 'PROVINCE' and project.provinceId = :scopeId)
+                   or (:scopeLevel = 'PROVINCE' and project.provinceId in :provinceIds)
                    or (:scopeLevel = 'CITY' and project.cityId = :scopeId))
             order by progress.occurredAt desc, progress.id desc
             """)
     List<ProjectActivitySourceRow> findRecentActivities(
             @Param("since") Instant since, @Param("scopeLevel") String scopeLevel,
-            @Param("scopeId") UUID scopeId, Pageable pageable);
+            @Param("scopeId") UUID scopeId, @Param("provinceIds") java.util.Set<UUID> provinceIds, Pageable pageable);
 }

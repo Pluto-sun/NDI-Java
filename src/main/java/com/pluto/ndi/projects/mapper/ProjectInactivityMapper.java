@@ -43,8 +43,6 @@ public class ProjectInactivityMapper {
     private static final String MINE = """
             WHERE EXISTS (SELECT 1 FROM project_inactivity_notice n WHERE n.case_id = c.id
                 AND n.recipient_id = UUID_TO_BIN(:actor))
-            AND (:level = 'NATIONAL' OR (:level = 'PROVINCE' AND p.province_id = UUID_TO_BIN(:scope))
-                OR (:level = 'CITY' AND p.city_id = UUID_TO_BIN(:scope)))
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -201,10 +199,10 @@ public class ProjectInactivityMapper {
     }
 
     public Page<ProjectInactivityCase> findMine(UUID actorId, ProjectDataScope scope, boolean history, Pageable page) {
-        var parameters = new MapSqlParameterSource("actor", actorId.toString()).addValue("level", scope.level().name())
-                .addValue("scope", scope.organizationId() == null ? null : scope.organizationId().toString())
+        var parameters = new MapSqlParameterSource("actor", actorId.toString())
                 .addValue("limit", page.getPageSize()).addValue("offset", page.getOffset());
-        var filter = MINE + (history ? " AND (c.status = 'RESOLVED' OR NOT " + PENDING + ")"
+        var filter = MINE + ProjectScopeSql.named(scope, "p.province_id", "p.city_id", parameters)
+                + (history ? " AND (c.status = 'RESOLVED' OR NOT " + PENDING + ")"
                 : " AND c.status = 'OPEN' AND " + PENDING);
         long count = jdbc.queryForObject("SELECT COUNT(*)" + FROM + filter, parameters, Long.class);
         var rows = jdbc.query("SELECT " + COLUMNS + ", " + PENDING + " pending" + FROM + filter

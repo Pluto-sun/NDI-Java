@@ -50,8 +50,8 @@ public class ProjectWorkbenchService {
         var scope = readableScope(actorId);
         var aggregates = switch (scope.level()) {
             case NATIONAL -> projectRepository.summarizeCurrentStagesNational(includeTerminated);
-            case PROVINCE -> projectRepository.summarizeCurrentStagesByProvince(
-                    scope.organizationId(), includeTerminated);
+            case PROVINCE -> projectRepository.summarizeCurrentStagesByProvinces(
+                    scope.provinceIds(), includeTerminated);
             case CITY -> projectRepository.summarizeCurrentStagesByCity(
                     scope.organizationId(), includeTerminated);
         };
@@ -69,10 +69,10 @@ public class ProjectWorkbenchService {
                 industryAggregates = projectRepository.summarizeCurrentIndustriesNational(includeTerminated);
             }
             case PROVINCE -> {
-                cityAggregates = projectRepository.summarizeCurrentCitiesByProvince(
-                        scope.organizationId(), includeTerminated);
-                industryAggregates = projectRepository.summarizeCurrentIndustriesByProvince(
-                        scope.organizationId(), includeTerminated);
+                cityAggregates = projectRepository.summarizeCurrentCitiesByProvinces(
+                        scope.provinceIds(), includeTerminated);
+                industryAggregates = projectRepository.summarizeCurrentIndustriesByProvinces(
+                        scope.provinceIds(), includeTerminated);
             }
             case CITY -> {
                 cityAggregates = projectRepository.summarizeCurrentCitiesByCity(

@@ -76,7 +76,14 @@ public class ProjectContextService {
 
     private void requireProvinceScope(UUID actorId, UUID provinceId) {
         var actor = currentUser(actorId);
-        if (!provinceId.equals(actor.provinceId()) && !actor.roleCodes().contains("SYSTEM_ADMIN")) {
+        var scope = identities.findReadableProjectScope(new com.pluto.ndi.identity.service.ProjectActor(actor.id(), actor.provinceId(), actor.cityId(), true))
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        boolean allowed = switch (scope.level()) {
+            case NATIONAL -> true;
+            case PROVINCE -> scope.provinceIds().contains(provinceId);
+            case CITY -> provinceId.equals(actor.provinceId());
+        };
+        if (!allowed) {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
     }

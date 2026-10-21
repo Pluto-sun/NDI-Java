@@ -45,8 +45,19 @@ public class ProjectApprovalNotificationService {
 
     @Transactional(readOnly = true)
     public Page<ApprovalNotificationSummary> findMine(UUID actorId, Pageable pageable) {
-        requireEnabled(actorId);
-        return repository.findByRecipientIdOrderByCreatedAtDesc(actorId, pageable)
+        var actor = requireEnabled(actorId);
+        var scope = identityDirectory.findReadableProjectScope(actor);
+        org.springframework.data.jpa.domain.Specification<ProjectApprovalNotificationEntity> specification = (notice, query, builder) -> {
+            var request = query.from(ProjectApprovalRequestEntity.class);
+            var project = query.from(com.pluto.ndi.projects.domain.entity.ProjectEntity.class);
+            var readable = scope.map(value -> com.pluto.ndi.projects.mapper.ProjectScopeCriteria.predicate(value, project, builder))
+                    .orElseGet(builder::disjunction);
+            return builder.and(builder.equal(notice.get("recipientId"), actorId),
+                    builder.equal(notice.get("requestId"), request.get("id")), builder.equal(request.get("projectId"), project.get("id")),
+                    builder.or(builder.equal(request.get("initiatorId"), actorId), readable));
+        };
+        return repository.findAll(specification, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(),
+                        pageable.getPageSize(), org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt", "id")))
                 .map(ApprovalNotificationSummary::from);
     }
 
@@ -63,8 +74,8 @@ public class ProjectApprovalNotificationService {
         repository.save(ProjectApprovalNotificationEntity.create(requestId, recipientId, kind, at));
     }
 
-    private void requireEnabled(UUID actorId) {
-        identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
+    private ProjectActor requireEnabled(UUID actorId) {
+        return identityDirectory.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
     }
 }
