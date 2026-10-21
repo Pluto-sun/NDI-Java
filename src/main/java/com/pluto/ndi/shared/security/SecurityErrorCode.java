@@ -5,7 +5,8 @@ import org.springframework.http.HttpStatus;
 
 public enum SecurityErrorCode implements ErrorCode {
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHENTICATED", "身份认证失败", "请先完成身份认证"),
-    FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_FORBIDDEN", "无权访问", "当前身份无权访问该资源");
+    FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_FORBIDDEN", "无权访问", "当前身份无权访问该资源"),
+    CSRF_INVALID(HttpStatus.FORBIDDEN, "AUTH_CSRF_INVALID", "页面校验已失效", "请刷新页面后重试操作");
 
     private final HttpStatus status;
     private final String code;

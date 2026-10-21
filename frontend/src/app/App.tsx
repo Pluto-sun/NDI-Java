@@ -4,7 +4,16 @@ import { projectsApi } from '../features/projects/api';
 import type { ProjectUser, ReferenceData } from '../features/projects/types';
 import { ActorPicker } from '../features/local-auth/ActorPicker';
 import { Feedback, Loading } from '../shared/ui/Feedback';
-import { getActorId, setActorId } from '../shared/api/http';
+import {
+  ApiError,
+  configureSessionMode,
+  getActorId,
+  setActorId,
+  SESSION_EXPIRED_EVENT,
+} from '../shared/api/http';
+import { authApi, type AccountProfile, type AuthenticationMode } from '../features/auth/api';
+import { LoginPage } from '../features/auth/LoginPage';
+import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
@@ -51,6 +60,27 @@ export function App() {
   const [reference, setReference] = useState<ReferenceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<AuthenticationMode | null>(null);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [message, setMessage] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  function clearAccount(notice = '') {
+    setActorId(null);
+    setMe(null);
+    setProfile(null);
+    setReference(null);
+    setMessage(notice);
+  }
+
+  async function loadSession() {
+    const user = await authApi.me();
+    const dictionaries = await projectsApi.referenceData();
+    setProfile(user);
+    setMe(user);
+    setReference(dictionaries);
+    setError('');
+  }
 
   const loadAccount = useCallback(async (id: string) => {
     setActorId(id);
@@ -71,9 +101,21 @@ export function App() {
 
   useEffect(() => {
     let active = true;
-    projectsApi
-      .localActors()
-      .then(async (users) => {
+    authApi
+      .mode()
+      .then(async ({ mode: selectedMode }) => {
+        if (!active) return;
+        configureSessionMode(selectedMode === 'SESSION');
+        setMode(selectedMode);
+        if (selectedMode === 'SESSION') {
+          try {
+            await loadSession();
+          } catch (cause) {
+            if (!(cause instanceof ApiError && cause.status === 401)) throw cause;
+          }
+          return;
+        }
+        const users = await projectsApi.localActors();
         if (!active) return;
         setActors(users);
         const id = getActorId();
@@ -91,12 +133,33 @@ export function App() {
     };
   }, [loadAccount]);
 
+  useEffect(() => {
+    const expired = () => {
+      clearAccount('登录已失效，请重新登录。');
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
+  }, []);
+
   if (loading)
     return (
       <main className="entry">
         <Loading />
       </main>
     );
+  if (!me || !reference)
+    if (mode !== 'LOCAL_ACTOR')
+      return (
+        <LoginPage
+          message={message}
+          connectionError={error}
+          onLogin={async (login, password) => {
+            await authApi.login(login, password);
+            await loadSession();
+            setMessage('');
+          }}
+        />
+      );
   if (!me || !reference)
     return (
       <ActorPicker
@@ -140,6 +203,7 @@ export function App() {
           </NavLink>
           <NavLink to="/approvals">审批待办</NavLink>
           <NavLink to="/notifications">消息通知</NavLink>
+          {mode === 'SESSION' && <NavLink to="/account">个人设置</NavLink>}
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
           {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
         </nav>
@@ -157,20 +221,50 @@ export function App() {
             <button
               type="button"
               className="text-button"
-              onClick={() => {
-                setActorId(null);
-                setMe(null);
-                setReference(null);
+              disabled={loggingOut}
+              onClick={async () => {
+                if (mode === 'LOCAL_ACTOR') {
+                  clearAccount();
+                  return;
+                }
+                setLoggingOut(true);
+                setError('');
+                try {
+                  await authApi.logout();
+                  clearAccount('已退出登录。');
+                } catch (cause) {
+                  setError(cause instanceof Error ? cause.message : '退出失败，请重试');
+                } finally {
+                  setLoggingOut(false);
+                }
               }}
             >
-              切换测试账号
+              {mode === 'LOCAL_ACTOR' ? '切换测试账号' : loggingOut ? '正在退出…' : '退出登录'}
             </button>
           </div>
         </header>
         <main className="content" id="main-content">
-          <div className="dev-banner">本地联调模式 · 当前账号由开发环境选择，不是生产登录</div>
+          {mode === 'LOCAL_ACTOR' && (
+            <div className="dev-banner">本地联调模式 · 当前账号由开发环境选择，不是生产登录</div>
+          )}
+          {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
             <Routes>
+              {mode === 'SESSION' && profile && (
+                <Route
+                  path="/account"
+                  element={
+                    <AccountSettingsPage
+                      profile={profile}
+                      onUpdated={(user) => {
+                        setMe(user);
+                        setProfile(user);
+                      }}
+                      onPasswordChanged={() => clearAccount('密码已修改，请重新登录。')}
+                    />
+                  }
+                />
+              )}
               <Route path="/" element={<Navigate to="/workbench" replace />} />
               <Route path="/workbench" element={<WorkbenchPage reference={reference} />} />
               <Route

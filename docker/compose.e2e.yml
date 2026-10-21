@@ -11,7 +11,8 @@ services:
     ports:
       - "127.0.0.1:13317:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-undi", "-pndi_e2e_password"]
+      # 初始化临时进程尚未开放 TCP，不能仅以本地 Socket 存活判断应用库就绪。
+      test: ["CMD", "mysql", "--protocol=TCP", "-h", "127.0.0.1", "-undi", "-pndi_e2e_password", "-D", "ndi", "-e", "SELECT 1"]
       interval: 2s
       timeout: 3s
       retries: 40

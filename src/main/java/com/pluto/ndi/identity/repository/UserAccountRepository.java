@@ -9,6 +9,24 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select account from UserAccountEntity account where account.loginName = :loginName")
+    java.util.Optional<UserAccountEntity> lockByLoginName(String loginName);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select account from UserAccountEntity account where account.id = :id")
+    java.util.Optional<UserAccountEntity> lockById(UUID id);
+
+    boolean existsByEmailAndIdNot(String email, UUID id);
+
+    @Query(value = "select id from identity_administration_lock where id = 1 for update", nativeQuery = true)
+    int lockAdministration();
+
+    @Query("select count(account) from UserAccountEntity account, UserRoleEntity role "
+            + "where account.id = role.id.userId and account.enabled = true and account.passwordHash is not null "
+            + "and role.id.roleCode = 'SYSTEM_ADMIN'")
+    long countUsableAdministrators();
+
     List<UserAccountEntity> findByDisplayNameAndProvinceIdAndEnabledTrue(String displayName, UUID provinceId);
 
     List<UserAccountEntity> findByEnabledTrueOrderByDisplayNameAsc();

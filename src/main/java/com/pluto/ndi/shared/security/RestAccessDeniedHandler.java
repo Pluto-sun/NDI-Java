@@ -25,6 +25,8 @@ class RestAccessDeniedHandler implements AccessDeniedHandler {
             HttpServletResponse response,
             AccessDeniedException accessDeniedException
     ) throws IOException, ServletException {
-        problemDetailResponseWriter.write(request, response, SecurityErrorCode.FORBIDDEN);
+        problemDetailResponseWriter.write(request, response,
+                accessDeniedException instanceof org.springframework.security.web.csrf.CsrfException
+                        ? SecurityErrorCode.CSRF_INVALID : SecurityErrorCode.FORBIDDEN);
     }
 }

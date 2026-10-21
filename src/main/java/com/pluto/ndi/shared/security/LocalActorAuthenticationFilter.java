@@ -12,11 +12,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /** 仅供 local 环境以账号标识联调接口，生产环境不得启用。 */
 @Component
 @Profile("local")
+@ConditionalOnProperty(name = "ndi.auth.mode", havingValue = "LOCAL_ACTOR")
 public class LocalActorAuthenticationFilter extends OncePerRequestFilter {
 
     static final String ACTOR_ID_HEADER = "X-NDI-Actor-Id";

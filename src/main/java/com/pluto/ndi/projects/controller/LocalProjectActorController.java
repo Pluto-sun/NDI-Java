@@ -7,12 +7,14 @@ import com.pluto.ndi.projects.service.ProjectContextService;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 仅供本机开发联调选择现有账号；生产环境不注册此控制器。 */
 @Profile("local")
+@ConditionalOnProperty(name = "ndi.auth.mode", havingValue = "LOCAL_ACTOR")
 @RestController
 @RequestMapping("/api/v1/projects/dev")
 public class LocalProjectActorController {

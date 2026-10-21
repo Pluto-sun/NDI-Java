@@ -29,8 +29,26 @@ public class UserAccountEntity {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Column(length = 254) private String email;
+    @Column(name = "password_hash") private String passwordHash;
+    @Column(name = "credential_version", nullable = false) private long credentialVersion;
+
     protected UserAccountEntity() {
     }
+
+    public static UserAccountEntity create(String loginName, String displayName, String passwordHash) {
+        var account = new UserAccountEntity();
+        account.id = UUID.randomUUID(); account.loginName = loginName;
+        account.displayName = displayName; account.passwordHash = passwordHash; account.enabled = true;
+        return account;
+    }
+
+    public String loginName() { return loginName; }
+    public String email() { return email; }
+    public String passwordHash() { return passwordHash; }
+    public long credentialVersion() { return credentialVersion; }
+    public void updateProfile(String displayName, String email) { this.displayName = displayName; this.email = email; }
+    public void changePassword(String encoded) { passwordHash = encoded; credentialVersion++; }
 
     public UUID id() {
         return id;

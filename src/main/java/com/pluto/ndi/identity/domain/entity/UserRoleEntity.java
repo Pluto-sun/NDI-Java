@@ -20,6 +20,12 @@ public class UserRoleEntity {
     protected UserRoleEntity() {
     }
 
+    public static UserRoleEntity assign(UUID userId, String roleCode) {
+        var role = new UserRoleEntity(); role.id = new UserRoleId();
+        role.id.userId = userId; role.id.roleCode = roleCode;
+        return role;
+    }
+
     String roleCode() {
         return id.roleCode;
     }

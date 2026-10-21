@@ -16,6 +16,9 @@ logging:
     com.pluto.ndi: debug
 
 ndi:
+  auth:
+    mode: ${NDI_AUTH_MODE:LOCAL_ACTOR}
+    secure-cookie: ${NDI_SECURE_COOKIE:false}
   storage:
     endpoint: ${NDI_MINIO_ENDPOINT:http://localhost:9000}
     public-endpoint: ${NDI_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}

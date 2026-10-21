@@ -34,6 +34,13 @@ info:
     description: 项目管理、排产、计收与能力指标平台
 
 ndi:
+  auth:
+    mode: ${NDI_AUTH_MODE:SESSION}
+    session-ttl-hours: ${NDI_SESSION_TTL_HOURS:8}
+    secure-cookie: ${NDI_SECURE_COOKIE:true}
+  bootstrap:
+    admin-login: ${NDI_BOOTSTRAP_ADMIN_LOGIN:}
+    admin-password: ${NDI_BOOTSTRAP_ADMIN_PASSWORD:}
   projects:
     inactivity:
       enabled: ${NDI_PROJECT_INACTIVITY_ENABLED:true}

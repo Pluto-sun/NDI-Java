@@ -39,6 +39,7 @@ NDI_DATASOURCE_USERNAME=ndi NDI_DATASOURCE_PASSWORD=ndi_e2e_password \
 NDI_MINIO_ENDPOINT=http://127.0.0.1:19000 NDI_MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:19000 \
 NDI_MINIO_ACCESS_KEY=ndi_e2e_admin NDI_MINIO_SECRET_KEY=ndi_e2e_minio_password \
 NDI_APPROVAL_REMINDERS_ENABLED=false NDI_PROJECT_INACTIVITY_ENABLED=false \
+NDI_AUTH_MODE=${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR} \
 java -jar target/ndi-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18080 \
   > "${PROJECT_DIR}/tmp/e2e-logs/backend.log" 2>&1 &
 backend_pid=$!
@@ -64,6 +65,10 @@ docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql 
   mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-local-project-demo.sql
 docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql \
   mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-project-e2e.sql
+if [[ "${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR}" == SESSION ]]; then
+  docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql \
+    mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-session-e2e.sql
+fi
 
 cd frontend
 NDI_E2E_ENABLED=1 npm run test:e2e -- "$@"

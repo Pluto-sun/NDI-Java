@@ -5,7 +5,8 @@ if (process.env.NDI_E2E_ENABLED !== '1') {
 }
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: process.env.NDI_E2E_AUTH_MODE === 'SESSION' ? './e2e/session' : './e2e',
+  testIgnore: process.env.NDI_E2E_AUTH_MODE === 'SESSION' ? [] : ['**/session/**'],
   fullyParallel: false,
   workers: 1,
   timeout: 45_000,
