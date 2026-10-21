@@ -35,6 +35,7 @@ info:
 
 ndi:
   backup:
+    enabled: ${NDI_BACKUP_ENABLED:false}
     directory: ${NDI_BACKUP_DIRECTORY:./var/backups}
     max-uncompressed-bytes: ${NDI_BACKUP_MAX_BYTES:2147483648}
     max-objects: ${NDI_BACKUP_MAX_OBJECTS:10000}

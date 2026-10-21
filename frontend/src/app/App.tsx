@@ -57,6 +57,9 @@ const NotificationsPage = lazy(() =>
 const AccountsPage = lazy(() =>
   import('../features/admin/AccountsPage').then((module) => ({ default: module.AccountsPage })),
 );
+const BackupsPage = lazy(() =>
+  import('../features/admin/BackupsPage').then((module) => ({ default: module.BackupsPage })),
+);
 const InactivityAdministrationPage = lazy(() =>
   import('../features/admin/InactivityAdministrationPage').then((module) => ({
     default: module.InactivityAdministrationPage,
@@ -226,6 +229,7 @@ export function App() {
           {me.roleCodes.includes('SYSTEM_ADMIN') && (
             <NavLink to="/admin/inactivity">督办管理</NavLink>
           )}
+          {me.roleCodes.includes('SYSTEM_ADMIN') && <NavLink to="/admin/backups">备份管理</NavLink>}
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
           {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
         </nav>
@@ -272,6 +276,16 @@ export function App() {
           {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
             <Routes>
+              <Route
+                path="/admin/backups"
+                element={
+                  me.roleCodes.includes('SYSTEM_ADMIN') ? (
+                    <BackupsPage localDevelopment={mode === 'LOCAL_ACTOR'} />
+                  ) : (
+                    <Navigate to="/projects" replace />
+                  )
+                }
+              />
               <Route
                 path="/admin/inactivity"
                 element={

@@ -116,12 +116,16 @@ export async function requestAt<T>(
 }
 
 export async function requestBlob(path: string): Promise<Blob> {
+  return requestBlobAt(API_ROOT, path);
+}
+
+export async function requestBlobAt(root: string, path: string): Promise<Blob> {
   const actorId = getActorId();
   const headers = new Headers();
   if (actorId && !sessionMode) headers.set('X-NDI-Actor-Id', actorId);
   let response: Response;
   try {
-    response = await fetch(`${API_ROOT}${path}`, { headers, credentials: 'same-origin' });
+    response = await fetch(`${root}${path}`, { headers, credentials: 'same-origin' });
   } catch {
     throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
   }

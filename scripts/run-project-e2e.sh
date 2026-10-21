@@ -5,6 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="${PROJECT_DIR}/docker/compose.e2e.yml"
 backend_pid=""
 compose_started=false
+backup_directory=""
 
 cleanup() {
   if [[ -n "${backend_pid}" ]] && kill -0 "${backend_pid}" 2>/dev/null; then
@@ -13,6 +14,10 @@ cleanup() {
   fi
   if [[ "${compose_started}" == true ]]; then
     docker compose -f "${COMPOSE_FILE}" down --remove-orphans
+  fi
+  if [[ -n "${backup_directory}" && "${backup_directory}" == /tmp/ndi-java-e2e-backups.* && -d "${backup_directory}" ]]; then
+    find "${backup_directory}" -maxdepth 1 -type f \( -name '*.zip' -o -name '*.partial' \) -delete
+    rmdir "${backup_directory}" || echo "隔离备份目录存在其他文件，已保留：${backup_directory}"
   fi
 }
 trap cleanup EXIT INT TERM
@@ -32,6 +37,7 @@ if [[ "${NDI_E2E_SKIP_BUILD:-0}" != 1 ]]; then
 fi
 mkdir -p "${PROJECT_DIR}/tmp/e2e-logs"
 compose_started=true
+backup_directory="$(mktemp -d /tmp/ndi-java-e2e-backups.XXXXXXXX)"
 docker compose -f "${COMPOSE_FILE}" up -d --wait --wait-timeout 90
 
 NDI_DATASOURCE_URL='jdbc:mysql://127.0.0.1:13317/ndi?serverTimezone=UTC' \
@@ -39,6 +45,7 @@ NDI_DATASOURCE_USERNAME=ndi NDI_DATASOURCE_PASSWORD=ndi_e2e_password \
 NDI_MINIO_ENDPOINT=http://127.0.0.1:19000 NDI_MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:19000 \
 NDI_MINIO_ACCESS_KEY=ndi_e2e_admin NDI_MINIO_SECRET_KEY=ndi_e2e_minio_password \
 NDI_APPROVAL_REMINDERS_ENABLED=false NDI_PROJECT_INACTIVITY_ENABLED=false \
+NDI_BACKUP_ENABLED=true NDI_BACKUP_DIRECTORY="${backup_directory}" \
 NDI_AUTH_MODE=${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR} \
 java -jar target/ndi-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18080 \
   > "${PROJECT_DIR}/tmp/e2e-logs/backend.log" 2>&1 &

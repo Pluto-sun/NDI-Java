@@ -3,6 +3,7 @@ package com.pluto.ndi.backup.config;
 import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.validation.annotation.Validated;
 import jakarta.validation.constraints.Min;
 
@@ -13,4 +14,11 @@ public record BackupProperties(
         @DefaultValue("./var/backups") Path directory,
         @DefaultValue("2147483648") @Min(1048576) long maxUncompressedBytes,
         @DefaultValue("10000") @Min(1) int maxObjects,
-        @DefaultValue("600") @Min(1) int timeoutSeconds) { }
+        @DefaultValue("600") @Min(1) int timeoutSeconds,
+        @DefaultValue("false") boolean enabled) {
+    @ConstructorBinding
+    public BackupProperties { }
+    public BackupProperties(Path directory, long maxUncompressedBytes, int maxObjects, int timeoutSeconds) {
+        this(directory, maxUncompressedBytes, maxObjects, timeoutSeconds, false);
+    }
+}
