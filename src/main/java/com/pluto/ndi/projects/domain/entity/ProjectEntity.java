@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
@@ -46,6 +47,15 @@ public class ProjectEntity {
 
     @Column(name = "customer_need", nullable = false)
     private String customerNeed;
+
+    @Column(name = "construction_content_raw", nullable = false)
+    private String constructionContentRaw;
+
+    @Column(name = "product_promotion_content")
+    private String productPromotionContent;
+
+    @Column(name = "remark")
+    private String remark;
 
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount;
@@ -127,6 +137,7 @@ public class ProjectEntity {
         entity.customerName = customerName;
         entity.industryCode = industryCode;
         entity.customerNeed = customerNeed;
+        entity.constructionContentRaw = customerNeed;
         entity.totalAmount = totalAmount;
         entity.currentStageCode = ProjectStage.SOLUTION_EXCHANGE.name();
         entity.provinceLeaderUserId = provinceLeaderUserId;
@@ -181,6 +192,15 @@ public class ProjectEntity {
     }
 
     public String customerNeed() { return customerNeed; }
+    public String constructionContentRaw() { return constructionContentRaw; }
+    public String productPromotionContent() { return productPromotionContent; }
+    public String remark() { return remark; }
+
+    public void replaceNarrative(ProjectNarrative narrative) {
+        constructionContentRaw = narrative.constructionContentRaw();
+        productPromotionContent = narrative.productPromotionContent();
+        remark = narrative.remark();
+    }
 
     public String industryCode() {
         return industryCode;
@@ -244,6 +264,7 @@ public class ProjectEntity {
             String customerName, String industryCode, String customerNeed,
             UUID provinceLeaderUserId, String cityAccountManagerName, List<String> expertNames,
             LocalDate bidMonth, List<String> scenarioCodes,
+            ProjectNarrative narrative,
             UUID actorId, Instant occurredAt
     ) {
         if (Objects.equals(this.customerName, customerName)
@@ -253,7 +274,10 @@ public class ProjectEntity {
                 && Objects.equals(this.cityAccountManagerName, cityAccountManagerName)
                 && Objects.equals(this.productSupportExpertNames, expertNames)
                 && Objects.equals(this.plannedBidMonth, bidMonth)
-                && Objects.equals(this.applicationScenarioCodes, scenarioCodes)) {
+                && Objects.equals(this.applicationScenarioCodes, scenarioCodes)
+                && Objects.equals(this.constructionContentRaw, narrative.constructionContentRaw())
+                && Objects.equals(this.productPromotionContent, narrative.productPromotionContent())
+                && Objects.equals(this.remark, narrative.remark())) {
             return false;
         }
         this.customerName = customerName;
@@ -263,6 +287,7 @@ public class ProjectEntity {
         this.cityAccountManagerName = cityAccountManagerName;
         replaceProductSupportExperts(expertNames);
         replacePlanningAttributes(bidMonth, scenarioCodes);
+        replaceNarrative(narrative);
         touch(actorId, occurredAt);
         return true;
     }

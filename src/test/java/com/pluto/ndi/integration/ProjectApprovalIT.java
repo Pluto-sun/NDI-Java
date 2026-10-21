@@ -37,6 +37,7 @@ import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectDocumentPurpose;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import com.pluto.ndi.projects.domain.ProjectExportStatus;
 import com.pluto.ndi.projects.repository.ProjectApprovalRequestRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
@@ -689,6 +690,41 @@ class ProjectApprovalIT {
                         updated.cityAccountManagerName(), updated.productSupportExpertNames(),
                         "2026-13", List.of())));
         assertThat(((BusinessException) invalid).errorCode()).isEqualTo(ProjectErrorCode.INVALID_PLANNING_FIELDS);
+    }
+
+    @Test
+    void preservesNarrativeThroughCreateAndVersionedProfileUpdate() {
+        var created = projectService.createProject(cityUserId, new CreateProjectCommand(
+                provinceId, cityId, "资料项目-" + UUID.randomUUID(), "客户", "C25", "客户需求",
+                new BigDecimal("100.00"), provinceUserId, "客户经理",
+                List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
+                "完成初步交流", "继续讨论", null, true, "独立资料项目", "PROVINCE_SIGN",
+                List.of(), null, List.of(), new ProjectNarrative(" 原始建设 ", " 产品方案 ", " 备注 ")));
+        var original = projectService.findDetail(cityUserId, created.id());
+        assertThat(original.constructionContentRaw()).isEqualTo("原始建设");
+        assertThat(original.productPromotionContent()).isEqualTo("产品方案");
+        assertThat(original.remark()).isEqualTo("备注");
+
+        var updated = profileService.update(cityUserId, created.id(), new UpdateProjectProfileCommand(
+                original.versionNo(), original.customerName(), original.industryCode(), original.customerNeed(),
+                original.provinceLeaderUserId(), original.cityAccountManagerName(),
+                original.productSupportExpertNames(), null, null,
+                new ProjectNarrative("", "新产品方案", "")));
+        assertThat(updated.versionNo()).isEqualTo(original.versionNo() + 1);
+        assertThat(updated.constructionContentRaw()).isEqualTo("客户需求");
+        assertThat(updated.productPromotionContent()).isEqualTo("新产品方案");
+        assertThat(updated.remark()).isNull();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'PROJECT_PROFILE_UPDATED'
+                """, Integer.class, created.id().toString())).isEqualTo(1);
+
+        var invalid = catchThrowable(() -> profileService.update(cityUserId, created.id(),
+                new UpdateProjectProfileCommand(updated.versionNo(), updated.customerName(),
+                        updated.industryCode(), updated.customerNeed(), updated.provinceLeaderUserId(),
+                        updated.cityAccountManagerName(), null, null, null,
+                        new ProjectNarrative(null, "x".repeat(4001), null))));
+        assertThat(((BusinessException) invalid).errorCode()).isEqualTo(ProjectErrorCode.INVALID_NARRATIVE);
     }
 
     @Test

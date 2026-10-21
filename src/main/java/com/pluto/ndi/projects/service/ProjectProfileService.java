@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
 import com.pluto.ndi.projects.repository.ProjectChangeEventRepository;
@@ -18,6 +19,7 @@ import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.projects.util.ProjectPlanningFields;
+import com.pluto.ndi.projects.util.ProjectNarrativeText;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,11 +95,20 @@ public class ProjectProfileService {
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ProjectErrorCode.INVALID_PLANNING_FIELDS);
         }
+        ProjectNarrative narrative = new ProjectNarrative(project.constructionContentRaw(),
+                project.productPromotionContent(), project.remark());
+        if (command.narrative() != null) {
+            try {
+                narrative = ProjectNarrativeText.normalize(command.narrative(), customerNeed);
+            } catch (IllegalArgumentException exception) {
+                throw new BusinessException(ProjectErrorCode.INVALID_NARRATIVE);
+            }
+        }
         var before = snapshot(project);
         monthlySnapshots.ensureBaseline(project);
         var occurredAt = Instant.now(clock);
         if (project.updateProfile(customerName, industryCode, customerNeed,
-                command.provinceLeaderUserId(), managerName, expertNames, bidMonth, scenarios,
+                command.provinceLeaderUserId(), managerName, expertNames, bidMonth, scenarios, narrative,
                 actorId, occurredAt)) {
             projectRepository.saveAndFlush(project);
             var event = ProjectChangeEventEntity.approvedChange(
@@ -126,6 +137,9 @@ public class ProjectProfileService {
         snapshot.put("productSupportExpertNames", project.productSupportExpertNames());
         snapshot.put("plannedBidMonth", project.plannedBidMonth());
         snapshot.put("applicationScenarioCodes", project.applicationScenarioCodes());
+        snapshot.put("constructionContentRaw", project.constructionContentRaw());
+        snapshot.put("productPromotionContent", project.productPromotionContent());
+        snapshot.put("remark", project.remark());
         return snapshot;
     }
 

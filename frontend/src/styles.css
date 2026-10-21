@@ -598,6 +598,24 @@ select:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
+.optional-details {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.optional-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.optional-details[open] summary {
+  margin-bottom: 16px;
+}
+.optional-details:not(.form-grid) > label {
+  display: block;
+  margin-top: 14px;
+}
 .span-two {
   grid-column: span 2;
 }

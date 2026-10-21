@@ -25,6 +25,7 @@ import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import com.pluto.ndi.projects.domain.entity.ProjectImportBatchEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectImportRowEntity;
 import com.pluto.ndi.projects.repository.ProjectImportBatchRepository;
@@ -35,6 +36,7 @@ import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExcelReader;
 import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.projects.util.ProjectPlanningFields;
+import com.pluto.ndi.projects.util.ProjectNarrativeText;
 import com.pluto.ndi.projects.util.ProjectImportWorkbookWriter;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -403,6 +405,14 @@ public class ProjectImportService {
         } catch (IllegalArgumentException exception) {
             errors.add(exception.getMessage());
         }
+        ProjectNarrative narrative = null;
+        try {
+            narrative = ProjectNarrativeText.normalize(new ProjectNarrative(
+                    row.get("项目建设内容"), row.get("产品推广内容"), row.get("备注")),
+                    row.get("项目建设内容"));
+        } catch (IllegalArgumentException exception) {
+            errors.add(exception.getMessage());
+        }
         if (!errors.isEmpty()) return null;
         var progress = ProjectExcelReader.progressColumns(row.cells()).stream()
                 .map(item -> new ProjectImportCandidate.Progress(item.occurredAt(), item.content())).toList();
@@ -410,7 +420,7 @@ public class ProjectImportService {
                 row.get("项目名称"), row.get("客户名称"), industry.get().industryCode(),
                 row.get("项目建设内容"), total, leader.get(), row.get("地市客户经理"),
                 signingSubject, stage, List.copyOf(categories), progress, Instant.now(clock),
-                expertNames, bidMonth, scenarios);
+                expertNames, bidMonth, scenarios, narrative);
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {

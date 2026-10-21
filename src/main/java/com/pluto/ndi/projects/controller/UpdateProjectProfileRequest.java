@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.service.UpdateProjectProfileCommand;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,11 +20,16 @@ public record UpdateProjectProfileRequest(
         @NotBlank @Size(max = 100) String cityAccountManagerName,
         List<String> productSupportExpertNames,
         String plannedBidMonth,
-        List<String> applicationScenarioCodes
+        List<String> applicationScenarioCodes,
+        String constructionContentRaw,
+        String productPromotionContent,
+        String remark
 ) {
     public UpdateProjectProfileCommand toCommand() {
+        var narrative = constructionContentRaw == null && productPromotionContent == null && remark == null
+                ? null : new ProjectNarrative(constructionContentRaw, productPromotionContent, remark);
         return new UpdateProjectProfileCommand(expectedVersion, customerName, industryCode, customerNeed,
                 provinceLeaderUserId, cityAccountManagerName, productSupportExpertNames,
-                plannedBidMonth, applicationScenarioCodes);
+                plannedBidMonth, applicationScenarioCodes, narrative);
     }
 }

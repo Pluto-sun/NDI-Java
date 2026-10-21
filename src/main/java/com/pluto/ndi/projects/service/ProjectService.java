@@ -21,6 +21,7 @@ import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectCategory;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import com.pluto.ndi.projects.domain.entity.ProjectCategoryAmountEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
@@ -37,6 +38,7 @@ import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
 import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.projects.util.ProjectPlanningFields;
+import com.pluto.ndi.projects.util.ProjectNarrativeText;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -150,6 +152,7 @@ public class ProjectService {
         project.replaceProductSupportExperts(normalized.productSupportExpertNames());
         project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(normalized.plannedBidMonth()),
                 normalized.applicationScenarioCodes());
+        project.replaceNarrative(normalized.narrative());
         projectRepository.saveAndFlush(project);
         monthlySnapshots.recordCreated(project);
 
@@ -324,13 +327,20 @@ public class ProjectService {
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ProjectErrorCode.INVALID_PLANNING_FIELDS);
         }
+        var customerNeed = trim(command.customerNeed());
+        ProjectNarrative narrative;
+        try {
+            narrative = ProjectNarrativeText.normalize(command.narrative(), customerNeed);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ProjectErrorCode.INVALID_NARRATIVE);
+        }
         return new CreateProjectCommand(
                 command.provinceId(),
                 command.cityId(),
                 trim(command.projectName()),
                 trim(command.customerName()),
                 trim(command.industryCode()).toUpperCase(Locale.ROOT),
-                trim(command.customerNeed()),
+                customerNeed,
                 command.totalAmount(),
                 command.provinceLeaderUserId(),
                 trim(command.cityAccountManagerName()),
@@ -342,7 +352,7 @@ public class ProjectService {
                 command.duplicateReason() == null ? null : command.duplicateReason().trim(),
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
                         ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
-                expertNames, bidMonth, scenarios
+                expertNames, bidMonth, scenarios, narrative
         );
     }
 
@@ -370,6 +380,9 @@ public class ProjectService {
             values.put("productSupportExpertNames", project.productSupportExpertNames());
             values.put("plannedBidMonth", project.plannedBidMonth());
             values.put("applicationScenarioCodes", project.applicationScenarioCodes());
+            values.put("constructionContentRaw", project.constructionContentRaw());
+            values.put("productPromotionContent", project.productPromotionContent());
+            values.put("remark", project.remark());
             if (duplicateReason != null) values.put("duplicateReason", duplicateReason);
             var payload = objectMapper.writeValueAsString(values);
             return ProjectChangeEventEntity.create(project.id(), project.versionNo(), payload, actorId, occurredAt);

@@ -28,6 +28,7 @@ import com.pluto.ndi.projects.repository.ProjectStageMilestoneRepository;
 import com.pluto.ndi.projects.util.ProjectNumberGenerator;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.projects.util.ProjectPlanningFields;
+import com.pluto.ndi.projects.util.ProjectNarrativeText;
 import org.springframework.stereotype.Component;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -104,6 +105,7 @@ public class ProjectImportWriter {
                     ? java.util.List.of() : candidate.productSupportExpertNames());
             project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(candidate.plannedBidMonth()),
                     ProjectPlanningFields.normalizeScenarios(candidate.applicationScenarioCodes()));
+            project.replaceNarrative(ProjectNarrativeText.normalize(candidate.narrative(), candidate.customerNeed()));
             projects.saveAndFlush(project);
             monthlySnapshots.recordCreated(project);
             for (var category : candidate.categories()) {

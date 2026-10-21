@@ -218,6 +218,15 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM project_application_scenario WHERE project_id = UUID_TO_BIN(?)",
                 Integer.class, recovered.rows().getFirst().projectId().toString())).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT construction_content_raw FROM project_project WHERE id = UUID_TO_BIN(?)",
+                String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("客户需要建设平台");
+        assertThat(jdbc.queryForObject(
+                "SELECT product_promotion_content FROM project_project WHERE id = UUID_TO_BIN(?)",
+                String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("平台推广方案");
+        assertThat(jdbc.queryForObject(
+                "SELECT remark FROM project_project WHERE id = UUID_TO_BIN(?)",
+                String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("导入备注");
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -312,6 +321,10 @@ class ProjectImportIT {
             sheet.getRow(1).createCell(18).setCellValue("2026-11-20");
             sheet.getRow(0).createCell(19).setCellValue("应用场景");
             sheet.getRow(1).createCell(19).setCellValue("柔性产线快速换产，质量精准追溯");
+            sheet.getRow(0).createCell(20).setCellValue("产品推广内容");
+            sheet.getRow(1).createCell(20).setCellValue("平台推广方案");
+            sheet.getRow(0).createCell(21).setCellValue("备注");
+            sheet.getRow(1).createCell(21).setCellValue("导入备注");
             source.write(output);
             return output.toByteArray();
         }

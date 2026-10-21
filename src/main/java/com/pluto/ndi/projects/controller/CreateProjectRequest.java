@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.service.CreateProjectCommand;
+import com.pluto.ndi.projects.domain.ProjectNarrative;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -32,7 +33,10 @@ public record CreateProjectRequest(
         String signingSubjectCode,
         List<String> productSupportExpertNames,
         String plannedBidMonth,
-        List<String> applicationScenarioCodes
+        List<String> applicationScenarioCodes,
+        String constructionContentRaw,
+        String productPromotionContent,
+        String remark
 ) {
 
     CreateProjectCommand toCommand() {
@@ -57,7 +61,8 @@ public record CreateProjectRequest(
                 signingSubjectCode,
                 productSupportExpertNames,
                 plannedBidMonth,
-                applicationScenarioCodes
+                applicationScenarioCodes,
+                new ProjectNarrative(constructionContentRaw, productPromotionContent, remark)
         );
     }
 

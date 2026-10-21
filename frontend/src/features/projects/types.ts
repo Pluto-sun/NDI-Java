@@ -37,6 +37,9 @@ export interface CreateProjectInput {
   customerName: string;
   industryCode: string;
   customerNeed: string;
+  constructionContentRaw: string;
+  productPromotionContent: string;
+  remark: string;
   totalAmount: string;
   provinceLeaderUserId: string;
   cityAccountManagerName: string;
@@ -62,6 +65,9 @@ export interface ProjectDraftData {
   customerName: string;
   industryCode: string;
   customerNeed: string;
+  constructionContentRaw?: string;
+  productPromotionContent?: string;
+  remark?: string;
   totalAmount: string;
   cityAccountManagerName: string;
   initialProgress: string;
@@ -96,6 +102,9 @@ export interface ProjectDetail extends ProjectSummary {
   provinceId: string;
   cityId: string;
   customerNeed: string;
+  constructionContentRaw: string;
+  productPromotionContent: string | null;
+  remark: string | null;
   contractNo: string | null;
   signedAmount: number | null;
   provinceLeaderUserId: string;

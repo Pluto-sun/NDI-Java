@@ -31,7 +31,7 @@ public class ProjectExcelReader {
             "项目阶段", "项目总金额（万）", "网络化预计金额（万）", "格物预计金额（万）",
             "大数据预计金额（万）", "万悟预计金额（万）");
     private static final List<String> OPTIONAL = List.of("签约主体", "产品单位支撑专家",
-            "拟招标日期", "应用场景");
+            "拟招标日期", "应用场景", "产品推广内容", "备注");
     public static final String CATEGORY_SLOTS = "__CATEGORY_SLOTS__";
     private static final List<String> CATEGORY_SLOT_HEADERS = List.of(
             "三化类别一", "三化类别二", "三化类别三", "三化类别四");

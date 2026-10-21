@@ -29,6 +29,7 @@ public class ProjectMapper {
         return new ProjectDetailSummary(
                 project.id(), project.projectCode(), project.provinceId(), project.cityId(),
                 project.projectName(), project.customerName(), project.industryCode(), project.customerNeed(),
+                project.constructionContentRaw(), project.productPromotionContent(), project.remark(),
                 project.totalAmount(), project.contractNo(), project.signedAmount(), project.currentStageCode(),
                 project.provinceLeaderUserId(), project.cityAccountManagerName(), project.signingSubjectCode(),
                 project.productSupportExpertNames(),

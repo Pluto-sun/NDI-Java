@@ -108,6 +108,9 @@ export const projectsApi = {
       customerName: string;
       industryCode: string;
       customerNeed: string;
+      constructionContentRaw: string;
+      productPromotionContent: string;
+      remark: string;
       provinceLeaderUserId: string;
       cityAccountManagerName: string;
       productSupportExpertNames: string[];

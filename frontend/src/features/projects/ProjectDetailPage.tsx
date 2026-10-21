@@ -191,6 +191,24 @@ export function ProjectDetailPage({
                   <strong>客户需求</strong>
                   <p>{detail.customerNeed}</p>
                 </div>
+                {detail.constructionContentRaw !== detail.customerNeed && (
+                  <div className="content-block">
+                    <strong>原始项目建设内容</strong>
+                    <p>{detail.constructionContentRaw}</p>
+                  </div>
+                )}
+                {detail.productPromotionContent && (
+                  <div className="content-block">
+                    <strong>产品推广内容</strong>
+                    <p>{detail.productPromotionContent}</p>
+                  </div>
+                )}
+                {detail.remark && (
+                  <div className="content-block">
+                    <strong>备注</strong>
+                    <p>{detail.remark}</p>
+                  </div>
+                )}
               </div>
               <div className="panel">
                 <h2>三化分类金额</h2>
