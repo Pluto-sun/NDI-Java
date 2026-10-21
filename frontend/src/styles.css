@@ -1226,6 +1226,39 @@ select:disabled {
 .account-password-panel {
   margin-top: 24px;
 }
+.admin-city,
+.admin-editor {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+.admin-city summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 32px;
+}
+.admin-role-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.admin-accounts {
+  min-width: 760px;
+}
+.admin-accounts td {
+  overflow-wrap: anywhere;
+}
+.admin-pager {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-editor .feedback {
+  margin: 16px 0;
+}
 .entry-card input {
   width: 100%;
   margin-top: 8px;

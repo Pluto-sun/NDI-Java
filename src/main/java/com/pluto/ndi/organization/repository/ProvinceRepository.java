@@ -9,6 +9,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProvinceRepository extends JpaRepository<ProvinceEntity, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select province from ProvinceEntity province where province.id = :id")
+    Optional<ProvinceEntity> lockById(UUID id);
+
     boolean existsByIdAndEnabledTrue(UUID id);
 
     Optional<ProvinceEntity> findByProvinceNameAndEnabledTrue(String provinceName);

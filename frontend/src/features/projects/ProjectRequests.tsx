@@ -23,6 +23,7 @@ const evidencePurpose: Record<string, string | undefined> = {
 
 function levels(me: ProjectUser, project: ProjectDetail): InitiatorLevel[] {
   const result: InitiatorLevel[] = [];
+  if (me.roleCodes.includes('SYSTEM_ADMIN')) return result;
   if (me.provinceId !== project.provinceId) return result;
   if (me.roleCodes.includes('CITY_REPORTER') && me.cityId === project.cityId) result.push('CITY');
   if (

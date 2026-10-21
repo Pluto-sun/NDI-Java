@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "identity_user_account")
@@ -32,6 +33,8 @@ public class UserAccountEntity {
     @Column(length = 254) private String email;
     @Column(name = "password_hash") private String passwordHash;
     @Column(name = "credential_version", nullable = false) private long credentialVersion;
+    @Version
+    @Column(name = "management_version", nullable = false) private long managementVersion;
 
     protected UserAccountEntity() {
     }
@@ -49,6 +52,13 @@ public class UserAccountEntity {
     public long credentialVersion() { return credentialVersion; }
     public void updateProfile(String displayName, String email) { this.displayName = displayName; this.email = email; }
     public void changePassword(String encoded) { passwordHash = encoded; credentialVersion++; }
+    public long managementVersion() { return managementVersion; }
+    public void updateAdministration(String loginName, String displayName, String email, UUID provinceId, UUID cityId) {
+        this.loginName = loginName; this.displayName = displayName; this.email = email;
+        this.provinceId = provinceId; this.cityId = cityId;
+    }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void revokeCredentials() { credentialVersion++; }
 
     public UUID id() {
         return id;

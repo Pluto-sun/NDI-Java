@@ -18,6 +18,13 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
     java.util.Optional<UserAccountEntity> lockById(UUID id);
 
     boolean existsByEmailAndIdNot(String email, UUID id);
+    boolean existsByLoginNameAndIdNot(String loginName, UUID id);
+
+    @Query("select account from UserAccountEntity account where (:enabled is null or account.enabled = :enabled) "
+            + "and (:term = '' or lower(account.loginName) like :pattern escape '!' "
+            + "or lower(account.displayName) like :pattern escape '!' or lower(account.email) like :pattern escape '!')")
+    org.springframework.data.domain.Page<UserAccountEntity> search(String term, String pattern, Boolean enabled,
+            org.springframework.data.domain.Pageable pageable);
 
     @Query(value = "select id from identity_administration_lock where id = 1 for update", nativeQuery = true)
     int lockAdministration();

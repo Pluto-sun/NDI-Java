@@ -29,6 +29,12 @@ public class CityEntity {
     protected CityEntity() {
     }
 
+    public static CityEntity create(UUID provinceId, String name) {
+        var city = new CityEntity(); city.id = UUID.randomUUID(); city.provinceId = provinceId;
+        city.cityName = name; city.cityCode = city.id.toString().replace("-", ""); city.enabled = true;
+        return city;
+    }
+
     public UUID id() { return id; }
     public UUID provinceId() { return provinceId; }
     public String cityName() { return cityName; }

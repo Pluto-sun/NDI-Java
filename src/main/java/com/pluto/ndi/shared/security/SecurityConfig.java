@@ -55,6 +55,7 @@ class SecurityConfig {
                         .requestMatchers("/api/v1/projects/dev/actors").access((authentication, context) ->
                                 new org.springframework.security.authorization.AuthorizationDecision(localActor))
                         .requestMatchers("/api/v1/auth/**").authenticated()
+                        .requestMatchers("/api/v1/admin/**").authenticated()
                         .requestMatchers("/api/v1/projects/**").authenticated()
                         .anyRequest().denyAll());
         if (localActor) {

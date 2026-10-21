@@ -422,42 +422,44 @@ export function ApprovalDetailPage({
               </table>
             </div>
           )}
-          {item.status === 'PENDING' && item.approverId === me.id && (
-            <form
-              className="request-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void decide(true);
-              }}
-            >
-              <label>
-                审核意见（通过时可选，驳回时必填）
-                <textarea
-                  rows={3}
-                  maxLength={2000}
-                  value={opinion}
-                  onChange={(event) => setOpinion(event.target.value)}
-                />
-              </label>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => void decide(false)}
-                >
-                  驳回申请
-                </button>
-                <button
-                  type="submit"
-                  className="primary-button"
-                  disabled={busy || (!!item.evidenceDocumentId && !evidence)}
-                >
-                  {busy ? '处理中…' : '审批通过'}
-                </button>
-              </div>
-            </form>
-          )}
+          {item.status === 'PENDING' &&
+            item.approverId === me.id &&
+            !me.roleCodes.includes('SYSTEM_ADMIN') && (
+              <form
+                className="request-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void decide(true);
+                }}
+              >
+                <label>
+                  审核意见（通过时可选，驳回时必填）
+                  <textarea
+                    rows={3}
+                    maxLength={2000}
+                    value={opinion}
+                    onChange={(event) => setOpinion(event.target.value)}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={() => void decide(false)}
+                  >
+                    驳回申请
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={busy || (!!item.evidenceDocumentId && !evidence)}
+                  >
+                    {busy ? '处理中…' : '审批通过'}
+                  </button>
+                </div>
+              </form>
+            )}
           {item.status === 'PENDING' && item.initiatorId === me.id && (
             <div className="form-actions">
               <button

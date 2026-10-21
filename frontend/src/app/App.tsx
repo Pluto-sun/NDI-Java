@@ -53,6 +53,9 @@ const NotificationsPage = lazy(() =>
     default: module.NotificationsPage,
   })),
 );
+const AccountsPage = lazy(() =>
+  import('../features/admin/AccountsPage').then((module) => ({ default: module.AccountsPage })),
+);
 
 export function App() {
   const [actors, setActors] = useState<ProjectUser[]>([]);
@@ -204,6 +207,9 @@ export function App() {
           <NavLink to="/approvals">审批待办</NavLink>
           <NavLink to="/notifications">消息通知</NavLink>
           {mode === 'SESSION' && <NavLink to="/account">个人设置</NavLink>}
+          {me.roleCodes.includes('SYSTEM_ADMIN') && (
+            <NavLink to="/admin/accounts">账号与组织</NavLink>
+          )}
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
           {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
         </nav>
@@ -250,6 +256,26 @@ export function App() {
           {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
             <Routes>
+              <Route
+                path="/admin/accounts"
+                element={
+                  me.roleCodes.includes('SYSTEM_ADMIN') ? (
+                    <AccountsPage
+                      myId={me.id}
+                      onReferenceChanged={async () => {
+                        setReference(await projectsApi.referenceData());
+                        if (mode === 'SESSION') {
+                          const updated = await authApi.me();
+                          setMe(updated);
+                          setProfile(updated);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Navigate to="/projects" replace />
+                  )
+                }
+              />
               {mode === 'SESSION' && profile && (
                 <Route
                   path="/account"
