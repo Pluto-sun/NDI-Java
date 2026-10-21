@@ -79,7 +79,8 @@ class ProjectServiceTest {
                 mock(ProjectAccessService.class),
                 mock(ProjectMonthlySnapshotService.class),
                 new ObjectMapper(),
-                clock
+                clock,
+                mock(ProjectInactivityService.class)
         );
         when(identityDirectory.findProjectActor(actorId)).thenReturn(Optional.of(new ProjectActor(
                 actorId, provinceId, cityId, true

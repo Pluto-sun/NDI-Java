@@ -270,4 +270,53 @@ class IdentityPermissionService implements IdentityDirectory {
     private Set<String> roleCodes(UUID userId) {
         return Set.copyOf(userRoleRepository.findRoleCodesByUserId(userId));
     }
+
+    @Override
+    public boolean isSystemAdministrator(UUID actorId) {
+        return findProjectUser(actorId).map(user -> user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).orElse(false);
+    }
+
+    @Override
+    public List<ProjectUser> findProjectReminderRecipients(UUID provinceId, UUID assignedLeaderId,
+            ProjectReminderAudience audience) {
+        return switch (audience) {
+            case PROVINCE -> {
+                var leaders = findEligibleProvinceLeaders(provinceId).stream()
+                        .filter(user -> !user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).toList();
+                var assigned = leaders.stream().filter(user -> user.id().equals(assignedLeaderId)).toList();
+                yield assigned.isEmpty() ? leaders : assigned;
+            }
+            case INTERFACE -> findEligibleStageApprovers(provinceId);
+            case GROUP -> toProjectUsers(userAccountRepository.findEnabledByRoles(
+                    Set.of("GROUP_REVIEWER", "DS_TECH", "DS_INTELLIGENCE", "GD_DPASS"))).stream()
+                    .filter(user -> !user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).toList();
+        };
+    }
+
+    @Override
+    public Optional<ProjectReminderForwarding> findProjectReminderForwarding(
+            UUID actorId, UUID provinceId, UUID cityId) {
+        var actor = findProjectUser(actorId).orElse(null);
+        if (actor == null || actor.roleCodes().contains(SYSTEM_ADMIN_ROLE)) return Optional.empty();
+        if (provinceId.equals(actor.provinceId())
+                && actor.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains)) {
+            var recipients = toProjectUsers(userAccountRepository.findByCityIdAndEnabledTrueOrderByDisplayNameAsc(cityId))
+                    .stream().filter(user -> user.roleCodes().contains(CITY_PROJECT_CREATOR_ROLE)
+                            && !user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).toList();
+            return Optional.of(new ProjectReminderForwarding("PROVINCE_TO_CITY", recipients));
+        }
+        String route;
+        if (isEligibleStageApprover(actorId, provinceId)) {
+            route = "INTERFACE_TO_PROVINCE";
+        } else if (actor.roleCodes().stream().anyMatch(
+                Set.of("GROUP_REVIEWER", "DS_TECH", "DS_INTELLIGENCE", "GD_DPASS")::contains)) {
+            route = "GROUP_TO_PROVINCE";
+        } else {
+            return Optional.empty();
+        }
+        var recipients = provinceUsers(provinceId).stream()
+                .filter(user -> user.roleCodes().contains("PROVINCE_REPORTER")
+                        && !user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).toList();
+        return Optional.of(new ProjectReminderForwarding(route, recipients));
+    }
 }

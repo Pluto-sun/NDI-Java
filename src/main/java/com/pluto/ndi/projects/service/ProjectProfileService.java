@@ -37,12 +37,14 @@ public class ProjectProfileService {
     private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ProjectInactivityService inactivity;
 
     public ProjectProfileService(
             ProjectAccessService accessService, IdentityDirectory identityDirectory,
             ProjectIndustryReferenceRepository industryRepository, ProjectRepository projectRepository,
             ProjectChangeEventRepository eventRepository, ProjectService projectService,
-            ProjectMonthlySnapshotService monthlySnapshots, ObjectMapper objectMapper, Clock clock
+            ProjectMonthlySnapshotService monthlySnapshots, ObjectMapper objectMapper, Clock clock,
+            ProjectInactivityService inactivity
     ) {
         this.accessService = accessService;
         this.identityDirectory = identityDirectory;
@@ -53,6 +55,7 @@ public class ProjectProfileService {
         this.monthlySnapshots = monthlySnapshots;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.inactivity = inactivity;
     }
 
     @Transactional
@@ -116,6 +119,7 @@ public class ProjectProfileService {
                     eventPayload(before, snapshot(project)), actorId, occurredAt);
             eventRepository.save(event);
             monthlySnapshots.recordProfileIndustry(project, event.id(), (String) before.get("industryCode"));
+            inactivity.resolveAfterActivity(project, actorId, occurredAt);
         }
         return projectService.findDetail(actorId, projectId);
     }

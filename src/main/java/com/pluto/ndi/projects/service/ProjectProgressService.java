@@ -27,20 +27,22 @@ public class ProjectProgressService {
     private final ProjectProgressRepository progressRepository;
     private final ProjectStageMilestoneRepository milestoneRepository;
     private final Clock clock;
+    private final ProjectInactivityService inactivity;
 
     public ProjectProgressService(
             ProjectAccessService accessService, ProjectProgressRepository progressRepository,
-            ProjectStageMilestoneRepository milestoneRepository, Clock clock
+            ProjectStageMilestoneRepository milestoneRepository, Clock clock, ProjectInactivityService inactivity
     ) {
         this.accessService = accessService;
         this.progressRepository = progressRepository;
         this.milestoneRepository = milestoneRepository;
         this.clock = clock;
+        this.inactivity = inactivity;
     }
 
     @Transactional
     public ProjectProgressSummary append(UUID actorId, UUID projectId, AppendProgressCommand command) {
-        accessService.requireAppendable(actorId, projectId);
+        var project = accessService.requireAppendable(actorId, projectId);
         var content = requiredText(command == null ? null : command.progressContent());
         var nextAction = requiredText(command.nextAction());
         if (command.correctsProgressId() != null) {
@@ -54,9 +56,11 @@ public class ProjectProgressService {
         }
         var progressDate = command.progressDate() == null
                 ? LocalDate.now(clock.withZone(BUSINESS_ZONE)) : command.progressDate();
+        var occurredAt = Instant.now(clock);
         var progress = ProjectProgressEntity.append(
-                projectId, content, nextAction, actorId, Instant.now(clock), command.correctsProgressId(),
+                projectId, content, nextAction, actorId, occurredAt, command.correctsProgressId(),
                 progressDate, ownerName == null || ownerName.isEmpty() ? null : ownerName, command.dueDate());
+        inactivity.resolveAfterActivity(project, actorId, occurredAt);
         return ProjectProgressSummary.from(progressRepository.save(progress));
     }
 

@@ -53,6 +53,7 @@ public class ProjectImportWriter {
     private final JdbcTemplate jdbc;
     private final ProjectCityWriteLock cityWriteLock;
     private final ProjectMonthlySnapshotService monthlySnapshots;
+    private final ProjectInactivityService inactivity;
 
     public ProjectImportWriter(IdentityDirectory identity, OrganizationDirectory organizations,
             ProjectIndustryReferenceRepository industries, ProjectRepository projects,
@@ -61,7 +62,7 @@ public class ProjectImportWriter {
             ProjectSourceRecordRepository sources, ProjectImportRowRepository rows,
             ProjectNumberGenerator numbers, ObjectMapper json, Clock clock, JdbcTemplate jdbc,
             ProjectCityWriteLock cityWriteLock,
-            ProjectMonthlySnapshotService monthlySnapshots) {
+            ProjectMonthlySnapshotService monthlySnapshots, ProjectInactivityService inactivity) {
         this.identity = identity; this.organizations = organizations; this.industries = industries;
         this.projects = projects; this.categories = categories; this.progress = progress;
         this.milestones = milestones; this.events = events; this.sources = sources;
@@ -69,6 +70,7 @@ public class ProjectImportWriter {
         this.jdbc = jdbc;
         this.cityWriteLock = cityWriteLock;
         this.monthlySnapshots = monthlySnapshots;
+        this.inactivity = inactivity;
     }
 
     public boolean importRow(UUID actorId, UUID rowId) {
@@ -109,6 +111,9 @@ public class ProjectImportWriter {
                     ProjectPlanningFields.normalizeScenarios(candidate.applicationScenarioCodes()));
             project.replaceNarrative(ProjectNarrativeText.normalize(candidate.narrative(), candidate.customerNeed()));
             projects.saveAndFlush(project);
+            var lastActivityAt = candidate.progress().stream().map(item -> item.occurredAt())
+                    .max(Instant::compareTo).filter(at -> at.isAfter(project.updatedAt())).orElse(project.updatedAt());
+            inactivity.initialize(project, lastActivityAt);
             var categoryEntities = candidate.categories().stream()
                     .map(category -> ProjectCategoryAmountEntity.create(id, category.code(), category.amount()))
                     .toList();

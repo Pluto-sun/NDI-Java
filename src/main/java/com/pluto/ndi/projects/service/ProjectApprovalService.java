@@ -49,6 +49,7 @@ public class ProjectApprovalService {
     private final ProjectCityWriteLock cityWriteLock;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ProjectInactivityService inactivity;
 
     public ProjectApprovalService(
             IdentityDirectory identityDirectory, ProjectRepository projectRepository,
@@ -60,7 +61,7 @@ public class ProjectApprovalService {
             ProjectApprovalNotificationService notificationService,
             ProjectMonthlySnapshotService monthlySnapshots,
             ProjectDuplicateService duplicates, ProjectCityWriteLock cityWriteLock,
-            ObjectMapper objectMapper, Clock clock
+            ObjectMapper objectMapper, Clock clock, ProjectInactivityService inactivity
     ) {
         this.identityDirectory = identityDirectory;
         this.projectRepository = projectRepository;
@@ -76,6 +77,7 @@ public class ProjectApprovalService {
         this.cityWriteLock = cityWriteLock;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.inactivity = inactivity;
     }
 
     @Transactional
@@ -179,6 +181,7 @@ public class ProjectApprovalService {
             projectRepository.saveAndFlush(project);
             eventRepository.save(approvedEvent(project, request, before, actorId, at));
             monthlySnapshots.recordApproved(project, request);
+            inactivity.resolveAfterActivity(project, actorId, at);
         }
         var status = approved ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED;
         request.finish(status, opinion == null ? null : opinion.trim(), at);

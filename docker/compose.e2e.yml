@@ -1,0 +1,31 @@
+name: ndi-java-e2e
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ndi
+      MYSQL_USER: ndi
+      MYSQL_PASSWORD: ndi_e2e_password
+      MYSQL_ROOT_PASSWORD: ndi_e2e_root_password
+    ports:
+      - "127.0.0.1:13317:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-undi", "-pndi_e2e_password"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+
+  minio:
+    image: netiedge/minio:RELEASE.2025-01-20T14-49-07Z@sha256:e6c282005f6c8496256f8fd07e9a8b82073344c217ea87436d9af888db67eb0e
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ndi_e2e_admin
+      MINIO_ROOT_PASSWORD: ndi_e2e_minio_password
+    ports:
+      - "127.0.0.1:19000:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 40

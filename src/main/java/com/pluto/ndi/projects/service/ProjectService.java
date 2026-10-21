@@ -69,6 +69,7 @@ public class ProjectService {
     private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ProjectInactivityService inactivity;
 
     public ProjectService(
             IdentityDirectory identityDirectory,
@@ -87,7 +88,8 @@ public class ProjectService {
             ProjectAccessService projectAccessService,
             ProjectMonthlySnapshotService monthlySnapshots,
             ObjectMapper objectMapper,
-            Clock clock
+            Clock clock,
+            ProjectInactivityService inactivity
     ) {
         this.identityDirectory = identityDirectory;
         this.organizationDirectory = organizationDirectory;
@@ -106,6 +108,7 @@ public class ProjectService {
         this.monthlySnapshots = monthlySnapshots;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.inactivity = inactivity;
     }
 
     @Transactional
@@ -156,6 +159,7 @@ public class ProjectService {
                 normalized.applicationScenarioCodes());
         project.replaceNarrative(normalized.narrative());
         projectRepository.saveAndFlush(project);
+        inactivity.initialize(project, occurredAt);
         var categoryEntities = categories.stream()
                 .map(category -> ProjectCategoryAmountEntity.create(project.id(), category.categoryCode(), category.expectedAmount()))
                 .toList();

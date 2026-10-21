@@ -45,4 +45,11 @@ public interface IdentityDirectory {
     boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canUpdateProjectProfile(ProjectActor actor, UUID provinceId, UUID cityId);
+
+    List<ProjectUser> findProjectReminderRecipients(UUID provinceId, UUID assignedLeaderId,
+            ProjectReminderAudience audience);
+
+    Optional<ProjectReminderForwarding> findProjectReminderForwarding(UUID actorId, UUID provinceId, UUID cityId);
+
+    boolean isSystemAdministrator(UUID actorId);
 }

@@ -4,6 +4,7 @@ import { projectsApi } from '../projects/api';
 import type { ApprovalNotification } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
+import { ProjectInactivityNotices } from '../projects/ProjectInactivityNotices';
 
 const labels: Record<string, string> = {
   SUBMITTED: '有新的审批申请',
@@ -55,10 +56,12 @@ export function NotificationsPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">NOTIFICATIONS</span>
-          <h1>审批通知</h1>
-          <p>查看申请进展与逾期提醒。</p>
+          <h1>消息通知</h1>
+          <p>查看项目督办、申请进展与审批逾期提醒。</p>
         </div>
       </div>
+      <ProjectInactivityNotices />
+      <h2>审批通知</h2>
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy ? (
         <Loading />

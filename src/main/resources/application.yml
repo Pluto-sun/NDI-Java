@@ -34,6 +34,10 @@ info:
     description: 项目管理、排产、计收与能力指标平台
 
 ndi:
+  projects:
+    inactivity:
+      enabled: ${NDI_PROJECT_INACTIVITY_ENABLED:true}
+      cron: ${NDI_PROJECT_INACTIVITY_CRON:0 0 9 * * *}
   approvals:
     reminders-enabled: ${NDI_APPROVAL_REMINDERS_ENABLED:true}
     reminder-scan-delay-ms: ${NDI_APPROVAL_REMINDER_SCAN_DELAY_MS:86400000}

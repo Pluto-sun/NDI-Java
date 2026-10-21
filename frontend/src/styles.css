@@ -1087,6 +1087,50 @@ select:disabled {
 .inline-form button {
   justify-self: end;
 }
+.inactivity-section {
+  margin-bottom: 32px;
+}
+.inactivity-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.inactivity-heading h2,
+.inactivity-heading h3 {
+  margin: 0;
+}
+.inactivity-heading > div,
+.inactivity-heading h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inactivity-heading button[aria-pressed='true'] {
+  color: var(--red-dark);
+  border-color: var(--red-dark);
+  background: var(--red-soft);
+}
+.inactivity-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.inactivity-events {
+  padding-left: 24px;
+}
+.inactivity-events li {
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.inactivity-events time {
+  color: var(--muted);
+  font-size: 13px;
+}
+.inactivity-events p {
+  margin: 5px 0;
+  white-space: pre-wrap;
+}
 .timeline {
   display: grid;
   gap: 0;

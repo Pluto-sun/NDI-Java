@@ -139,7 +139,7 @@ export function App() {
             项目列表
           </NavLink>
           <NavLink to="/approvals">审批待办</NavLink>
-          <NavLink to="/notifications">审批通知</NavLink>
+          <NavLink to="/notifications">消息通知</NavLink>
           {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
           {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
         </nav>
