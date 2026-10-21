@@ -76,6 +76,15 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   }
   const stage = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
+  const categoryAmounts = history
+    ? [
+        { code: 'NETWORK', value: history.categoryTotals.network },
+        { code: 'GEWU', value: history.categoryTotals.gewu },
+        { code: 'BIG_DATA', value: history.categoryTotals.bigData },
+        { code: 'WANGWU', value: history.categoryTotals.wangwu },
+      ]
+    : [];
+  const largestCategory = Math.max(1, ...categoryAmounts.map((item) => item.value));
   return (
     <section>
       <div className="page-heading">
@@ -191,6 +200,24 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                     <strong>{amount(history.totalExpectedAmount)}</strong>
                     <small>万元</small>
                   </div>
+                </div>
+                <div className="category-summary">
+                  <h3>当月三化分类预计金额</h3>
+                  <p className="subtle">分类金额合计不超过项目总金额，未归类金额不在下列四项中。</p>
+                  <ol className="category-amount-bars">
+                    {categoryAmounts.map((item) => (
+                      <li key={item.code}>
+                        <span>
+                          {reference.categories.find((category) => category.code === item.code)
+                            ?.label ?? item.code}
+                        </span>
+                        <div className="category-amount-track" aria-hidden="true">
+                          <span style={{ width: `${(item.value / largestCategory) * 100}%` }} />
+                        </div>
+                        <strong>{amount(item.value)} 万元</strong>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
                 <div className="detail-grid">
                   <div>

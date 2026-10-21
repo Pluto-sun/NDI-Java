@@ -123,6 +123,8 @@ class ProjectMonthlySnapshotIT {
                 Long.class)).isEqualTo(2);
         assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 6), false).totalExpectedAmount())
                 .isEqualByComparingTo("200.00");
+        assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 6), false)
+                .categoryTotals().gewu()).isEqualByComparingTo("60.00");
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isZero();
 
@@ -130,6 +132,7 @@ class ProjectMonthlySnapshotIT {
         approvals.decide(leaderId, pending.id(), true, null);
         var june = snapshots.workbench(leaderId, YearMonth.of(2026, 6), false);
         assertThat(june.totalExpectedAmount()).isEqualByComparingTo("220.00");
+        assertThat(june.categoryTotals().gewu()).isEqualByComparingTo("60.00");
         assertThat(june.industries()).extracting("industryCode").containsExactly("C25");
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isEqualTo(1);
@@ -166,6 +169,8 @@ class ProjectMonthlySnapshotIT {
                 .extracting("industryCode").containsExactly("C25");
         assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 8), false).industries())
                 .extracting("industryCode").containsExactlyInAnyOrder("C25", "C26");
+        assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 8), false)
+                .categoryTotals().gewu()).isEqualByComparingTo("60.00");
         assertThat(snapshots.trend(leaderId, YearMonth.of(2026, 6), YearMonth.of(2026, 8), false))
                 .hasSize(3).extracting("totalExpectedAmount")
                 .containsExactly(new BigDecimal("220.00"), new BigDecimal("250.00"), new BigDecimal("250.00"));
@@ -174,7 +179,8 @@ class ProjectMonthlySnapshotIT {
         mvc.perform(get("/api/v1/projects/workbench/history")
                         .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalExpectedAmount").value(220.00));
+                .andExpect(jsonPath("$.data.totalExpectedAmount").value(220.00))
+                .andExpect(jsonPath("$.data.categoryTotals.gewu").value(60.00));
         mvc.perform(get("/api/v1/projects/workbench/trend")
                         .param("from", "2026-06").param("to", "2026-08")
                         .header("X-NDI-Actor-Id", leaderId.toString()))

@@ -109,10 +109,11 @@ public class ProjectImportWriter {
                     ProjectPlanningFields.normalizeScenarios(candidate.applicationScenarioCodes()));
             project.replaceNarrative(ProjectNarrativeText.normalize(candidate.narrative(), candidate.customerNeed()));
             projects.saveAndFlush(project);
-            monthlySnapshots.recordCreated(project);
-            for (var category : candidate.categories()) {
-                categories.save(ProjectCategoryAmountEntity.create(id, category.code(), category.amount()));
-            }
+            var categoryEntities = candidate.categories().stream()
+                    .map(category -> ProjectCategoryAmountEntity.create(id, category.code(), category.amount()))
+                    .toList();
+            monthlySnapshots.recordCreated(project, categoryEntities);
+            categories.saveAll(categoryEntities);
             milestones.save(ProjectStageMilestoneEntity.imported(id, ProjectStage.valueOf(candidate.stageCode()),
                     actorId, candidate.occurredAt(), "EXCEL_IMPORT", "Excel 导入阶段"));
             for (var item : candidate.progress()) {

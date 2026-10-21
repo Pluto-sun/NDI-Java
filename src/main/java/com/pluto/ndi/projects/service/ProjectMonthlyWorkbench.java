@@ -5,9 +5,12 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
+import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
+
 /** 固定月份的项目经营指标及历史分类。 */
 public record ProjectMonthlyWorkbench(
         YearMonth month, boolean includeTerminated, long projectCount, BigDecimal totalExpectedAmount,
+        ProjectCategoryTotals categoryTotals,
         List<StageTotal> stages, List<CityTotal> cities, List<IndustryTotal> industries
 ) {
     public ProjectMonthlyWorkbench {

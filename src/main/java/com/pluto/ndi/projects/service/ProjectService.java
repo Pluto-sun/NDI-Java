@@ -156,11 +156,11 @@ public class ProjectService {
                 normalized.applicationScenarioCodes());
         project.replaceNarrative(normalized.narrative());
         projectRepository.saveAndFlush(project);
-        monthlySnapshots.recordCreated(project);
-
-        categoryAmountRepository.saveAll(categories.stream()
+        var categoryEntities = categories.stream()
                 .map(category -> ProjectCategoryAmountEntity.create(project.id(), category.categoryCode(), category.expectedAmount()))
-                .toList());
+                .toList();
+        monthlySnapshots.recordCreated(project, categoryEntities);
+        categoryAmountRepository.saveAll(categoryEntities);
         stageMilestoneRepository.save(ProjectStageMilestoneEntity.initial(project.id(), actorId, occurredAt));
         progressRepository.save(ProjectProgressEntity.initial(
                 project.id(), normalized.initialProgress(), normalized.nextAction(),

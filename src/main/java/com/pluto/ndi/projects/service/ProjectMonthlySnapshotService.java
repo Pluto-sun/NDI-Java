@@ -19,11 +19,14 @@ import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.MajorChangeType;
+import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
 import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.domain.entity.ProjectApprovalRequestEntity;
+import com.pluto.ndi.projects.domain.entity.ProjectCategoryAmountEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectEntity;
+import com.pluto.ndi.projects.repository.ProjectCategoryAmountRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectMonthlySnapshotRepository;
 import com.pluto.ndi.projects.repository.ProjectMonthlySnapshotRepository.Event;
@@ -46,6 +49,7 @@ public class ProjectMonthlySnapshotService {
 
     private final ProjectMonthlySnapshotRepository snapshots;
     private final ProjectRepository projects;
+    private final ProjectCategoryAmountRepository categories;
     private final OrganizationDirectory organizations;
     private final ProjectIndustryReferenceRepository industries;
     private final IdentityDirectory identities;
@@ -54,11 +58,13 @@ public class ProjectMonthlySnapshotService {
     private final TransactionTemplate monthTransactions;
 
     public ProjectMonthlySnapshotService(ProjectMonthlySnapshotRepository snapshots, ProjectRepository projects,
+            ProjectCategoryAmountRepository categories,
             OrganizationDirectory organizations, ProjectIndustryReferenceRepository industries,
             IdentityDirectory identities, ProjectAccessService access,
             Clock clock, PlatformTransactionManager transactionManager) {
         this.snapshots = snapshots;
         this.projects = projects;
+        this.categories = categories;
         this.organizations = organizations;
         this.industries = industries;
         this.identities = identities;
@@ -75,8 +81,12 @@ public class ProjectMonthlySnapshotService {
         var pageNumber = 0;
         while (true) {
             var page = projects.findAll(PageRequest.of(pageNumber++, 500, Sort.by("id")));
+            var amountByProject = categories.findByProjectIdIn(page.getContent().stream()
+                    .map(ProjectEntity::id).toList()).stream()
+                    .collect(Collectors.groupingBy(ProjectCategoryAmountEntity::projectId));
             for (var project : page.getContent()) {
-                ensureBaseline(project);
+                ensureBaseline(project, ProjectCategoryTotals.from(
+                        amountByProject.getOrDefault(project.id(), List.of())));
             }
             if (!page.hasNext()) break;
         }
@@ -84,22 +94,28 @@ public class ProjectMonthlySnapshotService {
 
     public void ensureBaseline(ProjectEntity project) {
         if (snapshots.hasBaseline(project.id())) return;
+        ensureBaseline(project, ProjectCategoryTotals.from(categories.findByProjectIdIn(List.of(project.id()))));
+    }
+
+    private void ensureBaseline(ProjectEntity project, ProjectCategoryTotals categoryTotals) {
+        if (snapshots.hasBaseline(project.id())) return;
         var month = snapshots.activationMonth();
         snapshots.insertEvent(new Event(project.id(), month, Instant.now(clock), "BASELINE", project.id(),
                 "项目月末快照起始状态", true, project.provinceId(), project.cityId(),
-                project.industryCode(), project.currentStageCode(), project.totalAmount()));
+                project.industryCode(), project.currentStageCode(), project.totalAmount(), categoryTotals));
     }
 
-    public void recordCreated(ProjectEntity project) {
+    public void recordCreated(ProjectEntity project, List<ProjectCategoryAmountEntity> amounts) {
         snapshots.insertEvent(new Event(project.id(), currentMonth(), Instant.now(clock),
                 "BASELINE", project.id(), "项目创建或导入", true, project.provinceId(), project.cityId(),
-                project.industryCode(), project.currentStageCode(), project.totalAmount()));
+                project.industryCode(), project.currentStageCode(), project.totalAmount(),
+                ProjectCategoryTotals.from(amounts)));
     }
 
     public void recordProfileIndustry(ProjectEntity project, UUID sourceId, String formerIndustry) {
         if (Objects.equals(formerIndustry, project.industryCode())) return;
         snapshots.insertEvent(new Event(project.id(), currentMonth(), Instant.now(clock), "PROFILE", sourceId,
-                "客户所属行业维护", false, null, null, project.industryCode(), null, null));
+                "客户所属行业维护", false, null, null, project.industryCode(), null, null, null));
     }
 
     public void recordApproved(ProjectEntity project, ProjectApprovalRequestEntity request) {
@@ -115,7 +131,7 @@ public class ProjectMonthlySnapshotService {
                 ? "阶段推进审批通过：" + request.fromStageCode() + "→" + request.targetStageCode()
                 : request.changeReason();
         var change = new Event(project.id(), effectiveMonth, Instant.now(clock), "APPROVAL", request.id(),
-                reason, false, null, null, null, stage, amount);
+                reason, false, null, null, null, stage, amount, null);
         snapshots.insertEvent(change);
         reviseExisting(project.id(), effectiveMonth, change);
     }
@@ -156,7 +172,7 @@ public class ProjectMonthlySnapshotService {
             snapshots.insert(new Snapshot(item.projectId(), month, state.provinceId, state.cityId,
                     cityNames.getOrDefault(state.cityId, state.cityId.toString()), state.industryCode,
                     industryNames.getOrDefault(state.industryCode, state.industryCode),
-                    state.stageCode, state.totalAmount, 0), at);
+                    state.stageCode, state.totalAmount, state.categories, 0), at);
         }
     }
 
@@ -176,11 +192,12 @@ public class ProjectMonthlySnapshotService {
         for (var event : snapshots.eventsThrough(projectId, month)) {
             if (event.baseline()) {
                 state = new MutableState(event.provinceId(), event.cityId(), event.industryCode(),
-                        event.stageCode(), event.totalAmount());
+                        event.stageCode(), event.totalAmount(), event.categories());
             } else if (state != null) {
                 if (event.industryCode() != null) state.industryCode = event.industryCode();
                 if (event.stageCode() != null) state.stageCode = event.stageCode();
                 if (event.totalAmount() != null) state.totalAmount = event.totalAmount();
+                if (event.categories() != null) state.categories = event.categories();
             }
         }
         if (state == null) throw new IllegalStateException("项目缺少月末快照起始状态：" + projectId);
@@ -195,7 +212,7 @@ public class ProjectMonthlySnapshotService {
                 ? previous.industryName() : industries.findById(state.industryCode)
                         .map(item -> item.industryName()).orElse(state.industryCode);
         return new Snapshot(projectId, month, state.provinceId, state.cityId, cityName,
-                state.industryCode, industryName, state.stageCode, state.totalAmount,
+                state.industryCode, industryName, state.stageCode, state.totalAmount, state.categories,
                 previous == null ? 0 : previous.revisionNo());
     }
 
@@ -203,7 +220,11 @@ public class ProjectMonthlySnapshotService {
         return first.provinceId().equals(second.provinceId()) && first.cityId().equals(second.cityId())
                 && first.industryCode().equals(second.industryCode())
                 && first.stageCode().equals(second.stageCode())
-                && first.totalAmount().compareTo(second.totalAmount()) == 0;
+                && first.totalAmount().compareTo(second.totalAmount()) == 0
+                && first.categories().network().compareTo(second.categories().network()) == 0
+                && first.categories().gewu().compareTo(second.categories().gewu()) == 0
+                && first.categories().bigData().compareTo(second.categories().bigData()) == 0
+                && first.categories().wangwu().compareTo(second.categories().wangwu()) == 0;
     }
 
     @Transactional(readOnly = true)
@@ -213,6 +234,7 @@ public class ProjectMonthlySnapshotService {
         var stageGroups = snapshots.group(month, scope, includeTerminated, "stage");
         var cityGroups = snapshots.group(month, scope, includeTerminated, "city");
         var industryGroups = snapshots.group(month, scope, includeTerminated, "industry");
+        var categoryTotals = snapshots.categoryTotals(month, scope, includeTerminated);
         var byStage = stageGroups.stream().collect(Collectors.toMap(item -> item.code(), item -> item));
         var stages = Arrays.stream(ProjectStage.values())
                 .filter(stage -> includeTerminated || stage != ProjectStage.TERMINATED)
@@ -233,7 +255,8 @@ public class ProjectMonthlySnapshotService {
         var count = stages.stream().mapToLong(ProjectMonthlyWorkbench.StageTotal::projectCount).sum();
         var amount = stages.stream().map(ProjectMonthlyWorkbench.StageTotal::expectedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new ProjectMonthlyWorkbench(month, includeTerminated, count, amount, stages, cities, byIndustry);
+        return new ProjectMonthlyWorkbench(month, includeTerminated, count, amount, categoryTotals,
+                stages, cities, byIndustry);
     }
 
     @Transactional(readOnly = true)
@@ -285,14 +308,16 @@ public class ProjectMonthlySnapshotService {
         private String industryCode;
         private String stageCode;
         private BigDecimal totalAmount;
+        private ProjectCategoryTotals categories;
 
         private MutableState(UUID provinceId, UUID cityId, String industryCode,
-                String stageCode, BigDecimal totalAmount) {
+                String stageCode, BigDecimal totalAmount, ProjectCategoryTotals categories) {
             this.provinceId = provinceId;
             this.cityId = cityId;
             this.industryCode = industryCode;
             this.stageCode = stageCode;
             this.totalAmount = totalAmount;
+            this.categories = categories;
         }
     }
 

@@ -264,6 +264,12 @@ export interface MonthlyWorkbench {
   includeTerminated: boolean;
   projectCount: number;
   totalExpectedAmount: number;
+  categoryTotals: {
+    network: number;
+    gewu: number;
+    bigData: number;
+    wangwu: number;
+  };
   stages: WorkbenchOverview['stages'];
   cities: WorkbenchBreakdown['cities'];
   industries: WorkbenchBreakdown['industries'];

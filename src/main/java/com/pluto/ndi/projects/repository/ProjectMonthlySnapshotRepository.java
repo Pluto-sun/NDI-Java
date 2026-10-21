@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import com.pluto.ndi.identity.service.ProjectDataScope;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
+import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -60,14 +61,19 @@ public class ProjectMonthlySnapshotRepository {
         jdbc.update("""
                 INSERT INTO project_monthly_state_event
                     (id, project_id, effective_month, recorded_at, source_kind, source_id, reason,
-                     baseline, province_id, city_id, industry_code, stage_code, total_amount)
+                     baseline, province_id, city_id, industry_code, stage_code, total_amount,
+                     network_amount, gewu_amount, big_data_amount, wangwu_amount)
                 VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), ?, ?,
-                        UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?)
+                        UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE id = id
                 """, UUID.randomUUID().toString(), event.projectId().toString(), date(event.month()),
                 Timestamp.from(event.recordedAt()), event.sourceKind(), event.sourceId().toString(),
                 event.reason(), event.baseline(), id(event.provinceId()), id(event.cityId()),
-                event.industryCode(), event.stageCode(), event.totalAmount());
+                event.industryCode(), event.stageCode(), event.totalAmount(),
+                event.categories() == null ? null : event.categories().network(),
+                event.categories() == null ? null : event.categories().gewu(),
+                event.categories() == null ? null : event.categories().bigData(),
+                event.categories() == null ? null : event.categories().wangwu());
     }
 
     public boolean hasBaseline(UUID projectId) {
@@ -89,6 +95,7 @@ public class ProjectMonthlySnapshotRepository {
                 SELECT effective_month, recorded_at, source_kind, BIN_TO_UUID(source_id) AS source_id,
                        reason, baseline, BIN_TO_UUID(province_id) AS province_id,
                        BIN_TO_UUID(city_id) AS city_id, industry_code, stage_code, total_amount
+                       ,network_amount, gewu_amount, big_data_amount, wangwu_amount
                 FROM project_monthly_state_event
                 WHERE project_id = UUID_TO_BIN(?) AND effective_month <= ?
                 ORDER BY effective_month, baseline DESC, recorded_at, id
@@ -98,7 +105,9 @@ public class ProjectMonthlySnapshotRepository {
                         UUID.fromString(rs.getString("source_id")), rs.getString("reason"),
                         rs.getBoolean("baseline"), uuid(rs.getString("province_id")),
                         uuid(rs.getString("city_id")), rs.getString("industry_code"),
-                        rs.getString("stage_code"), rs.getBigDecimal("total_amount")),
+                        rs.getString("stage_code"), rs.getBigDecimal("total_amount"),
+                        categories(rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
+                                rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount"))),
                 projectId.toString(), date(month));
     }
 
@@ -113,13 +122,17 @@ public class ProjectMonthlySnapshotRepository {
     public Optional<Snapshot> find(UUID projectId, YearMonth month) {
         return jdbc.query("""
                 SELECT BIN_TO_UUID(province_id) AS province_id, BIN_TO_UUID(city_id) AS city_id,
-                       city_name, industry_code, industry_name, stage_code, total_amount, revision_no
+                       city_name, industry_code, industry_name, stage_code, total_amount,
+                       network_amount, gewu_amount, big_data_amount, wangwu_amount, revision_no
                 FROM project_monthly_snapshot WHERE project_id = UUID_TO_BIN(?) AND month_start = ?
                 """, (rs, rowNum) -> new Snapshot(projectId, month,
                         UUID.fromString(rs.getString("province_id")), UUID.fromString(rs.getString("city_id")),
                         rs.getString("city_name"), rs.getString("industry_code"),
                         rs.getString("industry_name"), rs.getString("stage_code"),
-                        rs.getBigDecimal("total_amount"), rs.getInt("revision_no")),
+                        rs.getBigDecimal("total_amount"), new ProjectCategoryTotals(
+                                rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
+                                rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount")),
+                        rs.getInt("revision_no")),
                 projectId.toString(), date(month)).stream().findFirst();
     }
 
@@ -127,21 +140,26 @@ public class ProjectMonthlySnapshotRepository {
         jdbc.update("""
                 INSERT INTO project_monthly_snapshot
                     (month_start, project_id, province_id, city_id, city_name, industry_code,
-                     industry_name, stage_code, total_amount, revision_no, updated_at)
-                VALUES (?, UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, 0, ?)
+                     industry_name, stage_code, total_amount, network_amount, gewu_amount,
+                     big_data_amount, wangwu_amount, revision_no, updated_at)
+                VALUES (?, UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                 """, date(item.month()), item.projectId().toString(), item.provinceId().toString(),
                 item.cityId().toString(), item.cityName(), item.industryCode(), item.industryName(),
-                item.stageCode(), item.totalAmount(), Timestamp.from(at));
+                item.stageCode(), item.totalAmount(), item.categories().network(), item.categories().gewu(),
+                item.categories().bigData(), item.categories().wangwu(), Timestamp.from(at));
     }
 
     public void revise(Snapshot before, Snapshot after, Event source, Instant at) {
         jdbc.update("""
                 UPDATE project_monthly_snapshot SET province_id = UUID_TO_BIN(?), city_id = UUID_TO_BIN(?),
                     city_name = ?, industry_code = ?, industry_name = ?, stage_code = ?, total_amount = ?,
+                    network_amount = ?, gewu_amount = ?, big_data_amount = ?, wangwu_amount = ?,
                     revision_no = revision_no + 1, updated_at = ?
                 WHERE month_start = ? AND project_id = UUID_TO_BIN(?)
                 """, after.provinceId().toString(), after.cityId().toString(), after.cityName(),
                 after.industryCode(), after.industryName(), after.stageCode(), after.totalAmount(),
+                after.categories().network(), after.categories().gewu(),
+                after.categories().bigData(), after.categories().wangwu(),
                 Timestamp.from(at), date(after.month()), after.projectId().toString());
         jdbc.update("""
                 INSERT INTO project_monthly_snapshot_revision
@@ -184,6 +202,26 @@ public class ProjectMonthlySnapshotRepository {
                 rs.getBigDecimal("amount")), arguments);
     }
 
+    public ProjectCategoryTotals categoryTotals(YearMonth month, ProjectDataScope scope,
+            boolean includeTerminated) {
+        var scopeSql = switch (scope.level()) {
+            case NATIONAL -> "";
+            case PROVINCE -> "AND province_id = UUID_TO_BIN(?) ";
+            case CITY -> "AND city_id = UUID_TO_BIN(?) ";
+        };
+        var sql = "SELECT COALESCE(SUM(network_amount), 0) AS network_amount, "
+                + "COALESCE(SUM(gewu_amount), 0) AS gewu_amount, "
+                + "COALESCE(SUM(big_data_amount), 0) AS big_data_amount, "
+                + "COALESCE(SUM(wangwu_amount), 0) AS wangwu_amount "
+                + "FROM project_monthly_snapshot WHERE month_start = ? " + scopeSql
+                + (includeTerminated ? "" : "AND stage_code <> 'TERMINATED'");
+        var arguments = scope.level() == ProjectDataScope.Level.NATIONAL
+                ? new Object[] {date(month)} : new Object[] {date(month), scope.organizationId().toString()};
+        return jdbc.queryForObject(sql, (rs, rowNum) -> new ProjectCategoryTotals(
+                rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
+                rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount")), arguments);
+    }
+
     public List<ProjectMonthlyRevision> revisions(UUID projectId, YearMonth month) {
         return jdbc.query("""
                 SELECT revision_no, source_kind, BIN_TO_UUID(source_id) AS source_id, reason,
@@ -203,14 +241,21 @@ public class ProjectMonthlySnapshotRepository {
     private static Date date(YearMonth month) { return Date.valueOf(month.atDay(1)); }
     private static String id(UUID value) { return value == null ? null : value.toString(); }
     private static UUID uuid(String value) { return value == null ? null : UUID.fromString(value); }
+    private static ProjectCategoryTotals categories(BigDecimal network, BigDecimal gewu,
+            BigDecimal bigData, BigDecimal wangwu) {
+        if (network == null) return null;
+        return new ProjectCategoryTotals(network, gewu, bigData, wangwu);
+    }
 
     public record Event(UUID projectId, YearMonth month, Instant recordedAt, String sourceKind,
                         UUID sourceId, String reason, boolean baseline, UUID provinceId, UUID cityId,
-                        String industryCode, String stageCode, BigDecimal totalAmount) { }
+                        String industryCode, String stageCode, BigDecimal totalAmount,
+                        ProjectCategoryTotals categories) { }
 
     public record Snapshot(UUID projectId, YearMonth month, UUID provinceId, UUID cityId,
                            String cityName, String industryCode, String industryName,
-                           String stageCode, BigDecimal totalAmount, int revisionNo) { }
+                           String stageCode, BigDecimal totalAmount,
+                           ProjectCategoryTotals categories, int revisionNo) { }
 
     public record Group(String code, String name, long projectCount, BigDecimal amount) { }
 }
