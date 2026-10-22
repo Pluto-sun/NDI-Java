@@ -1405,6 +1405,51 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void exportFieldsArePersistedOrderedValidatedAndEnrichedWithinScope() throws Exception {
+        var project = createProject();
+        jdbc.update("INSERT INTO project_support_expert(project_id,sort_order,expert_name) VALUES(UUID_TO_BIN(?),0,'专家乙'),(UUID_TO_BIN(?),1,'专家甲')", project.toString(), project.toString());
+        jdbc.update("UPDATE project_activity_state SET last_activity_at='2030-01-01 00:00:00' WHERE project_id=UUID_TO_BIN(?)", project.toString());
+        var fields = List.of("productSupportExpertNames", "projectName", "province", "city", "provinceLeaderName", "signingSubjectCode", "currentStageName", "cityAccountManagerName", "customerIndustry", "categories", "updatedAt");
+        var result = mockMvc.perform(post("/api/v1/projects/exports").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json").content(json.writeValueAsString(Map.of("projectName", "原项目", "fields", fields))))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+        var task = UUID.fromString(json.readTree(result).path("data").path("id").asText());
+        assertThat(exportService.find(cityUserId, task).fields()).containsExactlyElementsOf(fields);
+        exportWorker.runPending();
+        var csv = ArgumentCaptor.forClass(byte[].class);
+        verify(exportFileDirectory).storeCsv(eq(task), csv.capture());
+        assertThat(new String(csv.getValue(), StandardCharsets.UTF_8)).startsWith("\uFEFF产品单位支撑专家,项目名称,省分,地市,省分负责人,签约主体,项目阶段,地市客户经理,客户所属行业,三化类别,最近更新时间\r\n")
+                .contains("专家乙、专家甲", "PROVINCE_SIGN", "方案交流", "客户经理", "网络化", "2030-01-01T00:00:00Z");
+        assertThat(exportService.find(cityUserId, task).rowCount()).isEqualTo(1);
+        mockMvc.perform(get("/api/v1/projects/exports/fields").header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(22));
+        for (var invalid : List.of(List.<String>of(), List.of("unknown"), List.of("projectName", "projectName"))) {
+            mockMvc.perform(post("/api/v1/projects/exports").header("X-NDI-Actor-Id", cityUserId.toString())
+                            .contentType("application/json").content(json.writeValueAsString(Map.of("fields", invalid))))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("PROJECT_INVALID_EXPORT_FIELDS"));
+        }
+        mockMvc.perform(get("/api/v1/projects/exports/{id}", task).header("X-NDI-Actor-Id", provinceUserId.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void legacyTasksKeepDefaultFieldsAndInvalidTaskFieldsFailWithoutBlockingQueue() {
+        createProject();
+        var legacy = exportService.submit(cityUserId, ProjectQuery.all());
+        jdbc.update("UPDATE project_export_task SET selected_fields=NULL WHERE id=UUID_TO_BIN(?)", legacy.id().toString());
+        assertThat(exportService.find(cityUserId, legacy.id()).fields()).hasSize(11);
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, legacy.id()).status()).isEqualTo(ProjectExportStatus.COMPLETED);
+        var bad = exportService.submit(cityUserId, ProjectQuery.all());
+        jdbc.update("UPDATE project_export_task SET selected_fields=CAST('[\"unknown\"]' AS JSON) WHERE id=UUID_TO_BIN(?)", bad.id().toString());
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, bad.id()).status()).isEqualTo(ProjectExportStatus.FAILED);
+        var good = exportService.submit(cityUserId, ProjectQuery.all(), List.of("projectName"));
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, good.id()).status()).isEqualTo(ProjectExportStatus.COMPLETED);
+    }
+
+    @Test
     void dateFiltersUseShanghaiDaysIncludeLastMicrosecondAndMatchExport() throws Exception {
         var first = createProject();
         var last = createProject();

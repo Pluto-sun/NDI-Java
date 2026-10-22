@@ -5,6 +5,7 @@ import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
+import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 
 const emptyAdvanced = {
   signingSubjectCode: '',
@@ -48,6 +49,9 @@ export function ProjectsPage({
   });
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
   const [exportTask, setExportTask] = useState<ExportTask | null>(null);
+  const [exportFields, setExportFields] = useState<string[] | null>(null);
+  const currentFields = useRef(exportFields);
+  currentFields.current = exportFields;
   const currentQuery = useRef(query);
   currentQuery.current = query;
   const [exportBusy, setExportBusy] = useState(false);
@@ -79,17 +83,23 @@ export function ProjectsPage({
   }, [query]);
 
   useEffect(() => {
+    setExportTask(null);
+  }, [exportFields]);
+
+  useEffect(() => {
     if (!exportTask || !['PENDING', 'RUNNING'].includes(exportTask.status)) return;
     let active = true;
     const taskQuery = currentQuery.current;
+    const taskFields = currentFields.current;
     const timer = window.setInterval(() => {
       void projectsApi
         .exportTask(exportTask.id)
         .then((result) => {
-          if (active && currentQuery.current === taskQuery) setExportTask(result);
+          if (active && currentQuery.current === taskQuery && currentFields.current === taskFields)
+            setExportTask(result);
         })
         .catch((cause) => {
-          if (active && currentQuery.current === taskQuery)
+          if (active && currentQuery.current === taskQuery && currentFields.current === taskFields)
             setError(cause instanceof Error ? cause.message : '导出状态获取失败');
         });
     }, 2000);
@@ -100,16 +110,19 @@ export function ProjectsPage({
   }, [exportTask]);
 
   async function exportCurrent() {
+    if (!exportFields?.length) return;
     const appliedQuery = query;
+    const appliedFields = exportFields;
     setExportBusy(true);
     setError('');
     try {
       const { page: _page, ...filter } = query;
       void _page;
-      const result = await projectsApi.exportProjects(filter);
-      if (currentQuery.current === appliedQuery) setExportTask(result);
+      const result = await projectsApi.exportProjects(filter, appliedFields);
+      if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
+        setExportTask(result);
     } catch (cause) {
-      if (currentQuery.current === appliedQuery)
+      if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
         setError(cause instanceof Error ? cause.message : '导出提交失败');
     } finally {
       setExportBusy(false);
@@ -119,9 +132,11 @@ export function ProjectsPage({
   async function download() {
     if (!exportTask) return;
     const appliedQuery = query;
+    const appliedFields = exportFields;
     try {
       const result = await projectsApi.exportDownload(exportTask.id);
-      if (currentQuery.current === appliedQuery) window.location.assign(result.url);
+      if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
+        window.location.assign(result.url);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '下载链接获取失败');
     }
@@ -346,12 +361,13 @@ export function ProjectsPage({
           重置筛选
         </button>
       </form>
+      <ProjectExportFieldPicker selected={exportFields} onChange={setExportFields} />
       <div className="action-row">
         <button
           type="button"
           className="secondary-button"
           onClick={() => void exportCurrent()}
-          disabled={exportBusy}
+          disabled={exportBusy || !exportFields?.length}
         >
           {exportBusy ? '提交中…' : '按当前条件导出 CSV'}
         </button>

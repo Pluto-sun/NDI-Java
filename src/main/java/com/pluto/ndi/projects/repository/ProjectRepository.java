@@ -13,6 +13,11 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, JpaSpecificationExecutor<ProjectEntity> {
+    @Query("select new com.pluto.ndi.projects.domain.ProjectExportDetails(p.id,p.provinceId,p.cityId,p.provinceLeaderUserId,p.signingSubjectCode,p.cityAccountManagerName,p.updatedAt) from ProjectEntity p where p.id in :ids")
+    List<com.pluto.ndi.projects.domain.ProjectExportDetails> findExportDetails(@Param("ids") java.util.Collection<UUID> ids);
+
+    @Query("select new com.pluto.ndi.projects.domain.ProjectExportExpert(p.id,e) from ProjectEntity p join p.productSupportExpertNames e where p.id in :ids order by p.id,index(e)")
+    List<com.pluto.ndi.projects.domain.ProjectExportExpert> findExportExperts(@Param("ids") java.util.Collection<UUID> ids);
 
     @Query("select project.currentStageCode as stageCode, count(project) as projectCount, sum(project.totalAmount) as expectedAmount "
             + "from ProjectEntity project where project.provinceId in :provinceIds "

@@ -15,6 +15,7 @@ public interface OrganizationDirectory {
     Optional<OrganizationLocation> findEnabledLocationByNames(String provinceName, String cityName);
 
     Map<UUID, String> findCityNames(Collection<UUID> cityIds);
+    Map<UUID, String> findProvinceNames(Collection<UUID> provinceIds);
 
     List<ProvinceOption> findEnabledProvinces();
 

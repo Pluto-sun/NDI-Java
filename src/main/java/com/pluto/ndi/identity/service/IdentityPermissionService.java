@@ -186,6 +186,13 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     @Override
+    public Map<UUID, String> findDisplayNames(java.util.Collection<UUID> userIds) {
+        if (userIds.isEmpty()) return Map.of();
+        return userAccountRepository.findAllById(userIds).stream()
+                .collect(Collectors.toUnmodifiableMap(UserAccountEntity::id, UserAccountEntity::displayName));
+    }
+
+    @Override
     public boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId) {
         if (!actor.enabled()) {
             return false;

@@ -38,7 +38,12 @@ public class ProjectExportController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<ProjectExportSummary> submit(Authentication authentication,
                                                     @Valid @RequestBody ProjectExportRequest request) {
-        return responses.success(service.submit(actorId(authentication), request.toQuery()));
+        return responses.success(service.submit(actorId(authentication), request.toQuery(), request.fields()));
+    }
+
+    @GetMapping("/fields")
+    public ApiResponse<java.util.List<ProjectExportService.FieldOption>> fields(Authentication authentication) {
+        return responses.success(service.fields(actorId(authentication)));
     }
 
     @GetMapping("/{exportId}")

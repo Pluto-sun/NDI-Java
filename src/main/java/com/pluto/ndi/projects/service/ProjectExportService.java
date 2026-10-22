@@ -1,5 +1,9 @@
 package com.pluto.ndi.projects.service;
 
+import java.util.List;
+import java.util.Arrays;
+import com.pluto.ndi.projects.domain.ProjectExportField;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,15 +56,30 @@ public class ProjectExportService {
 
     @Transactional
     public ProjectExportSummary submit(UUID actorId, ProjectQuery query) {
+        return submit(actorId, query, null);
+    }
+
+    @Transactional
+    public ProjectExportSummary submit(UUID actorId, ProjectQuery query, List<String> fields) {
         var scope = currentScope(actorId);
+        var selected = ProjectExportField.select(fields).stream().map(ProjectExportField::code).toList();
         var count = projectService.countProjects(actorId, query);
         if (count > MAX_ROWS) {
             throw new BusinessException(ProjectErrorCode.EXPORT_TOO_LARGE);
         }
         var task = ProjectExportTaskEntity.pending(UUID.randomUUID(), actorId, scope,
-                serialize(query), Instant.now(clock));
+                serialize(query), selected, Instant.now(clock));
         return ProjectExportSummary.from(taskRepository.save(task));
     }
+
+    @Transactional(readOnly = true)
+    public List<FieldOption> fields(UUID actorId) {
+        currentScope(actorId);
+        return Arrays.stream(ProjectExportField.values())
+                .map(field -> new FieldOption(field.code(), field.label(), field.defaultSelected())).toList();
+    }
+
+    public record FieldOption(String code, String label, boolean defaultSelected) { }
 
     @Transactional(readOnly = true)
     public ProjectExportSummary find(UUID actorId, UUID exportId) {
@@ -82,8 +101,15 @@ public class ProjectExportService {
     public Optional<ExportWork> claimPending() {
         return taskRepository.findFirstByStatusOrderByRequestedAtAsc(ProjectExportStatus.PENDING)
                 .map(task -> {
-                    task.start(Instant.now(clock));
-                    return new ExportWork(task.id(), task.requestedBy(), task.scope(), deserialize(task.filterJson()));
+                    try {
+                        var query = deserialize(task.filterJson());
+                        var fields = ProjectExportField.select(task.selectedFields());
+                        task.start(Instant.now(clock));
+                        return new ExportWork(task.id(), task.requestedBy(), task.scope(), query, fields);
+                    } catch (RuntimeException exception) {
+                        task.fail("导出任务条件无效，请重新提交", Instant.now(clock));
+                        return null;
+                    }
                 });
     }
 
@@ -147,6 +173,7 @@ public class ProjectExportService {
     }
 
     /** 后台处理所需的最小任务快照。 */
-    public record ExportWork(UUID id, UUID actorId, ProjectDataScope scope, ProjectQuery query) {
+    public record ExportWork(UUID id, UUID actorId, ProjectDataScope scope, ProjectQuery query,
+                             List<ProjectExportField> fields) {
     }
 }

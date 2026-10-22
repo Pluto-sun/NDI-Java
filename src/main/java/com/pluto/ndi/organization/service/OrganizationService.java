@@ -51,6 +51,14 @@ class OrganizationService implements OrganizationDirectory {
     }
 
     @Override
+    public Map<UUID, String> findProvinceNames(Collection<UUID> provinceIds) {
+        if (provinceIds.isEmpty()) return Map.of();
+        return provinceRepository.findAllById(provinceIds).stream().collect(Collectors.toUnmodifiableMap(
+                com.pluto.ndi.organization.domain.entity.ProvinceEntity::id,
+                com.pluto.ndi.organization.domain.entity.ProvinceEntity::provinceName));
+    }
+
+    @Override
     public List<ProvinceOption> findEnabledProvinces() {
         return provinceRepository.findByEnabledTrueOrderByProvinceNameAsc().stream()
                 .map(item -> new ProvinceOption(item.id(), item.provinceName()))

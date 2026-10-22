@@ -52,6 +52,16 @@ public class ProjectInactivityMapper {
         this.jdbc = jdbc;
     }
 
+    /** 批量读取最近有效更新时间，包含进展，不改动主档版本。 */
+    public Map<UUID, Instant> findLastActivities(java.util.Collection<UUID> ids) {
+        if (ids.isEmpty()) return Map.of();
+        var bytes = ids.stream().map(id -> ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array()).toList();
+        var result = new HashMap<UUID, Instant>();
+        jdbc.query("SELECT BIN_TO_UUID(project_id) project_id,last_activity_at FROM project_activity_state WHERE project_id IN (:ids)",
+                new MapSqlParameterSource("ids", bytes), (org.springframework.jdbc.core.RowCallbackHandler) row -> result.put(uuid(row, "project_id"), instant(row, "last_activity_at")));
+        return result;
+    }
+
     public record Candidate(UUID id, Instant lastActivityAt) { }
     public record Activity(long revision, Instant lastActivityAt) { }
 

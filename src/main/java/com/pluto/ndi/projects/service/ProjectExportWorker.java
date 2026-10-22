@@ -18,12 +18,14 @@ public class ProjectExportWorker {
     private final ProjectExportService exportService;
     private final ProjectService projectService;
     private final ExportFileDirectory files;
+    private final ProjectExportRowService rows;
 
     public ProjectExportWorker(ProjectExportService exportService, ProjectService projectService,
-                               ExportFileDirectory files) {
+                               ExportFileDirectory files, ProjectExportRowService rows) {
         this.exportService = exportService;
         this.projectService = projectService;
         this.files = files;
+        this.rows = rows;
     }
 
     @Scheduled(fixedDelayString = "${ndi.projects.export.poll-delay-ms:5000}",
@@ -39,7 +41,9 @@ public class ProjectExportWorker {
                 if (page.getTotalElements() > ProjectExportService.MAX_ROWS) {
                     throw new IllegalStateException("项目导出结果超过行数限制");
                 }
-                files.storeCsv(work.id(), ProjectCsvWriter.write(page.getContent()));
+                var content = ProjectCsvWriter.writeRows(rows.rows(page.getContent(), work.fields()), work.fields());
+                exportService.verifyScope(work);
+                files.storeCsv(work.id(), content);
                 exportService.complete(work.id(), page.getNumberOfElements());
             } catch (RuntimeException exception) {
                 LOGGER.error("项目导出任务失败，任务编号：{}", work.id(), exception);

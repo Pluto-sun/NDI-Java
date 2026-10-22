@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 
 /** 项目模块对外暴露的稳定错误码。 */
 public enum ProjectErrorCode implements ErrorCode {
+    INVALID_EXPORT_FIELDS(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_EXPORT_FIELDS", "导出字段无效", "至少选择一个合法字段，字段不能重复"),
     INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_DATE_RANGE", "项目日期范围无效", "日期必须位于1000年至9999年，且起始日期不得晚于结束日期"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_NOT_FOUND", "项目不存在", "未找到指定项目"),
     ACCESS_FORBIDDEN(HttpStatus.FORBIDDEN, "PROJECT_ACCESS_FORBIDDEN", "无权访问项目", "当前账号无权访问项目数据"),

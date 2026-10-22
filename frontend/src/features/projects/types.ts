@@ -280,6 +280,7 @@ export interface ImportWorkbookInspection {
   }[];
 }
 export interface ExportTask {
+  fields: string[];
   id: string;
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   rowCount: number | null;
@@ -287,6 +288,12 @@ export interface ExportTask {
   startedAt: string | null;
   finishedAt: string | null;
   errorMessage: string | null;
+}
+
+export interface ExportFieldOption {
+  code: string;
+  label: string;
+  defaultSelected: boolean;
 }
 export interface MonthlyWorkbench {
   month: string;

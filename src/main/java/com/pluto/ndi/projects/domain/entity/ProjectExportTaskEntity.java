@@ -39,6 +39,10 @@ public class ProjectExportTaskEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private String filterJson;
 
+    @Column(name = "selected_fields", columnDefinition = "json")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private java.util.List<String> selectedFields;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private ProjectExportStatus status;
@@ -63,6 +67,11 @@ public class ProjectExportTaskEntity {
 
     public static ProjectExportTaskEntity pending(UUID id, UUID actorId, ProjectDataScope scope,
                                                    String filterJson, Instant requestedAt) {
+        return pending(id, actorId, scope, filterJson, null, requestedAt);
+    }
+
+    public static ProjectExportTaskEntity pending(UUID id, UUID actorId, ProjectDataScope scope,
+                                                   String filterJson, java.util.List<String> fields, Instant requestedAt) {
         var task = new ProjectExportTaskEntity();
         task.id = id;
         task.requestedBy = actorId;
@@ -70,6 +79,8 @@ public class ProjectExportTaskEntity {
         task.scopeOrganizationId = scope.organizationId();
         task.scopeProvinceIds = scope.provinceIds().stream().sorted().toList();
         task.filterJson = filterJson;
+        task.selectedFields = java.util.List.copyOf(com.pluto.ndi.projects.domain.ProjectExportField.select(fields).stream()
+                .map(com.pluto.ndi.projects.domain.ProjectExportField::code).toList());
         task.status = ProjectExportStatus.PENDING;
         task.requestedAt = requestedAt;
         return task;
@@ -80,6 +91,8 @@ public class ProjectExportTaskEntity {
     public ProjectDataScope scope() { return new ProjectDataScope(scopeLevel, scopeOrganizationId,
             scopeProvinceIds == null ? java.util.Set.of() : java.util.Set.copyOf(scopeProvinceIds)); }
     public String filterJson() { return filterJson; }
+    public java.util.List<String> selectedFields() { return selectedFields == null
+            ? com.pluto.ndi.projects.domain.ProjectExportField.defaultCodes() : java.util.List.copyOf(selectedFields); }
     public ProjectExportStatus status() { return status; }
     public Integer rowCount() { return rowCount; }
     public Instant requestedAt() { return requestedAt; }

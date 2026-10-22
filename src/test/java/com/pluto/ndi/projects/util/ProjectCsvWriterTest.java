@@ -12,6 +12,19 @@ import com.pluto.ndi.projects.service.ProjectSummary;
 import org.junit.jupiter.api.Test;
 
 class ProjectCsvWriterTest {
+    @Test
+    void selectedExtraColumnsRespectOrderAndProtectAllText() {
+        var project = new ProjectSummary(UUID.randomUUID(), "NDI-1", "未导出名称", "客户", "C25",
+                BigDecimal.TEN, "SOLUTION_EXCHANGE", List.of(), Instant.parse("2026-01-01T00:00:00Z"));
+        var row = new com.pluto.ndi.projects.service.ProjectExportRow(project, java.util.Map.of(
+                com.pluto.ndi.projects.domain.ProjectExportField.PROVINCE, "=省分",
+                com.pluto.ndi.projects.domain.ProjectExportField.CITY_MANAGER, "@经理",
+                com.pluto.ndi.projects.domain.ProjectExportField.SUPPORT_EXPERTS, "\t专家甲、专家\"乙"));
+        var fields = com.pluto.ndi.projects.domain.ProjectExportField.select(List.of("productSupportExpertNames", "cityAccountManagerName", "province"));
+        var csv = new String(ProjectCsvWriter.writeRows(List.of(row), fields), StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("\uFEFF产品单位支撑专家,地市客户经理,省分\r\n")
+                .contains("'\t专家甲、专家\"\"乙", "'@经理", "'=省分").doesNotContain("未导出名称");
+    }
 
     @Test
     void quotesUserTextAndPreventsFormulaExecution() {

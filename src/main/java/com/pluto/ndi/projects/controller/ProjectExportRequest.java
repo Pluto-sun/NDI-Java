@@ -1,9 +1,11 @@
 package com.pluto.ndi.projects.controller;
 
 import java.util.UUID;
+import java.util.List;
 import java.time.LocalDate;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectExportField;
 import com.pluto.ndi.projects.service.ProjectQuery;
 import jakarta.validation.constraints.Size;
 
@@ -22,7 +24,8 @@ public record ProjectExportRequest(
         @Size(max = 100, message = "支撑专家姓名不得超过100个字符") String productSupportExpertName,
         @Size(max = 200, message = "关键字不得超过200个字符") String keyword,
         LocalDate opportunityDateStart,
-        LocalDate opportunityDateEnd
+        LocalDate opportunityDateEnd,
+        @Size(max = ProjectExportField.MAX_FIELDS, message = "导出字段数量超出限制") List<String> fields
 ) {
     public ProjectQuery toQuery() {
         return new ProjectQuery(projectCode, projectName, stage, industryCode,

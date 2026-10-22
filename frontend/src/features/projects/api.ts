@@ -197,8 +197,12 @@ export const projectsApi = {
     }),
   resumeImport: (id: string) => request<ImportBatch>(`/imports/${id}/resume`, { method: 'POST' }),
   cancelImport: (id: string) => request<ImportBatch>(`/imports/${id}`, { method: 'DELETE' }),
-  exportProjects: (filter: Omit<ProjectQuery, 'page'>) =>
-    request<ExportTask>('/exports', { method: 'POST', ...jsonBody(projectFilterValues(filter)) }),
+  exportFields: () => request<import('./types').ExportFieldOption[]>('/exports/fields'),
+  exportProjects: (filter: Omit<ProjectQuery, 'page'>, fields?: string[]) =>
+    request<ExportTask>('/exports', {
+      method: 'POST',
+      ...jsonBody({ ...projectFilterValues(filter), ...(fields ? { fields } : {}) }),
+    }),
   exportTask: (id: string) => request<ExportTask>(`/exports/${id}`),
   exportDownload: (id: string) =>
     request<{ url: string; fileName: string }>(`/exports/${id}/download`),

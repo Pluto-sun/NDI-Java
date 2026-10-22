@@ -35,6 +35,9 @@ public interface IdentityDirectory {
     /** 按当前目录姓名返回匹配账号；不排除停用账号，避免隐藏既有项目责任信息。 */
     List<UUID> findUserIdsByDisplayNameContaining(String displayName);
 
+    /** 批量读取当前责任目录姓名，包含停用账号。 */
+    java.util.Map<UUID, String> findDisplayNames(java.util.Collection<UUID> userIds);
+
     boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);

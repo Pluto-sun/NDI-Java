@@ -419,6 +419,27 @@ label {
   min-width: 190px;
   flex: 1;
 }
+.export-field-picker {
+  margin-bottom: 16px;
+}
+.export-field-picker > summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+}
+.export-field-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 8px 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+}
+.export-field-options legend {
+  padding: 0 6px;
+}
+.export-field-options .checkbox-label {
+  min-height: 44px;
+}
 .project-advanced-filters {
   flex: 1 1 100%;
   min-width: 0;
