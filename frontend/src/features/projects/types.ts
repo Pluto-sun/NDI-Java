@@ -131,6 +131,7 @@ export interface ProjectSummary {
   opportunityDate: string | null;
 }
 export interface ProjectDetail extends ProjectSummary {
+  provinceLeaderName: string | null;
   attributionMonth: string;
   provinceId: string;
   cityId: string;

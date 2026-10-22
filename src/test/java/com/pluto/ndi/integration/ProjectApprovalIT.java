@@ -1477,6 +1477,27 @@ class ProjectApprovalIT {
         }
     }
 
+    @Test
+    void disabledLeaderRemainsVisibleButCannotBeSelectedForNewResponsibility() throws Exception {
+        var project = createProject();
+        jdbc.update("UPDATE identity_user_account SET display_name='停用责任人',enabled=false WHERE id=UUID_TO_BIN(?)", provinceUserId.toString());
+        var detail = projectService.findDetail(cityUserId, project);
+        assertThat(detail.provinceLeaderName()).isEqualTo("停用责任人");
+        mockMvc.perform(get("/api/v1/projects/{id}", project).header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.provinceLeaderName").value("停用责任人"));
+        var denied = catchThrowable(() -> profileService.update(cityUserId, project, new UpdateProjectProfileCommand(
+                detail.versionNo(), detail.customerName(), detail.industryCode(), detail.customerNeed(),
+                provinceUserId, detail.cityAccountManagerName())));
+        assertThat(((BusinessException) denied).errorCode()).isEqualTo(ProjectErrorCode.INVALID_PROVINCE_LEADER);
+        var replacement = UUID.randomUUID();
+        addUser(replacement, "PROVINCE_REPORTER", false);
+        jdbc.update("UPDATE identity_user_account SET display_name='接替负责人' WHERE id=UUID_TO_BIN(?)", replacement.toString());
+        var updated = profileService.update(cityUserId, project, new UpdateProjectProfileCommand(
+                detail.versionNo(), detail.customerName(), detail.industryCode(), detail.customerNeed(),
+                replacement, detail.cityAccountManagerName()));
+        assertThat(updated.provinceLeaderName()).isEqualTo("接替负责人");
+    }
+
     private UUID createProject() {
         createdProjectCount += 1;
         var projectName = createdProjectCount == 1 ? "原项目" : "原项目-" + createdProjectCount;

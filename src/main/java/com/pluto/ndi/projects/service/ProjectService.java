@@ -209,7 +209,10 @@ public class ProjectService {
         var categories = categoryAmountRepository.findByProjectIdIn(List.of(projectId)).stream()
                 .map(item -> new ProjectSummary.CategoryAmount(item.categoryCode(), item.expectedAmount()))
                 .toList();
-        return projectMapper.toDetail(project, categories);
+        // 鉴权后只读取本项目关联的姓名；停用账号不再可选，但既有责任信息仍须展示。
+        var leaderName = identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
+                .get(project.provinceLeaderUserId());
+        return projectMapper.toDetail(project, categories, leaderName);
     }
 
     private ProjectActor requireEnabledActor(UUID actorId) {

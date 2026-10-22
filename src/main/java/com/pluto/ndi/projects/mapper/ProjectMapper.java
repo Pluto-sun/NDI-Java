@@ -25,7 +25,8 @@ public class ProjectMapper {
         );
     }
 
-    public ProjectDetailSummary toDetail(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories) {
+    public ProjectDetailSummary toDetail(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
+            String provinceLeaderName) {
         return new ProjectDetailSummary(
                 project.id(), project.projectCode(), project.provinceId(), project.cityId(),
                 project.projectName(), project.customerName(), project.industryCode(), project.customerNeed(),
@@ -36,7 +37,7 @@ public class ProjectMapper {
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
                 project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode(),
-                project.attributionMonth()
+                project.attributionMonth(), provinceLeaderName
         );
     }
 }

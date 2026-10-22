@@ -180,8 +180,10 @@ export function ProjectDetailPage({
                   <div>
                     <dt>省分负责人</dt>
                     <dd>
-                      {leaders.find((item) => item.id === detail.provinceLeaderUserId)
-                        ?.displayName ?? '负责人账号不可用'}
+                      {detail.provinceLeaderName ??
+                        leaders.find((item) => item.id === detail.provinceLeaderUserId)
+                          ?.displayName ??
+                        '负责人账号不可用'}
                     </dd>
                   </div>
                   <div>

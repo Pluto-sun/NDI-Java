@@ -164,6 +164,11 @@ export function ProjectProfileForm({
               value={provinceLeaderUserId}
               onChange={(event) => setProvinceLeaderUserId(event.target.value)}
             >
+              {!leaders.some((item) => item.id === project.provinceLeaderUserId) && (
+                <option value={project.provinceLeaderUserId}>
+                  {project.provinceLeaderName ?? '现有负责人'}（当前责任信息）
+                </option>
+              )}
               {leaders.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.displayName}
