@@ -71,7 +71,7 @@ class ProjectMonthlySnapshotIT {
 
         void moveTo(int year, int month, int day) { value = at(year, month, day); }
         @Override public ZoneId getZone() { return ZoneId.of("UTC"); }
-        @Override public Clock withZone(ZoneId zone) { return this; }
+        @Override public Clock withZone(ZoneId zone) { return Clock.fixed(value, zone); }
         @Override public Instant instant() { return value; }
         private static Instant at(int year, int month, int day) {
             return LocalDate.of(year, month, day).atTime(3, 0)

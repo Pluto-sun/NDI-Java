@@ -115,6 +115,9 @@ public class ProjectEntity {
     @Column(name = "opportunity_date")
     private Instant opportunityDate;
 
+    @Column(name = "attribution_month")
+    private LocalDate attributionMonth;
+
     protected ProjectEntity() {
     }
 
@@ -165,6 +168,7 @@ public class ProjectEntity {
         entity.updatedBy = actorId;
         entity.updatedAt = occurredAt;
         entity.opportunityDate = occurredAt;
+        entity.recordAttributionMonth(occurredAt);
         return entity;
     }
 
@@ -270,6 +274,16 @@ public class ProjectEntity {
     public String cityAccountManagerName() { return cityAccountManagerName; }
     public Instant updatedAt() { return updatedAt; }
     public Instant opportunityDate() { return opportunityDate; }
+    public LocalDate attributionMonth() {
+        return attributionMonth != null ? attributionMonth
+                : createdAt.atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate().withDayOfMonth(1);
+    }
+
+    /** 所属月份始终只有一个；普通进展、资料维护和金额修改不改变归属。 */
+    public void recordAttributionMonth(Instant at) {
+        attributionMonth = Objects.requireNonNull(at).atZone(java.time.ZoneId.of("Asia/Shanghai"))
+                .toLocalDate().withDayOfMonth(1);
+    }
 
     /** 仅创建、导入和审批生效时记录项目日期，普通维护与进展不调用。 */
     public void recordOpportunityDate(Instant at) { opportunityDate = Objects.requireNonNull(at); }
@@ -320,6 +334,7 @@ public class ProjectEntity {
 
     public void changeStage(ProjectStage stage, UUID actorId, Instant occurredAt) {
         currentStageCode = stage.name();
+        recordAttributionMonth(occurredAt);
         if (stage.clearsContractFieldsOnEntry()) {
             contractNo = null;
             signedAmount = null;

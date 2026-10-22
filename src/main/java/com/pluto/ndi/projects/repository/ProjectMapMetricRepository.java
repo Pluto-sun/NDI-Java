@@ -14,18 +14,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class ProjectMapMetricRepository {
 
-    private static final String CURRENT_FROM = """
-            FROM project_project project
-            LEFT JOIN (
-                SELECT project_id,
-                       SUM(CASE WHEN category_code = 'NETWORK' THEN expected_amount ELSE 0 END) network_amount,
-                       SUM(CASE WHEN category_code = 'GEWU' THEN expected_amount ELSE 0 END) gewu_amount,
-                       SUM(CASE WHEN category_code = 'BIG_DATA' THEN expected_amount ELSE 0 END) big_data_amount,
-                       SUM(CASE WHEN category_code = 'WANGWU' THEN expected_amount ELSE 0 END) wangwu_amount
-                FROM project_category_amount GROUP BY project_id
-            ) category ON category.project_id = project.id
-            WHERE 1 = 1
-            """;
     private static final String MONTHLY_FROM = """
             FROM project_monthly_snapshot project
             WHERE project.month_start = :month
@@ -63,7 +51,7 @@ public class ProjectMapMetricRepository {
                 + "COALESCE(SUM(" + categoryPrefix + ".gewu_amount), 0) AS gewu_amount, "
                 + "COALESCE(SUM(" + categoryPrefix + ".big_data_amount), 0) AS big_data_amount, "
                 + "COALESCE(SUM(" + categoryPrefix + ".wangwu_amount), 0) AS wangwu_amount "
-                + (historical ? MONTHLY_FROM : CURRENT_FROM)
+                + (historical ? MONTHLY_FROM : com.pluto.ndi.projects.mapper.ProjectCurrentMetricSql.FROM)
                 + scopeFilter
                 + (provinceId == null ? "" : " AND project.province_id = UUID_TO_BIN(:provinceId)")
                 + (includeTerminated ? "" : " AND project." + stageColumn + " <> 'TERMINATED'")

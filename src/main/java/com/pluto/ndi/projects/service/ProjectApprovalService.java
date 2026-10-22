@@ -353,6 +353,7 @@ public class ProjectApprovalService {
         snapshot.put("projectName", project.projectName());
         snapshot.put("totalAmount", project.totalAmount());
         snapshot.put("stageCode", project.currentStageCode());
+        snapshot.put("attributionMonth", project.attributionMonth());
         snapshot.put("contractNo", project.contractNo());
         snapshot.put("signedAmount", project.signedAmount());
         snapshot.put("categoryAmounts", fieldChanges.amounts(project.id()));

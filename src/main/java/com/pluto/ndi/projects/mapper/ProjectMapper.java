@@ -35,7 +35,8 @@ public class ProjectMapper {
                 project.productSupportExpertNames(),
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
-                project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode()
+                project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode(),
+                project.attributionMonth()
         );
     }
 }

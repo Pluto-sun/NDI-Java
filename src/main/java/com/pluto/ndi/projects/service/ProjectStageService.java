@@ -111,6 +111,7 @@ public class ProjectStageService {
     public void applyApproved(ProjectEntity project, ProjectApprovalRequestEntity request, UUID actorId, Instant approvedAt) {
         var target = ProjectStage.valueOf(request.targetStageCode());
         project.advanceStage(target, request.proposedContractNo(), request.proposedSignedAmount(), actorId, approvedAt);
+        project.recordAttributionMonth(request.stageOccurredAt());
         milestoneRepository.save(ProjectStageMilestoneEntity.approvedAdvance(
                 project.id(), target, actorId, request.stageOccurredAt()));
         if (request.proposedProgressContent() != null) {
