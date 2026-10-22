@@ -16,11 +16,18 @@ public record ProjectMapView(
         boolean includeTerminated,
         String stageCode,
         List<Region> regions,
-        List<String> stageCodes
+        List<String> stageCodes,
+        YearMonth attributionFrom,
+        YearMonth attributionTo
 ) {
     public ProjectMapView {
         regions = List.copyOf(regions);
         stageCodes = List.copyOf(stageCodes);
+    }
+
+    public ProjectMapView(String level, String mapAdcode, Province province, YearMonth month,
+            boolean includeTerminated, String stageCode, List<Region> regions, List<String> stageCodes) {
+        this(level, mapAdcode, province, month, includeTerminated, stageCode, regions, stageCodes, null, null);
     }
 
     public record Province(UUID id, String name) { }

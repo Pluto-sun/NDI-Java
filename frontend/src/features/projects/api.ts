@@ -162,11 +162,16 @@ export const projectsApi = {
     includeTerminated: boolean,
     stages: string[] = [],
     month?: string,
+    attribution?: { from: string; to: string },
   ) => {
     const query = new URLSearchParams({ includeTerminated: String(includeTerminated) });
     if (provinceId) query.set('provinceId', provinceId);
     for (const stage of stages) query.append('stage', stage);
     if (month) query.set('month', month);
+    if (attribution) {
+      query.set('from', attribution.from);
+      query.set('to', attribution.to);
+    }
     return request<ProjectMapView>(`/workbench/map?${query}`);
   },
   mapBoundary: (adcode: string) => requestBlob(`/workbench/map/boundaries/${adcode}`),

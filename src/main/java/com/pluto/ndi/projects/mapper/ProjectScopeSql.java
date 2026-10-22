@@ -33,6 +33,8 @@ public final class ProjectScopeSql {
         };
     }
 
+    public static List<byte[]> binaryIds(List<UUID> ids) { return ids.stream().map(ProjectScopeSql::bytes).toList(); }
+
     private static byte[] bytes(UUID id) {
         return java.nio.ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits()).array();
     }

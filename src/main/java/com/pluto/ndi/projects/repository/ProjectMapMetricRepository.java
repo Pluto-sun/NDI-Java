@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
+import com.pluto.ndi.projects.domain.ProjectAttributionFilter;
+import com.pluto.ndi.projects.mapper.ProjectAttributionSql;
+import com.pluto.ndi.identity.service.ProjectDataScope;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -39,6 +42,15 @@ public class ProjectMapMetricRepository {
 
     public List<ProjectMapMetric> summarizeStages(YearMonth month, UUID provinceId,
             boolean includeTerminated, List<String> stageCodes, com.pluto.ndi.identity.service.ProjectDataScope scope) {
+        return summarize(month, provinceId, includeTerminated, stageCodes, scope, null);
+    }
+
+    public List<ProjectMapMetric> summarizeAttribution(UUID provinceId, ProjectDataScope scope, ProjectAttributionFilter filter) {
+        return summarize(null, provinceId, filter.includeTerminated(), filter.stages().stream().map(Enum::name).toList(), scope, filter);
+    }
+
+    private List<ProjectMapMetric> summarize(YearMonth month, UUID provinceId, boolean includeTerminated,
+            List<String> stageCodes, ProjectDataScope scope, ProjectAttributionFilter attribution) {
         var historical = month != null;
         var regionColumn = provinceId == null ? "province_id" : "city_id";
         var stageColumn = historical ? "stage_code" : "current_stage_code";
@@ -54,8 +66,9 @@ public class ProjectMapMetricRepository {
                 + (historical ? MONTHLY_FROM : com.pluto.ndi.projects.mapper.ProjectCurrentMetricSql.FROM)
                 + scopeFilter
                 + (provinceId == null ? "" : " AND project.province_id = UUID_TO_BIN(:provinceId)")
-                + (includeTerminated ? "" : " AND project." + stageColumn + " <> 'TERMINATED'")
-                + (stageCodes.isEmpty() ? "" : " AND project." + stageColumn + " IN (:stageCodes)")
+                + (attribution != null ? ProjectAttributionSql.named(attribution, parameters)
+                    : (includeTerminated ? "" : " AND project." + stageColumn + " <> 'TERMINATED'")
+                        + (stageCodes.isEmpty() ? "" : " AND project." + stageColumn + " IN (:stageCodes)"))
                 + " GROUP BY project." + regionColumn;
         if (historical) parameters.addValue("month", Date.valueOf(month.atDay(1)));
         if (provinceId != null) parameters.addValue("provinceId", provinceId.toString());

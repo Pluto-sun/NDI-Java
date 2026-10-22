@@ -19,6 +19,7 @@ import com.pluto.ndi.organization.service.RegionAdcodeCatalog;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectAttributionFilter;
 import com.pluto.ndi.projects.repository.ProjectMapMetric;
 import com.pluto.ndi.projects.repository.ProjectMapMetricRepository;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -61,6 +62,16 @@ public class ProjectMapService {
     @Transactional(readOnly = true)
     public ProjectMapView viewStages(UUID actorId, UUID requestedProvinceId, YearMonth month,
             boolean includeTerminated, List<ProjectStage> stages) {
+        return viewInternal(actorId, requestedProvinceId, month, includeTerminated, stages, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectMapView attribution(UUID actorId, UUID requestedProvinceId, ProjectAttributionFilter filter) {
+        return viewInternal(actorId, requestedProvinceId, null, filter.includeTerminated(), filter.stages(), filter);
+    }
+
+    private ProjectMapView viewInternal(UUID actorId, UUID requestedProvinceId, YearMonth month,
+            boolean includeTerminated, List<ProjectStage> stages, ProjectAttributionFilter attribution) {
         var selected = stages == null ? List.<ProjectStage>of() : stages;
         if (selected.size() > ProjectStage.values().length || selected.stream().anyMatch(java.util.Objects::isNull)
                 || selected.stream().distinct().count() != selected.size()) {
@@ -84,7 +95,7 @@ public class ProjectMapService {
         var stageCodes = selected.stream().map(Enum::name).sorted().toList();
         var stageCode = stageCodes.size() == 1 ? stageCodes.getFirst() : null;
         if (provinceId == null) {
-            var byProvince = metrics.summarizeStages(month, null, includeTerminated, stageCodes, scope).stream()
+            var byProvince = aggregate(month, null, includeTerminated, stageCodes, scope, attribution).stream()
                     .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
             var regions = organizations.findEnabledProvinces().stream()
                     .filter(province -> scope.level() == ProjectDataScope.Level.NATIONAL || scope.provinceIds().contains(province.id()))
@@ -97,13 +108,14 @@ public class ProjectMapService {
                                 item == null ? ProjectCategoryTotals.zero() : item.categoryTotals(), true);
                     }).sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
             return new ProjectMapView("NATIONAL", "100000", null,
-                    month, includeTerminated, stageCode, regions, stageCodes);
+                    month, includeTerminated, stageCode, regions, stageCodes,
+                    attribution == null ? null : attribution.from(), attribution == null ? null : attribution.to());
         }
         var province = organizations.findEnabledProvinces().stream()
                 .filter(item -> item.id().equals(provinceId)).findFirst()
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
-        Map<UUID, ProjectMapMetric> byCity = metrics.summarizeStages(
-                month, provinceId, includeTerminated, stageCodes, scope).stream()
+        Map<UUID, ProjectMapMetric> byCity = aggregate(
+                month, provinceId, includeTerminated, stageCodes, scope, attribution).stream()
                 .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
         var regions = organizations.findEnabledCities().stream()
                 .filter(city -> city.provinceId().equals(provinceId))
@@ -111,7 +123,14 @@ public class ProjectMapService {
                 .sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
         return new ProjectMapView("PROVINCE", adcodes.province(province.name()),
                 new ProjectMapView.Province(province.id(), province.name()),
-                month, includeTerminated, stageCode, regions, stageCodes);
+                month, includeTerminated, stageCode, regions, stageCodes,
+                attribution == null ? null : attribution.from(), attribution == null ? null : attribution.to());
+    }
+
+    private List<ProjectMapMetric> aggregate(YearMonth month, UUID provinceId, boolean includeTerminated,
+            List<String> stages, ProjectDataScope scope, ProjectAttributionFilter attribution) {
+        return attribution == null ? metrics.summarizeStages(month, provinceId, includeTerminated, stages, scope)
+                : metrics.summarizeAttribution(provinceId, scope, attribution);
     }
 
     @Transactional(readOnly = true)

@@ -12,6 +12,7 @@ import com.pluto.ndi.organization.service.OrganizationDirectory;
 import com.pluto.ndi.projects.domain.ProjectCategoryTotals;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectAttributionFilter;
 import com.pluto.ndi.projects.repository.ProjectAttributionMetricRepository;
 import com.pluto.ndi.projects.repository.ProjectAttributionMetricRepository.Metric;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -35,23 +36,13 @@ public class ProjectAttributionService {
     @Transactional(readOnly = true)
     public ProjectAttributionWorkbench view(UUID actorId, YearMonth from, YearMonth to,
             boolean includeTerminated, List<ProjectStage> stages, List<UUID> provinces, List<UUID> cities) {
-        if (from == null || to == null || from.getYear() < 1000 || to.getYear() > 9999
-                || from.isAfter(to) || from.plusMonths(35).isBefore(to)) {
-            throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
-        }
-        var selected = stages == null ? List.<ProjectStage>of() : stages;
-        if (selected.size() > ProjectStage.values().length
-                || selected.stream().anyMatch(Objects::isNull)
-                || selected.stream().distinct().count() != selected.size()
-                || !includeTerminated && selected.contains(ProjectStage.TERMINATED)) {
-            throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
-        }
+        var filter = new ProjectAttributionFilter(from, to, includeTerminated, stages, provinces, cities);
+        var selected = filter.stages();
         var actor = identities.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         var scope = identities.findReadableProjectScope(actor)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        var metrics = repository.summarize(scope, from, to, includeTerminated,
-                selected.stream().map(Enum::name).toList(), ids(provinces), ids(cities));
+        var metrics = repository.summarize(scope, filter);
         var effectiveStages = selected.isEmpty() ? Arrays.stream(ProjectStage.values())
                 .filter(stage -> includeTerminated || stage != ProjectStage.TERMINATED).toList() : selected;
         var byMonthStage = metrics.stream().collect(Collectors.groupingBy(item -> item.month() + ":" + item.stageCode()));
@@ -68,14 +59,6 @@ public class ProjectAttributionService {
         return new ProjectAttributionWorkbench(from, to, includeTerminated,
                 count(metrics), amount(metrics), totals(metrics), trend,
                 regions(metrics, Metric::provinceId, provinceNames), regions(metrics, Metric::cityId, cityNames));
-    }
-
-    private List<UUID> ids(List<UUID> values) {
-        if (values == null) return List.of();
-        if (values.size() > 500 || values.stream().anyMatch(Objects::isNull)) {
-            throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
-        }
-        return values.stream().distinct().toList();
     }
 
     private List<ProjectAttributionWorkbench.Region> regions(List<Metric> metrics, Function<Metric, UUID> key,

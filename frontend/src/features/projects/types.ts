@@ -35,6 +35,8 @@ export interface ReferenceData {
   applicationScenarios: CodeLabel[];
 }
 export interface ProjectMapView {
+  attributionFrom: string | null;
+  attributionTo: string | null;
   level: 'NATIONAL' | 'PROVINCE';
   mapAdcode: string | null;
   province: ProvinceOption | null;

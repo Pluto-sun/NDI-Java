@@ -6,7 +6,7 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { mapShapes } from './mapGeometry';
 import { MAP_METRICS, metricText, metricValue, type MapMetric, type MapRegion } from './mapMetrics';
 import { MapRegionList } from './MapRegionList';
-import { previousBusinessMonth } from '../../shared/ui/format';
+import { businessDate, previousBusinessMonth } from '../../shared/ui/format';
 
 type Viewport = { x: number; y: number; width: number; height: number };
 
@@ -17,6 +17,10 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
   const [provinceId, setProvinceId] = useState<string | null>(null);
   const [stages, setStages] = useState<string[]>([]);
   const [month, setMonth] = useState('');
+  const [source, setSource] = useState<'CURRENT' | 'ATTRIBUTION' | 'SNAPSHOT'>('CURRENT');
+  const currentMonth = businessDate(new Date().toISOString()).slice(0, 7);
+  const [from, setFrom] = useState(`${currentMonth.slice(0, 4)}-01`);
+  const [to, setTo] = useState(currentMonth);
   const [metric, setMetric] = useState<MapMetric>('expectedAmount');
   const [includeTerminated, setIncludeTerminated] = useState(false);
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
@@ -33,8 +37,19 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
     setLoading(true);
     setMap(null);
     setError('');
+    if (source === 'ATTRIBUTION' && (!from || !to || from > to)) {
+      setError('请选择有效的地图所属月份区间，起始月份不得晚于结束月份。');
+      setLoading(false);
+      return;
+    }
     void projectsApi
-      .map(provinceId, includeTerminated, stages, month)
+      .map(
+        provinceId,
+        includeTerminated,
+        stages,
+        source === 'SNAPSHOT' ? month : '',
+        source === 'ATTRIBUTION' ? { from, to } : undefined,
+      )
       .then((result) => {
         if (active) setMap(result);
       })
@@ -47,7 +62,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
     return () => {
       active = false;
     };
-  }, [provinceId, includeTerminated, stages, month, refreshKey]);
+  }, [provinceId, includeTerminated, stages, month, source, from, to, refreshKey]);
 
   useEffect(() => {
     setSelectedRegionIds(
@@ -105,7 +120,8 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
   function openRegion(region: MapRegion) {
     if (!region.authorized || !map) return;
     if (map.level === 'NATIONAL') setProvinceId(region.id);
-    else if (!map.month) void navigate(`/projects?cityId=${encodeURIComponent(region.id)}`);
+    else if (!map.month && !map.attributionFrom)
+      void navigate(`/projects?cityId=${encodeURIComponent(region.id)}`);
   }
 
   function shade(region: MapRegion | undefined) {
@@ -163,7 +179,12 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
         <div>
           <h2 id="project-map-title">项目区域分布</h2>
           <p className="subtle">
-            {month ? `${month} 月末快照` : '当前项目主档'} · 默认排除已终止项目
+            {source === 'ATTRIBUTION'
+              ? `${from} 至 ${to} · 项目唯一所属月份`
+              : source === 'SNAPSHOT'
+                ? `${month} 月末快照`
+                : '当前项目主档'}{' '}
+            · 默认排除已终止项目
           </p>
         </div>
         {provinceId && (
@@ -174,18 +195,69 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
       </div>
       <div className="filter-bar">
         <label>
-          统计月份
-          <input
-            type="month"
-            value={month}
-            max={previousBusinessMonth()}
-            onChange={(event) => setMonth(event.target.value)}
-          />
+          地图统计口径
+          <select
+            value={source}
+            onChange={(event) => {
+              const next = event.target.value as typeof source;
+              setSource(next);
+              if (next === 'SNAPSHOT' && !month) setMonth(previousBusinessMonth());
+              if (next === 'CURRENT') setMonth('');
+            }}
+          >
+            <option value="CURRENT">当前主档</option>
+            <option value="ATTRIBUTION">项目所属月份区间</option>
+            <option value="SNAPSHOT">历史月末快照</option>
+          </select>
         </label>
-        {month && (
-          <button type="button" className="secondary-button" onClick={() => setMonth('')}>
-            查看当前主档
-          </button>
+        {source === 'ATTRIBUTION' ? (
+          <>
+            <label>
+              地图所属月份起始
+              <input
+                type="month"
+                value={from}
+                max={to}
+                onChange={(event) => setFrom(event.target.value)}
+              />
+            </label>
+            <label>
+              地图所属月份结束
+              <input
+                type="month"
+                value={to}
+                min={from}
+                onChange={(event) => setTo(event.target.value)}
+              />
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              统计月份
+              <input
+                type="month"
+                value={month}
+                max={previousBusinessMonth()}
+                onChange={(event) => {
+                  setMonth(event.target.value);
+                  setSource(event.target.value ? 'SNAPSHOT' : 'CURRENT');
+                }}
+              />
+            </label>
+            {month && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setMonth('');
+                  setSource('CURRENT');
+                }}
+              >
+                查看当前主档
+              </button>
+            )}
+          </>
         )}
         <label>
           着色与排行指标
@@ -229,8 +301,13 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
           </label>
         ))}
       </div>
-      {month && (
+      {source === 'SNAPSHOT' && month && (
         <p className="subtle">历史月份仅查询已生成的月末快照；地市历史统计不跳转当前项目清单。</p>
+      )}
+      {source === 'ATTRIBUTION' && (
+        <p className="subtle">
+          按当前唯一所属月份统计，每项目仅计一次；省份下钻保持区间，地市结果不跳转未按月份筛选的当前项目清单。
+        </p>
       )}
       {error && (
         <Feedback tone="error">
@@ -248,8 +325,10 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
       {map && !error && (
         <>
           <p className="subtle">
-            {map.level === 'NATIONAL' ? '全国' : map.province?.name} ·
-            全国地图点击省份下钻；当前地市统计可进入项目清单。
+            {map.level === 'NATIONAL' ? '全国' : map.province?.name} · 全国地图点击省份下钻；
+            {map.month || map.attributionFrom
+              ? '区间及历史地市结果仅展示统计。'
+              : '当前地市统计可进入项目清单。'}
           </p>
           <p className="subtle">
             颜色越深表示{metricLabel}越高；灰色表示无权限或未勾选，具体数值见区域清单。
@@ -327,7 +406,8 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
                     {shapes.map((shape) => {
                       const region = byAdcode.get(shape.adcode);
                       const operable =
-                        region?.authorized && (map.level === 'NATIONAL' || !map.month);
+                        region?.authorized &&
+                        (map.level === 'NATIONAL' || (!map.month && !map.attributionFrom));
                       return (
                         <path
                           key={shape.adcode}

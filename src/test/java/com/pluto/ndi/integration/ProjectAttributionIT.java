@@ -16,6 +16,7 @@ import com.pluto.ndi.documents.service.DocumentDirectory;
 import com.pluto.ndi.identity.service.ProjectInitiatorLevel;
 import com.pluto.ndi.projects.domain.MajorChangeType;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectAttributionFilter;
 import com.pluto.ndi.projects.service.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,7 @@ class ProjectAttributionIT {
     @Autowired ProjectStageService stages;
     @Autowired ProjectApprovalService approvals;
     @Autowired ProjectAttributionService statistics;
+    @Autowired ProjectMapService maps;
     @Autowired ProjectMonthlySnapshotIT.MutableClock clock;
     @MockitoBean DocumentDirectory documents;
 
@@ -66,6 +68,11 @@ class ProjectAttributionIT {
         var first = create(province, city, leader, reporter);
         clock.moveTo(2026, 7, 5);
         var second = create(province, city, leader, reporter);
+        var otherCity = UUID.randomUUID(); var otherReporter = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?,'外市',true)",
+                otherCity.toString(), province.toString(), otherCity.toString().replace("-", ""));
+        user(otherReporter, province, otherCity, "CITY_REPORTER");
+        create(province, otherCity, leader, otherReporter);
         when(documents.isUsable(any(), any(), any(), any())).thenReturn(true);
         var evidence = UUID.randomUUID();
         jdbc.update("""
@@ -89,6 +96,37 @@ class ProjectAttributionIT {
         assertThat(combined.categoryTotals().network()).isEqualByComparingTo("120");
         assertThat(combined.categoryTotals().gewu()).isEqualByComparingTo("60");
         assertThat(combined.trend().stream().mapToLong(ProjectStageTrendPoint::projectCount).sum()).isEqualTo(2);
+        var filter = new ProjectAttributionFilter(YearMonth.of(2026, 6), YearMonth.of(2026, 8), false,
+                List.of(ProjectStage.SOLUTION_EXCHANGE, ProjectStage.BIDDING), null, null);
+        var map = maps.attribution(reporter, null, filter);
+        assertThat(map.attributionFrom()).isEqualTo(YearMonth.of(2026, 6));
+        assertThat(map.regions()).filteredOn(region -> region.id().equals(city)).singleElement().satisfies(region -> {
+            assertThat(region.projectCount()).isEqualTo(combined.projectCount());
+            assertThat(region.expectedAmount()).isEqualByComparingTo(combined.totalExpectedAmount());
+            assertThat(region.categoryTotals()).isEqualTo(combined.categoryTotals());
+        });
+        assertThat(map.regions()).filteredOn(region -> region.id().equals(otherCity)).singleElement().satisfies(region -> {
+            assertThat(region.authorized()).isFalse();
+            assertThat(region.projectCount()).isZero();
+        });
+        assertThat(view(leader, "2026-06", "2026-08", false).projectCount()).isEqualTo(3);
+        assertThat(maps.attribution(leader, province, new ProjectAttributionFilter(filter.from(), filter.to(), false,
+                filter.stages(), List.of(province), List.of(city))).regions())
+                .filteredOn(region -> region.id().equals(city)).singleElement().satisfies(region ->
+                        assertThat(region.projectCount()).isEqualTo(2));
+        mvc.perform(get("/api/v1/projects/workbench/map").header("X-NDI-Actor-Id", reporter.toString())
+                        .param("from", "2026-06").param("to", "2026-08").param("stage", "SOLUTION_EXCHANGE", "BIDDING"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attributionFrom").value("2026-06"))
+                .andExpect(jsonPath("$.data.attributionTo").value("2026-08"));
+        mvc.perform(get("/api/v1/projects/workbench/map").header("X-NDI-Actor-Id", reporter.toString())
+                        .param("from", "2026-06").param("to", "2026-08").param("month", "2026-06"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/projects/workbench/map").header("X-NDI-Actor-Id", reporter.toString())
+                        .param("from", "2026-06"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/projects/workbench/map").header("X-NDI-Actor-Id", reporter.toString())
+                        .param("from", "2026-06").param("to", "2026-08").param("provinceId", UUID.randomUUID().toString()))
+                .andExpect(status().isForbidden());
         assertThat(view(reporter, "2026-08", "2026-08", false).projectCount()).isZero();
         var rejected = approvals.submitMajorChange(reporter, second, new MajorChangeCommand(
                 MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, leader, "不通过的终止", null, null, null));

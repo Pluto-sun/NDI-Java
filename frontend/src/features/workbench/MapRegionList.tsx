@@ -70,7 +70,7 @@ export function MapRegionList({
                   <span>{region.name}</span>
                   <strong>{metricText(region, metric)}</strong>
                 </button>
-              ) : map.month ? (
+              ) : map.month || map.attributionFrom ? (
                 <div className="map-region-readonly">
                   <span>{region.name}</span>
                   <strong>{metricText(region, metric)}</strong>

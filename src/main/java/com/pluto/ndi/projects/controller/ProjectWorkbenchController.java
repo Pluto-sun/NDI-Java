@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectAttributionFilter;
 import com.pluto.ndi.projects.domain.ProjectMonthlyRevision;
 import com.pluto.ndi.projects.service.ProjectWorkbenchBreakdown;
 import com.pluto.ndi.projects.service.ProjectWorkbenchOverview;
@@ -67,8 +68,23 @@ public class ProjectWorkbenchController {
     public ApiResponse<ProjectMapView> map(Authentication authentication,
             @RequestParam(required = false) UUID provinceId,
             @RequestParam(required = false) String month,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) List<UUID> provinceIds,
+            @RequestParam(required = false) List<UUID> cityIds,
             @RequestParam(defaultValue = "false") boolean includeTerminated,
             @RequestParam(required = false, name = "stage") List<ProjectStage> stages) {
+        if (from != null || to != null) {
+            if (month != null || from == null || to == null) throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
+            try {
+                return responseFactory.success(maps.attribution(actorId(authentication), provinceId,
+                        new ProjectAttributionFilter(YearMonth.parse(from), YearMonth.parse(to), includeTerminated,
+                                stages, provinceIds, cityIds)));
+            } catch (DateTimeParseException exception) {
+                throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
+            }
+        }
+        if (provinceIds != null || cityIds != null) throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
         return responseFactory.success(maps.viewStages(actorId(authentication), provinceId,
                 month == null ? null : parseMonth(month), includeTerminated, stages));
     }
