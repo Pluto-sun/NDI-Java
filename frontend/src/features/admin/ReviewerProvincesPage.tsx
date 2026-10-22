@@ -183,6 +183,41 @@ export function ReviewerProvincesPage() {
             ) : (
               <fieldset disabled={saving} className="change-fieldset">
                 <legend>负责省份</legend>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setPending((previous) => ({
+                        ...previous,
+                        [user.id]: {
+                          reviewerId: user.id,
+                          version: pending[user.id]?.version ?? user.version,
+                          provinceIds:
+                            configuration?.provinces.map((province) => province.id) ?? [],
+                        },
+                      }));
+                    }}
+                  >
+                    全选省份
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setPending((previous) => ({
+                        ...previous,
+                        [user.id]: {
+                          reviewerId: user.id,
+                          version: pending[user.id]?.version ?? user.version,
+                          provinceIds: [],
+                        },
+                      }));
+                    }}
+                  >
+                    清空选择
+                  </button>
+                </div>
                 <div className="admin-role-options">
                   {configuration?.provinces.map((province) => (
                     <label className="check-label" key={province.id}>

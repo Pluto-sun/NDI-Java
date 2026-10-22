@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -364,7 +365,7 @@ export function CreateProjectPage({
           </label>
           <label>
             归属地市
-            <select
+            <Select
               required
               value={cityId}
               onChange={(event) => {
@@ -382,7 +383,7 @@ export function CreateProjectPage({
                   {item.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             项目名称
@@ -476,7 +477,7 @@ export function CreateProjectPage({
           </label>
           <label>
             客户所属行业
-            <select
+            <Select
               required
               value={industryCode}
               onChange={(event) => setIndustryCode(event.target.value)}
@@ -487,7 +488,7 @@ export function CreateProjectPage({
                   {item.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             项目总金额（万元）
@@ -547,14 +548,14 @@ export function CreateProjectPage({
         <div className="form-grid">
           <label>
             省分负责人
-            <select required value={leaderId} onChange={(event) => setLeaderId(event.target.value)}>
+            <Select required value={leaderId} onChange={(event) => setLeaderId(event.target.value)}>
               <option value="">请选择</option>
               {leaders.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.displayName}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             地市客户经理
@@ -567,7 +568,7 @@ export function CreateProjectPage({
           </label>
           <label>
             签约主体
-            <select
+            <Select
               value={signingSubjectCode}
               onChange={(event) =>
                 setSigningSubjectCode(
@@ -577,7 +578,7 @@ export function CreateProjectPage({
             >
               <option value="PROVINCE_SIGN">省分签约</option>
               <option value="DS_SIGN">数科签约</option>
-            </select>
+            </Select>
           </label>
           <label>
             产品单位支撑专家（选填）

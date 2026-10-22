@@ -49,12 +49,12 @@ public class IdentityAuthenticationController {
     }
     @GetMapping("/me")
     public ApiResponse<IdentityUserView> me(Authentication auth, HttpServletResponse response) {
-        noStore(response); sessions.requireSessionMode(); return responses.success(profiles.current(actorId(auth)));
+        noStore(response); return responses.success(profiles.current(actorId(auth)));
     }
     @PutMapping("/me")
     public ApiResponse<IdentityUserView> profile(Authentication auth, @Valid @RequestBody ProfileRequest body,
             HttpServletResponse response) {
-        noStore(response); sessions.requireSessionMode();
+        noStore(response);
         return responses.success(profiles.update(actorId(auth), body.displayName(), body.email()));
     }
     @DeleteMapping("/sessions/current")
@@ -65,7 +65,7 @@ public class IdentityAuthenticationController {
     @PostMapping("/password")
     public ApiResponse<?> password(Authentication auth, @Valid @RequestBody PasswordRequest body,
             HttpServletRequest request, HttpServletResponse response) {
-        noStore(response); sessions.requireSessionMode();
+        noStore(response);
         profiles.changePassword(actorId(auth), body.currentPassword(), body.newPassword());
         clear(request, response); return responses.success(null);
     }

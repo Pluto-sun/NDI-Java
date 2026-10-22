@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import type { ProjectUser } from '../projects/types';
 import { Feedback } from '../../shared/ui/Feedback';
@@ -31,16 +32,13 @@ export function ActorPicker({
           <br />
           从清晰的业务流程开始
         </h1>
-        <p>
-          项目主档、进展、审批与经营数据在同一模块协作。本页面沿用旧系统的业务视觉语言，正在逐页接入新的
-          Java 服务。
-        </p>
+        <p>项目管理、计收管理、排产管理与能力指标分模块协作，经营分析与业务办理统一呈现。</p>
       </div>
       <section className="entry-panel" aria-labelledby="entry-title">
         <div className="entry-card">
-          <span className="eyebrow">LOCAL DEVELOPMENT</span>
-          <h2 id="entry-title">选择开发测试账号</h2>
-          <p>仅在本地环境用于接口联调。生产环境将接入正式认证。</p>
+          <span className="eyebrow">ACCOUNT ACCESS</span>
+          <h2 id="entry-title">选择账号</h2>
+          <p>选择账号进入平台，菜单和数据范围由账号角色决定。</p>
           {error && <Feedback tone="error">{error}</Feedback>}
           {actors.length === 0 ? (
             <>
@@ -54,7 +52,7 @@ export function ActorPicker({
           ) : (
             <>
               <label htmlFor="actor">账号</label>
-              <select
+              <Select
                 id="actor"
                 value={selected}
                 onChange={(event) => setSelected(event.target.value)}
@@ -65,7 +63,7 @@ export function ActorPicker({
                     {actor.displayName} · {actor.roleCodes.join('、')}
                   </option>
                 ))}
-              </select>
+              </Select>
               <button
                 type="button"
                 className="primary-button full"

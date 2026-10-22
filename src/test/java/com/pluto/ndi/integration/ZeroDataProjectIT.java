@@ -20,7 +20,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-/** 只使用首次管理员配置，从真正空组织和空项目库开始，不执行演示 SQL。 */
+/** 使用标准省级目录和首次管理员配置，从空业务库开始，不执行演示 SQL。 */
 @SpringBootTest(classes = NdiApplication.class, properties = {
     "ndi.auth.mode=SESSION", "ndi.auth.secure-cookie=false",
     "ndi.bootstrap.admin-login=zero-admin", "ndi.bootstrap.admin-password=zero-admin-password",
@@ -44,7 +44,8 @@ class ZeroDataProjectIT {
 
     @Test void initializesDirectoryAccountsAndProjectWithoutAnyLegacyOrDemoData() throws Exception {
         var administrator = sessions.login("zero-admin", "zero-admin-password").user().id();
-        assertThat(admin.configuration(administrator).provinces()).isEmpty();
+        assertThat(admin.configuration(administrator).provinces()).hasSize(34);
+        assertThat(admin.configuration(administrator).cities()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isZero();
         var province = admin.createProvince(administrator, " 零数据省 ");
         assertThat(province.name()).isEqualTo("零数据省");

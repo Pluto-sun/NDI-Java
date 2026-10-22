@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -136,7 +137,7 @@ export function InactivityAdministrationPage() {
           <h2>选择演练对象</h2>
           <label>
             测试项目
-            <select
+            <Select
               disabled={busy}
               value={selected?.id ?? ''}
               onChange={(event) => {
@@ -152,7 +153,7 @@ export function InactivityAdministrationPage() {
                   {item.projectCode} · {item.projectName}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {!projects?.items.length && (
             <p className="empty-state">暂无符合条件的未终止项目，请调整查询条件。</p>
@@ -188,7 +189,7 @@ export function InactivityAdministrationPage() {
           )}
           <label>
             模拟未变动天数
-            <select
+            <Select
               disabled={busy}
               value={days}
               onChange={(event) => {
@@ -202,7 +203,7 @@ export function InactivityAdministrationPage() {
                   {level.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <p className="subtle">
             仅触发选定层级，不补发其他层级；同一项目周期已处理或已发送的层级不会重复发送。已终止项目只读。

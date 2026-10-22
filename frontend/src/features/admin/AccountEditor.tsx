@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAccount, type AdminConfiguration, type AccountValues } from './api';
 import { Feedback } from '../../shared/ui/Feedback';
@@ -167,7 +168,7 @@ export function AccountEditor({
         <div className="form-grid">
           <label>
             {scopes.includes('REVIEWER') ? '当前负责省份（选填）' : '所属省分'}
-            <select
+            <Select
               required={!scopes.includes('REVIEWER')}
               value={values.provinceId ?? ''}
               onChange={(event) =>
@@ -180,12 +181,12 @@ export function AccountEditor({
                   {province.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {hasCity && (
             <label>
               所属地市
-              <select
+              <Select
                 required
                 value={values.cityId ?? ''}
                 onChange={(event) => setValues({ ...values, cityId: event.target.value || null })}
@@ -198,7 +199,7 @@ export function AccountEditor({
                       {city.name}
                     </option>
                   ))}
-              </select>
+              </Select>
             </label>
           )}
         </div>

@@ -29,6 +29,7 @@ test('管理员创建地市与账号、编辑、重置密码和启停均在正�
   await page.getByLabel('新增地市名称', { exact: true }).fill(cityName);
   await page.getByRole('button', { name: '添加地市', exact: true }).click();
   await expect(page.getByText('地市已添加，账号归属选项已更新。', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '关闭新增地市', exact: true }).click();
   await page.getByRole('button', { name: '新建账号', exact: true }).click();
   await page.getByLabel('登录账号', { exact: true }).fill(phone);
   await page.getByLabel('账号姓名', { exact: true }).fill('浏览器账号验收');

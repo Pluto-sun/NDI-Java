@@ -82,7 +82,7 @@ class OrganizationService implements OrganizationDirectory {
     private String stripAdministrativeSuffix(String name) {
         if (name == null) return "";
         name = name.strip();
-        for (var suffix : new String[] {"自治区", "自治州", "地区", "省", "市"}) {
+        for (var suffix : new String[] {"特别行政区", "维吾尔自治区", "壮族自治区", "回族自治区", "自治区", "自治州", "地区", "省", "市"}) {
             if (name.endsWith(suffix)) return name.substring(0, name.length() - suffix.length());
         }
         return name;

@@ -114,7 +114,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
       <div className="page-heading dashboard-page-heading">
         <div>
           <span className="eyebrow">PROJECT OPERATIONS</span>
-          <h1>项目工作台</h1>
+          <h1>项目管理驾驶舱</h1>
           <p>工业互联网三化项目经营驾驶舱 · {stage ? stageName(stage) : '全部阶段'}</p>
         </div>
         <Link className="secondary-button" to={`/projects${stage ? `?stage=${stage}` : ''}`}>

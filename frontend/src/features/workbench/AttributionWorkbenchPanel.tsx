@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { projectsApi } from '../projects/api';
 import type { AttributionWorkbench, ReferenceData } from '../projects/types';
@@ -110,7 +111,7 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
           </label>
           <label>
             归属省分
-            <select
+            <Select
               value={provinceId}
               onChange={(event) => {
                 setProvinceId(event.target.value);
@@ -123,11 +124,11 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
                   {item.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             归属地市
-            <select value={cityId} onChange={(event) => setCityId(event.target.value)}>
+            <Select value={cityId} onChange={(event) => setCityId(event.target.value)}>
               <option value="">全部授权地市</option>
               {reference.cities
                 .filter((item) => !provinceId || item.provinceId === provinceId)
@@ -136,7 +137,7 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
                     {item.name}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
           <label className="checkbox-label">
             <input
@@ -240,7 +241,7 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
           </div>
           <label>
             所属月份趋势指标
-            <select
+            <Select
               value={metric}
               onChange={(event) => setMetric(event.target.value as StageTrendMetric)}
             >
@@ -249,7 +250,7 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
                   {item.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <StageTrendChart
             points={result.trend}

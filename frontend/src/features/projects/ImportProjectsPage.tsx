@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -405,7 +406,7 @@ export function ImportProjectsPage() {
             <div className="filter-bar">
               <label>
                 工作表
-                <select
+                <Select
                   value={selectedSheet}
                   onChange={(event) => {
                     const next = inspection.sheets.find((item) => item.name === event.target.value);
@@ -418,11 +419,11 @@ export function ImportProjectsPage() {
                       {item.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label>
                 表头行
-                <select
+                <Select
                   value={selectedHeaderRow}
                   onChange={(event) =>
                     selectCandidate(selectedSheet, Number(event.target.value), inspection)
@@ -433,14 +434,14 @@ export function ImportProjectsPage() {
                       第 {item.rowNo} 行：{item.headers.slice(0, 3).join('、')}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <div className="import-row-fields">
               {inspection.fields.map((field) => (
                 <label key={field}>
                   {field}
-                  <select
+                  <Select
                     value={fieldMapping[field] ?? ''}
                     onChange={(event) =>
                       setFieldMapping((current) => ({ ...current, [field]: event.target.value }))
@@ -456,7 +457,7 @@ export function ImportProjectsPage() {
                         {header}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ))}
             </div>

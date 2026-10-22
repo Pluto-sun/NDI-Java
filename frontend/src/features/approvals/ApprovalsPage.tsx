@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -128,7 +129,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
       {view === 'records' && (
         <label>
           审批记录状态
-          <select
+          <Select
             value={status}
             onChange={(event) => {
               setPage(0);
@@ -141,7 +142,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                 {text}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       {error && (

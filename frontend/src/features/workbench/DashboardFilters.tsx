@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { dashboardProducts } from './dashboardApi';
 
 export interface ClassificationFilter {
@@ -26,7 +27,7 @@ export function DashboardFilters({
     <div className="dashboard-inline-filters">
       <label>
         三化类别
-        <select
+        <Select
           value={value.category}
           onChange={(event) => onChange({ category: event.target.value, product: '' })}
         >
@@ -34,11 +35,11 @@ export function DashboardFilters({
           <option value="NETWORK">网络化</option>
           <option value="DIGITAL">数字化</option>
           <option value="INTELLIGENT">智能化</option>
-        </select>
+        </Select>
       </label>
       <label>
         产品
-        <select
+        <Select
           value={value.product}
           onChange={(event) => onChange({ ...value, product: event.target.value })}
         >
@@ -48,17 +49,17 @@ export function DashboardFilters({
               {item.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label>
         指标维度
-        <select
+        <Select
           value={metric}
           onChange={(event) => onMetricChange(event.target.value as 'amount' | 'count')}
         >
           <option value="amount">项目金额（万元）</option>
           <option value="count">项目数（个）</option>
-        </select>
+        </Select>
       </label>
     </div>
   );

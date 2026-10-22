@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -209,36 +210,36 @@ export function ProjectsPage({
         </label>
         <label>
           当前阶段
-          <select value={stage} onChange={(event) => setStage(event.target.value)}>
+          <Select value={stage} onChange={(event) => setStage(event.target.value)}>
             <option value="">全部阶段</option>
             {reference.stages.map((item) => (
               <option key={item.code} value={item.code}>
                 {item.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           所属行业
-          <select value={industryCode} onChange={(event) => setIndustryCode(event.target.value)}>
+          <Select value={industryCode} onChange={(event) => setIndustryCode(event.target.value)}>
             <option value="">全部行业</option>
             {reference.industries.map((item) => (
               <option key={item.code} value={item.code}>
                 {item.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           归属地市
-          <select value={cityId} onChange={(event) => setCityId(event.target.value)}>
+          <Select value={cityId} onChange={(event) => setCityId(event.target.value)}>
             <option value="">全部地市</option>
             {reference.cities.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="checkbox-label">
           <input
@@ -299,7 +300,7 @@ export function ProjectsPage({
             </label>
             <label>
               签约主体
-              <select
+              <Select
                 value={advanced.signingSubjectCode}
                 onChange={(event) =>
                   setAdvanced({ ...advanced, signingSubjectCode: event.target.value })
@@ -308,7 +309,7 @@ export function ProjectsPage({
                 <option value="">全部签约主体</option>
                 <option value="PROVINCE_SIGN">省分签约</option>
                 <option value="DS_SIGN">数科签约</option>
-              </select>
+              </Select>
             </label>
             <label>
               省分负责人

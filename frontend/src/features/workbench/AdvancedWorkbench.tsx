@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -249,7 +250,7 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
               </fieldset>
               <label>
                 趋势指标
-                <select
+                <Select
                   value={trendMetric}
                   onChange={(event) => setTrendMetric(event.target.value as StageTrendMetric)}
                 >
@@ -258,7 +259,7 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
                       {item.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <p className="subtle">

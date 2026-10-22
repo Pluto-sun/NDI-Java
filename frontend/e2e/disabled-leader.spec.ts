@@ -56,11 +56,12 @@ test('停用负责人保留项目姓名和责任信息，维护时仍须改选�
   expect(list.ok(), await list.text()).toBeTruthy();
   const rows = (await list.json()).data.items as { id: string; provinceLeaderName: string }[];
   expect(rows.find((row) => row.id === project.id)?.provinceLeaderName).toBe(name);
-  const form = page
+  const panel = page
     .getByRole('heading', { name: '普通信息维护', exact: true })
     .locator('..')
     .locator('..');
-  await form.getByRole('button', { name: '编辑', exact: true }).click();
+  await panel.getByRole('button', { name: '编辑', exact: true }).click();
+  const form = page.getByRole('dialog', { name: '编辑项目普通信息', exact: true });
   await expect(form.getByRole('combobox', { name: '省分负责人', exact: true })).toHaveValue(
     leader.id,
   );

@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -255,7 +256,7 @@ function InactivityCard({
           )}
           <label>
             接收人
-            <select
+            <Select
               required
               value={recipientId}
               disabled={busy}
@@ -267,7 +268,7 @@ function InactivityCard({
                   {user.displayName}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             督办备注

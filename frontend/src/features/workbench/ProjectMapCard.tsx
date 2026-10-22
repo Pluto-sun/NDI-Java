@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -196,7 +197,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
       <div className="filter-bar">
         <label>
           地图统计口径
-          <select
+          <Select
             value={source}
             onChange={(event) => {
               const next = event.target.value as typeof source;
@@ -208,7 +209,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
             <option value="CURRENT">当前主档</option>
             <option value="ATTRIBUTION">项目所属月份区间</option>
             <option value="SNAPSHOT">历史月末快照</option>
-          </select>
+          </Select>
         </label>
         {source === 'ATTRIBUTION' ? (
           <>
@@ -261,13 +262,13 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
         )}
         <label>
           着色与排行指标
-          <select value={metric} onChange={(event) => setMetric(event.target.value as MapMetric)}>
+          <Select value={metric} onChange={(event) => setMetric(event.target.value as MapMetric)}>
             {MAP_METRICS.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="checkbox-label">
           <input

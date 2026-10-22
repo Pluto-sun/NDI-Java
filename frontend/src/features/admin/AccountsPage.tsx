@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAccount, type AdminConfiguration } from './api';
 import { AccountEditor } from './AccountEditor';
@@ -6,6 +7,7 @@ import { CityCreateForm } from './CityCreateForm';
 import { ProvinceCreateForm } from './ProvinceCreateForm';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import type { Page } from '../../shared/api/http';
+import { Modal } from '../../shared/ui/Modal';
 
 type Action =
   { type: 'edit'; user: AdminAccount | null } | { type: 'reset' | 'enabled'; user: AdminAccount };
@@ -140,7 +142,7 @@ export function AccountsPage({
         </label>
         <label>
           账号状态
-          <select
+          <Select
             value={enabled}
             onChange={(event) => {
               setEnabled(event.target.value);
@@ -150,7 +152,7 @@ export function AccountsPage({
             <option value="">全部状态</option>
             <option value="true">已启用</option>
             <option value="false">已停用</option>
-          </select>
+          </Select>
         </label>
         <button className="secondary-button" disabled={loading}>
           查询账号
@@ -290,68 +292,76 @@ export function AccountsPage({
         )
       )}
       {configuration && action?.type === 'edit' && (
-        <AccountEditor
-          key={action.user?.id ?? 'new'}
-          user={action.user}
-          configuration={configuration}
-          onSaved={() =>
-            complete(action.user ? '账号已更新，角色或范围变化时原会话已撤销。' : '账号已创建。')
-          }
-          onCancel={() => setAction(null)}
-        />
+        <Modal title={action.user ? '编辑账号' : '创建账号'} onClose={() => setAction(null)}>
+          <AccountEditor
+            key={action.user?.id ?? 'new'}
+            user={action.user}
+            configuration={configuration}
+            onSaved={() =>
+              complete(action.user ? '账号已更新，角色或范围变化时原会话已撤销。' : '账号已创建。')
+            }
+            onCancel={() => setAction(null)}
+          />
+        </Modal>
       )}
       {action?.type === 'reset' && (
-        <PasswordResetForm
-          key={action.user.id}
-          user={action.user}
-          isSelf={action.user.id === myId}
-          onSaved={() => complete('密码已重置，所有旧会话已失效。')}
-          onCancel={() => setAction(null)}
-        />
+        <Modal title="设置账号密码" onClose={() => setAction(null)}>
+          <PasswordResetForm
+            key={action.user.id}
+            user={action.user}
+            isSelf={action.user.id === myId}
+            onSaved={() => complete('密码已重置，所有旧会话已失效。')}
+            onCancel={() => setAction(null)}
+          />
+        </Modal>
       )}
       {action?.type === 'enabled' && (
-        <section className="panel form-panel admin-editor" aria-label="确认账号状态变更">
-          <h2 ref={confirmationTitle} tabIndex={-1}>
-            确认{action.user.enabled ? '停用' : '启用'}账号
-          </h2>
-          <p>
-            {action.user.displayName}（{action.user.loginName}）。
-            {action.user.enabled
-              ? '停用将立即撤销该账号的全部会话，不能再登录或参与业务操作。'
-              : '启用不会恢复已经撤销的会话，账号本人需要重新登录。'}
-          </p>
-          <div className="form-actions">
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={busy}
-              onClick={() => setAction(null)}
-            >
-              取消变更
-            </button>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError('');
-                try {
-                  await adminApi.enabled(action.user);
-                  await complete(
-                    action.user.enabled ? '账号已停用，旧会话已失效。' : '账号已启用，请重新登录。',
-                  );
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : '账号状态更新失败');
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? '正在更新…' : '确认变更'}
-            </button>
-          </div>
-        </section>
+        <Modal title="确认账号状态变更" busy={busy} onClose={() => setAction(null)}>
+          <section className="panel form-panel admin-editor" aria-label="确认账号状态变更">
+            <h2 ref={confirmationTitle} tabIndex={-1}>
+              确认{action.user.enabled ? '停用' : '启用'}账号
+            </h2>
+            <p>
+              {action.user.displayName}（{action.user.loginName}）。
+              {action.user.enabled
+                ? '停用将立即撤销该账号的全部会话，不能再登录或参与业务操作。'
+                : '启用不会恢复已经撤销的会话，账号本人需要重新登录。'}
+            </p>
+            <div className="form-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => setAction(null)}
+              >
+                取消变更
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    await adminApi.enabled(action.user);
+                    await complete(
+                      action.user.enabled
+                        ? '账号已停用，旧会话已失效。'
+                        : '账号已启用，请重新登录。',
+                    );
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : '账号状态更新失败');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {busy ? '正在更新…' : '确认变更'}
+              </button>
+            </div>
+          </section>
+        </Modal>
       )}
     </>
   );

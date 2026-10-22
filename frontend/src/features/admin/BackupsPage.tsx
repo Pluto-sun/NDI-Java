@@ -3,6 +3,7 @@ import { backupApi, type BackupTask } from './backupApi';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 import type { Page } from '../../shared/api/http';
+import { Modal } from '../../shared/ui/Modal';
 
 const statuses: Record<BackupTask['status'], string> = {
   PENDING: '等待处理',
@@ -157,9 +158,7 @@ export function BackupsPage({ localDevelopment }: { localDevelopment: boolean })
         <div>
           <span className="eyebrow">BACKUP ADMINISTRATION</span>
           <h1>备份管理</h1>
-          <p>
-            成对归档数据库与 MinIO 正式资料。归档包含敏感业务数据和密码摘要，须按生产库级别保管。
-          </p>
+          <p>成对归档数据库与 MinIO 资料。归档包含敏感业务数据和密码摘要，请限制访问并妥善保管。</p>
         </div>
         <button
           ref={createButton}
@@ -188,36 +187,40 @@ export function BackupsPage({ localDevelopment }: { localDevelopment: boolean })
         </Feedback>
       )}
       {confirming && (
-        <section className="panel" aria-labelledby="backup-confirm-title">
-          <h2 ref={confirmation} id="backup-confirm-title" tabIndex={-1}>
-            确认创建完整备份
-          </h2>
-          <p>
-            将读取完整数据库和已完成的正式对象。备份期间请勿发布数据库结构迁移；该操作不恢复或覆盖业务数据。
-          </p>
-          <p>网络异常后请先刷新记录，重试会沿用本次请求编号。取消页面确认不会撤销已受理的任务。</p>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => {
-                setConfirming(false);
-                requestId.current = null;
-              }}
-            >
-              取消创建
-            </button>
-            <button
-              type="button"
-              className="primary-button"
-              disabled={busy}
-              onClick={() => void submit()}
-            >
-              {busy ? '正在提交…' : '确认创建'}
-            </button>
-          </div>
-        </section>
+        <Modal title="确认创建完整备份" busy={busy} onClose={() => setConfirming(false)}>
+          <section className="panel" aria-labelledby="backup-confirm-title">
+            <h2 ref={confirmation} id="backup-confirm-title" tabIndex={-1}>
+              确认创建完整备份
+            </h2>
+            <p>
+              将读取完整数据库和已完成的正式对象。备份期间请勿发布数据库结构迁移；该操作不恢复或覆盖业务数据。
+            </p>
+            <p>
+              网络异常后请先刷新记录，重试会沿用本次请求编号。取消页面确认不会撤销已受理的任务。
+            </p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => {
+                  setConfirming(false);
+                  requestId.current = null;
+                }}
+              >
+                取消创建
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy}
+                onClick={() => void submit()}
+              >
+                {busy ? '正在提交…' : '确认创建'}
+              </button>
+            </div>
+          </section>
+        </Modal>
       )}
       <div className="form-actions">
         <button

@@ -11,6 +11,7 @@ test('一份申请修改名称总额与分类金额，由指定省分审批后�
   const project = await createProject(request, projectName);
   await page.goto(`/projects/${project.id}`);
   await chooseActor(page, ids.reporter);
+  await page.getByRole('button', { name: '发起重大变更', exact: true }).click();
   const form = page.getByRole('form', { name: '重大变更申请', exact: true });
   await form.getByRole('checkbox', { name: '变更项目总金额', exact: true }).check();
   await form.getByRole('checkbox', { name: '变更网络化金额', exact: true }).check();
@@ -29,6 +30,9 @@ test('一份申请修改名称总额与分类金额，由指定省分审批后�
   await page.getByRole('link', { name: '查看申请', exact: true }).click();
   const table = page.getByRole('table', { name: '重大变更字段对照', exact: true });
   await expect(table.getByRole('row')).toHaveCount(5);
+  await table
+    .getByRole('columnheader', { name: '申请目标值', exact: true })
+    .scrollIntoViewIfNeeded();
   await expect(table.getByRole('columnheader', { name: '申请目标值', exact: true })).toBeInViewport(
     { ratio: 1 },
   );

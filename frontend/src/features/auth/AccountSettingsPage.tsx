@@ -51,7 +51,7 @@ export function AccountSettingsPage({
         }}
       >
         <h2>基本资料</h2>
-        <p>登录账号：{profile.loginName}</p>
+        <p>登录账号：{profile.loginName}。下方姓名为页面展示的用户名，修改后不改变登录账号。</p>
         <div className="form-grid">
           <label>
             姓名

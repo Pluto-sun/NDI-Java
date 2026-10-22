@@ -27,6 +27,18 @@ class OrganizationServiceTest {
     }
 
     @Test
+    void matchesAutonomousRegionAndSpecialAdministrativeRegionShortNames() {
+        for (var names : List.of(List.of("广西壮族自治区", "广西"), List.of("新疆维吾尔自治区", "新疆"),
+                List.of("宁夏回族自治区", "宁夏"), List.of("香港特别行政区", "香港"))) {
+            var province = ProvinceEntity.create(names.getFirst());
+            var city = CityEntity.create(province.id(), "测试市");
+            when(provinces.findByEnabledTrueOrderByProvinceNameAsc()).thenReturn(List.of(province));
+            when(cities.findByProvinceIdAndEnabledTrueOrderByCityNameAsc(province.id())).thenReturn(List.of(city));
+            assertThat(service.findEnabledLocationByNames(names.getLast(), "测试")).isPresent();
+        }
+    }
+
+    @Test
     void rejectsAmbiguousCanonicalNamesAndMissingInput() {
         when(provinces.findByEnabledTrueOrderByProvinceNameAsc())
                 .thenReturn(List.of(ProvinceEntity.create("广东省"), ProvinceEntity.create("广东")));

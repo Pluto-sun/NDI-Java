@@ -10,7 +10,7 @@ test('正式登录、资料保存、重新加载、退出及修改密码撤销�
   const loginName = testInfo.project.name === 'desktop' ? 'local_city' : 'local_province';
   await page.goto('/account');
   await expect(page.getByRole('heading', { name: '登录账号', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '选择开发测试账号' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '选择账号', exact: true })).toHaveCount(0);
   await page.getByLabel('账号', { exact: true }).fill(loginName);
   await page.getByLabel('密码', { exact: true }).fill('incorrect-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();

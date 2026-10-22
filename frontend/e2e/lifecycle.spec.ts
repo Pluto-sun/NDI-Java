@@ -60,6 +60,7 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
       await page.getByRole('button', { name: '上传资料', exact: true }).click();
       await expect(page.getByText('资料上传完成，可用于阶段推进。', { exact: true })).toBeVisible();
     }
+    await page.getByRole('button', { name: '发起阶段推进', exact: true }).click();
     if (purpose) {
       const label = purpose === 'CUSTOMER_SOLUTION' ? '客户侧交流方案' : '中标通知书';
       await page
@@ -91,6 +92,7 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
   await advance('COLLECTION', '');
 
   async function changeStage(target: string) {
+    await page.getByRole('button', { name: '发起重大变更', exact: true }).click();
     const form = page.getByRole('form', { name: '重大变更申请', exact: true });
     await form.getByRole('checkbox', { name: '变更项目名称', exact: true }).uncheck();
     await form.getByRole('checkbox', { name: '变更项目阶段', exact: true }).check();

@@ -1,7 +1,7 @@
 -- 与固定演示账号共同用于隔离浏览器验收库，不写入本地业务库。
-INSERT INTO organization_province (id,province_code,province_name,enabled) VALUES
-    (UUID_TO_BIN('88888888-8888-4888-8888-888888888888'),'E2E_REVIEWER_B','浙江省',true),
-    (UUID_TO_BIN('99999999-9999-4999-8999-999999999999'),'E2E_REVIEWER_C','山东省',true);
+-- 隔离空库中的标准省份尚无引用，仅将其标识固定为测试夹具，避免重复省名。
+UPDATE organization_province SET id=UUID_TO_BIN('88888888-8888-4888-8888-888888888888') WHERE province_code='330000';
+UPDATE organization_province SET id=UUID_TO_BIN('99999999-9999-4999-8999-999999999999') WHERE province_code='370000';
 INSERT INTO organization_city (id,province_id,city_code,city_name,enabled) VALUES
     (UUID_TO_BIN('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),UUID_TO_BIN('88888888-8888-4888-8888-888888888888'),'E2E_SCOPE_CITY_B','范围验收乙市',true),
     (UUID_TO_BIN('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),UUID_TO_BIN('99999999-9999-4999-8999-999999999999'),'E2E_SCOPE_CITY_C','范围验收丙市',true);

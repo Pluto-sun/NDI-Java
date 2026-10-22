@@ -7,7 +7,7 @@ test('正式管理员先建省分再建地市，重复省分不覆盖既有目�
   await page.getByLabel('账号', { exact: true }).fill('e2e_admin');
   await page.getByLabel('密码', { exact: true }).fill('e2e-session-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
-  await page.locator('.admin-province > summary').click();
+  await page.getByRole('button', { name: '新增省分', exact: true }).click();
   const form = page.getByRole('form', { name: '新增省分', exact: true });
   await form.getByLabel('新增省分名称', { exact: true }).fill(name);
   await form.getByRole('button', { name: '添加省分', exact: true }).click();
@@ -16,7 +16,8 @@ test('正式管理员先建省分再建地市，重复省分不覆盖既有目�
   await form.getByLabel('新增省分名称', { exact: true }).fill(` ${name} `);
   await form.getByRole('button', { name: '添加省分', exact: true }).click();
   await expect(form.getByRole('alert')).toContainText('已存在同名省分');
-  await page.locator('.admin-city > summary').click();
+  await page.getByRole('button', { name: '关闭新增省分', exact: true }).click();
+  await page.getByRole('button', { name: '新增地市', exact: true }).click();
   await page
     .getByRole('combobox', { name: '地市归属省分', exact: true })
     .selectOption({ label: name });

@@ -134,6 +134,7 @@ test('撤销与驳回均不落主档，驳回意见必填且需新建申请', as
   await page.goto(`/projects/${project.id}`);
   await chooseActor(page, ids.reporter);
   async function submit() {
+    await page.getByRole('button', { name: '发起重大变更', exact: true }).click();
     const form = page.getByRole('form', { name: '重大变更申请', exact: true });
     await form.getByRole('textbox', { name: /^调整后项目名称/ }).fill(`更名-${name}`);
     await form

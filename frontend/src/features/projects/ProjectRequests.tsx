@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -10,6 +11,7 @@ import type {
 } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
 import { MajorChangeForm } from './MajorChangeForm';
+import { Modal } from '../../shared/ui/Modal';
 
 const nextStages: Record<string, string | undefined> = {
   SOLUTION_EXCHANGE: 'BIDDING',
@@ -61,6 +63,7 @@ export function ProjectRequests({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [requestId, setRequestId] = useState('');
+  const [stageOpen, setStageOpen] = useState(false);
   const target = nextStages[project.currentStageCode];
   const requiredPurpose = target ? evidencePurpose[target] : undefined;
   const evidence = documents.filter((item) => item.purposeCode === requiredPurpose);
@@ -114,6 +117,7 @@ export function ProjectRequests({
             }),
       });
       setRequestId(result.id);
+      setStageOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '阶段推进申请失败');
     } finally {
@@ -127,13 +131,13 @@ export function ProjectRequests({
       <p className="subtle">审批通过前，项目主档不变；同一项目同一时间只能有一条待审申请。</p>
       <label className="request-level">
         发起职责
-        <select value={level} onChange={(event) => setLevel(event.target.value as InitiatorLevel)}>
+        <Select value={level} onChange={(event) => setLevel(event.target.value as InitiatorLevel)}>
           {availableLevels.map((item) => (
             <option key={item} value={item}>
               {item === 'CITY' ? '地市' : '省分'}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {error && <Feedback tone="error">{error}</Feedback>}
       {requestId && (
@@ -145,86 +149,99 @@ export function ProjectRequests({
         </Feedback>
       )}
       {target && (
-        <form className="request-form" onSubmit={submitStage}>
-          <h3>
-            阶段推进：{label(project.currentStageCode)} → {label(target)}
-          </h3>
-          <div className="form-grid">
-            <label>
-              阶段发生日期
-              <input
-                type="date"
-                required
-                value={stageDate}
-                max={new Date().toLocaleDateString('en-CA')}
-                min={project.createdAt.slice(0, 10)}
-                onChange={(event) => setStageDate(event.target.value)}
-              />
-            </label>
-            <label>
-              指定审批人
-              <select
-                required
-                value={stageApproverId}
-                onChange={(event) => setStageApproverId(event.target.value)}
-              >
-                <option value="">请选择接口人</option>
-                {stageApprovers.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {requiredPurpose ? (
-              <label className="span-two">
-                {target === 'BIDDING' ? '客户侧交流方案' : '中标通知书'}
-                <select
+        <button
+          type="button"
+          className="primary-button"
+          disabled={!!requestId}
+          onClick={() => setStageOpen(true)}
+        >
+          发起阶段推进
+        </button>
+      )}
+      {target && stageOpen && (
+        <Modal title="阶段推进申请" busy={busy} onClose={() => setStageOpen(false)}>
+          <form className="request-form" onSubmit={submitStage}>
+            {error && <Feedback tone="error">{error}</Feedback>}
+            <h3>
+              阶段推进：{label(project.currentStageCode)} → {label(target)}
+            </h3>
+            <div className="form-grid">
+              <label>
+                阶段发生日期
+                <input
+                  type="date"
                   required
-                  value={evidenceId}
-                  onChange={(event) => setEvidenceId(event.target.value)}
+                  value={stageDate}
+                  max={new Date().toLocaleDateString('en-CA')}
+                  min={project.createdAt.slice(0, 10)}
+                  onChange={(event) => setStageDate(event.target.value)}
+                />
+              </label>
+              <label>
+                指定审批人
+                <Select
+                  required
+                  value={stageApproverId}
+                  onChange={(event) => setStageApproverId(event.target.value)}
                 >
-                  <option value="">请先在“项目资料”上传对应材料</option>
-                  {evidence.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.originalName}
+                  <option value="">请选择接口人</option>
+                  {stageApprovers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.displayName}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
-            ) : (
-              <>
-                <label>
-                  合同编号
-                  <input
+              {requiredPurpose ? (
+                <label className="span-two">
+                  {target === 'BIDDING' ? '客户侧交流方案' : '中标通知书'}
+                  <Select
                     required
-                    maxLength={100}
-                    value={contractNo}
-                    onChange={(event) => setContractNo(event.target.value)}
-                  />
+                    value={evidenceId}
+                    onChange={(event) => setEvidenceId(event.target.value)}
+                  >
+                    <option value="">请先在“项目资料”上传对应材料</option>
+                    {evidence.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.originalName}
+                      </option>
+                    ))}
+                  </Select>
                 </label>
-                <label>
-                  签约金额（万元）
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={signedAmount}
-                    onChange={(event) => setSignedAmount(event.target.value)}
-                  />
-                </label>
-              </>
-            )}
-          </div>
-          <button
-            type="submit"
-            className="primary-button"
-            disabled={busy || !stageApprovers.length || !!requestId}
-          >
-            {busy ? '提交中…' : '提交阶段推进申请'}
-          </button>
-        </form>
+              ) : (
+                <>
+                  <label>
+                    合同编号
+                    <input
+                      required
+                      maxLength={100}
+                      value={contractNo}
+                      onChange={(event) => setContractNo(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    签约金额（万元）
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={signedAmount}
+                      onChange={(event) => setSignedAmount(event.target.value)}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={busy || !stageApprovers.length || !!requestId}
+            >
+              {busy ? '提交中…' : '提交阶段推进申请'}
+            </button>
+          </form>
+        </Modal>
       )}
       <MajorChangeForm
         project={project}

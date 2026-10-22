@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { projectsApi } from '../features/projects/api';
 import type { ProjectUser, ReferenceData } from '../features/projects/types';
 import { ActorPicker } from '../features/local-auth/ActorPicker';
@@ -14,7 +14,8 @@ import {
 import { authApi, type AccountProfile, type AuthenticationMode } from '../features/auth/api';
 import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
-import { NotificationNavLinks } from '../features/approvals/NotificationNavLinks';
+import { ModuleNavigation } from './ModuleNavigation';
+import { ModulePlaceholder } from '../shared/ui/ModulePlaceholder';
 
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
@@ -109,6 +110,7 @@ export function App() {
       ]);
       setMe(user);
       setReference(dictionaries);
+      setProfile(await authApi.me());
     } catch (cause) {
       setMe(null);
       setReference(null);
@@ -210,34 +212,15 @@ export function App() {
             N
           </span>
           <span>
-            NDI<small>项目管理</small>
+            NDI<small>运营管理平台</small>
           </span>
         </div>
-        <nav aria-label="项目管理导航">
-          <NavLink to="/workbench">项目工作台</NavLink>
-          <NavLink to="/projects" end>
-            项目列表
-          </NavLink>
-          <NotificationNavLinks key={me.id} actorId={me.id} />
-          {mode === 'SESSION' && <NavLink to="/account">个人设置</NavLink>}
-          {me.roleCodes.includes('SYSTEM_ADMIN') && (
-            <NavLink to="/admin/accounts">账号与组织</NavLink>
-          )}
-          {me.roleCodes.includes('SYSTEM_ADMIN') && (
-            <NavLink to="/admin/reviewer-provinces">接口人范围</NavLink>
-          )}
-          {me.roleCodes.includes('SYSTEM_ADMIN') && (
-            <NavLink to="/admin/inactivity">督办管理</NavLink>
-          )}
-          {me.roleCodes.includes('SYSTEM_ADMIN') && <NavLink to="/admin/backups">备份管理</NavLink>}
-          {canCreate && <NavLink to="/projects/new">新建项目</NavLink>}
-          {canImport && <NavLink to="/projects/import">Excel 导入</NavLink>}
-        </nav>
-        <div className="sidebar-foot">
-          项目管理独立切片
-          <br />
-          排产、计收、能力指标待后续接入
-        </div>
+        <ModuleNavigation
+          actorId={me.id}
+          canCreate={canCreate}
+          canImport={canImport}
+          admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+        />
       </aside>
       <div className="main-shell">
         <header className="topbar">
@@ -270,9 +253,6 @@ export function App() {
           </div>
         </header>
         <main className="content" id="main-content">
-          {mode === 'LOCAL_ACTOR' && (
-            <div className="dev-banner">本地联调模式 · 当前账号由开发环境选择，不是生产登录</div>
-          )}
           {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
             <Routes>
@@ -326,7 +306,7 @@ export function App() {
                   )
                 }
               />
-              {mode === 'SESSION' && profile && (
+              {profile && (
                 <Route
                   path="/account"
                   element={
@@ -343,6 +323,18 @@ export function App() {
               )}
               <Route path="/" element={<Navigate to="/workbench" replace />} />
               <Route path="/workbench" element={<WorkbenchPage reference={reference} />} />
+              <Route path="/workbench/revenue" element={<ModulePlaceholder title="计收驾驶舱" />} />
+              <Route
+                path="/workbench/scheduling"
+                element={<ModulePlaceholder title="排产驾驶舱" />}
+              />
+              <Route
+                path="/workbench/capability"
+                element={<ModulePlaceholder title="能力指标驾驶舱" />}
+              />
+              <Route path="/revenue" element={<ModulePlaceholder title="计收管理" />} />
+              <Route path="/scheduling" element={<ModulePlaceholder title="排产管理" />} />
+              <Route path="/capability" element={<ModulePlaceholder title="能力指标管理" />} />
               <Route
                 path="/projects"
                 element={<ProjectsPage reference={reference} canCreate={canCreate} />}

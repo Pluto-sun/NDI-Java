@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { projectsApi } from './api';
 import type { DocumentPurpose, ProjectDocument } from './types';
@@ -136,7 +137,7 @@ export function ProjectDocuments({
         <form className="inline-form" onSubmit={upload}>
           <label>
             资料用途
-            <select
+            <Select
               value={purpose}
               onChange={(event) => setPurpose(event.target.value as DocumentPurpose)}
             >
@@ -145,7 +146,7 @@ export function ProjectDocuments({
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             选择文件

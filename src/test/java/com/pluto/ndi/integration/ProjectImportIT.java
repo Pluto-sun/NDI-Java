@@ -132,12 +132,11 @@ class ProjectImportIT {
 
     @Test
     void keepsFirstDuplicateAndRejectsMissingAmountThenConfirmsOnce() throws Exception {
-        UUID province = UUID.randomUUID();
+        UUID province = UUID.fromString(jdbc.queryForObject(
+                "SELECT BIN_TO_UUID(id) FROM organization_province WHERE province_code='440000'", String.class));
         UUID city = UUID.randomUUID();
         UUID actor = UUID.randomUUID();
         UUID leader = UUID.randomUUID();
-        jdbc.update("INSERT INTO organization_province(id,province_code,province_name,enabled) VALUES (UUID_TO_BIN(?),?,?,true)",
-                province.toString(), province.toString().replace("-", ""), "广东省");
         jdbc.update("INSERT INTO organization_city(id,province_id,city_code,city_name,enabled) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?,?,true)",
                 city.toString(), province.toString(), city.toString().replace("-", ""), "广州市");
         addUser(actor, province, city, "city-test", "地市导入人", "CITY_REPORTER");
