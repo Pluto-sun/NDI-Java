@@ -12,6 +12,8 @@ const emptyAdvanced = {
   cityAccountManagerName: '',
   productSupportExpertName: '',
   keyword: '',
+  opportunityDateStart: '',
+  opportunityDateEnd: '',
 };
 
 export function ProjectsPage({
@@ -30,6 +32,10 @@ export function ProjectsPage({
   const [cityId, setCityId] = useState(initialCityId);
   const [includeTerminated, setIncludeTerminated] = useState(true);
   const [advanced, setAdvanced] = useState(emptyAdvanced);
+  const invalidDateRange =
+    !!advanced.opportunityDateStart &&
+    !!advanced.opportunityDateEnd &&
+    advanced.opportunityDateStart > advanced.opportunityDateEnd;
   const [query, setQuery] = useState({
     page: 0,
     projectName: '',
@@ -141,6 +147,12 @@ export function ProjectsPage({
         className="filter-bar"
         onSubmit={(event) => {
           event.preventDefault();
+          if (invalidDateRange) {
+            event.currentTarget
+              .querySelector<HTMLInputElement>('input[name="opportunityDateEnd"]')
+              ?.focus();
+            return;
+          }
           setQuery({
             page: 0,
             projectName: name,
@@ -213,6 +225,44 @@ export function ProjectsPage({
         <details className="project-advanced-filters">
           <summary>更多筛选条件</summary>
           <div className="form-grid">
+            <label>
+              项目日期起
+              <input
+                type="date"
+                min="1000-01-01"
+                max="9999-12-31"
+                aria-invalid={invalidDateRange}
+                aria-describedby="project-date-hint"
+                value={advanced.opportunityDateStart}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, opportunityDateStart: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              项目日期止
+              <input
+                type="date"
+                name="opportunityDateEnd"
+                min="1000-01-01"
+                max="9999-12-31"
+                aria-invalid={invalidDateRange}
+                aria-describedby="project-date-hint"
+                value={advanced.opportunityDateEnd}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, opportunityDateEnd: event.target.value })
+                }
+              />
+            </label>
+            <p
+              id="project-date-hint"
+              className="subtle span-two"
+              role={invalidDateRange ? 'alert' : undefined}
+            >
+              {invalidDateRange
+                ? '项目日期起不得晚于项目日期止。'
+                : '按 Asia/Shanghai 自然日筛选；项目日期只在创建、导入或审批通过时更新，旧日期未恢复的项目不纳入日期范围查询。'}
+            </p>
             <label>
               编号或名称关键字
               <input
@@ -338,6 +388,7 @@ export function ProjectsPage({
                   <th>阶段</th>
                   <th>预计总金额</th>
                   <th>创建时间</th>
+                  <th>项目日期</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,6 +412,11 @@ export function ProjectsPage({
                     </td>
                     <td className="number">{amount(project.totalAmount)}</td>
                     <td>{dateTime(project.createdAt)}</td>
+                    <td>
+                      {project.opportunityDate
+                        ? dateTime(project.opportunityDate, 'Asia/Shanghai')
+                        : '旧日期待核对'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

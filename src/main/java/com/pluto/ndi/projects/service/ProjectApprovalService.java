@@ -207,6 +207,7 @@ public class ProjectApprovalService {
             } else {
                 applyChange(project, request, actorId, at);
             }
+            project.recordOpportunityDate(at);
             projectRepository.saveAndFlush(project);
             // 仅子表金额变化且修改人、时刻相同时，仍须推进聚合版本以保护后续审批。
             if (request.changeType() == MajorChangeType.FIELD_CHANGES && project.versionNo() == request.baseVersion()) {

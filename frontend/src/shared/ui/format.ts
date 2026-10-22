@@ -11,11 +11,13 @@ export function amountToCents(value: string): bigint | null {
   return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
 }
 
-export function dateTime(value: string | null | undefined): string {
+export function dateTime(value: string | null | undefined, timeZone?: string): string {
   return value
-    ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
-        new Date(value),
-      )
+    ? new Intl.DateTimeFormat('zh-CN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone,
+      }).format(new Date(value))
     : '—';
 }
 

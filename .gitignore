@@ -20,3 +20,4 @@ tmp/e2e-logs/
 var/backups/
 .env.*
 !.env.example
+__pycache__/

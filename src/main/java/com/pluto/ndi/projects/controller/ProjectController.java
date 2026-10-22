@@ -1,6 +1,8 @@
 package com.pluto.ndi.projects.controller;
 
 import java.util.UUID;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectStage;
@@ -88,12 +90,14 @@ public class ProjectController {
             @RequestParam(required = false) @Size(max = 100, message = "客户经理姓名不得超过100个字符") String cityAccountManagerName,
             @RequestParam(required = false) @Size(max = 100, message = "支撑专家姓名不得超过100个字符") String productSupportExpertName,
             @RequestParam(required = false) @Size(max = 200, message = "关键字不得超过200个字符") String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate opportunityDateStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate opportunityDateEnd,
             @RequestParam(defaultValue = "true") boolean includeTerminated
     ) {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         var query = new ProjectQuery(projectCode, projectName, stage, industryCode,
                 provinceId, cityId, includeTerminated, signingSubjectCode, provinceLeaderName,
-                cityAccountManagerName, productSupportExpertName, keyword);
+                cityAccountManagerName, productSupportExpertName, keyword, opportunityDateStart, opportunityDateEnd);
         return responseFactory.success(PageResponse.from(projectService.findProjects(actorId(authentication), query, pageable)));
     }
 

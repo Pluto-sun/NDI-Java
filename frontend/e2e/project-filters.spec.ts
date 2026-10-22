@@ -35,7 +35,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   await page.getByText('更多筛选条件', { exact: true }).focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('textbox', { name: '编号或名称关键字', exact: true })).toBeFocused();
+  await expect(page.getByLabel('项目日期起', { exact: true })).toBeFocused();
   await page.getByRole('checkbox', { name: '含已终止项目', exact: true }).uncheck();
   await page.getByRole('combobox', { name: '签约主体', exact: true }).selectOption('DS_SIGN');
   await page.getByRole('textbox', { name: '省分负责人', exact: true }).fill('省分负责人');

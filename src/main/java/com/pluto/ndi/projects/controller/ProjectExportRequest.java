@@ -1,6 +1,7 @@
 package com.pluto.ndi.projects.controller;
 
 import java.util.UUID;
+import java.time.LocalDate;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.service.ProjectQuery;
@@ -19,11 +20,14 @@ public record ProjectExportRequest(
         @Size(max = 100, message = "省分负责人姓名不得超过100个字符") String provinceLeaderName,
         @Size(max = 100, message = "客户经理姓名不得超过100个字符") String cityAccountManagerName,
         @Size(max = 100, message = "支撑专家姓名不得超过100个字符") String productSupportExpertName,
-        @Size(max = 200, message = "关键字不得超过200个字符") String keyword
+        @Size(max = 200, message = "关键字不得超过200个字符") String keyword,
+        LocalDate opportunityDateStart,
+        LocalDate opportunityDateEnd
 ) {
     public ProjectQuery toQuery() {
         return new ProjectQuery(projectCode, projectName, stage, industryCode,
                 provinceId, cityId, includeTerminated == null || includeTerminated,
-                signingSubjectCode, provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword);
+                signingSubjectCode, provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
+                opportunityDateStart, opportunityDateEnd);
     }
 }

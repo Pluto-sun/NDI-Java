@@ -396,6 +396,7 @@ class ProjectApprovalIT {
         approvalService.decide(interfaceUserId, collection.id(), true, null);
         var project = projectRepository.findById(projectId).orElseThrow();
         assertThat(project.currentStageCode()).isEqualTo(ProjectStage.COLLECTION.name());
+        assertThat(project.opportunityDate()).isEqualTo(project.updatedAt());
         assertThat(project.contractNo()).startsWith("NDI-CONTRACT-");
         assertThat(project.signedAmount()).isEqualByComparingTo("88.00");
         assertThat(jdbc.queryForObject(
@@ -1401,6 +1402,46 @@ class ProjectApprovalIT {
                 List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
                 "已开展交流", "准备下一次沟通", null, true, "集成测试：独立业务项目"
         )).id();
+    }
+
+    @Test
+    void dateFiltersUseShanghaiDaysIncludeLastMicrosecondAndMatchExport() throws Exception {
+        var first = createProject();
+        var last = createProject();
+        var next = createProject();
+        var previous = createProject();
+        var unknown = createProject();
+        jdbc.update("UPDATE project_project SET opportunity_date=? WHERE id=UUID_TO_BIN(?)", "2026-06-30 16:00:00.000000", first.toString());
+        jdbc.update("UPDATE project_project SET opportunity_date=? WHERE id=UUID_TO_BIN(?)", "2026-07-01 15:59:59.999999", last.toString());
+        jdbc.update("UPDATE project_project SET opportunity_date=? WHERE id=UUID_TO_BIN(?)", "2026-07-01 16:00:00.000000", next.toString());
+        jdbc.update("UPDATE project_project SET opportunity_date=? WHERE id=UUID_TO_BIN(?)", "2026-06-30 15:59:59.999999", previous.toString());
+        jdbc.update("UPDATE project_project SET opportunity_date=NULL WHERE id=UUID_TO_BIN(?)", unknown.toString());
+        var date = LocalDate.of(2026, 7, 1);
+        var filter = new ProjectQuery(null, null, null, null, null, null, true,
+                null, null, null, null, null, date, date);
+        assertThat(projectService.countProjects(cityUserId, filter)).isEqualTo(2);
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("opportunityDateStart", "2026-07-01").param("opportunityDateEnd", "2026-07-01"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString()).param("opportunityDateStart", "2026-07-01"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(3));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString()).param("opportunityDateEnd", "2026-07-01"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(3));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("opportunityDateStart", "1000-01-01").param("opportunityDateEnd", "9999-12-31"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(4));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("opportunityDateStart", "2026-07-02").param("opportunityDateEnd", "2026-07-01"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("PROJECT_INVALID_DATE_RANGE"));
+        mockMvc.perform(post("/api/v1/projects/exports").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json").content("{\"opportunityDateStart\":\"2026-07-02\",\"opportunityDateEnd\":\"2026-07-01\"}"))
+                .andExpect(status().isBadRequest());
+        var task = exportService.submit(cityUserId, filter);
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, task.id()).rowCount()).isEqualTo(2);
+        var csv = ArgumentCaptor.forClass(byte[].class);
+        verify(exportFileDirectory).storeCsv(eq(task.id()), csv.capture());
+        assertThat(new String(csv.getValue(), StandardCharsets.UTF_8)).contains("原项目-2").doesNotContain("原项目-3", "原项目-4", "原项目-5");
     }
 
     private void setSignedProject(UUID projectId, String contractNo) {

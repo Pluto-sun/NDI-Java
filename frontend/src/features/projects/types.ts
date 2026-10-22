@@ -115,6 +115,7 @@ export interface ProjectSummary {
   currentStageCode: string;
   categoryAmounts: CategoryAmount[];
   createdAt: string;
+  opportunityDate: string | null;
 }
 export interface ProjectDetail extends ProjectSummary {
   provinceId: string;

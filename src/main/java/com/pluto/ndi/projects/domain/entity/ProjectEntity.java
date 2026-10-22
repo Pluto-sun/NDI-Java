@@ -109,6 +109,9 @@ public class ProjectEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "opportunity_date")
+    private Instant opportunityDate;
+
     protected ProjectEntity() {
     }
 
@@ -147,6 +150,7 @@ public class ProjectEntity {
         entity.createdAt = occurredAt;
         entity.updatedBy = actorId;
         entity.updatedAt = occurredAt;
+        entity.opportunityDate = occurredAt;
         return entity;
     }
 
@@ -249,6 +253,10 @@ public class ProjectEntity {
     public UUID provinceLeaderUserId() { return provinceLeaderUserId; }
     public String cityAccountManagerName() { return cityAccountManagerName; }
     public Instant updatedAt() { return updatedAt; }
+    public Instant opportunityDate() { return opportunityDate; }
+
+    /** 仅创建、导入和审批生效时记录项目日期，普通维护与进展不调用。 */
+    public void recordOpportunityDate(Instant at) { opportunityDate = Objects.requireNonNull(at); }
 
     public void recordCategoryAmountChange(UUID actorId, Instant at) { touch(actorId, at); }
 

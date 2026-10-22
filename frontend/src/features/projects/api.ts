@@ -46,6 +46,8 @@ export interface ProjectQuery {
   cityAccountManagerName?: string;
   productSupportExpertName?: string;
   keyword?: string;
+  opportunityDateStart?: string;
+  opportunityDateEnd?: string;
 }
 
 /** 列表与导出使用相同的规范化条件，空枚举、空 UUID 不发送；布尔值 false 必须保留。 */

@@ -84,6 +84,8 @@ class ProjectFieldChangesIT {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
     @Autowired private ProjectService projects;
+    @Autowired private com.pluto.ndi.projects.service.ProjectProgressService progressService;
+    @Autowired private com.pluto.ndi.projects.service.ProjectProfileService profileService;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private ProjectApprovalService approvals;
     @Autowired private ProjectMonthlySnapshotService snapshots;
@@ -251,6 +253,35 @@ class ProjectFieldChangesIT {
                 new BigDecimal("100.00"), leader, "经理",
                 List.of(new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))),
                 "已开始交流", "继续跟进", null, true, "独立组合变更测试项目")).id();
+    }
+
+    @Test
+    void opportunityDateChangesOnlyWhenApprovalTakesEffect() {
+        var project = create("项目日期规则");
+        var original = projects.findDetail(reporter, project).opportunityDate();
+        clock.moveTo(6, 16);
+        progressService.append(reporter, project, new com.pluto.ndi.projects.service.AppendProgressCommand("追加进展", "下一步", null));
+        var detail = projects.findDetail(reporter, project);
+        profileService.update(reporter, project, new com.pluto.ndi.projects.service.UpdateProjectProfileCommand(
+                detail.versionNo(), "维护后的客户", detail.industryCode(), detail.customerNeed(), leader,
+                detail.cityAccountManagerName(), detail.productSupportExpertNames()));
+        assertThat(projects.findDetail(reporter, project).opportunityDate()).isEqualTo(original);
+        var request = approvals.submitMajorChange(reporter, project, command(item(ProjectChangeField.TOTAL_AMOUNT, "150")));
+        assertThat(projects.findDetail(reporter, project).opportunityDate()).isEqualTo(original);
+        clock.moveTo(7, 1);
+        approvals.decide(leader, request.id(), true, null);
+        var approvedAt = clock.instant();
+        assertThat(projects.findDetail(reporter, project).opportunityDate()).isEqualTo(approvedAt);
+        clock.moveTo(7, 2);
+        request = approvals.submitMajorChange(reporter, project, command(item(ProjectChangeField.TOTAL_AMOUNT, "160")));
+        approvals.withdraw(reporter, request.id());
+        request = approvals.submitMajorChange(reporter, project, command(item(ProjectChangeField.TOTAL_AMOUNT, "170")));
+        approvals.decide(leader, request.id(), false, "不同意");
+        assertThat(projects.findDetail(reporter, project).opportunityDate()).isEqualTo(approvedAt);
+        request = approvals.submitMajorChange(reporter, project, command(item(ProjectChangeField.TOTAL_AMOUNT, "180")));
+        jdbc.update("UPDATE project_project SET version_no=version_no+1 WHERE id=UUID_TO_BIN(?)", project.toString());
+        assertThat(approvals.decide(leader, request.id(), true, null).status()).isEqualTo(ApprovalStatus.CONFLICT);
+        assertThat(projects.findDetail(reporter, project).opportunityDate()).isEqualTo(approvedAt);
     }
     private void user(UUID id, String role, UUID userCity) {
         jdbc.update("INSERT INTO identity_user_account (id, login_name, display_name, province_id, city_id, enabled) VALUES (UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), true)",

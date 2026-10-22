@@ -32,7 +32,8 @@ public record ProjectDetailSummary(
         long versionNo,
         List<ProjectSummary.CategoryAmount> categoryAmounts,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        Instant opportunityDate
 ) {
     public ProjectDetailSummary {
         categoryAmounts = List.copyOf(categoryAmounts);

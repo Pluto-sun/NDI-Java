@@ -9,7 +9,7 @@ import sys
 import unicodedata
 import uuid
 from collections import Counter, defaultdict
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlparse, unquote
@@ -72,10 +72,67 @@ def as_datetime(value):
     return datetime.combine(value, time.min)
 
 
+def legacy_opportunity_date(old):
+    value = old.get("opportunity_date")
+    if not isinstance(value, datetime):
+        raise ValueError("旧项目缺少项目日期")
+    # 旧 MySQL DATETIME 存放 UTC；存在显式时区时先统一为 UTC。
+    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+
+
+def insert_legacy_project(target, project_id, old, industry_code, leader_id, manager, creator_id):
+    execute(target, """INSERT INTO project_project
+        (id,project_code,province_id,city_id,project_name,customer_name,industry_code,
+         customer_need,total_amount,contract_no,signed_amount,current_stage_code,
+         province_leader_user_id,city_account_manager_name,version_no,created_by,created_at,
+         updated_by,updated_at,opportunity_date)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s,%s,%s)""",
+        (project_id, old["project_code"], binary(old["province_id"]), binary(old["city_id"]),
+         old["project_name"], old["customer_name"], industry_code,
+         old["customer_requirement"], old["total_amount"], old["contract_no"],
+         old["signed_amount"], old["current_stage_code"], binary(leader_id), manager,
+         creator_id, old["created_at"], creator_id, old["updated_at"] or old["created_at"],
+         legacy_opportunity_date(old)))
+
+
+def backfill_legacy_opportunity_dates(target, source_projects):
+    report = {"restored": [], "skipped_existing": [], "unmapped": [], "failed": []}
+    for old in source_projects:
+        source_id = old["id"]
+        try:
+            rows = fetch_all(target, """SELECT project.id,project.opportunity_date
+                FROM project_project project JOIN project_source_record source ON source.project_id=project.id
+                WHERE source.source_system='LEGACY_MYSQL' AND source.source_record_id=%s FOR UPDATE""", (source_id,))
+            if not rows:
+                category, result = "unmapped", source_id
+            elif rows[0]["opportunity_date"] is not None:
+                category, result = "skipped_existing", source_id
+            else:
+                value = legacy_opportunity_date(old)
+                project_id = rows[0]["id"]
+                execute(target, "UPDATE project_project SET opportunity_date=%s WHERE id=%s AND opportunity_date IS NULL",
+                        (value, project_id))
+                detail = json.dumps({"sourceId": source_id, "opportunityDateUtc": value.isoformat() + "Z"})
+                execute(target, """INSERT INTO system_audit_event
+                    (id,actor_id,event_type,resource_type,resource_id,detail,occurred_at)
+                    VALUES (%s,NULL,'PROJECT_LEGACY_DATE_RESTORED','PROJECT',%s,%s,%s)""",
+                        (fresh_id(), project_id, detail, datetime.now(timezone.utc).replace(tzinfo=None)))
+                category = "restored"
+                result = dict(source_id=source_id, target_id=str(uuid.UUID(bytes=project_id)),
+                              opportunity_date_utc=value.isoformat() + "Z")
+            target.commit()
+            report[category].append(result)
+        except (ValueError, pymysql.MySQLError) as exception:
+            target.rollback()
+            report["failed"].append(dict(source_id=source_id, reason=type(exception).__name__))
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-env", type=Path, required=True)
     parser.add_argument("--report-dir", type=Path, required=True)
+    parser.add_argument("--backfill-opportunity-dates", action="store_true", help="仅给已有隔离迁移项目补回空日期，不覆盖已有值")
     args = parser.parse_args()
     target_url = os.environ.get("NDI_REHEARSAL_TARGET_URL")
     if not target_url:
@@ -116,8 +173,15 @@ def main():
         source.commit()
 
         version = fetch_all(target, "SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1")
-        if not version or int(version[0]["version"]) < 10:
-            raise ValueError("隔离目标库须先执行至 V10 的 Flyway 迁移")
+        if not version or int(version[0]["version"]) < 31:
+            raise ValueError("隔离目标库须先执行至 V31 的 Flyway 迁移")
+        if args.backfill_opportunity_dates:
+            report = backfill_legacy_opportunity_dates(target, source_projects)
+            args.report_dir.mkdir(parents=True, exist_ok=True)
+            (args.report_dir / "opportunity-date-backfill.json").write_text(
+                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(json.dumps({key: len(value) for key, value in report.items()}, ensure_ascii=False))
+            return
         if fetch_all(target, "SELECT id FROM project_project LIMIT 1"):
             raise ValueError("目标项目表非空；演练只允许写入全新的隔离库")
         industry_codes = {row["industry_name"]: row["industry_code"] for row in
@@ -152,6 +216,8 @@ def main():
         for old in source_projects:
             source_id = old["id"]
             reasons = []
+            if not isinstance(old.get("opportunity_date"), datetime):
+                reasons.append("MISSING_OPPORTUNITY_DATE")
             key = (old["city_id"], norm(old["project_name"] or ""))
             if key in seen:
                 reasons.append("DUPLICATE_AFTER_FIRST")
@@ -198,17 +264,8 @@ def main():
             try:
                 project_id = fresh_id()
                 creator_id = binary(old["creator_id"])
-                execute(target, """INSERT INTO project_project
-                    (id,project_code,province_id,city_id,project_name,customer_name,industry_code,
-                     customer_need,total_amount,contract_no,signed_amount,current_stage_code,
-                     province_leader_user_id,city_account_manager_name,version_no,created_by,created_at,
-                     updated_by,updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s,%s)""",
-                    (project_id, old["project_code"], binary(old["province_id"]), binary(old["city_id"]),
-                     old["project_name"], old["customer_name"], industry_codes[old["customer_industry"]],
-                     old["customer_requirement"], old["total_amount"], old["contract_no"],
-                     old["signed_amount"], old["current_stage_code"], binary(leaders[0]),
-                     managers[0], creator_id, old["created_at"], creator_id, old["updated_at"] or old["created_at"]))
+                insert_legacy_project(target, project_id, old, industry_codes[old["customer_industry"]],
+                                      leaders[0], managers[0], creator_id)
                 for code, amount in category_amounts:
                     execute(target, "INSERT INTO project_category_amount(id,project_id,category_code,expected_amount) VALUES (%s,%s,%s,%s)",
                             (fresh_id(), project_id, code, amount))
@@ -242,12 +299,12 @@ def main():
                 execute(target, """INSERT INTO project_source_record
                     (id,project_id,source_system,source_record_id,source_type,imported_at)
                     VALUES (%s,%s,'LEGACY_MYSQL',%s,%s,%s)""",
-                    (fresh_id(), project_id, source_id, old["source_type"], datetime.now()))
+                    (fresh_id(), project_id, source_id, old["source_type"], datetime.now(timezone.utc).replace(tzinfo=None)))
                 execute(target, """INSERT INTO project_change_event
                     (id,project_id,event_type,aggregate_version,payload,actor_id,occurred_at)
                     VALUES (%s,%s,'PROJECT_CREATED',0,%s,%s,%s)""",
                     (fresh_id(), project_id, json.dumps({"source": "LEGACY_MYSQL", "sourceId": source_id}),
-                     creator_id, datetime.now()))
+                     creator_id, datetime.now(timezone.utc).replace(tzinfo=None)))
                 target.commit()
                 successful.append(dict(source_id=source_id, project_code=old["project_code"],
                                        target_id=str(uuid.UUID(bytes=project_id)), total_amount=old["total_amount"],

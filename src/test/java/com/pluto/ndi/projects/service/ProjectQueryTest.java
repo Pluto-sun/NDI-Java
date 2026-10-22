@@ -32,4 +32,22 @@ class ProjectQueryTest {
         assertThatThrownBy(() -> new ProjectQuery(null, null, null, null, null, null, true,
                 "INVALID", null, null, null, null)).isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void persistsAndRestoresOptionalDateFilters() throws Exception {
+        var mapper = new ObjectMapper().findAndRegisterModules();
+        var date = java.time.LocalDate.of(2026, 7, 1);
+        var query = new ProjectQuery(null, null, null, null, null, null, true,
+                null, null, null, null, null, date, date);
+        assertThat(mapper.readValue(mapper.writeValueAsString(query), ProjectQuery.class)).isEqualTo(query);
+    }
+
+    @Test
+    void rejectsInvertedDatesAndYearsOutsideDatabaseRange() {
+        var day = java.time.LocalDate.of(2026, 7, 1);
+        assertThatThrownBy(() -> new ProjectQuery(null, null, null, null, null, null, true,
+                null, null, null, null, null, day.plusDays(1), day)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> new ProjectQuery(null, null, null, null, null, null, true,
+                null, null, null, null, null, java.time.LocalDate.of(999, 1, 1), null)).isInstanceOf(BusinessException.class);
+    }
 }

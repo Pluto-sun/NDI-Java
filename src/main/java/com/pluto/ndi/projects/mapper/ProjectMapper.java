@@ -21,7 +21,7 @@ public class ProjectMapper {
                 project.totalAmount(),
                 project.currentStageCode(),
                 categories,
-                project.createdAt()
+                project.createdAt(), project.opportunityDate()
         );
     }
 
@@ -35,7 +35,7 @@ public class ProjectMapper {
                 project.productSupportExpertNames(),
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
-                project.createdAt(), project.updatedAt()
+                project.createdAt(), project.updatedAt(), project.opportunityDate()
         );
     }
 }

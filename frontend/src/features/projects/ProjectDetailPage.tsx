@@ -148,6 +148,14 @@ export function ProjectDetailPage({
                     <dd>{detail.customerName}</dd>
                   </div>
                   <div>
+                    <dt>项目日期（Asia/Shanghai）</dt>
+                    <dd>
+                      {detail.opportunityDate
+                        ? dateTime(detail.opportunityDate, 'Asia/Shanghai')
+                        : '旧日期待核对，未纳入日期范围查询'}
+                    </dd>
+                  </div>
+                  <div>
                     <dt>所属行业</dt>
                     <dd>
                       {reference.industries.find((item) => item.code === detail.industryCode)

@@ -105,6 +105,7 @@ public class ProjectImportWriter {
                     ProjectStage.valueOf(candidate.stageCode()), null, null,
                     candidate.signingSubjectCode() == null ? "PROVINCE_SIGN" : candidate.signingSubjectCode(),
                     actorId, candidate.occurredAt());
+            project.recordOpportunityDate(now);
             project.replaceProductSupportExperts(candidate.productSupportExpertNames() == null
                     ? java.util.List.of() : candidate.productSupportExpertNames());
             project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(candidate.plannedBidMonth()),

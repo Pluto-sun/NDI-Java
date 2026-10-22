@@ -324,6 +324,18 @@ public class ProjectService {
             if (!query.includeTerminated()) {
                 conditions.add(builder.notEqual(root.get("currentStageCode"), ProjectStage.TERMINATED.name()));
             }
+            var zone = ZoneId.of("Asia/Shanghai");
+            if (query.opportunityDateStart() != null) {
+                var start = query.opportunityDateStart().atStartOfDay(zone).toInstant();
+                if (!start.isBefore(Instant.parse("1000-01-01T00:00:00Z")))
+                    conditions.add(builder.greaterThanOrEqualTo(root.get("opportunityDate"), start));
+                else conditions.add(builder.isNotNull(root.get("opportunityDate")));
+            }
+            if (query.opportunityDateEnd() != null) {
+                // DATETIME(6) 的日末精度为微秒，避免最大年份加一天越界。
+                var end = query.opportunityDateEnd().atTime(23, 59, 59, 999_999_000).atZone(zone).toInstant();
+                conditions.add(builder.lessThanOrEqualTo(root.get("opportunityDate"), end));
+            }
             return builder.and(conditions.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
     }
