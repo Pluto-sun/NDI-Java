@@ -88,6 +88,8 @@ class ProjectServiceTest {
         when(organizationDirectory.findEnabledLocation(provinceId, cityId))
                 .thenReturn(Optional.of(new OrganizationLocation(provinceId, cityId)));
         when(identityDirectory.isEligibleProvinceLeader(provinceLeaderId, provinceId)).thenReturn(true);
+        when(identityDirectory.findProjectUser(provinceLeaderId)).thenReturn(Optional.of(
+                new com.pluto.ndi.identity.service.ProjectUser(provinceLeaderId, "省分负责人", provinceId, null, List.of("PROVINCE_REPORTER"))));
         when(identityDirectory.canCreateProject(any(), eq(provinceId), eq(cityId))).thenReturn(true);
         when(industryReferenceRepository.existsByIndustryCodeAndEnabledTrue("C25")).thenReturn(true);
         when(duplicateService.candidates(eq(cityId), any())).thenReturn(new ProjectDuplicateCheck("NONE", List.of()));
@@ -102,12 +104,53 @@ class ProjectServiceTest {
 
         assertThat(result.projectCode()).startsWith("NDI-20261019-");
         assertThat(result.currentStageCode()).isEqualTo("SOLUTION_EXCHANGE");
+        assertThat(result.importanceCode()).isEqualTo("NORMAL");
         assertThat(result.categoryAmounts()).hasSize(2);
         verify(projectRepository).saveAndFlush(any());
         verify(categoryAmountRepository).saveAll(any());
         verify(stageMilestoneRepository).save(any());
         verify(progressRepository).save(any());
         verify(changeEventRepository).save(any());
+    }
+
+    @Test
+    void normalizesCreationAttributesAndStoresExplicitProgressOwner() {
+        var result = service.createProject(actorId, commandWithAttributes("  CUSTOMER_KEY  ", "  指定负责人  "));
+        assertThat(result.importanceCode()).isEqualTo("CUSTOMER_KEY");
+        var progress = org.mockito.ArgumentCaptor.forClass(
+                com.pluto.ndi.projects.domain.entity.ProjectProgressEntity.class);
+        verify(progressRepository).save(progress.capture());
+        assertThat(progress.getValue().ownerName()).isEqualTo("指定负责人");
+    }
+
+    @Test
+    void blankCreationAttributesUseNormalImportanceAndProvinceLeader() {
+        var result = service.createProject(actorId, commandWithAttributes("  ", "  "));
+        assertThat(result.importanceCode()).isEqualTo("NORMAL");
+        var progress = org.mockito.ArgumentCaptor.forClass(
+                com.pluto.ndi.projects.domain.entity.ProjectProgressEntity.class);
+        verify(progressRepository).save(progress.capture());
+        assertThat(progress.getValue().ownerName()).isEqualTo("省分负责人");
+    }
+
+    @Test
+    void rejectsOversizedCreationAttributesBeforeWriting() {
+        for (var command : List.of(commandWithAttributes("X".repeat(31), null),
+                commandWithAttributes(null, "人".repeat(101)))) {
+            var failure = org.assertj.core.api.Assertions.catchThrowable(() -> service.createProject(actorId, command));
+            assertThat(failure).isInstanceOf(BusinessException.class);
+            assertThat(((BusinessException) failure).errorCode()).isEqualTo(ProjectErrorCode.INVALID_CREATION_ATTRIBUTES);
+        }
+        org.mockito.Mockito.verify(projectRepository, org.mockito.Mockito.never()).saveAndFlush(any());
+    }
+
+    private CreateProjectCommand commandWithAttributes(String importance, String owner) {
+        var base = validCommand(new BigDecimal("100.00"), List.of(
+                new CreateProjectCommand.CategoryAmount("NETWORK", new BigDecimal("60.00"))));
+        return new CreateProjectCommand(base.provinceId(), base.cityId(), base.projectName(), base.customerName(),
+                base.industryCode(), base.customerNeed(), base.totalAmount(), base.provinceLeaderUserId(),
+                base.cityAccountManagerName(), base.categoryAmounts(), base.initialProgress(), base.nextAction(),
+                null, false, null, null, List.of(), null, List.of(), null, importance, owner);
     }
 
     @Test

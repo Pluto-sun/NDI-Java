@@ -48,6 +48,9 @@ public class ProjectEntity {
     @Column(name = "customer_need", nullable = false)
     private String customerNeed;
 
+    @Column(name = "importance_code", nullable = false, length = 30)
+    private String importanceCode = "NORMAL";
+
     @Column(name = "construction_content_raw", nullable = false)
     private String constructionContentRaw;
 
@@ -131,7 +134,18 @@ public class ProjectEntity {
             UUID actorId,
             Instant occurredAt
     ) {
+        return create(id, projectCode, provinceId, cityId, projectName, customerName, industryCode,
+                customerNeed, totalAmount, provinceLeaderUserId, cityAccountManagerName, signingSubjectCode,
+                actorId, occurredAt, "NORMAL");
+    }
+
+    /** 仅在创建时指定重要性代码，后续普通资料维护不改写该属性。 */
+    public static ProjectEntity create(UUID id, String projectCode, UUID provinceId, UUID cityId,
+            String projectName, String customerName, String industryCode, String customerNeed,
+            BigDecimal totalAmount, UUID provinceLeaderUserId, String cityAccountManagerName,
+            String signingSubjectCode, UUID actorId, Instant occurredAt, String importanceCode) {
         var entity = new ProjectEntity();
+        entity.importanceCode = importanceCode;
         entity.id = id;
         entity.projectCode = projectCode;
         entity.provinceId = provinceId;
@@ -174,6 +188,8 @@ public class ProjectEntity {
     public UUID id() {
         return id;
     }
+
+    public String importanceCode() { return importanceCode; }
 
     public String projectCode() {
         return projectCode;

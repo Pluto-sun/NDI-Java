@@ -545,7 +545,7 @@ class ProjectApprovalIT {
         var original = progressService.findProgress(cityUserId, projectId, PageRequest.of(0, 20))
                 .getContent().getFirst();
         assertThat(original.progressDate()).isNotNull();
-        assertThat(original.ownerName()).isEqualTo("客户经理");
+        assertThat(original.ownerName()).isEqualTo("PROVINCE_REPORTER");
         var version = projectRepository.findById(projectId).orElseThrow().versionNo();
         var request = approvalService.submitMajorChange(cityUserId, projectId, new MajorChangeCommand(
                 MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
@@ -1429,6 +1429,52 @@ class ProjectApprovalIT {
         assertThat(types.stream().filter("APPROVAL_SUBMITTED"::equals).count()).isEqualTo(3);
         mockMvc.perform(get("/api/v1/projects/{id}/operation-audit", project)
                 .header("X-NDI-Actor-Id", cityUserId.toString()).param("size", "101")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void creationAttributesRoundTripAndValidateBothOwnerFieldNames() throws Exception {
+        for (var ownerField : List.of("initialProgressOwnerName", "progressOwnerName")) {
+            var payload = new java.util.LinkedHashMap<String, Object>();
+            payload.put("provinceId", provinceId);
+            payload.put("cityId", cityId);
+            payload.put("projectName", "属性项目-" + UUID.randomUUID());
+            payload.put("customerName", "客户");
+            payload.put("industryCode", "C25");
+            payload.put("customerNeed", "需要升级");
+            payload.put("totalAmount", 100);
+            payload.put("provinceLeaderUserId", provinceUserId);
+            payload.put("cityAccountManagerName", "客户经理");
+            payload.put("categoryAmounts", List.of(Map.of("categoryCode", "NETWORK", "expectedAmount", 60)));
+            payload.put("initialProgress", "完成交流");
+            payload.put("nextAction", "下一次沟通");
+            payload.put("confirmNew", true);
+            payload.put("duplicateReason", "集成测试：分别验证新旧字段名");
+            payload.put("importanceCode", "X".repeat(30));
+            payload.put(ownerField, "人".repeat(100));
+            var response = mockMvc.perform(post("/api/v1/projects")
+                    .header("X-NDI-Actor-Id", cityUserId.toString()).contentType("application/json")
+                    .content(json.writeValueAsBytes(payload)))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.data.importanceCode").value("X".repeat(30)))
+                    .andReturn();
+            var id = UUID.fromString(json.readTree(response.getResponse().getContentAsString()).path("data").path("id").asText());
+            assertThat(progressService.findProgress(cityUserId, id, PageRequest.of(0, 20))
+                    .getContent().getFirst().ownerName()).isEqualTo("人".repeat(100));
+            mockMvc.perform(get("/api/v1/projects/{id}", id).header("X-NDI-Actor-Id", cityUserId.toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.importanceCode").value("X".repeat(30)));
+            mockMvc.perform(get("/api/v1/projects").param("keyword", payload.get("projectName").toString())
+                    .header("X-NDI-Actor-Id", cityUserId.toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].importanceCode").value("X".repeat(30)));
+            payload.put("projectName", "拒绝属性-" + UUID.randomUUID());
+            payload.put(ownerField, "人".repeat(101));
+            mockMvc.perform(post("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                    .contentType("application/json").content(json.writeValueAsBytes(payload)))
+                    .andExpect(status().isBadRequest());
+            payload.put(ownerField, "负责人");
+            payload.put("importanceCode", "X".repeat(31));
+            mockMvc.perform(post("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                    .contentType("application/json").content(json.writeValueAsBytes(payload)))
+                    .andExpect(status().isBadRequest());
+        }
     }
 
     private UUID createProject() {

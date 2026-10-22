@@ -16,11 +16,19 @@ public record ProjectSummary(
         String currentStageCode,
         List<CategoryAmount> categoryAmounts,
         Instant createdAt,
-        Instant opportunityDate
+        Instant opportunityDate,
+        String importanceCode
 ) {
 
     public ProjectSummary {
         categoryAmounts = List.copyOf(categoryAmounts);
+    }
+
+    public ProjectSummary(UUID id, String projectCode, String projectName, String customerName, String industryCode,
+            BigDecimal totalAmount, String currentStageCode, List<CategoryAmount> categoryAmounts, Instant createdAt,
+            Instant opportunityDate) {
+        this(id, projectCode, projectName, customerName, industryCode, totalAmount, currentStageCode,
+                categoryAmounts, createdAt, opportunityDate, "NORMAL");
     }
 
     public ProjectSummary(UUID id, String projectCode, String projectName, String customerName, String industryCode,

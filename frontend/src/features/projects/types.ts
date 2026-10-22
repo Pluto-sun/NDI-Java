@@ -56,6 +56,8 @@ export interface CategoryAmount {
   expectedAmount: number;
 }
 export interface CreateProjectInput {
+  importanceCode?: string;
+  initialProgressOwnerName?: string;
   provinceId: string;
   cityId: string;
   projectName: string;
@@ -113,6 +115,7 @@ export interface ProjectDraft {
   updatedAt: string;
 }
 export interface ProjectSummary {
+  importanceCode: string;
   id: string;
   projectCode: string;
   projectName: string;

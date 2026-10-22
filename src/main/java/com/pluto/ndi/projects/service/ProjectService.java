@@ -152,7 +152,8 @@ public class ProjectService {
                 normalized.cityAccountManagerName(),
                 normalized.signingSubjectCode(),
                 actorId,
-                occurredAt
+                occurredAt,
+                normalized.importanceCode()
         );
         project.replaceProductSupportExperts(normalized.productSupportExpertNames());
         project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(normalized.plannedBidMonth()),
@@ -168,7 +169,10 @@ public class ProjectService {
         stageMilestoneRepository.save(ProjectStageMilestoneEntity.initial(project.id(), actorId, occurredAt));
         progressRepository.save(ProjectProgressEntity.initial(
                 project.id(), normalized.initialProgress(), normalized.nextAction(),
-                normalized.cityAccountManagerName(), actorId, occurredAt,
+                normalized.initialProgressOwnerName() == null
+                        ? identityDirectory.findProjectUser(normalized.provinceLeaderUserId())
+                            .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER)).displayName()
+                        : normalized.initialProgressOwnerName(), actorId, occurredAt,
                 LocalDate.ofInstant(occurredAt, ZoneId.of("Asia/Shanghai"))));
         changeEventRepository.save(projectCreatedEvent(project, actorId, occurredAt,
                 "DUPLICATE_CANDIDATE".equals(duplicate.status()) ? normalized.duplicateReason() : null));
@@ -358,6 +362,13 @@ public class ProjectService {
     }
 
     private CreateProjectCommand normalize(CreateProjectCommand command) {
+        var importance = command.importanceCode() == null || command.importanceCode().isBlank()
+                ? "NORMAL" : command.importanceCode().trim();
+        var initialOwner = command.initialProgressOwnerName() == null || command.initialProgressOwnerName().isBlank()
+                ? null : command.initialProgressOwnerName().trim();
+        if (importance.length() > 30 || initialOwner != null && initialOwner.length() > 100) {
+            throw new BusinessException(ProjectErrorCode.INVALID_CREATION_ATTRIBUTES);
+        }
         List<String> expertNames;
         List<String> scenarios;
         String bidMonth;
@@ -398,7 +409,7 @@ public class ProjectService {
                 command.duplicateReason() == null ? null : command.duplicateReason().trim(),
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
                         ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
-                expertNames, bidMonth, scenarios, narrative
+                expertNames, bidMonth, scenarios, narrative, importance, initialOwner
         );
     }
 
@@ -423,6 +434,7 @@ public class ProjectService {
             values.put("currentStageCode", project.currentStageCode());
             values.put("totalAmount", project.totalAmount());
             values.put("signingSubjectCode", project.signingSubjectCode());
+            values.put("importanceCode", project.importanceCode());
             values.put("productSupportExpertNames", project.productSupportExpertNames());
             values.put("plannedBidMonth", project.plannedBidMonth());
             values.put("applicationScenarioCodes", project.applicationScenarioCodes());

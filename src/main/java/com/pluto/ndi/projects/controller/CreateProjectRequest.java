@@ -36,7 +36,10 @@ public record CreateProjectRequest(
         List<String> applicationScenarioCodes,
         String constructionContentRaw,
         String productPromotionContent,
-        String remark
+        String remark,
+        @Size(max = 30, message = "重要性代码不得超过30个字符") String importanceCode,
+        @com.fasterxml.jackson.annotation.JsonAlias("progressOwnerName")
+        @Size(max = 100, message = "首条进展负责人不得超过100个字符") String initialProgressOwnerName
 ) {
 
     CreateProjectCommand toCommand() {
@@ -62,7 +65,9 @@ public record CreateProjectRequest(
                 productSupportExpertNames,
                 plannedBidMonth,
                 applicationScenarioCodes,
-                new ProjectNarrative(constructionContentRaw, productPromotionContent, remark)
+                new ProjectNarrative(constructionContentRaw, productPromotionContent, remark),
+                importanceCode,
+                initialProgressOwnerName
         );
     }
 
