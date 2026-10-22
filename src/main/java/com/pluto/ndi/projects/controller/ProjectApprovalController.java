@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ApprovalSummary;
+import com.pluto.ndi.projects.service.ApprovalWithdrawalSummary;
 import com.pluto.ndi.projects.service.ProjectApprovalService;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.ApiResponse;
@@ -49,8 +50,9 @@ public class ProjectApprovalController {
     }
 
     @PostMapping("/approvals/{requestId}/withdraw")
-    public ApiResponse<ApprovalSummary> withdraw(Authentication authentication, @PathVariable UUID requestId) {
-        return responseFactory.success(service.withdraw(actorId(authentication), requestId));
+    public ApiResponse<ApprovalWithdrawalSummary> withdraw(Authentication authentication, @PathVariable UUID requestId) {
+        var result = service.withdraw(actorId(authentication), requestId);
+        return responseFactory.success(new ApprovalWithdrawalSummary(result.id(), result.status(), result.decidedAt()));
     }
 
     @PostMapping("/approvals/{requestId}/decision")

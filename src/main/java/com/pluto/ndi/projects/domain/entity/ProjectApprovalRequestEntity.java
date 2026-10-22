@@ -114,9 +114,10 @@ public class ProjectApprovalRequestEntity {
     private Instant decidedAt;
 
     @ElementCollection
+    // 集合按页批量加载，避免记录列表逐行查询；不使用会破坏数据库分页的集合联接抓取。
     @CollectionTable(name = "project_approval_field_change", joinColumns = @JoinColumn(name = "request_id"))
     @OrderColumn(name = "sort_order")
-    @BatchSize(size = 50)
+    @BatchSize(size = 100)
     private List<ProjectApprovalFieldChange> fieldChanges = new ArrayList<>();
 
     protected ProjectApprovalRequestEntity() {

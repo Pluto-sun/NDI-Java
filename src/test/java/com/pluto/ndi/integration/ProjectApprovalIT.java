@@ -1505,6 +1505,69 @@ class ProjectApprovalIT {
         assertThat(updated.provinceLeaderName()).isEqualTo("接替负责人");
     }
 
+    @Test
+    void movingInitiatorToAnotherCityRevokesReadsButKeepsPrivateWithdrawalAcknowledgement() throws Exception {
+        var project = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, project, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "调动前提交", "范围内旧项目名称", null, null));
+        var newCity = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?,'调入市',true)",
+                newCity.toString(), provinceId.toString(), newCity.toString().replace("-", ""));
+        jdbc.update("UPDATE identity_user_account SET city_id=UUID_TO_BIN(?) WHERE id=UUID_TO_BIN(?)",
+                newCity.toString(), cityUserId.toString());
+        mockMvc.perform(get("/api/v1/projects/approvals/{id}", request.id())
+                        .header("X-NDI-Actor-Id", cityUserId.toString())).andExpect(status().isForbidden());
+        for (var path : List.of("submitted", "records")) {
+            mockMvc.perform(get("/api/v1/projects/approvals/" + path)
+                            .header("X-NDI-Actor-Id", cityUserId.toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        }
+        mockMvc.perform(post("/api/v1/projects/approvals/{id}/withdraw", request.id())
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("WITHDRAWN"))
+                .andExpect(jsonPath("$.data.originalProjectName").doesNotExist())
+                .andExpect(jsonPath("$.data.projectId").doesNotExist())
+                .andExpect(jsonPath("$.data.proposedProjectName").doesNotExist());
+        assertThat(projectRepository.findById(project).orElseThrow().projectName()).isEqualTo("原项目");
+    }
+
+    @Test
+    void scopedRecordsIncludeFinishedRequestsWithoutGrantingReviewAuthority() throws Exception {
+        var project = createProject();
+        var request = approvalService.submitMajorChange(cityUserId, project, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "记录查询验证", "审批通过后的名称", null, null));
+        var otherLeader = UUID.randomUUID();
+        addUser(otherLeader, "PROVINCE_REPORTER", false);
+        mockMvc.perform(get("/api/v1/projects/approvals/{id}", request.id())
+                        .header("X-NDI-Actor-Id", otherLeader.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.canReview").value(false));
+        mockMvc.perform(post("/api/v1/projects/approvals/{id}/decision", request.id())
+                        .header("X-NDI-Actor-Id", otherLeader.toString()).contentType("application/json")
+                        .content("{\"approved\":true}"))
+                .andExpect(status().isForbidden());
+        var admin = UUID.randomUUID();
+        addUser(admin, "SYSTEM_ADMIN", false);
+        mockMvc.perform(get("/api/v1/projects/approvals/{id}", request.id()).header("X-NDI-Actor-Id", admin.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.canReview").value(false));
+        mockMvc.perform(post("/api/v1/projects/approvals/{id}/decision", request.id())
+                        .header("X-NDI-Actor-Id", admin.toString()).contentType("application/json").content("{\"approved\":true}"))
+                .andExpect(status().isForbidden());
+        approvalService.decide(provinceUserId, request.id(), true, null);
+        mockMvc.perform(get("/api/v1/projects/approvals/records").param("status", "APPROVED")
+                        .header("X-NDI-Actor-Id", otherLeader.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(request.id().toString()))
+                .andExpect(jsonPath("$.data.items[0].canReview").value(false));
+        mockMvc.perform(get("/api/v1/projects/approvals/records").param("status", "REJECTED")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        mockMvc.perform(get("/api/v1/projects/approvals/records").param("status", "UNKNOWN")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isBadRequest());
+    }
+
     private UUID createProject() {
         createdProjectCount += 1;
         var projectName = createdProjectCount == 1 ? "原项目" : "原项目-" + createdProjectCount;

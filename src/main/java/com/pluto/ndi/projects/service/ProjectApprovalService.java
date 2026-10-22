@@ -57,6 +57,7 @@ public class ProjectApprovalService {
     private final ProjectInactivityService inactivity;
     private final ProjectMajorChangeFields fieldChanges;
     private final EntityManager entityManager;
+    private final ProjectAccessService projectAccess;
 
     public ProjectApprovalService(
             IdentityDirectory identityDirectory, ProjectRepository projectRepository,
@@ -69,7 +70,7 @@ public class ProjectApprovalService {
             ProjectMonthlySnapshotService monthlySnapshots,
             ProjectDuplicateService duplicates, ProjectCityWriteLock cityWriteLock,
             ObjectMapper objectMapper, Clock clock, ProjectInactivityService inactivity,
-            ProjectMajorChangeFields fieldChanges, EntityManager entityManager
+            ProjectMajorChangeFields fieldChanges, EntityManager entityManager, ProjectAccessService projectAccess
     ) {
         this.identityDirectory = identityDirectory;
         this.projectRepository = projectRepository;
@@ -88,6 +89,7 @@ public class ProjectApprovalService {
         this.inactivity = inactivity;
         this.fieldChanges = fieldChanges;
         this.entityManager = entityManager;
+        this.projectAccess = projectAccess;
     }
 
     @Transactional
@@ -134,22 +136,7 @@ public class ProjectApprovalService {
     public ApprovalSummary findApproval(UUID actorId, UUID requestId) {
         var request = approvalRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.APPROVAL_NOT_FOUND));
-        if (!actorId.equals(request.initiatorId()) && !actorId.equals(request.approverId())) {
-            throw new BusinessException(ProjectErrorCode.APPROVAL_FORBIDDEN);
-        }
-        var actor = enabledActor(actorId);
-        var project = projectRepository.findById(request.projectId())
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
-        if (!actorId.equals(request.initiatorId())) {
-            var scope = identityDirectory.findReadableProjectScope(actor)
-                    .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-            boolean readable = switch (scope.level()) {
-                case NATIONAL -> true;
-                case PROVINCE -> scope.provinceIds().contains(project.provinceId());
-                case CITY -> scope.organizationId().equals(project.cityId());
-            };
-            if (!readable) throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
-        }
+        var project = projectAccess.requireReadable(actorId, request.projectId());
         return ApprovalSummary.from(request, request.status() == ApprovalStatus.PENDING
                 && actorId.equals(request.approverId()) && isEligibleApprover(actorId, project, request));
     }

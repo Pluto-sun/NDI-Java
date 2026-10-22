@@ -9,6 +9,7 @@ import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.projects.domain.ApprovalStatus;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.repository.ProjectApprovalRequestRepository;
+import com.pluto.ndi.projects.mapper.ProjectApprovalSpecifications;
 import com.pluto.ndi.shared.web.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -44,9 +45,28 @@ public class ProjectApprovalInboxService {
 
     @Transactional(readOnly = true)
     public Page<ApprovalSummary> findSubmitted(UUID actorId, Pageable pageable) {
-        requireEnabled(actorId);
-        return repository.findByInitiatorIdOrderBySubmittedAtDescIdDesc(actorId, pageable)
+        var actor = requireEnabled(actorId);
+        var scope = identityDirectory.findReadableProjectScope(actor);
+        if (scope.isEmpty()) return Page.empty(pageable);
+        return repository.findAll(ProjectApprovalSpecifications.readable(scope.get()).and(
+                (request, query, builder) -> builder.equal(request.get("initiatorId"), actorId)), ordered(pageable))
                 .map(ApprovalSummary::from);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ApprovalSummary> findRecords(UUID actorId, ApprovalStatus status, Pageable pageable) {
+        var actor = requireEnabled(actorId);
+        var scope = identityDirectory.findReadableProjectScope(actor);
+        if (scope.isEmpty()) return Page.empty(pageable);
+        var specification = ProjectApprovalSpecifications.readable(scope.get());
+        if (status != null) specification = specification.and(
+                (request, query, builder) -> builder.equal(request.get("status"), status));
+        return repository.findAll(specification, ordered(pageable)).map(ApprovalSummary::from);
+    }
+
+    private Pageable ordered(Pageable page) {
+        return org.springframework.data.domain.PageRequest.of(page.getPageNumber(), page.getPageSize(),
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "submittedAt", "id"));
     }
 
     @Transactional(readOnly = true)

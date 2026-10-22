@@ -39,8 +39,10 @@ function title(request: ApprovalSummary, reference: ReferenceData) {
 
 export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
   const [items, setItems] = useState<ApprovalTask[]>([]);
-  const [submitted, setSubmitted] = useState<ApprovalSummary[]>([]);
-  const [view, setView] = useState<'inbox' | 'submitted'>('inbox');
+  const [summaries, setSummaries] = useState<ApprovalSummary[]>([]);
+  const [view, setView] = useState<'inbox' | 'submitted' | 'records'>('inbox');
+  const [status, setStatus] = useState<ApprovalSummary['status'] | ''>('');
+  const [revision, setRevision] = useState(0);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -50,13 +52,21 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     let active = true;
     setLoading(true);
     setError('');
+    setItems([]);
+    setSummaries([]);
+    setTotalPages(0);
+    setTotalElements(0);
     const source =
-      view === 'inbox' ? projectsApi.approvalInbox(page) : projectsApi.submittedApprovals(page);
+      view === 'inbox'
+        ? projectsApi.approvalInbox(page)
+        : view === 'submitted'
+          ? projectsApi.submittedApprovals(page)
+          : projectsApi.approvalRecords(page, status);
     source
       .then((result) => {
         if (!active) return;
         if (view === 'inbox') setItems(result.items as ApprovalTask[]);
-        else setSubmitted(result.items as ApprovalSummary[]);
+        else setSummaries(result.items as ApprovalSummary[]);
         setTotalPages(result.totalPages);
         setTotalElements(result.totalElements);
       })
@@ -69,7 +79,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     return () => {
       active = false;
     };
-  }, [page, view]);
+  }, [page, view, status, revision]);
   const label = (code: string | null) =>
     reference.stages.find((item) => item.code === code)?.label ?? code ?? '—';
   return (
@@ -78,7 +88,9 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
         <div>
           <span className="eyebrow">项目管理 / 审批</span>
           <h1>审批与申请</h1>
-          <p>待办仅显示指定给我的申请；已发起列表保留审批结论及撤销记录。</p>
+          <p>
+            待办仅显示指定给我的申请；申请及记录均按账号当前项目数据范围读取，查看记录不授予审批权。
+          </p>
         </div>
       </div>
       <div className="action-row" role="group" aria-label="审批视图">
@@ -102,14 +114,60 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
         >
           我发起的申请
         </button>
+        <button
+          type="button"
+          className={view === 'records' ? 'primary-button' : 'secondary-button'}
+          onClick={() => {
+            setPage(0);
+            setView('records');
+          }}
+        >
+          可见审批记录
+        </button>
       </div>
-      {error && <Feedback tone="error">{error}</Feedback>}
+      {view === 'records' && (
+        <label>
+          审批记录状态
+          <select
+            value={status}
+            onChange={(event) => {
+              setPage(0);
+              setStatus(event.target.value as typeof status);
+            }}
+          >
+            <option value="">全部状态</option>
+            {Object.entries(statusLabels).map(([code, text]) => (
+              <option value={code} key={code}>
+                {text}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {error && (
+        <Feedback tone="error">
+          {error}
+          <button
+            type="button"
+            className="inline-link"
+            onClick={() => setRevision((value) => value + 1)}
+          >
+            重新加载审批列表
+          </button>
+        </Feedback>
+      )}
       {loading ? (
         <Loading />
       ) : (
         <div className="panel table-panel">
           <div className="panel-top">
-            <strong>{view === 'inbox' ? '待审批申请' : '我发起的申请'}</strong>
+            <strong>
+              {view === 'inbox'
+                ? '待审批申请'
+                : view === 'submitted'
+                  ? '我发起的申请'
+                  : '可见审批记录'}
+            </strong>
             <span>共 {totalElements} 条</span>
           </div>
           <div className="table-scroll">
@@ -119,7 +177,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                   <th>项目与申请</th>
                   <th>阶段</th>
                   <th>提交时间</th>
-                  <th>截止时间</th>
+                  <th>{view === 'inbox' ? '截止时间' : '状态'}</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -150,7 +208,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                         </td>
                       </tr>
                     ))
-                  : submitted.map((item) => (
+                  : summaries.map((item) => (
                       <tr key={item.id}>
                         <td>
                           <Link className="table-link" to={`/projects/${item.projectId}`}>
@@ -184,7 +242,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
               </tbody>
             </table>
           </div>
-          {(view === 'inbox' ? !items.length : !submitted.length) && (
+          {(view === 'inbox' ? !items.length : !summaries.length) && (
             <div className="empty-state">暂无申请</div>
           )}
           {totalPages > 1 && (
@@ -299,7 +357,12 @@ export function ApprovalDetailPage({
     setBusy(true);
     setError('');
     try {
-      setItem(await projectsApi.withdraw(id));
+      const result = await projectsApi.withdraw(id);
+      setItem((current) =>
+        current
+          ? { ...current, status: result.status, decidedAt: result.decidedAt, canReview: false }
+          : null,
+      );
       setMessage('申请已撤销。');
       refreshNotificationCounts();
     } catch (cause) {

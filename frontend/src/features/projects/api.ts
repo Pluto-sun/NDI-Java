@@ -296,11 +296,18 @@ export const projectsApi = {
   markNotificationRead: (id: string) =>
     request<ApprovalNotification>(`/approval-notifications/${id}/read`, { method: 'POST' }),
   approval: (id: string) => request<ApprovalSummary>(`/approvals/${id}`),
+  approvalRecords: (page: number, status: ApprovalSummary['status'] | '') => {
+    const query = new URLSearchParams({ page: String(page), size: '20' });
+    if (status) query.set('status', status);
+    return request<Page<ApprovalSummary>>(`/approvals/records?${query}`);
+  },
   decide: (id: string, approved: boolean, opinion: string) =>
     request<ApprovalSummary>(`/approvals/${id}/decision`, {
       method: 'POST',
       ...jsonBody({ approved, opinion }),
     }),
   withdraw: (id: string) =>
-    request<ApprovalSummary>(`/approvals/${id}/withdraw`, { method: 'POST' }),
+    request<{ id: string; status: 'WITHDRAWN'; decidedAt: string }>(`/approvals/${id}/withdraw`, {
+      method: 'POST',
+    }),
 };
