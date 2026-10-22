@@ -4,6 +4,7 @@ set -eu
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="${PROJECT_DIR}/docker/compose.e2e.yml"
 backend_pid=""
+boundary_pid=""
 compose_started=false
 backup_directory=""
 
@@ -11,6 +12,10 @@ cleanup() {
   if [[ -n "${backend_pid}" ]] && kill -0 "${backend_pid}" 2>/dev/null; then
     kill "${backend_pid}"
     wait "${backend_pid}" 2>/dev/null || true
+  fi
+  if [[ -n "${boundary_pid}" ]] && kill -0 "${boundary_pid}" 2>/dev/null; then
+    kill "${boundary_pid}"
+    wait "${boundary_pid}" 2>/dev/null || true
   fi
   if [[ "${compose_started}" == true ]]; then
     docker compose -f "${COMPOSE_FILE}" down --remove-orphans
@@ -26,16 +31,36 @@ if [[ -n "$(docker compose -f "${COMPOSE_FILE}" ps -a -q)" ]]; then
   echo "已有 ndi-java-e2e 验收容器，请先结束原验收进程再运行。"
   exit 1
 fi
-if lsof -nP -iTCP:18080 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "18080 端口已被占用，未启动验收服务。"
-  exit 1
-fi
+for port in 18080 18081; do
+  if lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "${port} 端口已被占用，未启动验收服务。"
+    exit 1
+  fi
+done
 
 cd "${PROJECT_DIR}"
 if [[ "${NDI_E2E_SKIP_BUILD:-0}" != 1 ]]; then
   ./mvnw -q -DskipTests package
 fi
 mkdir -p "${PROJECT_DIR}/tmp/e2e-logs"
+node scripts/e2e-map-boundary-server.mjs > "${PROJECT_DIR}/tmp/e2e-logs/map-boundary.log" 2>&1 &
+boundary_pid=$!
+boundary_ready=false
+for attempt in {1..10}; do
+  if ! kill -0 "${boundary_pid}" 2>/dev/null; then
+    echo "隔离地图边界服务启动失败，请查看 tmp/e2e-logs/map-boundary.log。"
+    exit 1
+  fi
+  if curl -fsS http://127.0.0.1:18081/health >/dev/null 2>&1; then
+    boundary_ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "${boundary_ready}" != true ]]; then
+  echo "隔离地图边界服务未就绪。"
+  exit 1
+fi
 compose_started=true
 backup_directory="$(mktemp -d /tmp/ndi-java-e2e-backups.XXXXXXXX)"
 docker compose -f "${COMPOSE_FILE}" up -d --wait --wait-timeout 90
@@ -48,6 +73,7 @@ NDI_APPROVAL_REMINDERS_ENABLED=false NDI_PROJECT_INACTIVITY_ENABLED=false \
 NDI_BACKUP_ENABLED=true NDI_BACKUP_DIRECTORY="${backup_directory}" \
 NDI_AUTH_MODE=${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR} \
 java -jar target/ndi-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18080 \
+  --ndi.projects.map.boundary-base-url=http://127.0.0.1:18081 \
   > "${PROJECT_DIR}/tmp/e2e-logs/backend.log" 2>&1 &
 backend_pid=$!
 
