@@ -7,7 +7,7 @@ export function NotificationNavLinks({ actorId }: { actorId: string }) {
   const id = useId();
   const unavailable = failed ? '数量暂不可用，请稍后重试' : '数量正在加载';
   const messages = counts
-    ? `未读消息 ${counts.count} 条，其中未读审批通知 ${counts.approvalUnreadCount} 条、待处理督办 ${counts.inactivityPendingCount} 项`
+    ? `未读消息 ${counts.count} 条，其中未读审批通知 ${counts.approvalUnreadCount} 条、未读督办 ${counts.inactivityUnreadCount} 项；待处理督办 ${counts.inactivityPendingCount} 项`
     : unavailable;
   const approvals = counts ? `待审批申请 ${counts.pendingApprovalCount} 项` : unavailable;
   const text = (value: number | undefined) =>

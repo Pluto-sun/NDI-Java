@@ -46,6 +46,7 @@ export function ProjectInactivityNotices() {
           <h2 id="inactivity-heading">项目超时督办</h2>
           <p className="subtle">
             连续 30 天未变动发起督办，33 天和 36 天逐级升级。更新项目进展或正式信息后自动闭环。
+            标记已读只清除个人未读提醒，不关闭督办，也不代替转发或更新项目。
           </p>
         </div>
         <div className="form-actions" aria-label="督办列表筛选">
@@ -98,6 +99,11 @@ export function ProjectInactivityNotices() {
                 <InactivityCard
                   key={item.id}
                   item={item}
+                  onRead={() => {
+                    refreshNotificationCounts();
+                    setMessage('已标记为已读，督办仍需处理。');
+                    setRevision((value) => value + 1);
+                  }}
                   onForwarded={() => {
                     refreshNotificationCounts();
                     setMessage('督办已转发，处理记录已保留。');
@@ -144,12 +150,33 @@ export function ProjectInactivityNotices() {
   );
 }
 
-function InactivityCard({ item, onForwarded }: { item: InactivityCase; onForwarded: () => void }) {
+function InactivityCard({
+  item,
+  onForwarded,
+  onRead,
+}: {
+  item: InactivityCase;
+  onForwarded: () => void;
+  onRead: () => void;
+}) {
   const [recipients, setRecipients] = useState<ProjectUser[] | null>(null);
   const [recipientId, setRecipientId] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  async function markRead() {
+    setBusy(true);
+    setError('');
+    try {
+      await inactivityApi.markRead(item.id);
+      onRead();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '标记已读失败');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function openForward() {
     setBusy(true);
@@ -190,6 +217,18 @@ function InactivityCard({ item, onForwarded }: { item: InactivityCase; onForward
         </span>
       </div>
       <p className="subtle">上次项目变动：{dateTime(item.lastActivityAt)}</p>
+      {item.unread ? (
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={() => void markRead()}
+        >
+          {busy ? '处理中…' : '标记督办已读'}
+        </button>
+      ) : (
+        item.status === 'OPEN' && <p className="subtle">已读，仍待处理</p>
+      )}
       <ol className="inactivity-events" aria-label="督办处理记录">
         {item.events.map((event, index) => (
           <li key={`${event.kind}-${index}`}>

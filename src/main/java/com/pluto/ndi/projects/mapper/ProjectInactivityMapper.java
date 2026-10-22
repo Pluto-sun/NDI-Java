@@ -131,7 +131,7 @@ public class ProjectInactivityMapper {
     }
 
     public int notice(UUID caseId, UUID recipientId, String kind, Instant at, boolean reopen) {
-        var duplicate = reopen ? "handled_at = NULL, created_at = VALUES(created_at)" : "id = id";
+        var duplicate = reopen ? "handled_at = NULL, read_at = NULL, created_at = VALUES(created_at)" : "id = id";
         return jdbc.update("""
                 INSERT INTO project_inactivity_notice (id, case_id, recipient_id, kind, created_at)
                 VALUES (UUID_TO_BIN(:id), UUID_TO_BIN(:case), UUID_TO_BIN(:recipient), :kind, :at)
@@ -228,6 +228,44 @@ public class ProjectInactivityMapper {
         return jdbc.queryForObject("SELECT COUNT(*)" + FROM + MINE
                 + ProjectScopeSql.named(scope, "p.province_id", "p.city_id", parameters)
                 + " AND c.status = 'OPEN' AND " + PENDING, parameters, Long.class);
+    }
+
+    /** 只统计仍待处理且本人尚未阅读的督办，同一周期不重复计数。 */
+    public long unreadCount(UUID actorId, ProjectDataScope scope) {
+        var parameters = new MapSqlParameterSource("actor", actorId.toString());
+        return jdbc.queryForObject("SELECT COUNT(*)" + FROM + MINE
+                + ProjectScopeSql.named(scope, "p.province_id", "p.city_id", parameters)
+                + " AND c.status = 'OPEN' AND EXISTS (SELECT 1 FROM project_inactivity_notice n"
+                + " WHERE n.case_id = c.id AND n.recipient_id = UUID_TO_BIN(:actor)"
+                + " AND n.handled_at IS NULL AND n.read_at IS NULL)", parameters, Long.class);
+    }
+
+    public java.util.Set<UUID> unreadCases(UUID actorId, List<UUID> ids) {
+        if (ids.isEmpty()) return java.util.Set.of();
+        return new java.util.HashSet<>(jdbc.query("""
+                SELECT DISTINCT BIN_TO_UUID(case_id) id FROM project_inactivity_notice
+                WHERE recipient_id = UUID_TO_BIN(:actor) AND case_id IN (:ids)
+                  AND handled_at IS NULL AND read_at IS NULL
+                """, new MapSqlParameterSource("actor", actorId.toString())
+                .addValue("ids", ids.stream().map(ProjectInactivityMapper::bytes).toList()),
+                (row, number) -> uuid(row, "id")));
+    }
+
+    public boolean hasNotice(UUID caseId, UUID actorId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM project_inactivity_notice
+                WHERE case_id = UUID_TO_BIN(:case) AND recipient_id = UUID_TO_BIN(:actor)
+                """, new MapSqlParameterSource("case", caseId.toString())
+                .addValue("actor", actorId.toString()), Long.class) > 0;
+    }
+
+    public void markRead(UUID caseId, UUID actorId, Instant at) {
+        jdbc.update("""
+                UPDATE project_inactivity_notice SET read_at = :at
+                WHERE case_id = UUID_TO_BIN(:case) AND recipient_id = UUID_TO_BIN(:actor)
+                  AND read_at IS NULL
+                """, new MapSqlParameterSource("case", caseId.toString())
+                .addValue("actor", actorId.toString()).addValue("at", utc(at)));
     }
 
     public Map<UUID, List<ProjectInactivityEvent>> dispatchEvents(List<UUID> caseIds) {

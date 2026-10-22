@@ -20,6 +20,8 @@ public class ProjectNotificationSummaryService {
     public ProjectNotificationCounts counts(UUID actorId) {
         long unread = notifications.unreadCount(actorId);
         long pendingCases = inactivity.pendingCount(actorId);
-        return new ProjectNotificationCounts(unread + pendingCases, unread, pendingCases, approvals.counts(actorId).pendingCount());
+        long unreadCases = inactivity.unreadCount(actorId);
+        return new ProjectNotificationCounts(unread + unreadCases, unread, pendingCases,
+                approvals.counts(actorId).pendingCount(), unreadCases);
     }
 }

@@ -59,6 +59,12 @@ public class ProjectInactivityController {
 
     public record ForwardRequest(@NotNull UUID recipientId, @NotBlank @Size(max = 2000) String note) { }
 
+    @PostMapping("/inactivity-cases/{caseId}/read")
+    public ApiResponse<Void> markRead(Authentication authentication, @PathVariable UUID caseId) {
+        service.markRead(actorId(authentication), caseId);
+        return responses.success(null);
+    }
+
     @PostMapping("/inactivity-cases/{caseId}/forward")
     public ApiResponse<Void> forward(Authentication authentication, @PathVariable UUID caseId,
             @Valid @RequestBody ForwardRequest request) {

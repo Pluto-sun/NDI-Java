@@ -366,6 +366,7 @@ export interface NotificationCounts {
   count: number;
   approvalUnreadCount: number;
   inactivityPendingCount: number;
+  inactivityUnreadCount: number;
   pendingApprovalCount: number;
 }
 export interface ProjectChange {

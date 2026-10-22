@@ -122,6 +122,7 @@ public class ProjectInactivityService {
         var scope = identities.findReadableProjectScope(actor);
         if (scope.isEmpty()) return Page.empty(page);
         var cases = mapper.findMine(actorId, scope.get(), history, page);
+        var unread = mapper.unreadCases(actorId, cases.stream().map(ProjectInactivityCase::id).toList());
         var dispatches = mapper.dispatchEvents(cases.stream().map(ProjectInactivityCase::id).toList());
         return cases.map(item -> {
             var events = new ArrayList<>(dispatches.getOrDefault(item.id(), List.of()));
@@ -138,7 +139,8 @@ public class ProjectInactivityService {
                     && identities.findProjectReminderForwarding(actorId, item.provinceId(), item.cityId()).isPresent();
             return new ProjectInactivitySummary(item.id(), item.projectId(), item.projectCode(), item.projectName(),
                     "RESOLVED".equals(item.status()) ? "RESOLVED" : history ? "FORWARDED" : "OPEN",
-                    item.lastActivityAt(), item.createdAt(), item.closedAt(), canForward, List.copyOf(events));
+                    item.lastActivityAt(), item.createdAt(), item.closedAt(), canForward,
+                    "OPEN".equals(item.status()) && unread.contains(item.id()), List.copyOf(events));
         });
     }
 
@@ -147,6 +149,26 @@ public class ProjectInactivityService {
         var actor = identities.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         return identities.findReadableProjectScope(actor).map(scope -> mapper.pendingCount(actorId, scope)).orElse(0L);
+    }
+
+    @Transactional(readOnly = true)
+    public long unreadCount(UUID actorId) {
+        var actor = identities.findProjectActor(actorId).filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        return identities.findReadableProjectScope(actor).map(scope -> mapper.unreadCount(actorId, scope)).orElse(0L);
+    }
+
+    /** 与转发共用项目锁；重复阅读幂等，重新转发后允许再次成为未读。 */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void markRead(UUID actorId, UUID caseId) {
+        var item = findCase(caseId);
+        projects.findLockedById(item.projectId())
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
+        access.requireReadable(actorId, item.projectId());
+        if (!mapper.hasNotice(caseId, actorId)) {
+            throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
+        }
+        mapper.markRead(caseId, actorId, Instant.now(clock));
     }
 
     @Transactional(readOnly = true)

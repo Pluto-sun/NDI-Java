@@ -11,6 +11,7 @@ export interface InactivityCase {
   createdAt: string;
   closedAt: string | null;
   canForward: boolean;
+  unread: boolean;
   events: { kind: string; summary: string; occurredAt: string }[];
 }
 
@@ -41,6 +42,7 @@ export const inactivityApi = {
   mine: (history: boolean, page: number) =>
     request<Page<InactivityCase>>(`/inactivity-notices?history=${history}&page=${page}&size=20`),
   recipients: (id: string) => request<ProjectUser[]>(`/inactivity-cases/${id}/recipients`),
+  markRead: (id: string) => request<void>(`/inactivity-cases/${id}/read`, { method: 'POST' }),
   forward: (id: string, recipientId: string, note: string) =>
     request<void>(`/inactivity-cases/${id}/forward`, {
       method: 'POST',

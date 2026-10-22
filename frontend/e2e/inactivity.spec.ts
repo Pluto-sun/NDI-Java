@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-import { ids, post, createProject, chooseActor } from './support/projects';
+import { ids, post, get, createProject, chooseActor } from './support/projects';
+import type { NotificationCounts } from '../src/features/projects/types';
 
 const { leader, reporter, admin } = ids;
 
@@ -15,6 +16,27 @@ test('督办从省分转发地市，追加进展后在历史中闭环', async ({
   await chooseActor(page, leader);
   await expect(page.getByRole('heading', { name: '消息通知', exact: true })).toBeVisible();
   const card = page.locator('.inactivity-card').filter({ hasText: projectName });
+  const countsBefore = await get<NotificationCounts>(request, leader, '/notification-counts');
+  await page.route('**/inactivity-cases/*/read', (route) =>
+    route.fulfill({ status: 503, body: '{}' }),
+  );
+  await card.getByRole('button', { name: '标记督办已读', exact: true }).click();
+  await expect(card.getByRole('alert')).toBeVisible();
+  await page.unroute('**/inactivity-cases/*/read');
+  await card.getByRole('button', { name: '标记督办已读', exact: true }).click();
+  await expect(card).toContainText('已读，仍待处理');
+  await expect(card).toContainText('待处理');
+  const countsAfter = await get<NotificationCounts>(request, leader, '/notification-counts');
+  expect(countsAfter.count).toBe(countsBefore.count - 1);
+  expect(countsAfter.inactivityUnreadCount).toBe(countsBefore.inactivityUnreadCount - 1);
+  expect(countsAfter.inactivityPendingCount).toBe(countsBefore.inactivityPendingCount);
+  await page.reload();
+  await expect(card).toContainText('已读，仍待处理');
+  await expect(card.getByRole('button', { name: '标记督办已读', exact: true })).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath('inactivity-read-pending.png'),
+    fullPage: true,
+  });
   await card.getByRole('button', { name: '转发督办', exact: true }).click();
   await card.getByRole('combobox', { name: '接收人', exact: true }).selectOption(reporter);
   await card.getByLabel('督办备注', { exact: true }).fill('请更新本周客户交流进展');
@@ -28,6 +50,7 @@ test('督办从省分转发地市，追加进展后在历史中闭环', async ({
   await page.getByRole('button', { name: '切换测试账号', exact: true }).click();
   await chooseActor(page, reporter);
   await expect(card).toContainText('待处理');
+  await expect(card.getByRole('button', { name: '标记督办已读', exact: true })).toBeVisible();
   await expect(card.getByRole('button', { name: '转发督办', exact: true })).toHaveCount(0);
   await card.getByRole('link').click();
   await expect(page.getByRole('heading', { name: projectName, exact: true })).toBeVisible();

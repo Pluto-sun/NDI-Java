@@ -108,6 +108,56 @@ class ProjectInactivityIT {
     }
 
     @Test
+    void readingOnlyChangesPersonalUnreadStateAndForwardingReopensIt() throws Exception {
+        var project = create();
+        var reminder = inactivity.trigger(administrator, project, 30);
+        var before = projectRepository.findById(project).orElseThrow();
+        var activity = mapper.activity(project, false);
+        assertThat(inactivity.unreadCount(leader)).isEqualTo(1);
+        mvc.perform(post("/api/v1/projects/inactivity-cases/{id}/read", reminder.caseId())
+                .header("X-NDI-Actor-Id", leader.toString())).andExpect(status().isOk());
+        inactivity.markRead(leader, reminder.caseId());
+        assertThat(inactivity.unreadCount(leader)).isZero();
+        assertThat(inactivity.pendingCount(leader)).isEqualTo(1);
+        assertThat(inactivity.findMine(leader, false, page).getContent()).singleElement()
+                .satisfies(item -> { assertThat(item.unread()).isFalse(); assertThat(item.canForward()).isTrue(); });
+        assertThat(inactivity.findMine(leader, true, page)).isEmpty();
+        assertThat(mapper.find(reminder.caseId()).orElseThrow().status()).isEqualTo("OPEN");
+        assertThat(mapper.activity(project, false)).isEqualTo(activity);
+        assertThat(projectRepository.findById(project).orElseThrow().versionNo()).isEqualTo(before.versionNo());
+        assertThat(projectRepository.findById(project).orElseThrow().updatedAt()).isEqualTo(before.updatedAt());
+        inactivity.trigger(administrator, project, 33);
+        inactivity.markRead(reviewer, reminder.caseId());
+        assertThat(inactivity.unreadCount(secondReviewer)).isEqualTo(1);
+        inactivity.forward(leader, reminder.caseId(), cityUser, "请跟进");
+        inactivity.forward(reviewer, reminder.caseId(), leader, "再次提醒省分");
+        assertThat(inactivity.unreadCount(leader)).isEqualTo(1);
+        assertThat(inactivity.pendingCount(leader)).isEqualTo(1);
+        mvc.perform(get("/api/v1/projects/notification-counts").header("X-NDI-Actor-Id", leader.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.inactivityUnreadCount").value(1))
+                .andExpect(jsonPath("$.data.inactivityPendingCount").value(1));
+    }
+
+    @Test
+    void readingRequiresPersonalReceiptAndCurrentProjectScope() throws Exception {
+        var project = create();
+        var reminder = inactivity.trigger(administrator, project, 30);
+        for (var actor : List.of(cityUser, administrator)) {
+            mvc.perform(post("/api/v1/projects/inactivity-cases/{id}/read", reminder.caseId())
+                    .header("X-NDI-Actor-Id", actor.toString())).andExpect(status().isForbidden());
+        }
+        jdbc.update("UPDATE identity_user_account SET enabled = false WHERE id = UUID_TO_BIN(?)", leader.toString());
+        mvc.perform(post("/api/v1/projects/inactivity-cases/{id}/read", reminder.caseId())
+                .header("X-NDI-Actor-Id", leader.toString())).andExpect(status().isForbidden());
+        jdbc.update("UPDATE identity_user_account SET enabled = true WHERE id = UUID_TO_BIN(?)", leader.toString());
+        inactivity.forward(leader, reminder.caseId(), cityUser, "地市跟进");
+        jdbc.update("UPDATE identity_user_account SET city_id = NULL WHERE id = UUID_TO_BIN(?)", cityUser.toString());
+        mvc.perform(post("/api/v1/projects/inactivity-cases/{id}/read", reminder.caseId())
+                .header("X-NDI-Actor-Id", cityUser.toString())).andExpect(status().isForbidden());
+        assertThat(inactivity.unreadCount(cityUser)).isZero();
+    }
+
+    @Test
     void escalatesForwardsAndClosesOneDurableChainWithoutDuplicateNotices() {
         var project = create();
         var lastAt = age(project, 40);
