@@ -1651,3 +1651,18 @@ button.inline-link {
     animation: none !important;
   }
 }
+.map-stage-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 12px 0;
+}
+
+.map-stage-filter > span {
+  flex-basis: 100%;
+}
+
+.map-stage-filter .checkbox-label {
+  min-height: 44px;
+}

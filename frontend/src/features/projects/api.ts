@@ -138,10 +138,15 @@ export const projectsApi = {
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),
   recentActivities: () => request<ProjectRecentActivity[]>('/workbench/recent-activities'),
-  map: (provinceId: string | null, includeTerminated: boolean, stage?: string, month?: string) => {
+  map: (
+    provinceId: string | null,
+    includeTerminated: boolean,
+    stages: string[] = [],
+    month?: string,
+  ) => {
     const query = new URLSearchParams({ includeTerminated: String(includeTerminated) });
     if (provinceId) query.set('provinceId', provinceId);
-    if (stage) query.set('stage', stage);
+    for (const stage of stages) query.append('stage', stage);
     if (month) query.set('month', month);
     return request<ProjectMapView>(`/workbench/map?${query}`);
   },

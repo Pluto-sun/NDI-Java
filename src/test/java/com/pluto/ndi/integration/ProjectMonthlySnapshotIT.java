@@ -151,6 +151,13 @@ class ProjectMonthlySnapshotIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.month").value("2026-06"))
                 .andExpect(jsonPath("$.data.regions[0].categoryTotals.gewu").value(60.00));
+        mvc.perform(get("/api/v1/projects/workbench/map").param("month", "2026-06")
+                        .param("stage", "SOLUTION_EXCHANGE", "BIDDING")
+                        .header("X-NDI-Actor-Id", leaderId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stageCodes.length()").value(2))
+                .andExpect(jsonPath("$.data.regions[0].projectCount").value(2))
+                .andExpect(jsonPath("$.data.regions[0].expectedAmount").value(220.00));
         assertThat(june.industries()).extracting("industryCode").containsExactly("C25");
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isEqualTo(1);

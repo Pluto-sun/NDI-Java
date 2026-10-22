@@ -45,6 +45,12 @@ public class ProjectMapMetricRepository {
 
     public List<ProjectMapMetric> summarize(YearMonth month, UUID provinceId,
             boolean includeTerminated, String stageCode, com.pluto.ndi.identity.service.ProjectDataScope scope) {
+        return summarizeStages(month, provinceId, includeTerminated,
+                stageCode == null ? List.of() : List.of(stageCode), scope);
+    }
+
+    public List<ProjectMapMetric> summarizeStages(YearMonth month, UUID provinceId,
+            boolean includeTerminated, List<String> stageCodes, com.pluto.ndi.identity.service.ProjectDataScope scope) {
         var historical = month != null;
         var regionColumn = provinceId == null ? "province_id" : "city_id";
         var stageColumn = historical ? "stage_code" : "current_stage_code";
@@ -61,11 +67,11 @@ public class ProjectMapMetricRepository {
                 + scopeFilter
                 + (provinceId == null ? "" : " AND project.province_id = UUID_TO_BIN(:provinceId)")
                 + (includeTerminated ? "" : " AND project." + stageColumn + " <> 'TERMINATED'")
-                + (stageCode == null ? "" : " AND project." + stageColumn + " = :stageCode")
+                + (stageCodes.isEmpty() ? "" : " AND project." + stageColumn + " IN (:stageCodes)")
                 + " GROUP BY project." + regionColumn;
         if (historical) parameters.addValue("month", Date.valueOf(month.atDay(1)));
         if (provinceId != null) parameters.addValue("provinceId", provinceId.toString());
-        if (stageCode != null) parameters.addValue("stageCode", stageCode);
+        if (!stageCodes.isEmpty()) parameters.addValue("stageCodes", stageCodes);
         return jdbc.query(sql, parameters, (rs, rowNum) -> new ProjectMapMetric(
                 UUID.fromString(rs.getString("region_id")), rs.getLong("project_count"),
                 rs.getBigDecimal("expected_amount"), new ProjectCategoryTotals(

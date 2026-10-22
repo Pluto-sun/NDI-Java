@@ -15,10 +15,12 @@ public record ProjectMapView(
         YearMonth month,
         boolean includeTerminated,
         String stageCode,
-        List<Region> regions
+        List<Region> regions,
+        List<String> stageCodes
 ) {
     public ProjectMapView {
         regions = List.copyOf(regions);
+        stageCodes = List.copyOf(stageCodes);
     }
 
     public record Province(UUID id, String name) { }

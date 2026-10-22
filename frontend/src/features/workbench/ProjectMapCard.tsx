@@ -15,7 +15,7 @@ const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, width: 680, height: 440 };
 export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
   const navigate = useNavigate();
   const [provinceId, setProvinceId] = useState<string | null>(null);
-  const [stage, setStage] = useState('');
+  const [stages, setStages] = useState<string[]>([]);
   const [month, setMonth] = useState('');
   const [metric, setMetric] = useState<MapMetric>('expectedAmount');
   const [includeTerminated, setIncludeTerminated] = useState(false);
@@ -34,7 +34,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
     setMap(null);
     setError('');
     void projectsApi
-      .map(provinceId, includeTerminated, stage, month)
+      .map(provinceId, includeTerminated, stages, month)
       .then((result) => {
         if (active) setMap(result);
       })
@@ -47,7 +47,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
     return () => {
       active = false;
     };
-  }, [provinceId, includeTerminated, stage, month, refreshKey]);
+  }, [provinceId, includeTerminated, stages, month, refreshKey]);
 
   useEffect(() => {
     setSelectedRegionIds(
@@ -188,23 +188,6 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
           </button>
         )}
         <label>
-          项目阶段
-          <select
-            value={stage}
-            onChange={(event) => {
-              setStage(event.target.value);
-              if (event.target.value === 'TERMINATED') setIncludeTerminated(true);
-            }}
-          >
-            <option value="">全部阶段</option>
-            {reference.stages.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
           着色与排行指标
           <select value={metric} onChange={(event) => setMetric(event.target.value as MapMetric)}>
             {MAP_METRICS.map((item) => (
@@ -220,11 +203,31 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
             checked={includeTerminated}
             onChange={(event) => {
               setIncludeTerminated(event.target.checked);
-              if (!event.target.checked && stage === 'TERMINATED') setStage('');
+              if (!event.target.checked)
+                setStages((current) => current.filter((code) => code !== 'TERMINATED'));
             }}
           />
           含已终止项目
         </label>
+      </div>
+      <div className="map-stage-filter" role="group" aria-label="地图项目阶段">
+        <span>项目阶段（可多选，未勾选时统计全部阶段）</span>
+        {reference.stages.map((item) => (
+          <label className="checkbox-label" key={item.code}>
+            <input
+              type="checkbox"
+              checked={stages.includes(item.code)}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setStages((current) =>
+                  checked ? [...current, item.code] : current.filter((code) => code !== item.code),
+                );
+                if (checked && item.code === 'TERMINATED') setIncludeTerminated(true);
+              }}
+            />
+            {item.label}
+          </label>
+        ))}
       </div>
       {month && (
         <p className="subtle">历史月份仅查询已生成的月末快照；地市历史统计不跳转当前项目清单。</p>

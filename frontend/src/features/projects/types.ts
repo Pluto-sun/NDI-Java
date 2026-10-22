@@ -41,6 +41,7 @@ export interface ProjectMapView {
   month: string | null;
   includeTerminated: boolean;
   stageCode: string | null;
+  stageCodes: string[];
   regions: {
     id: string;
     name: string;

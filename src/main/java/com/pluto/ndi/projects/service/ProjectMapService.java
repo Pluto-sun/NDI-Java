@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,6 +54,18 @@ public class ProjectMapService {
     @Transactional(readOnly = true)
     public ProjectMapView view(UUID actorId, UUID requestedProvinceId, YearMonth month,
             boolean includeTerminated, ProjectStage stage) {
+        return viewStages(actorId, requestedProvinceId, month, includeTerminated,
+                stage == null ? List.of() : List.of(stage));
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectMapView viewStages(UUID actorId, UUID requestedProvinceId, YearMonth month,
+            boolean includeTerminated, List<ProjectStage> stages) {
+        var selected = stages == null ? List.<ProjectStage>of() : stages;
+        if (selected.size() > ProjectStage.values().length || selected.stream().anyMatch(java.util.Objects::isNull)
+                || selected.stream().distinct().count() != selected.size()) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SNAPSHOT_FILTER);
+        }
         var scope = scope(actorId);
         var provinceId = switch (scope.level()) {
             case NATIONAL -> requestedProvinceId;
@@ -65,12 +78,13 @@ public class ProjectMapService {
             case CITY -> requireOwnProvince(cityProvinceId(scope.organizationId()), requestedProvinceId);
         };
         if (month != null) monthlySnapshots.requireCompleted(month);
-        if (stage == ProjectStage.TERMINATED && !includeTerminated) {
+        if (selected.contains(ProjectStage.TERMINATED) && !includeTerminated) {
             throw new BusinessException(ProjectErrorCode.INVALID_SNAPSHOT_FILTER);
         }
-        var stageCode = stage == null ? null : stage.name();
+        var stageCodes = selected.stream().map(Enum::name).sorted().toList();
+        var stageCode = stageCodes.size() == 1 ? stageCodes.getFirst() : null;
         if (provinceId == null) {
-            var byProvince = metrics.summarize(month, null, includeTerminated, stageCode, scope).stream()
+            var byProvince = metrics.summarizeStages(month, null, includeTerminated, stageCodes, scope).stream()
                     .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
             var regions = organizations.findEnabledProvinces().stream()
                     .filter(province -> scope.level() == ProjectDataScope.Level.NATIONAL || scope.provinceIds().contains(province.id()))
@@ -83,13 +97,13 @@ public class ProjectMapService {
                                 item == null ? ProjectCategoryTotals.zero() : item.categoryTotals(), true);
                     }).sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
             return new ProjectMapView("NATIONAL", "100000", null,
-                    month, includeTerminated, stageCode, regions);
+                    month, includeTerminated, stageCode, regions, stageCodes);
         }
         var province = organizations.findEnabledProvinces().stream()
                 .filter(item -> item.id().equals(provinceId)).findFirst()
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
-        Map<UUID, ProjectMapMetric> byCity = metrics.summarize(
-                month, provinceId, includeTerminated, stageCode, scope).stream()
+        Map<UUID, ProjectMapMetric> byCity = metrics.summarizeStages(
+                month, provinceId, includeTerminated, stageCodes, scope).stream()
                 .collect(Collectors.toMap(ProjectMapMetric::regionId, Function.identity()));
         var regions = organizations.findEnabledCities().stream()
                 .filter(city -> city.provinceId().equals(provinceId))
@@ -97,7 +111,7 @@ public class ProjectMapService {
                 .sorted(Comparator.comparing(ProjectMapView.Region::name)).toList();
         return new ProjectMapView("PROVINCE", adcodes.province(province.name()),
                 new ProjectMapView.Province(province.id(), province.name()),
-                month, includeTerminated, stageCode, regions);
+                month, includeTerminated, stageCode, regions, stageCodes);
     }
 
     @Transactional(readOnly = true)

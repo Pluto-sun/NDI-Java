@@ -1489,6 +1489,44 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void mapCombinesStageMetricsWithinActorScopeAndRejectsAmbiguousFilters() throws Exception {
+        createProject();
+        var bidding = createProject();
+        var terminated = createProject();
+        jdbc.update("UPDATE project_project SET current_stage_code='BIDDING' WHERE id=UUID_TO_BIN(?)", bidding.toString());
+        jdbc.update("UPDATE project_project SET current_stage_code='TERMINATED' WHERE id=UUID_TO_BIN(?)", terminated.toString());
+        var combined = mapService.viewStages(cityUserId, null, null, false,
+                List.of(ProjectStage.SOLUTION_EXCHANGE, ProjectStage.BIDDING));
+        assertThat(combined.stageCodes()).containsExactly("BIDDING", "SOLUTION_EXCHANGE");
+        assertThat(combined.stageCode()).isNull();
+        assertThat(combined.regions()).filteredOn(region -> region.id().equals(cityId)).singleElement()
+                .satisfies(region -> {
+                    assertThat(region.projectCount()).isEqualTo(2);
+                    assertThat(region.expectedAmount()).isEqualByComparingTo("200.00");
+                    assertThat(region.categoryTotals().network()).isEqualByComparingTo("120.00");
+                });
+        mockMvc.perform(get("/api/v1/projects/workbench/map")
+                .header("X-NDI-Actor-Id", cityUserId.toString()).param("stage", "BIDDING"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.stageCode").value("BIDDING"))
+                .andExpect(jsonPath("$.data.stageCodes[0]").value("BIDDING"));
+        mockMvc.perform(get("/api/v1/projects/workbench/map")
+                .header("X-NDI-Actor-Id", cityUserId.toString()).param("stage", "SOLUTION_EXCHANGE", "BIDDING"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.stageCodes.length()").value(2));
+        for (var stages : List.of(new String[]{"BIDDING", "BIDDING"},
+                new String[]{"BIDDING", "TERMINATED"}, new String[]{"UNKNOWN"})) {
+            mockMvc.perform(get("/api/v1/projects/workbench/map")
+                    .header("X-NDI-Actor-Id", cityUserId.toString()).param("stage", stages))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(get("/api/v1/projects/workbench/map")
+                .header("X-NDI-Actor-Id", cityUserId.toString()).param("stage", "BIDDING", "TERMINATED")
+                .param("includeTerminated", "true")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/projects/workbench/map")
+                .header("X-NDI-Actor-Id", cityUserId.toString()).param("stage", "SOLUTION_EXCHANGE", "BIDDING")
+                .param("provinceId", UUID.randomUUID().toString())).andExpect(status().isForbidden());
+    }
+
+    @Test
     void exportFieldsArePersistedOrderedValidatedAndEnrichedWithinScope() throws Exception {
         var project = createProject();
         jdbc.update("INSERT INTO project_support_expert(project_id,sort_order,expert_name) VALUES(UUID_TO_BIN(?),0,'专家乙'),(UUID_TO_BIN(?),1,'专家甲')", project.toString(), project.toString());

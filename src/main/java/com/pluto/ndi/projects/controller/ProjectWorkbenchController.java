@@ -68,9 +68,9 @@ public class ProjectWorkbenchController {
             @RequestParam(required = false) UUID provinceId,
             @RequestParam(required = false) String month,
             @RequestParam(defaultValue = "false") boolean includeTerminated,
-            @RequestParam(required = false) ProjectStage stage) {
-        return responseFactory.success(maps.view(actorId(authentication), provinceId,
-                month == null ? null : parseMonth(month), includeTerminated, stage));
+            @RequestParam(required = false, name = "stage") List<ProjectStage> stages) {
+        return responseFactory.success(maps.viewStages(actorId(authentication), provinceId,
+                month == null ? null : parseMonth(month), includeTerminated, stages));
     }
 
     @GetMapping("/map/boundaries/{adcode}")
