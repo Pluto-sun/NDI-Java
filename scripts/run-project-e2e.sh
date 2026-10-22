@@ -62,6 +62,11 @@ if [[ "${boundary_ready}" != true ]]; then
   exit 1
 fi
 compose_started=true
+boundary_base_url="http://127.0.0.1:18081"
+if [[ "${NDI_E2E_LIVE_MAP:-0}" == 1 ]]; then
+  boundary_base_url="https://geo.datav.aliyun.com/areas_v3/bound"
+  echo "地图联网验收已启用：读取真实边界，业务数据仍使用隔离数据库。"
+fi
 backup_directory="$(mktemp -d /tmp/ndi-java-e2e-backups.XXXXXXXX)"
 docker compose -f "${COMPOSE_FILE}" up -d --wait --wait-timeout 90
 
@@ -73,7 +78,7 @@ NDI_APPROVAL_REMINDERS_ENABLED=false NDI_PROJECT_INACTIVITY_ENABLED=false \
 NDI_BACKUP_ENABLED=true NDI_BACKUP_DIRECTORY="${backup_directory}" \
 NDI_AUTH_MODE=${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR} \
 java -jar target/ndi-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18080 \
-  --ndi.projects.map.boundary-base-url=http://127.0.0.1:18081 \
+  --ndi.projects.map.boundary-base-url="${boundary_base_url}" \
   > "${PROJECT_DIR}/tmp/e2e-logs/backend.log" 2>&1 &
 backend_pid=$!
 
