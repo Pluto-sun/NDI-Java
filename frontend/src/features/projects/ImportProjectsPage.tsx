@@ -372,10 +372,15 @@ export function ImportProjectsPage() {
               type="file"
               accept=".xlsx"
               required
+              disabled={busy}
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
                 setInspection(null);
                 setFieldMapping({});
+                setBatch(null);
+                setSelectedRows(new Set());
+                setEditingRow(null);
+                setError('');
               }}
             />
           </label>

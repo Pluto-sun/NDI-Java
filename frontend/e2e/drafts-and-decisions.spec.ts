@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
-import { ids, chooseActor, createProject, get } from './support/projects';
+import { ids, chooseActor, createProject, get, post } from './support/projects';
 
 async function confirmDialog(page: Page, accept: boolean, action: () => Promise<unknown>) {
   page.once('dialog', (dialog) => (accept ? dialog.accept() : dialog.dismiss()));
@@ -11,6 +11,55 @@ async function switchActor(page: Page, actor: string) {
   await page.getByRole('button', { name: '切换测试账号', exact: true }).click();
   await chooseActor(page, actor);
 }
+
+test('较晚返回的初始化请求不覆盖驳回校验提示', async ({ page, request }) => {
+  const name = `延迟-${randomUUID()}`;
+  const project = await createProject(request, name);
+  const approval = await post<{ id: string }>(
+    request,
+    ids.reporter,
+    `/${project.id}/major-changes`,
+    {
+      changeType: 'PROJECT_NAME',
+      initiatorLevel: 'CITY',
+      approverId: ids.leader,
+      reason: '验证过期响应隔离',
+      projectName: `修改-${name}`,
+    },
+  );
+  let release: (() => void) | undefined;
+  let finished: (() => void) | undefined;
+  const released = new Promise<void>((resolve) => {
+    finished = resolve;
+  });
+  let count = 0;
+  await page.route(`**/api/v1/projects/approvals/${approval.id}`, async (route) => {
+    if (route.request().method() !== 'GET' || ++count !== 1) return route.continue();
+    const response = await route.fetch();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill({ response });
+    finished!();
+  });
+  await page.goto(`/approvals/${approval.id}`);
+  await chooseActor(page, ids.leader);
+  await expect.poll(() => !!release).toBe(true);
+  await page.getByRole('button', { name: '驳回申请', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('驳回必须填写审核意见。');
+  release!();
+  await released;
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.getByRole('alert')).toHaveText('驳回必须填写审核意见。');
+  expect(
+    (await get<{ status: string }>(request, ids.reporter, `/approvals/${approval.id}`)).status,
+  ).toBe('PENDING');
+});
 
 test('未填完整项目保存草稿、刷新载入、更新、本人隔离与确认删除', async ({ page, request }) => {
   const title = `草稿-${randomUUID()}`;

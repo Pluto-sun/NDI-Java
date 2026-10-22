@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
 import { openProjectDocument } from '../projects/openDocument';
@@ -232,26 +232,36 @@ export function ApprovalDetailPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const loadRevision = useRef(0);
   const load = useCallback(async () => {
     if (!id) return;
+    const revision = ++loadRevision.current;
+    setError('');
     try {
       const request = await projectsApi.approval(id);
+      if (revision !== loadRevision.current) return;
       setItem(request);
-      setError('');
       if (request.evidenceDocumentId) {
         const files = await projectsApi.documents(request.projectId);
-        setEvidence(files.find((file) => file.id === request.evidenceDocumentId) ?? null);
+        if (revision === loadRevision.current)
+          setEvidence(files.find((file) => file.id === request.evidenceDocumentId) ?? null);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '申请加载失败');
+      if (revision === loadRevision.current)
+        setError(cause instanceof Error ? cause.message : '申请加载失败');
     }
   }, [id]);
   useEffect(() => {
     void load();
+    return () => {
+      loadRevision.current += 1;
+    };
   }, [load]);
 
   async function decide(approved: boolean) {
     if (!id) return;
+    // 用户决策后，初始化请求不得覆盖校验提示或审批结果。
+    loadRevision.current += 1;
     if (!approved && !opinion.trim()) {
       setError('驳回必须填写审核意见。');
       return;
@@ -285,6 +295,7 @@ export function ApprovalDetailPage({
 
   async function withdraw() {
     if (!id || !window.confirm('确认撤销这条待审申请？')) return;
+    loadRevision.current += 1;
     setBusy(true);
     setError('');
     try {
