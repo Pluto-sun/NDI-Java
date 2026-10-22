@@ -4,6 +4,9 @@ import { chooseActor, ids } from './support/projects';
 test('地图阶段组合筛选、终止联动及历史金额不受当前主档影响', async ({ page }, testInfo) => {
   await page.goto('/workbench');
   await chooseActor(page, ids.leader);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const map = page.getByRole('region', { name: '项目区域分布', exact: true });
   await map.getByLabel('统计月份', { exact: true }).fill('2020-01');
   const stages = map.getByRole('group', { name: '地图项目阶段', exact: true });

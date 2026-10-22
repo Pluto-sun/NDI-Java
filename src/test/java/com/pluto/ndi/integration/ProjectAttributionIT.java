@@ -50,6 +50,7 @@ class ProjectAttributionIT {
     @Autowired ProjectStageService stages;
     @Autowired ProjectApprovalService approvals;
     @Autowired ProjectAttributionService statistics;
+    @Autowired ProjectDashboardService dashboard;
     @Autowired ProjectMapService maps;
     @Autowired ProjectMonthlySnapshotIT.MutableClock clock;
     @MockitoBean DocumentDirectory documents;
@@ -162,6 +163,50 @@ class ProjectAttributionIT {
                             .param("from", from).param("to", "2026-10"))
                     .andExpect(status().isBadRequest());
         }
+    }
+
+    @Test
+    void dashboardCountsZeroAmountMembershipDeduplicatesDigitalAndFiltersAllSections() throws Exception {
+        var province = UUID.randomUUID(); var city = UUID.randomUUID(); var otherCity = UUID.randomUUID();
+        var reporter = UUID.randomUUID(); var other = UUID.randomUUID(); var leader = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_province VALUES(UUID_TO_BIN(?),?,'广东省',true)", province.toString(), province.toString().replace("-", ""));
+        for (var id : List.of(city, otherCity)) jdbc.update("INSERT INTO organization_city VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?,'广州市',true)", id.toString(), province.toString(), id.toString().replace("-", ""));
+        user(reporter, province, city, "CITY_REPORTER"); user(other, province, otherCity, "CITY_REPORTER");
+        user(leader, province, null, "PROVINCE_REPORTER");
+        clock.moveTo(2026, 10, 8);
+        var first = create(province, city, leader, reporter);
+        create(province, otherCity, leader, other);
+        jdbc.update("INSERT INTO project_category_amount VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),'BIG_DATA',0)", UUID.randomUUID().toString(), first.toString());
+        var filter = new com.pluto.ndi.projects.domain.ProjectDashboardFilter(YearMonth.of(2026, 10), YearMonth.of(2026, 10), null, "", "", false);
+        var result = dashboard.view(reporter, filter);
+        assertThat(result.current().projectCount()).isEqualTo(1);
+        assertThat(result.current().digital().count()).isEqualTo(1);
+        assertThat(result.current().gewu().count()).isEqualTo(1);
+        assertThat(result.current().bigData().count()).isEqualTo(1);
+        assertThat(result.current().bigData().amount()).isEqualByComparingTo("0");
+        assertThat(result.current().totalAmount()).isEqualByComparingTo("100");
+        assertThat(result.previous().projectCount()).isZero();
+        assertThat(result.provinces()).hasSize(1);
+        assertThat(result.trend().getFirst().summary()).isEqualTo(result.current());
+        assertThat(dashboard.view(leader, filter).current().projectCount()).isEqualTo(2);
+        assertThat(dashboard.activities(reporter, filter)).hasSize(1).allSatisfy(activity -> {
+            assertThat(activity.projectId()).isEqualTo(first);
+            assertThat(activity.beforeAmount()).isNull();
+            assertThat(activity.afterAmount()).isEqualByComparingTo("100");
+        });
+        assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), null, "DIGITAL", "BIG_DATA", false)).current().projectCount()).isEqualTo(1);
+        assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), ProjectStage.BIDDING, "", "", false)).current().projectCount()).isZero();
+        assertThat(dashboard.activities(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), ProjectStage.BIDDING, "", "", false))).isEmpty();
+        mvc.perform(get("/api/v1/projects/workbench/dashboard").header("X-NDI-Actor-Id", reporter.toString()).param("from", "2026-10").param("to", "2026-10"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.current.bigData.count").value(1));
+        mvc.perform(get("/api/v1/projects/workbench/dashboard/activities").header("X-NDI-Actor-Id", reporter.toString()).param("from", "2026-10").param("to", "2026-10"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].projectId").value(first.toString()));
+        mvc.perform(get("/api/v1/projects/workbench/dashboard").header("X-NDI-Actor-Id", reporter.toString()).param("from", "2026-10").param("to", "2026-10").param("product", "invalid"))
+                .andExpect(status().isBadRequest());
+        jdbc.update("UPDATE project_project SET current_stage_code='TERMINATED' WHERE id=UUID_TO_BIN(?)", first.toString());
+        assertThat(dashboard.view(reporter, filter).current().projectCount()).isZero();
+        assertThat(dashboard.activities(reporter, filter)).isEmpty();
+        assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), null, "", "", true)).current().projectCount()).isEqualTo(1);
     }
 
     private ProjectAttributionWorkbench view(UUID actor, String from, String to, boolean terminated) {

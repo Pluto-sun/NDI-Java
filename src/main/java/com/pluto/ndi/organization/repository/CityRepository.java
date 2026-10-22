@@ -16,4 +16,6 @@ public interface CityRepository extends JpaRepository<CityEntity, UUID> {
     Optional<CityEntity> findByProvinceIdAndCityNameAndEnabledTrue(UUID provinceId, String cityName);
 
     List<CityEntity> findByEnabledTrueOrderByCityNameAsc();
+
+    List<CityEntity> findByProvinceIdAndEnabledTrueOrderByCityNameAsc(UUID provinceId);
 }

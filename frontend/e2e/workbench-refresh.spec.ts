@@ -29,6 +29,9 @@ test('当前工作台定时刷新且失败保留旧值，隐藏及离开页面�
   });
   await page.goto('/workbench');
   await chooseActor(page, ids.leader);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   await expect(page.getByRole('alert')).toBeVisible();
   fail = false;
   const refresh = page.getByRole('button', { name: '刷新当前概览', exact: true });
@@ -96,6 +99,9 @@ test('概览刷新未结束时不叠加请求，离开后迟到响应不覆盖�
   await page.clock.install();
   await page.goto('/workbench');
   await chooseActor(page, ids.reporter);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const refresh = page.getByRole('button', { name: '刷新当前概览', exact: true });
   await expect(refresh).toBeEnabled();
   let calls = 0;

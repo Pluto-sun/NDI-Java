@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './http';
 
 /** 当前态数据定时读取；页面隐藏时暂停，离开时取消，不并发叠加刷新。 */
-export function useLiveQuery<T>(load: (signal: AbortSignal) => Promise<T>, failureMessage: string) {
+export function useLiveQuery<T>(
+  load: (signal: AbortSignal) => Promise<T>,
+  failureMessage: string,
+  enabled = true,
+) {
   const [data, setData] = useState<T | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -14,6 +18,11 @@ export function useLiveQuery<T>(load: (signal: AbortSignal) => Promise<T>, failu
     setData(null);
     setUpdatedAt(null);
     setError('');
+    if (!enabled) {
+      setBusy(false);
+      refreshRef.current = async () => {};
+      return;
+    }
     let active = true;
     let inFlight = false;
     let controller: AbortController | null = null;
@@ -57,7 +66,7 @@ export function useLiveQuery<T>(load: (signal: AbortSignal) => Promise<T>, failu
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [load, failureMessage]);
+  }, [load, failureMessage, enabled]);
 
   return { data, busy, error, updatedAt, refresh };
 }

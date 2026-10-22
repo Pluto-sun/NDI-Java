@@ -19,6 +19,9 @@ test('地图所属月份区间与总览同口径，省份下钻保留区间且�
   );
   await page.goto('/workbench');
   await chooseActor(page, ids.admin);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const map = page.getByRole('region', { name: '项目区域分布', exact: true });
   await map
     .getByRole('combobox', { name: '地图统计口径', exact: true })

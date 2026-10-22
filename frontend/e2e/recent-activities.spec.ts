@@ -72,6 +72,9 @@ test('近期动态遵守地市和省分范围，待审驳回撤销不展示，�
   const approved = await submit(approvedName);
   await page.goto('/workbench');
   await chooseActor(page, ids.reporter);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const activities = page.getByRole('region', { name: '近期项目变动', exact: true });
   const ownRows = activities
     .getByRole('row')
@@ -90,6 +93,9 @@ test('近期动态遵守地市和省分范围，待审驳回撤销不展示，�
   expect(await count()).toBe(initial + 1);
   await page.getByRole('button', { name: '切换测试账号', exact: true }).click();
   await chooseActor(page, ids.leader);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   await expect(activities.locator(`a[href="/projects/${own.id}"]`)).toHaveCount(2);
   await expect(activities.locator(`a[href="/projects/${other.id}"]`)).toHaveCount(1);
   await activities.locator(`a[href="/projects/${other.id}"]`).click();

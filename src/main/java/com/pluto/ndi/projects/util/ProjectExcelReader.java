@@ -150,7 +150,8 @@ public class ProjectExcelReader {
                 for (int index = 0; index <= Math.min(sheet.getLastRowNum(), 11); index++) {
                     var row = sheet.getRow(index);
                     if (row == null) continue;
-                    var names = new ArrayList<>(headers(row, formatter).keySet());
+                    // 候选行可能是业务数据或说明，不能把重复值、公式误判为模板错误。
+                    var names = new ArrayList<>(candidateHeaders(row, formatter).keySet());
                     if (!names.isEmpty()) candidates.add(new HeaderCandidate(index + 1, names));
                 }
                 sheets.add(new SheetInspection(sheet.getSheetName(), candidates));
@@ -178,7 +179,7 @@ public class ProjectExcelReader {
         for (int index = 0; index <= Math.min(sheet.getLastRowNum(), 7); index++) {
             var row = sheet.getRow(index);
             if (row == null) continue;
-            Set<String> names = headers(row, formatter).keySet();
+            Set<String> names = candidateHeaders(row, formatter).keySet();
             if (names.contains("项目名称") && names.contains("省分")) return index;
         }
         throw new IllegalArgumentException("未识别到项目表头，请选择表头行并设置字段映射");
@@ -192,6 +193,18 @@ public class ProjectExcelReader {
             if (!name.isBlank() && result.putIfAbsent(name, column) != null) {
                 throw new IllegalArgumentException("模板存在重复表头：" + name);
             }
+        }
+        return result;
+    }
+
+    private Map<String, Integer> candidateHeaders(Row row, DataFormatter formatter) {
+        var result = new LinkedHashMap<String, Integer>();
+        if (row.getLastCellNum() > 128) return result;
+        for (int column = 0; column < row.getLastCellNum(); column++) {
+            var cell = row.getCell(column);
+            if (cell == null || cell.getCellType() == CellType.FORMULA) continue;
+            var name = value(cell, formatter);
+            if (!name.isBlank()) result.putIfAbsent(name, column);
         }
         return result;
     }

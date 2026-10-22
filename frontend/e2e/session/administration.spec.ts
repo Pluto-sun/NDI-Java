@@ -48,8 +48,12 @@ test('管理员创建地市与账号、编辑、重置密码和启停均在正�
   await expect(row).toContainText(cityName);
   await row.getByRole('button', { name: '编辑账号', exact: true }).click();
   await page.getByLabel('账号姓名', { exact: true }).fill('编辑后的验收用户');
+  await page.getByRole('checkbox', { name: '省分三化负责人', exact: true }).check();
+  await page.getByRole('checkbox', { name: '省分数字化负责人', exact: true }).check();
   await page.getByRole('button', { name: '保存账号', exact: true }).click();
   await expect(row).toContainText('编辑后的验收用户');
+  await expect(row).toContainText('省分三化负责人');
+  await expect(row).toContainText('省分数字化负责人');
 
   const device = await browser.newContext({ baseURL: 'http://127.0.0.1:15173' });
   try {

@@ -6,6 +6,7 @@ import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
+import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
 
 const emptyAdvanced = {
   signingSubjectCode: '',
@@ -27,7 +28,10 @@ export function ProjectsPage({
   const [searchParams] = useSearchParams();
   const initialCityId = searchParams.get('cityId') ?? '';
   const [name, setName] = useState('');
-  const [stage, setStage] = useState('');
+  const initialStage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
+    ? searchParams.get('stage')!
+    : '';
+  const [stage, setStage] = useState(initialStage);
   const [projectCode, setProjectCode] = useState('');
   const [industryCode, setIndustryCode] = useState('');
   const [cityId, setCityId] = useState(initialCityId);
@@ -40,7 +44,7 @@ export function ProjectsPage({
   const [query, setQuery] = useState({
     page: 0,
     projectName: '',
-    stage: '',
+    stage: initialStage,
     projectCode: '',
     industryCode: '',
     cityId: initialCityId,
@@ -158,6 +162,13 @@ export function ProjectsPage({
           </Link>
         )}
       </div>
+      <ProjectStageTabs
+        value={query.stage}
+        onChange={(next) => {
+          setStage(next);
+          setQuery((current) => ({ ...current, page: 0, stage: next }));
+        }}
+      />
       <form
         className="filter-bar"
         onSubmit={(event) => {

@@ -16,6 +16,43 @@ class ProjectExcelReaderTest {
             "大数据预计金额（万）", "万悟预计金额（万）");
 
     @Test
+    void inspectionDoesNotTreatRepeatedDataOrSupportingSheetFormulasAsInvalidHeaders() throws Exception {
+        byte[] data;
+        try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            var sheet = book.createSheet("导入数据");
+            var header = sheet.createRow(0);
+            for (int i = 0; i < HEADERS.size(); i++) header.createCell(i).setCellValue(HEADERS.get(i));
+            var row = sheet.createRow(1);
+            row.createCell(0).setCellValue("广东");
+            row.createCell(4).setCellValue("重复项目内容");
+            row.createCell(7).setCellValue("重复项目内容");
+            row.createCell(10).setCellValue(0);
+            row.createCell(11).setCellValue(0);
+            book.createSheet("说明").createRow(0).createCell(0).setCellFormula("1+1");
+            book.write(output);
+            data = output.toByteArray();
+        }
+        var reader = new ProjectExcelReader();
+        assertThat(reader.inspect(data, "多工作表.xlsx").sheets()).hasSize(2);
+        assertThat(reader.read(data)).hasSize(1);
+    }
+
+    @Test
+    void selectedHeaderStillRejectsDuplicateNames() throws Exception {
+        byte[] data;
+        try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            var row = book.createSheet("导入数据").createRow(0);
+            row.createCell(0).setCellValue("省分");
+            row.createCell(1).setCellValue("项目名称");
+            row.createCell(2).setCellValue("项目名称");
+            book.write(output);
+            data = output.toByteArray();
+        }
+        assertThatThrownBy(() -> new ProjectExcelReader().read(data))
+                .hasMessageContaining("重复表头");
+    }
+
+    @Test
     void readsApprovedTemplateAndPreservesSourceRowNumber() throws Exception {
         var rows = new ProjectExcelReader().read(workbook(false));
         assertThat(rows).hasSize(1);

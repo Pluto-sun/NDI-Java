@@ -34,13 +34,20 @@ class OrganizationService implements OrganizationDirectory {
 
     @Override
     public Optional<OrganizationLocation> findEnabledLocationByNames(String provinceName, String cityName) {
-        var province = provinceRepository.findByProvinceNameAndEnabledTrue(provinceName)
-                .or(() -> provinceRepository.findByProvinceNameAndEnabledTrue(stripAdministrativeSuffix(provinceName)));
-        return province.flatMap(item -> cityRepository.findByProvinceIdAndCityNameAndEnabledTrue(
-                        item.id(), cityName)
-                .or(() -> cityRepository.findByProvinceIdAndCityNameAndEnabledTrue(
-                        item.id(), stripAdministrativeSuffix(cityName)))
-                .map(city -> new OrganizationLocation(item.id(), city.id())));
+        if (provinceName == null || provinceName.isBlank() || cityName == null || cityName.isBlank()) {
+            return Optional.empty();
+        }
+        // 两侧统一行政后缀；存在重名时拒绝猜测，不跨省匹配地市。
+        var provinces = provinceRepository.findByEnabledTrueOrderByProvinceNameAsc().stream()
+                .filter(item -> stripAdministrativeSuffix(item.provinceName())
+                        .equals(stripAdministrativeSuffix(provinceName))).toList();
+        if (provinces.size() != 1) return Optional.empty();
+        var provinceId = provinces.getFirst().id();
+        var cities = cityRepository.findByProvinceIdAndEnabledTrueOrderByCityNameAsc(provinceId).stream()
+                .filter(item -> stripAdministrativeSuffix(item.cityName())
+                        .equals(stripAdministrativeSuffix(cityName))).toList();
+        return cities.size() == 1 ? Optional.of(new OrganizationLocation(provinceId, cities.getFirst().id()))
+                : Optional.empty();
     }
 
     @Override
@@ -74,6 +81,7 @@ class OrganizationService implements OrganizationDirectory {
 
     private String stripAdministrativeSuffix(String name) {
         if (name == null) return "";
+        name = name.strip();
         for (var suffix : new String[] {"自治区", "自治州", "地区", "省", "市"}) {
             if (name.endsWith(suffix)) return name.substring(0, name.length() - suffix.length());
         }

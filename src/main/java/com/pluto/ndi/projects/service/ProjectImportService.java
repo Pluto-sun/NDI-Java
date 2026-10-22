@@ -356,7 +356,8 @@ public class ProjectImportService {
         required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称",
                 "省分负责人", "地市客户经理", "项目建设内容", "三化类别", "项目阶段");
         var location = organizations.findEnabledLocationByNames(row.get("省分"), row.get("地市"));
-        if (location.isEmpty()) errors.add("省分或地市未在新系统启用");
+        if (location.isEmpty()) errors.add("省分或地市未在新系统启用或名称不唯一："
+                + row.get("省分") + " / " + row.get("地市") + "；请核对原始地市，或由管理员在账号与组织中配置");
         else if (!identity.canImportProject(actor, location.get().provinceId(), location.get().cityId())) {
             errors.add("无此省市项目导入权限");
         }

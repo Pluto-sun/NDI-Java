@@ -8,6 +8,10 @@ public final class ProjectCurrentMetricSql {
             FROM project_project project
             LEFT JOIN (
                 SELECT project_id,
+                       MAX(category_code = 'NETWORK') network_present,
+                       MAX(category_code = 'GEWU') gewu_present,
+                       MAX(category_code = 'BIG_DATA') big_data_present,
+                       MAX(category_code = 'WANGWU') wangwu_present,
                        SUM(CASE WHEN category_code = 'NETWORK' THEN expected_amount ELSE 0 END) network_amount,
                        SUM(CASE WHEN category_code = 'GEWU' THEN expected_amount ELSE 0 END) gewu_amount,
                        SUM(CASE WHEN category_code = 'BIG_DATA' THEN expected_amount ELSE 0 END) big_data_amount,

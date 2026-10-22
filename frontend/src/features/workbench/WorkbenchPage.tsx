@@ -1,358 +1,419 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { projectsApi } from '../projects/api';
-import type { MonthlyWorkbench, ReferenceData, StageTrendPoint } from '../projects/types';
-import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { amount, dateTime, previousBusinessMonth } from '../../shared/ui/format';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import type { ReferenceData } from '../projects/types';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
-import { MetricBars } from './MetricBars';
-import { ProjectMapCard } from './ProjectMapCard';
-import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
-import { RecentActivitiesCard } from './RecentActivitiesCard';
-import { AttributionWorkbenchPanel } from './AttributionWorkbenchPanel';
+import { Feedback, Loading } from '../../shared/ui/Feedback';
+import { amount, businessDate, dateTime } from '../../shared/ui/format';
+import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
+import {
+  dashboardApi,
+  dashboardCategories,
+  dashboardProducts,
+  percent,
+  type DashboardFilter,
+  type DashboardSummary,
+} from './dashboardApi';
+import { DashboardDonut, DashboardTrend, Sparkline } from './DashboardCharts';
+import { DashboardFilters, type ClassificationFilter } from './DashboardFilters';
+import { DashboardRegionPanel } from './DashboardRegionPanel';
+import { DashboardActivities } from './DashboardActivities';
+import './dashboard.css';
 
-async function currentOverview(signal: AbortSignal) {
-  // 两个请求均结束后才允许下次刷新，避免单项失败时另一请求仍在运行。
-  const [overview, breakdown] = await Promise.allSettled([
-    projectsApi.overview(signal),
-    projectsApi.breakdown(signal),
-  ]);
-  if (overview.status === 'rejected') throw overview.reason;
-  if (breakdown.status === 'rejected') throw breakdown.reason;
-  return { overview: overview.value, breakdown: breakdown.value };
+const AdvancedWorkbench = lazy(() =>
+  import('./AdvancedWorkbench').then((module) => ({ default: module.AdvancedWorkbench })),
+);
+function comparison(current: number, previous: number) {
+  if (!previous) return current ? '上期为 0，不计算增幅' : '较上期持平';
+  const delta = ((current - previous) / previous) * 100;
+  return `较上期 ${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`;
+}
+function totalValues(summary: DashboardSummary) {
+  return [
+    summary.projectCount,
+    summary.network.count,
+    summary.digital.count,
+    summary.intelligent.count,
+    summary.provinceCount,
+  ];
 }
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
-  const { data, busy, error, updatedAt, refresh } = useLiveQuery(currentOverview, '工作台加载失败');
-  const overview = data?.overview;
-  const breakdown = data?.breakdown;
-  const [month, setMonth] = useState(previousBusinessMonth);
-  const [fromMonth, setFromMonth] = useState(month);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
+    ? searchParams.get('stage')!
+    : '';
+  const stageLabel = stage
+    ? `（${PROJECT_STAGE_TABS.find((item) => item.code === stage)?.label}阶段）`
+    : '';
+  const currentMonth = businessDate(new Date().toISOString()).slice(0, 7);
+  const [from, setFrom] = useState(`${currentMonth.slice(0, 4)}-01`),
+    [to, setTo] = useState(currentMonth);
+  const [range, setRange] = useState({ from, to });
   const [includeTerminated, setIncludeTerminated] = useState(false);
-  const [selectedStages, setSelectedStages] = useState<string[]>(['SOLUTION_EXCHANGE']);
-  const [trendMetric, setTrendMetric] = useState<StageTrendMetric>('projectCount');
-  const [history, setHistory] = useState<MonthlyWorkbench | null>(null);
-  const [trend, setTrend] = useState<StageTrendPoint[]>([]);
-  const [loadedTrend, setLoadedTrend] = useState<{
-    from: string;
-    to: string;
-    stages: string[];
-  } | null>(null);
-  const [historyError, setHistoryError] = useState('');
-  const [trendError, setTrendError] = useState('');
-  const [historyBusy, setHistoryBusy] = useState(false);
-  async function loadHistory() {
-    setHistoryBusy(true);
-    setHistoryError('');
-    setTrendError('');
-    setHistory(null);
-    setTrend([]);
-    setLoadedTrend(null);
-    if (!selectedStages.length || fromMonth > month) {
-      setHistoryError('请选择至少一个阶段，且起始月份不得晚于报表月份。');
-      setHistoryBusy(false);
-      return;
-    }
-    try {
-      const snapshot = await projectsApi.monthly(month, includeTerminated);
-      setHistory(snapshot);
-      try {
-        setTrend(await projectsApi.stageTrend(fromMonth, month, includeTerminated, selectedStages));
-        setLoadedTrend({ from: fromMonth, to: month, stages: [...selectedStages] });
-      } catch (cause) {
-        setTrendError(cause instanceof Error ? cause.message : '阶段趋势加载失败');
-      }
-    } catch (cause) {
-      setHistoryError(cause instanceof Error ? cause.message : '历史月报加载失败');
-    } finally {
-      setHistoryBusy(false);
-    }
-  }
-  const stage = (code: string) =>
+  const [regionFilter, setRegionFilter] = useState<ClassificationFilter>({
+    category: '',
+    product: '',
+  });
+  const [trendFilter, setTrendFilter] = useState<ClassificationFilter>({
+    category: '',
+    product: '',
+  });
+  const [regionMetric, setRegionMetric] = useState<'amount' | 'count'>('amount');
+  const [trendMetric, setTrendMetric] = useState<'amount' | 'count'>('amount');
+  const [advanced, setAdvanced] = useState(false);
+  const filter = useMemo<DashboardFilter>(
+    () => ({ ...range, stage, includeTerminated }),
+    [range, stage, includeTerminated],
+  );
+  const load = useCallback((signal: AbortSignal) => dashboardApi.view(filter, signal), [filter]);
+  const loadRegions = useCallback(
+    (signal: AbortSignal) => dashboardApi.view({ ...filter, ...regionFilter }, signal),
+    [filter, regionFilter],
+  );
+  const loadTrend = useCallback(
+    (signal: AbortSignal) => dashboardApi.view({ ...filter, ...trendFilter }, signal),
+    [filter, trendFilter],
+  );
+  const main = useLiveQuery(load, '驾驶舱加载失败');
+  const hasRegionFilter = !!(regionFilter.category || regionFilter.product);
+  const hasTrendFilter = !!(trendFilter.category || trendFilter.product);
+  const regionQuery = useLiveQuery(loadRegions, '区域分布加载失败', hasRegionFilter);
+  const trendQuery = useLiveQuery(loadTrend, '趋势分析加载失败', hasTrendFilter);
+  // 默认筛选共用一次聚合结果，只有独立分类条件才额外请求。
+  const regions = hasRegionFilter ? regionQuery : main;
+  const trend = hasTrendFilter ? trendQuery : main;
+  const data = main.data;
+  const stageName = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
-  const trendMetrics: { value: StageTrendMetric; label: string }[] = [
-    { value: 'projectCount', label: '项目数量' },
-    { value: 'totalExpectedAmount', label: '项目总金额' },
-    { value: 'network', label: '网络化金额' },
-    { value: 'gewu', label: '格物金额' },
-    { value: 'bigData', label: '大数据金额' },
-    { value: 'wangwu', label: '万悟金额' },
-  ];
-  const categoryAmounts = history
+  const cards = data
     ? [
-        { code: 'NETWORK', value: history.categoryTotals.network },
-        { code: 'GEWU', value: history.categoryTotals.gewu },
-        { code: 'BIG_DATA', value: history.categoryTotals.bigData },
-        { code: 'WANGWU', value: history.categoryTotals.wangwu },
+        {
+          label: '全国项目数',
+          value: `${data.current.projectCount}`,
+          unit: '个',
+          detail: '权限范围内去重项目数',
+        },
+        ...dashboardCategories.map((item) => ({
+          label: `${item.label}项目数及总金额`,
+          value: `${data.current[item.key].count}`,
+          unit: '个',
+          detail: `${amount(data.current[item.key].amount)} 万元`,
+        })),
+        {
+          label: '覆盖省份',
+          value: `${data.current.provinceCount}`,
+          unit: '个',
+          detail: '有项目的省份',
+        },
       ]
     : [];
-  const largestCategory = Math.max(1, ...categoryAmounts.map((item) => item.value));
+  const currentValues = data ? totalValues(data.current) : [],
+    previousValues = data ? totalValues(data.previous) : [];
   return (
-    <section>
-      <div className="page-heading">
+    <section className="project-dashboard">
+      <div className="page-heading dashboard-page-heading">
         <div>
-          <span className="eyebrow">WORKBENCH</span>
+          <span className="eyebrow">PROJECT OPERATIONS</span>
           <h1>项目工作台</h1>
-          <p>默认排除已终止项目，展示当前项目经营概览。</p>
+          <p>工业互联网三化项目经营驾驶舱 · {stage ? stageName(stage) : '全部阶段'}</p>
         </div>
-        <Link className="secondary-button" to="/projects">
+        <Link className="secondary-button" to={`/projects${stage ? `?stage=${stage}` : ''}`}>
           查看项目清单
         </Link>
       </div>
-      <div className="panel-top" aria-busy={busy}>
-        <p className="subtle">
-          当前概览每 30 秒自动刷新；历史报表仍按手动查询结果展示。
-          {updatedAt && <> 最近成功更新：{dateTime(updatedAt)}</>}
-        </p>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() => void refresh()}
+      <ProjectStageTabs
+        value={stage}
+        onChange={(value) => setSearchParams(value ? { stage: value } : {})}
+      />
+      <div className="dashboard-toolbar">
+        <form
+          className="dashboard-inline-filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (from && to && from <= to) setRange({ from, to });
+          }}
         >
-          {busy ? '概览刷新中…' : '刷新当前概览'}
+          <label>
+            所属月份起始
+            <input
+              type="month"
+              value={from}
+              max={to}
+              min="1000-01"
+              required
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+          <label>
+            所属月份结束
+            <input
+              type="month"
+              value={to}
+              min={from}
+              required
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </label>
+          <button className="primary-button" disabled={main.busy}>
+            应用月份
+          </button>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={includeTerminated}
+              onChange={(event) => setIncludeTerminated(event.target.checked)}
+            />
+            含已终止项目
+          </label>
+        </form>
+        <button
+          className="secondary-button"
+          disabled={main.busy || regions.busy || trend.busy}
+          onClick={() => {
+            void main.refresh();
+            if (hasRegionFilter) void regionQuery.refresh();
+            if (hasTrendFilter) void trendQuery.refresh();
+          }}
+        >
+          刷新驾驶舱
         </button>
       </div>
-      {error && (
+      <p className="subtle dashboard-scope">
+        {range.from} 至 {range.to} ·
+        项目唯一所属月份，区间不重复累计；较上期为前一个等长月份区间。每 30 秒刷新。
+        {main.updatedAt && ` 更新于 ${dateTime(main.updatedAt)}`}
+      </p>
+      {main.error && (
         <Feedback tone="error">
-          {error}
-          {data && ' 当前保留上次成功结果，数据未更新。'}
+          {main.error}
+          {data && '，当前保留上次成功数据。'}
         </Feedback>
       )}
-      {!overview || !breakdown ? (
-        !error && <Loading />
+      {!data ? (
+        !main.error && <Loading />
       ) : (
         <>
-          <div className="kpi-grid">
-            <div className="kpi">
-              <span>项目总数</span>
-              <strong>{overview.projectCount}</strong>
-              <small>个有效项目</small>
-            </div>
-            <div className="kpi">
-              <span>预计总金额</span>
-              <strong>{amount(overview.totalExpectedAmount)}</strong>
-              <small>万元</small>
-            </div>
-            <div className="kpi">
-              <span>待我审批</span>
-              <strong>{overview.approvals.pendingCount}</strong>
-              <small>其中逾期 {overview.approvals.overdueCount} 条</small>
-            </div>
-          </div>
-          <ProjectMapCard reference={reference} />
-          <AttributionWorkbenchPanel reference={reference} />
-          <div className="detail-grid">
-            <div className="panel">
-              <h2>阶段分布</h2>
-              <MetricBars
-                items={overview.stages.map((item) => ({
-                  key: item.stageCode,
-                  label: stage(item.stageCode),
-                  count: item.projectCount,
-                  expectedAmount: item.expectedAmount,
-                }))}
-              />
-            </div>
-            <div className="panel">
-              <h2>行业分布（前八项）</h2>
-              <MetricBars
-                items={breakdown.industries.slice(0, 8).map((item) => ({
-                  key: item.industryCode,
-                  label: item.industryName,
-                  count: item.projectCount,
-                  expectedAmount: item.expectedAmount,
-                }))}
-              />
-            </div>
-          </div>
-          <div className="panel">
-            <h2>地市分布</h2>
-            <MetricBars
-              items={breakdown.cities.map((item) => ({
-                key: item.cityId,
-                label: item.cityName,
-                count: item.projectCount,
-                expectedAmount: item.expectedAmount,
-              }))}
-            />
-          </div>
-          <RecentActivitiesCard />
-          <div className="panel">
-            <h2>历史月报与趋势</h2>
-            <p className="subtle">
-              每月 1 日生成上个月月末快照；趋势中的每个月都是当月月末状态，不跨月累加项目金额。
-              跨月审批通过后，会修订对应历史月份。
-            </p>
-            <div className="filter-bar">
-              <label>
-                趋势起始月份
-                <input
-                  type="month"
-                  value={fromMonth}
-                  max={month}
-                  onChange={(event) => setFromMonth(event.target.value)}
-                />
-              </label>
-              <label>
-                报表／趋势结束月份
-                <input
-                  type="month"
-                  value={month}
-                  min={fromMonth}
-                  onChange={(event) => setMonth(event.target.value)}
-                />
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={includeTerminated}
-                  onChange={(event) => {
-                    setIncludeTerminated(event.target.checked);
-                    if (!event.target.checked) {
-                      setSelectedStages((items) => items.filter((item) => item !== 'TERMINATED'));
-                    }
-                  }}
-                />
-                含已终止项目
-              </label>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={!month || !fromMonth || historyBusy}
-                onClick={() => void loadHistory()}
-              >
-                {historyBusy ? '加载中…' : '查看月报与趋势'}
-              </button>
-            </div>
-            <div className="stage-trend-filters">
-              <fieldset>
-                <legend>趋势阶段</legend>
-                {reference.stages
-                  .filter((item) => includeTerminated || item.code !== 'TERMINATED')
-                  .map((item) => (
-                    <button
-                      key={item.code}
-                      type="button"
-                      aria-pressed={selectedStages.includes(item.code)}
-                      onClick={() =>
-                        setSelectedStages((items) =>
-                          items.includes(item.code)
-                            ? items.filter((code) => code !== item.code)
-                            : [...items, item.code],
-                        )
-                      }
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-              </fieldset>
-              <label>
-                趋势指标
-                <select
-                  value={trendMetric}
-                  onChange={(event) => setTrendMetric(event.target.value as StageTrendMetric)}
-                >
-                  {trendMetrics.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <p className="subtle">
-              修改月份、阶段或终止口径后，请点击“查看月报与趋势”；指标切换会直接更新已加载图表。
-            </p>
-            {historyError && <Feedback tone="error">{historyError}</Feedback>}
-            {trendError && <Feedback tone="error">趋势暂不可用：{trendError}</Feedback>}
-            {history && (
-              <>
-                <div className="kpi-grid">
-                  <div className="kpi">
-                    <span>{history.month} 项目数</span>
-                    <strong>{history.projectCount}</strong>
-                    <small>个项目</small>
-                  </div>
-                  <div className="kpi">
-                    <span>预计总金额</span>
-                    <strong>{amount(history.totalExpectedAmount)}</strong>
-                    <small>万元</small>
-                  </div>
+          <div className="dashboard-kpis">
+            {cards.map((card, index) => (
+              <article className="dashboard-kpi" key={card.label}>
+                <span>{card.label}</span>
+                <div className="dashboard-kpi-value">
+                  <strong>{card.value}</strong>
+                  <small>{card.unit}</small>
                 </div>
-                <div className="category-summary">
-                  <h3>当月三化分类预计金额</h3>
-                  <p className="subtle">分类金额合计不超过项目总金额，未归类金额不在下列四项中。</p>
-                  <ol className="category-amount-bars">
-                    {categoryAmounts.map((item) => (
-                      <li key={item.code}>
-                        <span>
-                          {reference.categories.find((category) => category.code === item.code)
-                            ?.label ?? item.code}
-                        </span>
-                        <div className="category-amount-track" aria-hidden="true">
-                          <span style={{ width: `${(item.value / largestCategory) * 100}%` }} />
-                        </div>
-                        <strong>{amount(item.value)} 万元</strong>
-                      </li>
-                    ))}
-                  </ol>
+                <b>{card.detail}</b>
+                <div className="dashboard-kpi-footer">
+                  <small>
+                    {index === 4
+                      ? `较上期 ${currentValues[index] - previousValues[index] > 0 ? '+' : ''}${currentValues[index] - previousValues[index]} 个`
+                      : comparison(currentValues[index], previousValues[index])}
+                  </small>
+                  <Sparkline
+                    values={data.trend.map((point) => totalValues(point.summary)[index])}
+                  />
                 </div>
-                <div className="detail-grid">
-                  <div>
-                    <h3>当月阶段分布</h3>
-                    <MetricBars
-                      items={history.stages.map((item) => ({
-                        key: item.stageCode,
-                        label: stage(item.stageCode),
-                        count: item.projectCount,
-                        expectedAmount: item.expectedAmount,
-                      }))}
-                    />
-                  </div>
-                  <div>
-                    <h3>当月地市分布</h3>
-                    <MetricBars
-                      items={history.cities.map((item) => ({
-                        key: item.cityId,
-                        label: item.cityName,
-                        count: item.projectCount,
-                        expectedAmount: item.expectedAmount,
-                      }))}
-                    />
-                  </div>
-                  <div>
-                    <h3>当月行业分布</h3>
-                    <MetricBars
-                      items={history.industries.map((item) => ({
-                        key: item.industryCode,
-                        label: item.industryName,
-                        count: item.projectCount,
-                        expectedAmount: item.expectedAmount,
-                      }))}
-                    />
-                  </div>
-                </div>
-                <h3>月度阶段趋势</h3>
-                {loadedTrend && (
-                  <p className="subtle">
-                    已加载 {loadedTrend.from} 至 {loadedTrend.to} 的月末状态。
-                  </p>
+                {index > 0 && index < 4 && (
+                  <small>
+                    {comparison(
+                      data.current[dashboardCategories[index - 1].key].amount,
+                      data.previous[dashboardCategories[index - 1].key].amount,
+                    )}
+                    （金额）
+                  </small>
                 )}
-                <StageTrendChart
-                  points={trend}
-                  stages={loadedTrend?.stages ?? []}
-                  stageName={stage}
-                  metric={trendMetric}
-                  metricLabel={
-                    trendMetrics.find((item) => item.value === trendMetric)?.label ?? trendMetric
-                  }
-                />
-              </>
+              </article>
+            ))}
+          </div>
+          <div className="dashboard-distribution-grid">
+            <section className="panel">
+              <h2>{stage ? `项目分布概览${stageLabel}` : '项目金额分布概览'}</h2>
+              <DashboardDonut
+                label={stage ? '项目总数' : '项目总金额'}
+                total={stage ? data.current.projectCount : data.current.totalAmount}
+                unit={stage ? '个' : '万元'}
+                items={[
+                  ...dashboardCategories.map((item) => ({
+                    label: item.label,
+                    value: data.current[item.key][stage ? 'count' : 'amount'],
+                  })),
+                  ...(!stage &&
+                  data.current.totalAmount >
+                    data.current.network.amount +
+                      data.current.digital.amount +
+                      data.current.intelligent.amount
+                    ? [
+                        {
+                          label: '未分配分类金额',
+                          value:
+                            data.current.totalAmount -
+                            data.current.network.amount -
+                            data.current.digital.amount -
+                            data.current.intelligent.amount,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              <p className="subtle">
+                {stage
+                  ? '总项目数去重；类别分别计数，同一项目可重复参与，占比按类别参与次数计算。'
+                  : '分类预计金额与未分配金额共同构成项目总金额；金额单位为万元。'}
+              </p>
+            </section>
+            {stage ? (
+              <section className="panel">
+                <h2>产品分布概览{stageLabel}</h2>
+                <div className="dashboard-product-grid">
+                  <div>
+                    <h3>按项目数</h3>
+                    <DashboardDonut
+                      label="项目总数"
+                      total={data.current.projectCount}
+                      unit="个"
+                      items={dashboardProducts.map((item) => ({
+                        label: item.label,
+                        value: data.current[item.key].count,
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <h3>按产品金额</h3>
+                    <DashboardDonut
+                      label="产品分类金额"
+                      total={dashboardProducts.reduce(
+                        (sum, item) => sum + data.current[item.key].amount,
+                        0,
+                      )}
+                      unit="万元"
+                      items={dashboardProducts.map((item) => ({
+                        label: item.label,
+                        value: data.current[item.key].amount,
+                      }))}
+                    />
+                  </div>
+                </div>
+                <p className="subtle">
+                  产品项目数允许重复，占比按产品参与次数计算；数字化项目数已在格物与大数据之间去重。
+                </p>
+              </section>
+            ) : (
+              <section className="panel">
+                <h2>阶段分布概览（项目数／金额）</h2>
+                <div className="dashboard-category-stages">
+                  {dashboardCategories.map((item) => (
+                    <article key={item.key}>
+                      <header>
+                        <h3>
+                          {item.label} <small>（{item.product}）</small>
+                        </h3>
+                        <strong>
+                          {data.current[item.key].count} 个 <span>｜</span>{' '}
+                          {amount(data.current[item.key].amount)} 万元
+                        </strong>
+                      </header>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>项目阶段</th>
+                            <th>项目数</th>
+                            <th>金额（万元）</th>
+                            <th>金额占比</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.stages.map((point) => (
+                            <tr key={point.stageCode}>
+                              <th>
+                                <span
+                                  className={`stage-chip stage-${point.stageCode.toLowerCase()}`}
+                                >
+                                  {stageName(point.stageCode)}
+                                </span>
+                              </th>
+                              <td>{point.summary[item.key].count}</td>
+                              <td>{amount(point.summary[item.key].amount)}</td>
+                              <td>
+                                <div className="dashboard-share">
+                                  <span
+                                    style={{
+                                      width: percent(
+                                        point.summary[item.key].amount,
+                                        data.current[item.key].amount,
+                                      ),
+                                    }}
+                                  />
+                                  <small>
+                                    {percent(
+                                      point.summary[item.key].amount,
+                                      data.current[item.key].amount,
+                                    )}
+                                  </small>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </article>
+                  ))}
+                </div>
+              </section>
             )}
           </div>
         </>
       )}
+      <div className="dashboard-section-toolbar">
+        <h2>区域经营分布{stageLabel}</h2>
+        <DashboardFilters
+          value={regionFilter}
+          onChange={setRegionFilter}
+          metric={regionMetric}
+          onMetricChange={setRegionMetric}
+        />
+      </div>
+      {hasRegionFilter && regions.error && <Feedback tone="error">{regions.error}</Feedback>}
+      {regions.busy && !regions.data && <Loading />}
+      {regions.data && (
+        <DashboardRegionPanel data={regions.data} metric={regionMetric} stageLabel={stageLabel} />
+      )}
+      <section className="panel dashboard-trend">
+        <div className="dashboard-panel-heading">
+          <h2>趋势分析{stageLabel}</h2>
+          <DashboardFilters
+            value={trendFilter}
+            onChange={setTrendFilter}
+            metric={trendMetric}
+            onMetricChange={setTrendMetric}
+          />
+        </div>
+        <p className="subtle">
+          {range.from} 至 {range.to} · 左轴：
+          {trendMetric === 'amount' ? '三化金额（万元）' : '分类项目数（可重复）'}
+          ；右轴：去重项目数；各月按唯一所属月份计数，不是月末存量。
+        </p>
+        {hasTrendFilter && trend.error && <Feedback tone="error">{trend.error}</Feedback>}
+        {trend.busy && !trend.data && <Loading />}
+        {trend.data && <DashboardTrend data={trend.data} metric={trendMetric} stacked={!!stage} />}
+      </section>
+      <DashboardActivities
+        key={`${filter.from}:${filter.to}`}
+        filter={filter}
+        stageLabel={stageLabel}
+      />
+      <div className="dashboard-advanced">
+        <button
+          className="secondary-button"
+          aria-expanded={advanced}
+          onClick={() => setAdvanced((value) => !value)}
+        >
+          {advanced ? '收起高级分析' : '展开高级分析：历史月报、地图下钻与行业分析'}
+        </button>
+        {advanced && (
+          <Suspense fallback={<Loading />}>
+            <AdvancedWorkbench reference={reference} />
+          </Suspense>
+        )}
+      </div>
     </section>
   );
 }

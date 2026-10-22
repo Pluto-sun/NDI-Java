@@ -10,6 +10,9 @@ test('工作台地图键盘缩放、区域筛选、六项指标与动态项目�
   const project = await createProject(request, name);
   await page.goto('/workbench');
   await chooseActor(page, ids.admin);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const map = page.getByRole('region', { name: '项目区域分布', exact: true });
   const canvas = map.getByRole('group', { name: '项目区域分布地图', exact: true });
   await expect(canvas).toBeVisible();

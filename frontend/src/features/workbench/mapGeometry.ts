@@ -1,6 +1,9 @@
 interface MapShape {
   adcode: string;
   path: string;
+  name: string;
+  labelX: number;
+  labelY: number;
 }
 
 type Point = [number, number];
@@ -38,9 +41,12 @@ export function mapShapes(geoJson: unknown): MapShape[] {
   const raw = (geoJson as { features?: unknown }).features;
   if (!Array.isArray(raw)) return [];
   const features = raw.map((feature) => {
-    const properties = feature?.properties as { adcode?: string | number } | undefined;
+    const properties = feature?.properties as
+      { adcode?: string | number; name?: string; center?: Point; centroid?: Point } | undefined;
     return {
       adcode: String(properties?.adcode ?? ''),
+      name: String(properties?.name ?? ''),
+      center: properties?.centroid ?? properties?.center,
       rings: rings(feature?.geometry),
     };
   });
@@ -65,6 +71,9 @@ export function mapShapes(geoJson: unknown): MapShape[] {
     .filter((feature) => feature.adcode && feature.rings.length)
     .map((feature) => ({
       adcode: feature.adcode,
+      name: feature.name,
+      labelX: feature.center ? offsetX + (feature.center[0] - minX) * scale : 0,
+      labelY: feature.center ? offsetY + (maxY - feature.center[1]) * scale : 0,
       path: feature.rings.map((ring) => `M${ring.map(pointText).join('L')}Z`).join(''),
     }));
 }

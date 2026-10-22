@@ -9,6 +9,9 @@ test('所属月份区间统计与月末快照分开，支持阶段、金额、�
   await createProject(request, `归属统计-${randomUUID()}`);
   await page.goto('/workbench');
   await chooseActor(page, ids.leader);
+  await page
+    .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
+    .click();
   const panel = page.getByRole('region', { name: '项目所属月份区间统计', exact: true });
   const currentMonth = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Shanghai',

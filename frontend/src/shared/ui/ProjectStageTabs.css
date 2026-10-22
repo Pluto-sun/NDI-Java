@@ -1,0 +1,29 @@
+.project-stage-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+}
+.project-stage-tabs button {
+  flex: 1;
+  min-width: 84px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  font-weight: 650;
+}
+.project-stage-tabs button[aria-pressed='true'] {
+  background: var(--red);
+  color: white;
+  box-shadow: 0 3px 10px #d8273520;
+}
+.project-stage-tabs button:hover:not([aria-pressed='true']) {
+  background: var(--red-soft);
+  color: var(--red-dark);
+}
