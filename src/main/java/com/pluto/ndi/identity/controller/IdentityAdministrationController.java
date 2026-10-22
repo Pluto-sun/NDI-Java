@@ -7,6 +7,7 @@ import jakarta.validation.constraints.*;
 import com.pluto.ndi.identity.domain.IdentityErrorCode;
 import com.pluto.ndi.identity.service.*;
 import com.pluto.ndi.organization.service.CityOption;
+import com.pluto.ndi.organization.service.ProvinceOption;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.*;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,12 @@ public class IdentityAdministrationController {
     public ApiResponse<CityOption> city(Authentication auth, @Valid @RequestBody CityRequest body) {
         return responses.success(service.createCity(actorId(auth), body.provinceId(), body.name()));
     }
+    @PostMapping("/provinces")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<ProvinceOption> province(Authentication auth,
+            @Valid @RequestBody ProvinceRequest body) {
+        return responses.success(service.createProvince(actorId(auth), body.name()));
+    }
     @PutMapping("/users/{id}/reviewer-provinces")
     public ApiResponse<AdminAccountView> reviewerProvinces(Authentication auth, @PathVariable UUID id, @Valid @RequestBody ReviewerRequest body) {
         return responses.success(service.saveReviewerMappings(actorId(auth), List.of(
@@ -82,6 +89,7 @@ public class IdentityAdministrationController {
         @Override public String toString() { return "ResetRequest[凭据已隐藏]"; }
     }
     public record CityRequest(@NotNull UUID provinceId, @NotBlank @Size(max = 50) String name) { }
+    public record ProvinceRequest(@NotBlank @Size(max = 50) String name) { }
     public record ReviewerRequest(@NotNull @Min(0) Long version, @NotNull @Size(max = 100) List<@NotNull UUID> provinceIds) { }
     public record ReviewerBatchItem(@NotNull UUID reviewerId, @NotNull @Min(0) Long version,
             @NotNull @Size(max = 100) List<@NotNull UUID> provinceIds) { }

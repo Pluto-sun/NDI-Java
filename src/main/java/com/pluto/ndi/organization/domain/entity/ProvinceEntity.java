@@ -26,6 +26,15 @@ public class ProvinceEntity {
     protected ProvinceEntity() {
     }
 
+    public static ProvinceEntity create(String name) {
+        var province = new ProvinceEntity();
+        province.id = UUID.randomUUID();
+        province.provinceCode = province.id.toString().replace("-", "");
+        province.provinceName = name;
+        province.enabled = true;
+        return province;
+    }
+
     public UUID id() { return id; }
     public boolean enabled() { return enabled; }
     public String provinceName() { return provinceName; }

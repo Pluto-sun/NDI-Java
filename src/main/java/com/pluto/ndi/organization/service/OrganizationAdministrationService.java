@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 import com.pluto.ndi.organization.domain.OrganizationErrorCode;
 import com.pluto.ndi.organization.domain.entity.CityEntity;
+import com.pluto.ndi.organization.domain.entity.ProvinceEntity;
 import com.pluto.ndi.organization.repository.CityRepository;
 import com.pluto.ndi.organization.repository.ProvinceRepository;
 import com.pluto.ndi.shared.audit.AuditWriter;
@@ -20,6 +21,22 @@ public class OrganizationAdministrationService {
     private final AuditWriter audit;
     public OrganizationAdministrationService(ProvinceRepository provinces, CityRepository cities, AuditWriter audit) {
         this.provinces = provinces; this.cities = cities; this.audit = audit;
+    }
+
+    /** 调用方持有全局管理锁，省分不存在时也能串行校验重名。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ProvinceOption createProvince(UUID actorId, String name) {
+        var normalized = name == null ? "" : name.strip();
+        if (normalized.isBlank() || normalized.length() > 50) {
+            throw new BusinessException(OrganizationErrorCode.PROVINCE_INVALID);
+        }
+        if (provinces.existsByProvinceName(normalized)) {
+            throw new BusinessException(OrganizationErrorCode.PROVINCE_CONFLICT);
+        }
+        var province = provinces.saveAndFlush(ProvinceEntity.create(normalized));
+        audit.record(actorId, "ORGANIZATION_PROVINCE", province.id(), "ORGANIZATION_PROVINCE_CREATED",
+                Map.of("name", normalized));
+        return new ProvinceOption(province.id(), normalized);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

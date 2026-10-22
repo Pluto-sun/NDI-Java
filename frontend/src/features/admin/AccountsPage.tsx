@@ -3,6 +3,7 @@ import { adminApi, type AdminAccount, type AdminConfiguration } from './api';
 import { AccountEditor } from './AccountEditor';
 import { PasswordResetForm } from './PasswordResetForm';
 import { CityCreateForm } from './CityCreateForm';
+import { ProvinceCreateForm } from './ProvinceCreateForm';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import type { Page } from '../../shared/api/http';
 
@@ -103,6 +104,14 @@ export function AccountsPage({
         </div>
       )}
       {notice && <Feedback tone="success">{notice}</Feedback>}
+      {configuration && (
+        <ProvinceCreateForm
+          onCreated={async () => {
+            setConfiguration(await adminApi.configuration());
+            await onReferenceChanged();
+          }}
+        />
+      )}
       {configuration && (
         <CityCreateForm
           configuration={configuration}

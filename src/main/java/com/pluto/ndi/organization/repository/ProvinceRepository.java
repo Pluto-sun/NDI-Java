@@ -15,6 +15,8 @@ public interface ProvinceRepository extends JpaRepository<ProvinceEntity, UUID> 
 
     boolean existsByIdAndEnabledTrue(UUID id);
 
+    boolean existsByProvinceName(String name);
+
     Optional<ProvinceEntity> findByProvinceNameAndEnabledTrue(String provinceName);
 
     List<ProvinceEntity> findByEnabledTrueOrderByProvinceNameAsc();

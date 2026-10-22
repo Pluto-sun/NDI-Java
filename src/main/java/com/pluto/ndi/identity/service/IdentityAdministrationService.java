@@ -141,6 +141,11 @@ public class IdentityAdministrationService {
         return organizationAdmin.createCity(actorId, provinceId, name);
     }
 
+    public ProvinceOption createProvince(UUID actorId, String name) {
+        lockAdministrator(actorId);
+        return organizationAdmin.createProvince(actorId, name);
+    }
+
     public List<AdminAccountView> saveReviewerMappings(UUID actorId, List<ReviewerMappingCommand> commands) {
         lockAdministrator(actorId);
         if (commands == null || commands.isEmpty() || commands.size() > 200
