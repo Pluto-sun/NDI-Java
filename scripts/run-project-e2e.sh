@@ -98,6 +98,8 @@ docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql 
   mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-local-project-demo.sql
 docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql \
   mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-project-e2e.sql
+docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql \
+  mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-project-history-e2e.sql
 if [[ "${NDI_E2E_AUTH_MODE:-LOCAL_ACTOR}" == SESSION ]]; then
   docker compose -f "${COMPOSE_FILE}" exec -T -e MYSQL_PWD=ndi_e2e_password mysql \
     mysql --default-character-set=utf8mb4 -undi ndi < scripts/seed-session-e2e.sql

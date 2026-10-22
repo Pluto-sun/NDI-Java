@@ -20,9 +20,17 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [breakdown, setBreakdown] = useState<WorkbenchBreakdown | null>(null);
   const [error, setError] = useState('');
   const [month, setMonth] = useState(() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    // 按经营时区直接计算年月，避免 31 日减月溢出回到当前月。
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: 'numeric',
+    }).formatToParts(new Date());
+    const year = Number(parts.find((part) => part.type === 'year')!.value);
+    const currentMonth = Number(parts.find((part) => part.type === 'month')!.value);
+    return currentMonth === 1
+      ? `${year - 1}-12`
+      : `${year}-${String(currentMonth - 1).padStart(2, '0')}`;
   });
   const [fromMonth, setFromMonth] = useState(month);
   const [includeTerminated, setIncludeTerminated] = useState(false);
@@ -298,6 +306,28 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                       items={history.stages.map((item) => ({
                         key: item.stageCode,
                         label: stage(item.stageCode),
+                        count: item.projectCount,
+                        expectedAmount: item.expectedAmount,
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <h3>当月地市分布</h3>
+                    <MetricBars
+                      items={history.cities.map((item) => ({
+                        key: item.cityId,
+                        label: item.cityName,
+                        count: item.projectCount,
+                        expectedAmount: item.expectedAmount,
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <h3>当月行业分布</h3>
+                    <MetricBars
+                      items={history.industries.map((item) => ({
+                        key: item.industryCode,
+                        label: item.industryName,
                         count: item.projectCount,
                         expectedAmount: item.expectedAmount,
                       }))}
