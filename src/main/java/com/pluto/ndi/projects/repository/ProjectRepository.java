@@ -48,6 +48,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID>, J
     Optional<ProjectEntity> findLockedById(UUID id);
 
     boolean existsByContractNoAndIdNot(String contractNo, UUID id);
+    boolean existsByContractNo(String contractNo);
 
     @Query("""
             select project.currentStageCode as stageCode, count(project) as projectCount,

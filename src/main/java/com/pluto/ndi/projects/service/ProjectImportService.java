@@ -373,7 +373,18 @@ public class ProjectImportService {
             default -> null;
         };
         if (signingSubject == null) errors.add("签约主体未识别");
-        if ("COLLECTION".equals(stage)) errors.add("计收阶段必须单独提供合同编号及签约金额，本模板暂不支持");
+        String contractNo = row.get("合同编号").strip();
+        BigDecimal signedAmount = row.get("签约金额（万）").isBlank() ? null
+                : amount(row.get("签约金额（万）"), "签约金额", errors);
+        if ("COLLECTION".equals(stage) || !contractNo.isBlank() || signedAmount != null) {
+            if (contractNo.isBlank()) errors.add("合同编号不能为空");
+            if (signedAmount == null && row.get("签约金额（万）").isBlank()) errors.add("签约金额不能为空");
+            if ("SOLUTION_EXCHANGE".equals(stage) || "BIDDING".equals(stage)) {
+                errors.add("方案交流和招投标阶段不能填写合同信息");
+            }
+        }
+        if (contractNo.length() > 100) errors.add("合同编号不得超过100个字符");
+        if (!contractNo.isBlank() && projects.existsByContractNo(contractNo)) errors.add("合同编号已存在");
         var total = amount(row.get("项目总金额（万）"), "项目总金额", errors);
         var categories = new ArrayList<ProjectImportCandidate.CategoryAmount>();
         Set<String> codes = new HashSet<>();
@@ -420,7 +431,7 @@ public class ProjectImportService {
                 row.get("项目名称"), row.get("客户名称"), industry.get().industryCode(),
                 row.get("项目建设内容"), total, leader.get(), row.get("地市客户经理"),
                 signingSubject, stage, List.copyOf(categories), progress, Instant.now(clock),
-                expertNames, bidMonth, scenarios, narrative);
+                expertNames, bidMonth, scenarios, narrative, contractNo.isBlank() ? null : contractNo, signedAmount);
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {

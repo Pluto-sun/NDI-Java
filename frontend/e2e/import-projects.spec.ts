@@ -10,6 +10,63 @@ import type {
   ProjectDetail,
 } from '../src/features/projects/types';
 
+test('计收阶段导入可修正合同信息，确认后详情保留合同和签约金额', async ({ page, request }) => {
+  const name = `合同导入-${randomUUID()}`;
+  const contract = `HT-${randomUUID()}`;
+  const reference = await get<ReferenceData>(request, ids.reporter, '/reference-data');
+  const leaders = await get<ProjectUser[]>(
+    request,
+    ids.reporter,
+    `/province-leaders?provinceId=${ids.province}`,
+  );
+  const row = {
+    省分: reference.provinces.find((item) => item.id === ids.province)!.name,
+    地市: reference.cities.find((item) => item.id === ids.city)!.name,
+    客户名称: '合同导入客户',
+    客户所属行业: reference.industries.find((item) => item.code === 'C25')!.label,
+    项目名称: name,
+    省分负责人: leaders.find((item) => item.id === ids.leader)!.displayName,
+    地市客户经理: '客户经理',
+    项目建设内容: '合同阶段导入',
+    三化类别: '网络化',
+    项目阶段: '计收',
+    '项目总金额（万）': '100',
+    '网络化预计金额（万）': '50',
+    '格物预计金额（万）': '',
+    '大数据预计金额（万）': '',
+    '万悟预计金额（万）': '',
+    合同编号: '',
+    '签约金额（万）': '',
+  };
+  await page.goto('/projects/import');
+  await chooseActor(page, ids.reporter);
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '合同导入.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook([row]),
+  });
+  await page.getByRole('button', { name: '识别工作表与表头', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '合同编号', exact: true })).toHaveValue(
+    '合同编号',
+  );
+  await page.getByRole('button', { name: '开始预检', exact: true }).click();
+  await expect(
+    page.getByRole('cell', { name: '合同编号不能为空；签约金额不能为空', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '修正第 3 行', exact: true }).click();
+  const editor = page.locator('.import-row-editor');
+  await editor.getByLabel('合同编号', { exact: true }).fill(contract);
+  await editor.getByLabel('签约金额（万）', { exact: true }).fill('80.50');
+  await editor.getByRole('button', { name: '保存并重新预检', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '确认导入已选 1 行', exact: true }).click();
+  await page.getByRole('link', { name: '查看项目', exact: true }).click();
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(page.getByText(contract, { exact: true })).toBeVisible();
+  await expect(page.getByText('80.5 万元', { exact: true })).toBeVisible();
+});
+
 test('工作表映射、失败行修正、首条去重、选择性导入、计划恢复和取消', async ({
   page,
   request,

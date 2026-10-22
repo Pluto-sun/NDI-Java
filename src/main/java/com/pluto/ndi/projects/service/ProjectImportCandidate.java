@@ -15,7 +15,7 @@ public record ProjectImportCandidate(
         String signingSubjectCode, String stageCode, List<CategoryAmount> categories, List<Progress> progress,
         Instant occurredAt, List<String> productSupportExpertNames,
         String plannedBidMonth, List<String> applicationScenarioCodes,
-        ProjectNarrative narrative) {
+        ProjectNarrative narrative, String contractNo, BigDecimal signedAmount) {
     public record CategoryAmount(String code, BigDecimal amount) { }
     public record Progress(Instant occurredAt, String content) { }
 }

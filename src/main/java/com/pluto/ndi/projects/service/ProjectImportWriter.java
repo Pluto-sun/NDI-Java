@@ -96,13 +96,21 @@ public class ProjectImportWriter {
                             ProjectNameMatcher.standard(candidate.projectName())))) {
                 throw new IllegalStateException("目标库已有同名项目");
             }
+            // 预检之后仍可能有其他批次或审批占用合同编号，写入时再次校验；唯一索引防护并发。
+            if ("COLLECTION".equals(candidate.stageCode())
+                    && (candidate.contractNo() == null || candidate.signedAmount() == null)) {
+                throw new IllegalStateException("计收阶段必须填写合同编号和签约金额");
+            }
+            if (candidate.contractNo() != null && projects.existsByContractNo(candidate.contractNo())) {
+                throw new IllegalStateException("合同编号已存在");
+            }
             Instant now = Instant.now(clock);
             UUID id = UUID.randomUUID();
             var project = ProjectEntity.imported(id, numbers.nextCode(), candidate.provinceId(),
                     candidate.cityId(), candidate.projectName(), candidate.customerName(),
                     candidate.industryCode(), candidate.customerNeed(), candidate.totalAmount(),
                     candidate.provinceLeaderUserId(), candidate.cityAccountManagerName(),
-                    ProjectStage.valueOf(candidate.stageCode()), null, null,
+                    ProjectStage.valueOf(candidate.stageCode()), candidate.contractNo(), candidate.signedAmount(),
                     candidate.signingSubjectCode() == null ? "PROVINCE_SIGN" : candidate.signingSubjectCode(),
                     actorId, candidate.occurredAt());
             project.recordOpportunityDate(now);

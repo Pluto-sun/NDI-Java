@@ -48,6 +48,88 @@ class ProjectImportIT {
     @MockitoBean private ExportFileDirectory exportFileDirectory;
 
     @Test
+    void importsCollectionContractsAndRechecksGlobalUniquenessAfterPreview() throws Exception {
+        var fixture = contractFixture();
+        String contract = "HT-" + UUID.randomUUID();
+        var preview = imports.preview(fixture.actor(), "计收项目.xlsx",
+                contractWorkbook(fixture.name(), "计收", contract, "80.50"));
+        assertThat(preview.validRows()).isEqualTo(1);
+        var competing = imports.preview(fixture.actor(), "并行计划.xlsx",
+                contractWorkbook(fixture.name(), "计收", contract, "90"));
+        assertThat(competing.validRows()).isEqualTo(1);
+        var done = imports.confirm(fixture.actor(), preview.batchId());
+        assertThat(done.importedRows()).isEqualTo(1);
+        var project = done.rows().getFirst().projectId();
+        var stored = jdbc.queryForMap("SELECT current_stage_code,contract_no,signed_amount FROM project_project WHERE id=UUID_TO_BIN(?)", project.toString());
+        assertThat(stored.get("current_stage_code")).isEqualTo("COLLECTION");
+        assertThat(stored.get("contract_no")).isEqualTo(contract);
+        assertThat((java.math.BigDecimal) stored.get("signed_amount")).isEqualByComparingTo("80.50");
+        var conflict = imports.confirm(fixture.actor(), competing.batchId());
+        assertThat(conflict.importedRows()).isZero();
+        assertThat(conflict.rows().getFirst().errorsJson()).contains("合同编号已存在");
+        assertThat(imports.preview(fixture.actor(), "重复合同.xlsx",
+                contractWorkbook(fixture.name(), "计收", contract, "10")).rows().getFirst().errorsJson())
+                .contains("合同编号已存在");
+    }
+
+    @Test
+    void validatesContractPairsAndPreservesTerminatedContractInformation() throws Exception {
+        var fixture = contractFixture();
+        var missing = imports.preview(fixture.actor(), "缺合同.xlsx",
+                contractWorkbook(fixture.name(), "计收", "", ""));
+        assertThat(missing.rows().getFirst().errorsJson()).contains("合同编号不能为空", "签约金额不能为空");
+        for (String stage : List.of("方案交流", "招投标")) {
+            assertThat(imports.preview(fixture.actor(), "提前合同.xlsx",
+                    contractWorkbook(fixture.name(), stage, "HT-" + UUID.randomUUID(), "1"))
+                    .rows().getFirst().errorsJson()).contains("不能填写合同信息");
+        }
+        assertThat(imports.preview(fixture.actor(), "缺金额.xlsx",
+                contractWorkbook(fixture.name(), "签约", "HT-" + UUID.randomUUID(), ""))
+                .rows().getFirst().errorsJson()).contains("签约金额不能为空");
+        assertThat(imports.preview(fixture.actor(), "非法金额.xlsx",
+                contractWorkbook(fixture.name(), "计收", "HT-" + UUID.randomUUID(), "-1"))
+                .rows().getFirst().errorsJson()).contains("签约金额超出金额范围");
+        String contract = "HT-" + UUID.randomUUID();
+        var terminated = imports.preview(fixture.actor(), "终止保留合同.xlsx",
+                contractWorkbook(fixture.name(), "已终止", contract, "0"));
+        assertThat(terminated.validRows()).isEqualTo(1);
+        assertThat(imports.confirm(fixture.actor(), terminated.batchId()).importedRows()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT current_stage_code FROM project_project WHERE contract_no=?", String.class, contract))
+                .isEqualTo("TERMINATED");
+    }
+
+    private record ContractFixture(UUID actor, String name) { }
+
+    private ContractFixture contractFixture() {
+        UUID province = UUID.randomUUID(), city = UUID.randomUUID(), actor = UUID.randomUUID(), leader = UUID.randomUUID();
+        String name = "合同导入" + UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_province(id,province_code,province_name,enabled) VALUES(UUID_TO_BIN(?),?,?,true)",
+                province.toString(), province.toString().replace("-", ""), name);
+        jdbc.update("INSERT INTO organization_city(id,province_id,city_code,city_name,enabled) VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?,?,true)",
+                city.toString(), province.toString(), city.toString().replace("-", ""), name);
+        addUser(actor, province, city, "import-" + actor, "导入人", "CITY_REPORTER");
+        addUser(leader, province, null, "leader-" + leader, "省分负责人", "PROVINCE_REPORTER");
+        return new ContractFixture(actor, name);
+    }
+
+    private byte[] contractWorkbook(String location, String stage, String contract, String amount) throws Exception {
+        try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbookWithLocation(location, location)));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = book.getSheet("导入数据");
+            sheet.removeRow(sheet.getRow(3));
+            sheet.removeRow(sheet.getRow(2));
+            sheet.getRow(0).createCell(16).setCellValue("合同编号");
+            sheet.getRow(0).createCell(17).setCellValue("签约金额（万）");
+            sheet.getRow(1).getCell(4).setCellValue("合同项目" + UUID.randomUUID());
+            sheet.getRow(1).getCell(9).setCellValue(stage);
+            sheet.getRow(1).createCell(16).setCellValue(contract);
+            sheet.getRow(1).createCell(17).setCellValue(amount);
+            book.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    @Test
     void keepsFirstDuplicateAndRejectsMissingAmountThenConfirmsOnce() throws Exception {
         UUID province = UUID.randomUUID();
         UUID city = UUID.randomUUID();
