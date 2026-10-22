@@ -9,7 +9,7 @@ import type {
   ReferenceData,
 } from './types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { dateTime } from '../../shared/ui/format';
+import { dateTime, previousBusinessMonth } from '../../shared/ui/format';
 import type { Page } from '../../shared/api/http';
 
 const eventLabels: Record<string, string> = {
@@ -57,11 +57,7 @@ export function ProjectHistory({
   const [changes, setChanges] = useState<Page<ProjectChange> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [month, setMonth] = useState(() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [month, setMonth] = useState(previousBusinessMonth);
   const [revisions, setRevisions] = useState<MonthlyRevision[] | null>(null);
   const [revisionError, setRevisionError] = useState('');
   useEffect(() => {

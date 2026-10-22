@@ -125,7 +125,11 @@ export function ProjectDocuments({
   return (
     <div className="panel">
       <h2>项目资料</h2>
-      <p className="subtle">资料保存在对象存储中；申请阶段推进前，请先上传对应材料。</p>
+      <p className="subtle">
+        {readOnly
+          ? '当前账号或项目状态为只读，可查看和下载已有资料。'
+          : '资料保存在对象存储中；申请阶段推进前，请先上传对应材料。'}
+      </p>
       {error && <Feedback tone="error">{error}</Feedback>}
       {message && <Feedback tone="success">{message}</Feedback>}
       {!readOnly && (

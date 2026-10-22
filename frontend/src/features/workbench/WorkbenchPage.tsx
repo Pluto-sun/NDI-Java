@@ -9,7 +9,7 @@ import type {
   WorkbenchOverview,
 } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { amount } from '../../shared/ui/format';
+import { amount, previousBusinessMonth } from '../../shared/ui/format';
 import { MetricBars } from './MetricBars';
 import { ProjectMapCard } from './ProjectMapCard';
 import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
@@ -19,19 +19,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
   const [breakdown, setBreakdown] = useState<WorkbenchBreakdown | null>(null);
   const [error, setError] = useState('');
-  const [month, setMonth] = useState(() => {
-    // 按经营时区直接计算年月，避免 31 日减月溢出回到当前月。
-    const parts = new Intl.DateTimeFormat('en', {
-      timeZone: 'Asia/Shanghai',
-      year: 'numeric',
-      month: 'numeric',
-    }).formatToParts(new Date());
-    const year = Number(parts.find((part) => part.type === 'year')!.value);
-    const currentMonth = Number(parts.find((part) => part.type === 'month')!.value);
-    return currentMonth === 1
-      ? `${year - 1}-12`
-      : `${year}-${String(currentMonth - 1).padStart(2, '0')}`;
-  });
+  const [month, setMonth] = useState(previousBusinessMonth);
   const [fromMonth, setFromMonth] = useState(month);
   const [includeTerminated, setIncludeTerminated] = useState(false);
   const [selectedStages, setSelectedStages] = useState<string[]>(['SOLUTION_EXCHANGE']);

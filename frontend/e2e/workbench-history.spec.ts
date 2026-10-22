@@ -129,6 +129,7 @@ test('上月跨年按经营时区计算，历史月报加载失败后重试恢�
   await page.goto('/workbench');
   await chooseActor(page, ids.leader);
   await expect(page.getByLabel('报表／趋势结束月份', { exact: true })).toHaveValue('2025-12');
+  await expect(page.getByLabel('统计月份', { exact: true })).toHaveAttribute('max', '2025-12');
   await page.getByLabel('趋势起始月份', { exact: true }).fill('2020-01');
   await page.getByLabel('报表／趋势结束月份', { exact: true }).fill('2020-01');
   const load = page.getByRole('button', { name: '查看月报与趋势', exact: true });

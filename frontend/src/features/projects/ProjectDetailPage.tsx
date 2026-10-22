@@ -411,21 +411,21 @@ export function ProjectDetailPage({
                 </div>
               </div>
             </div>
-            {canCollaborate && (
-              <div className="detail-grid">
-                <ProjectDocuments
-                  projectId={detail.id}
-                  readOnly={detail.currentStageCode === 'TERMINATED'}
-                  onChanged={() => setDocumentsVersion((value) => value + 1)}
-                />
+            <div className={canCollaborate ? 'detail-grid' : undefined}>
+              <ProjectDocuments
+                projectId={detail.id}
+                readOnly={!canCollaborate || detail.currentStageCode === 'TERMINATED'}
+                onChanged={() => setDocumentsVersion((value) => value + 1)}
+              />
+              {canCollaborate && (
                 <ProjectRequests
                   project={detail}
                   me={me}
                   reference={reference}
                   documentsVersion={documentsVersion}
                 />
-              </div>
-            )}
+              )}
+            </div>
             <ProjectHistory projectId={detail.id} me={me} reference={reference} />
             <ProjectInactivityAuditPanel
               key={detail.id}

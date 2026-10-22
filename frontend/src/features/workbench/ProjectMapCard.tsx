@@ -6,17 +6,11 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { mapShapes } from './mapGeometry';
 import { MAP_METRICS, metricText, metricValue, type MapMetric, type MapRegion } from './mapMetrics';
 import { MapRegionList } from './MapRegionList';
+import { previousBusinessMonth } from '../../shared/ui/format';
 
 type Viewport = { x: number; y: number; width: number; height: number };
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, width: 680, height: 440 };
-
-function previousMonth() {
-  const date = new Date();
-  date.setDate(1);
-  date.setMonth(date.getMonth() - 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
 
 export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
   const navigate = useNavigate();
@@ -184,7 +178,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
           <input
             type="month"
             value={month}
-            max={previousMonth()}
+            max={previousBusinessMonth()}
             onChange={(event) => setMonth(event.target.value)}
           />
         </label>

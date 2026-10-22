@@ -32,3 +32,9 @@ export function businessDate(value: string): string {
   const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
+
+/** 统一经营时区的上月，直接计算年月，避免月末溢出及浏览器时区差异。 */
+export function previousBusinessMonth(now = new Date()): string {
+  const [year, month] = businessDate(now.toISOString()).split('-').map(Number);
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+}
