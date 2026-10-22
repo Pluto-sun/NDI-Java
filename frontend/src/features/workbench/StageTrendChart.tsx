@@ -17,12 +17,14 @@ export function StageTrendChart({
   stageName,
   metric,
   metricLabel,
+  caption = '各月月末项目阶段指标明细',
 }: {
   points: StageTrendPoint[];
   stages: string[];
   stageName: (code: string) => string;
   metric: StageTrendMetric;
   metricLabel: string;
+  caption?: string;
 }) {
   if (!points.length || !stages.length) return <div className="empty-state">暂无趋势数据</div>;
   const months = [...new Set(points.map((point) => point.month))];
@@ -74,7 +76,9 @@ export function StageTrendChart({
       </svg>
       <div className="stage-trend-table-wrap">
         <table className="stage-trend-table">
-          <caption>各月月末项目阶段指标明细：{metricLabel}</caption>
+          <caption>
+            {caption}：{metricLabel}
+          </caption>
           <thead>
             <tr>
               <th scope="col">月份</th>

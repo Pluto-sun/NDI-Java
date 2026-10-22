@@ -14,6 +14,7 @@ import { MetricBars } from './MetricBars';
 import { ProjectMapCard } from './ProjectMapCard';
 import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
 import { RecentActivitiesCard } from './RecentActivitiesCard';
+import { AttributionWorkbenchPanel } from './AttributionWorkbenchPanel';
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
@@ -131,6 +132,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
             </div>
           </div>
           <ProjectMapCard reference={reference} />
+          <AttributionWorkbenchPanel reference={reference} />
           <div className="detail-grid">
             <div className="panel">
               <h2>阶段分布</h2>

@@ -174,6 +174,10 @@ export function ProjectDetailPage({
                     <dd>{amount(detail.totalAmount)} 万元</dd>
                   </div>
                   <div>
+                    <dt>项目所属月份</dt>
+                    <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
+                  </div>
+                  <div>
                     <dt>省分负责人</dt>
                     <dd>
                       {leaders.find((item) => item.id === detail.provinceLeaderUserId)

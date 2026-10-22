@@ -1,5 +1,6 @@
 import { jsonBody, request, requestBlob, type Page } from '../../shared/api/http';
 import type {
+  AttributionWorkbench,
   ProjectOperationAudit,
   CreateProjectInput,
   ProjectDetail,
@@ -137,6 +138,24 @@ export const projectsApi = {
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
   overview: () => request<WorkbenchOverview>('/workbench/overview'),
+  attribution: (filter: {
+    from: string;
+    to: string;
+    includeTerminated: boolean;
+    stages: string[];
+    provinceId: string;
+    cityId: string;
+  }) => {
+    const query = new URLSearchParams({
+      from: filter.from,
+      to: filter.to,
+      includeTerminated: String(filter.includeTerminated),
+    });
+    for (const stage of filter.stages) query.append('stage', stage);
+    if (filter.provinceId) query.append('provinceIds', filter.provinceId);
+    if (filter.cityId) query.append('cityIds', filter.cityId);
+    return request<AttributionWorkbench>(`/workbench/attribution?${query}`);
+  },
   recentActivities: () => request<ProjectRecentActivity[]>('/workbench/recent-activities'),
   map: (
     provinceId: string | null,

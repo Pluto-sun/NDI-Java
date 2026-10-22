@@ -129,6 +129,7 @@ export interface ProjectSummary {
   opportunityDate: string | null;
 }
 export interface ProjectDetail extends ProjectSummary {
+  attributionMonth: string;
   provinceId: string;
   cityId: string;
   customerNeed: string;
@@ -325,6 +326,24 @@ export interface TrendPoint {
   month: string;
   projectCount: number;
   totalExpectedAmount: number;
+}
+export interface AttributionWorkbench {
+  from: string;
+  to: string;
+  includeTerminated: boolean;
+  projectCount: number;
+  totalExpectedAmount: number;
+  categoryTotals: MonthlyWorkbench['categoryTotals'];
+  trend: StageTrendPoint[];
+  provinces: AttributionRegion[];
+  cities: AttributionRegion[];
+}
+export interface AttributionRegion {
+  id: string;
+  name: string;
+  projectCount: number;
+  expectedAmount: number;
+  categoryTotals: MonthlyWorkbench['categoryTotals'];
 }
 export interface StageTrendPoint {
   month: string;
