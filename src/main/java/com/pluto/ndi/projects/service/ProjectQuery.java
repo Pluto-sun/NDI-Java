@@ -1,9 +1,12 @@
 package com.pluto.ndi.projects.service;
 
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.shared.web.BusinessException;
 
 /** 项目列表与导出共用的筛选条件。 */
 public record ProjectQuery(
@@ -13,13 +16,32 @@ public record ProjectQuery(
         String industryCode,
         UUID provinceId,
         UUID cityId,
-        boolean includeTerminated
+        boolean includeTerminated,
+        String signingSubjectCode,
+        String provinceLeaderName,
+        String cityAccountManagerName,
+        String productSupportExpertName,
+        String keyword
 ) {
 
     public ProjectQuery {
         projectCode = normalize(projectCode, true);
         projectName = normalize(projectName, false);
         industryCode = normalize(industryCode, true);
+        signingSubjectCode = normalize(signingSubjectCode, true);
+        provinceLeaderName = normalize(provinceLeaderName, false);
+        cityAccountManagerName = normalize(cityAccountManagerName, false);
+        productSupportExpertName = normalize(productSupportExpertName, false);
+        keyword = normalize(keyword, false);
+        if (signingSubjectCode != null && !Set.of("PROVINCE_SIGN", "DS_SIGN").contains(signingSubjectCode)) {
+            throw new BusinessException(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
+        }
+    }
+
+    public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,
+            UUID provinceId, UUID cityId, boolean includeTerminated) {
+        this(projectCode, projectName, stage, industryCode, provinceId, cityId, includeTerminated,
+                null, null, null, null, null);
     }
 
     public static ProjectQuery all() {

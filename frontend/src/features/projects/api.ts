@@ -41,6 +41,21 @@ export interface ProjectQuery {
   industryCode?: string;
   cityId?: string;
   includeTerminated?: boolean;
+  signingSubjectCode?: string;
+  provinceLeaderName?: string;
+  cityAccountManagerName?: string;
+  productSupportExpertName?: string;
+  keyword?: string;
+}
+
+/** 列表与导出使用相同的规范化条件，空枚举、空 UUID 不发送；布尔值 false 必须保留。 */
+function projectFilterValues(filter: Omit<ProjectQuery, 'page'>): Record<string, string | boolean> {
+  const values: Record<string, string | boolean> = {};
+  for (const [key, value] of Object.entries(filter)) {
+    if (typeof value === 'boolean') values[key] = value;
+    else if (typeof value === 'string' && value.trim()) values[key] = value.trim();
+  }
+  return values;
 }
 
 export const projectsApi = {
@@ -55,22 +70,11 @@ export const projectsApi = {
     request<ProjectUser[]>(
       `/major-change-approvers?provinceId=${encodeURIComponent(provinceId)}&initiatorLevel=${initiatorLevel}`,
     ),
-  list: ({
-    page,
-    projectName,
-    stage,
-    projectCode,
-    industryCode,
-    cityId,
-    includeTerminated,
-  }: ProjectQuery) => {
+  list: ({ page, ...filter }: ProjectQuery) => {
     const query = new URLSearchParams({ page: String(page), size: '20' });
-    if (projectName?.trim()) query.set('projectName', projectName.trim());
-    if (stage) query.set('stage', stage);
-    if (projectCode?.trim()) query.set('projectCode', projectCode.trim());
-    if (industryCode) query.set('industryCode', industryCode);
-    if (cityId) query.set('cityId', cityId);
-    if (includeTerminated !== undefined) query.set('includeTerminated', String(includeTerminated));
+    for (const [key, value] of Object.entries(projectFilterValues(filter))) {
+      query.set(key, String(value));
+    }
     return request<Page<ProjectSummary>>(`?${query}`);
   },
   detail: (id: string) => request<ProjectDetail>(`/${id}`),
@@ -192,7 +196,7 @@ export const projectsApi = {
   resumeImport: (id: string) => request<ImportBatch>(`/imports/${id}/resume`, { method: 'POST' }),
   cancelImport: (id: string) => request<ImportBatch>(`/imports/${id}`, { method: 'DELETE' }),
   exportProjects: (filter: Omit<ProjectQuery, 'page'>) =>
-    request<ExportTask>('/exports', { method: 'POST', ...jsonBody(filter) }),
+    request<ExportTask>('/exports', { method: 'POST', ...jsonBody(projectFilterValues(filter)) }),
   exportTask: (id: string) => request<ExportTask>(`/exports/${id}`),
   exportDownload: (id: string) =>
     request<{ url: string; fileName: string }>(`/exports/${id}/download`),

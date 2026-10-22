@@ -179,6 +179,13 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     @Override
+    public List<UUID> findUserIdsByDisplayNameContaining(String displayName) {
+        var escaped = displayName.trim().toLowerCase(java.util.Locale.ROOT)
+                .replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        return userAccountRepository.findIdsByDisplayNamePattern("%" + escaped + "%");
+    }
+
+    @Override
     public boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId) {
         if (!actor.enabled()) {
             return false;

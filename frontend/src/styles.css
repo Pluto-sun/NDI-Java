@@ -419,6 +419,22 @@ label {
   min-width: 190px;
   flex: 1;
 }
+.project-advanced-filters {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.project-advanced-filters summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+}
+.project-advanced-filters .form-grid label {
+  min-width: 0;
+}
+.project-advanced-filters[open] summary {
+  margin-bottom: 14px;
+}
 .filter-bar .checkbox-label,
 .checkbox-label {
   display: inline-flex;

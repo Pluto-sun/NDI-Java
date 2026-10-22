@@ -9,6 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, UUID> {
 
+    @Query("select account.id from UserAccountEntity account where lower(account.displayName) like :pattern escape '!'")
+    List<UUID> findIdsByDisplayNamePattern(String pattern);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select account from UserAccountEntity account where account.loginName = :loginName")
     java.util.Optional<UserAccountEntity> lockByLoginName(String loginName);

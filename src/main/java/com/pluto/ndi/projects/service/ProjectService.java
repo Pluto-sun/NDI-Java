@@ -273,7 +273,9 @@ public class ProjectService {
     }
 
     private Specification<ProjectEntity> specification(ProjectDataScope scope, ProjectQuery query) {
-        return (root, ignored, builder) -> {
+        var leaderIds = query.provinceLeaderName() == null ? null
+                : identityDirectory.findUserIdsByDisplayNameContaining(query.provinceLeaderName());
+        return (root, criteria, builder) -> {
             var conditions = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             if (scope.level() == ProjectDataScope.Level.PROVINCE) conditions.add(root.get("provinceId").in(scope.provinceIds()));
             if (scope.level() == ProjectDataScope.Level.CITY) conditions.add(builder.equal(root.get("cityId"), scope.organizationId()));
@@ -282,6 +284,30 @@ public class ProjectService {
             }
             if (query.projectName() != null) {
                 conditions.add(builder.like(root.get("projectName"), "%" + escapeLike(query.projectName()) + "%", '\\'));
+            }
+            if (query.keyword() != null) {
+                var pattern = "%" + escapeLike(query.keyword()) + "%";
+                conditions.add(builder.or(builder.like(root.get("projectCode"), pattern, '\\'),
+                        builder.like(root.get("projectName"), pattern, '\\')));
+            }
+            if (query.signingSubjectCode() != null) {
+                conditions.add(builder.equal(root.get("signingSubjectCode"), query.signingSubjectCode()));
+            }
+            if (leaderIds != null) {
+                conditions.add(leaderIds.isEmpty() ? builder.disjunction() : root.get("provinceLeaderUserId").in(leaderIds));
+            }
+            if (query.cityAccountManagerName() != null) {
+                conditions.add(builder.like(root.get("cityAccountManagerName"),
+                        "%" + escapeLike(query.cityAccountManagerName()) + "%", '\\'));
+            }
+            if (query.productSupportExpertName() != null) {
+                // 通过存在性子查询筛选多位专家，不展开主查询，避免重复行和分页总数膨胀。
+                var experts = criteria.subquery(UUID.class);
+                var project = experts.from(ProjectEntity.class);
+                jakarta.persistence.criteria.Join<ProjectEntity, String> expert = project.join("productSupportExpertNames");
+                experts.select(project.get("id")).where(builder.equal(project.get("id"), root.get("id")),
+                        builder.like(expert, "%" + escapeLike(query.productSupportExpertName()) + "%", '\\'));
+                conditions.add(builder.exists(experts));
             }
             if (query.stage() != null) {
                 conditions.add(builder.equal(root.get("currentStageCode"), query.stage().name()));

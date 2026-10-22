@@ -1,10 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
+
+const emptyAdvanced = {
+  signingSubjectCode: '',
+  provinceLeaderName: '',
+  cityAccountManagerName: '',
+  productSupportExpertName: '',
+  keyword: '',
+};
 
 export function ProjectsPage({
   reference,
@@ -21,6 +29,7 @@ export function ProjectsPage({
   const [industryCode, setIndustryCode] = useState('');
   const [cityId, setCityId] = useState(initialCityId);
   const [includeTerminated, setIncludeTerminated] = useState(true);
+  const [advanced, setAdvanced] = useState(emptyAdvanced);
   const [query, setQuery] = useState({
     page: 0,
     projectName: '',
@@ -29,9 +38,12 @@ export function ProjectsPage({
     industryCode: '',
     cityId: initialCityId,
     includeTerminated: true,
+    ...emptyAdvanced,
   });
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
   const [exportTask, setExportTask] = useState<ExportTask | null>(null);
+  const currentQuery = useRef(query);
+  currentQuery.current = query;
   const [exportBusy, setExportBusy] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
@@ -39,6 +51,8 @@ export function ProjectsPage({
   useEffect(() => {
     let active = true;
     setBusy(true);
+    // 新查询不继续展示上一组条件的下载入口。
+    setExportTask(null);
     projectsApi
       .list(query)
       .then((result) => {
@@ -60,26 +74,37 @@ export function ProjectsPage({
 
   useEffect(() => {
     if (!exportTask || !['PENDING', 'RUNNING'].includes(exportTask.status)) return;
+    let active = true;
+    const taskQuery = currentQuery.current;
     const timer = window.setInterval(() => {
       void projectsApi
         .exportTask(exportTask.id)
-        .then(setExportTask)
+        .then((result) => {
+          if (active && currentQuery.current === taskQuery) setExportTask(result);
+        })
         .catch((cause) => {
-          setError(cause instanceof Error ? cause.message : '导出状态获取失败');
+          if (active && currentQuery.current === taskQuery)
+            setError(cause instanceof Error ? cause.message : '导出状态获取失败');
         });
     }, 2000);
-    return () => window.clearInterval(timer);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, [exportTask]);
 
   async function exportCurrent() {
+    const appliedQuery = query;
     setExportBusy(true);
     setError('');
     try {
       const { page: _page, ...filter } = query;
       void _page;
-      setExportTask(await projectsApi.exportProjects(filter));
+      const result = await projectsApi.exportProjects(filter);
+      if (currentQuery.current === appliedQuery) setExportTask(result);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '导出提交失败');
+      if (currentQuery.current === appliedQuery)
+        setError(cause instanceof Error ? cause.message : '导出提交失败');
     } finally {
       setExportBusy(false);
     }
@@ -87,9 +112,10 @@ export function ProjectsPage({
 
   async function download() {
     if (!exportTask) return;
+    const appliedQuery = query;
     try {
       const result = await projectsApi.exportDownload(exportTask.id);
-      window.location.assign(result.url);
+      if (currentQuery.current === appliedQuery) window.location.assign(result.url);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '下载链接获取失败');
     }
@@ -123,6 +149,7 @@ export function ProjectsPage({
             industryCode,
             cityId,
             includeTerminated,
+            ...advanced,
           });
         }}
       >
@@ -183,8 +210,90 @@ export function ProjectsPage({
           />
           含已终止项目
         </label>
+        <details className="project-advanced-filters">
+          <summary>更多筛选条件</summary>
+          <div className="form-grid">
+            <label>
+              编号或名称关键字
+              <input
+                maxLength={200}
+                value={advanced.keyword}
+                onChange={(event) => setAdvanced({ ...advanced, keyword: event.target.value })}
+              />
+            </label>
+            <label>
+              签约主体
+              <select
+                value={advanced.signingSubjectCode}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, signingSubjectCode: event.target.value })
+                }
+              >
+                <option value="">全部签约主体</option>
+                <option value="PROVINCE_SIGN">省分签约</option>
+                <option value="DS_SIGN">数科签约</option>
+              </select>
+            </label>
+            <label>
+              省分负责人
+              <input
+                maxLength={100}
+                value={advanced.provinceLeaderName}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, provinceLeaderName: event.target.value })
+                }
+                placeholder="按当前目录姓名查找"
+              />
+            </label>
+            <label>
+              地市客户经理
+              <input
+                maxLength={100}
+                value={advanced.cityAccountManagerName}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, cityAccountManagerName: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              产品单位支撑专家
+              <input
+                maxLength={100}
+                value={advanced.productSupportExpertName}
+                onChange={(event) =>
+                  setAdvanced({ ...advanced, productSupportExpertName: event.target.value })
+                }
+              />
+            </label>
+          </div>
+        </details>
         <button type="submit" className="secondary-button">
           查询
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => {
+            setName('');
+            setProjectCode('');
+            setStage('');
+            setIndustryCode('');
+            setCityId('');
+            setIncludeTerminated(true);
+            setAdvanced(emptyAdvanced);
+            setQuery({
+              page: 0,
+              projectName: '',
+              stage: '',
+              projectCode: '',
+              industryCode: '',
+              cityId: '',
+              includeTerminated: true,
+              ...emptyAdvanced,
+            });
+          }}
+        >
+          重置筛选
         </button>
       </form>
       <div className="action-row">
@@ -209,6 +318,7 @@ export function ProjectsPage({
           </button>
         )}
       </div>
+      <p className="subtle">导出使用已查询的条件；修改筛选后请先点击“查询”。</p>
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy ? (
         <Loading />

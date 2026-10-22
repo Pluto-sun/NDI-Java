@@ -1148,6 +1148,52 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void advancedFiltersShareLiteralMatchingScopeAndExportWithoutDuplicateExperts() throws Exception {
+        var projectId = createProject();
+        jdbc.update("UPDATE project_project SET signing_subject_code='DS_SIGN', city_account_manager_name='客户%_经理' WHERE id=UUID_TO_BIN(?)", projectId.toString());
+        jdbc.update("UPDATE identity_user_account SET display_name='省分%_负责人' WHERE id=(SELECT province_leader_user_id FROM project_project WHERE id=UUID_TO_BIN(?))", projectId.toString());
+        jdbc.update("INSERT INTO project_support_expert(project_id,sort_order,expert_name) VALUES(UUID_TO_BIN(?),0,'测试%_专家甲'),(UUID_TO_BIN(?),1,'测试%_专家乙')", projectId.toString(), projectId.toString());
+        var filter = new ProjectQuery(null, null, null, null, null, null, true,
+                " ds_sign ", " %_ ", "客户%_", "测试%_", "原项目");
+        assertThat(projectService.findProjects(cityUserId, filter, org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements()).isEqualTo(1);
+        assertThat(projectService.countProjects(cityUserId, filter)).isEqualTo(1);
+        for (var field : List.of("provinceLeaderName", "cityAccountManagerName", "productSupportExpertName", "keyword")) {
+            mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                            .param(field, "不匹配的条件"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        }
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("signingSubjectCode", "PROVINCE_SIGN"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("signingSubjectCode", "DS_SIGN").param("provinceLeaderName", "%_")
+                        .param("cityAccountManagerName", "客户%_").param("productSupportExpertName", "测试%_")
+                        .param("keyword", "原项目").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(projectId.toString()));
+        var task = exportService.submit(cityUserId, filter);
+        exportWorker.runPending();
+        assertThat(exportService.find(cityUserId, task.id()).rowCount()).isEqualTo(1);
+        var csv = ArgumentCaptor.forClass(byte[].class);
+        verify(exportFileDirectory).storeCsv(eq(task.id()), csv.capture());
+        assertThat(new String(csv.getValue(), StandardCharsets.UTF_8)).contains("原项目");
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("provinceLeaderName", "不匹配的负责人"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("signingSubjectCode", "INVALID"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/projects/exports").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json").content("{\"signingSubjectCode\":\"INVALID\"}"))
+                .andExpect(status().isBadRequest());
+        var otherCity = UUID.randomUUID();
+        var otherReporter = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_city (id,province_id,city_code,city_name,enabled) VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),?,'筛选隔离市',true)", otherCity.toString(), provinceId.toString(), otherCity.toString().replace("-", ""));
+        addUserInProvince(otherReporter, provinceId, otherCity, "CITY_REPORTER");
+        assertThat(projectService.countProjects(otherReporter, filter)).isZero();
+    }
+
+    @Test
     void administratorCanExportButCannotCreateEvenWithProvinceReporterRole() {
         var administratorId = UUID.randomUUID();
         addUser(administratorId, "PROVINCE_REPORTER", false);

@@ -32,6 +32,9 @@ public interface IdentityDirectory {
 
     Optional<UUID> findEligibleProvinceLeaderByName(String displayName, UUID provinceId);
 
+    /** 按当前目录姓名返回匹配账号；不排除停用账号，避免隐藏既有项目责任信息。 */
+    List<UUID> findUserIdsByDisplayNameContaining(String displayName);
+
     boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
