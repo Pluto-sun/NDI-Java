@@ -114,6 +114,8 @@ public class ProjectImportWriter {
                     candidate.signingSubjectCode() == null ? "PROVINCE_SIGN" : candidate.signingSubjectCode(),
                     actorId, candidate.occurredAt());
             project.recordOpportunityDate(now);
+            project.initializeImportAttributes(candidate.importAttributes() == null
+                    ? new com.pluto.ndi.projects.domain.ProjectImportAttributes(null, null) : candidate.importAttributes());
             project.recordAttributionMonth(now);
             project.replaceProductSupportExperts(candidate.productSupportExpertNames() == null
                     ? java.util.List.of() : candidate.productSupportExpertNames());

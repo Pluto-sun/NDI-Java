@@ -53,7 +53,8 @@ public class ProjectImportWorkbookWriter {
                     "导入前请确认省分负责人已在新系统中启用；重复项目仅保留同地市同名的第一条。",
                     "产品单位支撑专家为选填责任信息，多人可用逗号分隔；填写后不会自动获得项目权限。",
                     "拟招标日期选填，格式为 YYYY-MM 或 YYYY-MM-DD，系统按月份保存；应用场景可选填多个，用逗号分隔。",
-                    "产品推广内容和备注选填；项目建设内容原文单独保存，便于核对导入来源。");
+                    "产品推广内容和备注选填；项目建设内容原文单独保存，便于核对导入来源。",
+                    "重要度选填，默认NORMAL，最多30个字符，仅保留原值；支撑行业专家选填，最多500个字符，与产品单位支撑专家独立，均不授予项目权限。");
             for (int index = 0; index < notes.size(); index++) {
                 var row = instructions.createRow(index);
                 var cell = row.createCell(0);

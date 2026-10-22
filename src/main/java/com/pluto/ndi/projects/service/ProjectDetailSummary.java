@@ -36,7 +36,8 @@ public record ProjectDetailSummary(
         Instant opportunityDate,
         String importanceCode,
         LocalDate attributionMonth,
-        String provinceLeaderName
+        String provinceLeaderName,
+        String supportIndustryExpert
 ) {
     public ProjectDetailSummary {
         categoryAmounts = List.copyOf(categoryAmounts);

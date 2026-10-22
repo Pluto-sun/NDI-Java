@@ -51,6 +51,9 @@ public class ProjectEntity {
     @Column(name = "importance_code", nullable = false, length = 30)
     private String importanceCode = "NORMAL";
 
+    @Column(name = "support_industry_expert", length = 500)
+    private String supportIndustryExpert;
+
     @Column(name = "construction_content_raw", nullable = false)
     private String constructionContentRaw;
 
@@ -194,6 +197,14 @@ public class ProjectEntity {
     }
 
     public String importanceCode() { return importanceCode; }
+
+    public String supportIndustryExpert() { return supportIndustryExpert; }
+
+    /** 导入创建时保存原模板属性，普通信息维护不覆盖。 */
+    public void initializeImportAttributes(com.pluto.ndi.projects.domain.ProjectImportAttributes attributes) {
+        importanceCode = attributes.importanceCode();
+        supportIndustryExpert = attributes.supportIndustryExpert();
+    }
 
     public String projectCode() {
         return projectCode;

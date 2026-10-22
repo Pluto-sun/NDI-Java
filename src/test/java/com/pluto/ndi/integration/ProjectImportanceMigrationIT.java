@@ -41,6 +41,8 @@ class ProjectImportanceMigrationIT {
         Flyway.configure().dataSource(source).load().migrate();
         assertThat(jdbc.queryForObject("SELECT importance_code FROM project_project WHERE id=UUID_TO_BIN(?)", String.class, project))
                 .isEqualTo("NORMAL");
+        assertThat(jdbc.queryForObject("SELECT support_industry_expert FROM project_project WHERE id=UUID_TO_BIN(?)", String.class, project))
+                .isNull();
         assertThat(jdbc.queryForObject("SELECT total_amount FROM project_project WHERE id=UUID_TO_BIN(?)", java.math.BigDecimal.class, project))
                 .isEqualByComparingTo("123.45");
     }

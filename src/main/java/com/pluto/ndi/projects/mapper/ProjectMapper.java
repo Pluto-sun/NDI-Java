@@ -40,7 +40,7 @@ public class ProjectMapper {
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
                 project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode(),
-                project.attributionMonth(), provinceLeaderName
+                project.attributionMonth(), provinceLeaderName, project.supportIndustryExpert()
         );
     }
 }

@@ -137,6 +137,7 @@ export interface ProjectSummary {
   opportunityDate: string | null;
 }
 export interface ProjectDetail extends ProjectSummary {
+  supportIndustryExpert: string | null;
   customerNeed: string;
   constructionContentRaw: string;
   productPromotionContent: string | null;

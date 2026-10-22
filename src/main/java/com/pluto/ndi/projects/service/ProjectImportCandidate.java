@@ -15,7 +15,8 @@ public record ProjectImportCandidate(
         String signingSubjectCode, String stageCode, List<CategoryAmount> categories, List<Progress> progress,
         Instant occurredAt, List<String> productSupportExpertNames,
         String plannedBidMonth, List<String> applicationScenarioCodes,
-        ProjectNarrative narrative, String contractNo, BigDecimal signedAmount) {
+        ProjectNarrative narrative, String contractNo, BigDecimal signedAmount,
+        com.pluto.ndi.projects.domain.ProjectImportAttributes importAttributes) {
     public record CategoryAmount(String code, BigDecimal amount) { }
     public record Progress(Instant occurredAt, String content) { }
 }

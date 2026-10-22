@@ -43,6 +43,7 @@ class ProjectImportIT {
     }
 
     @Autowired private ProjectImportService imports;
+    @Autowired private com.pluto.ndi.projects.service.ProjectService projectService;
     @Autowired private JdbcTemplate jdbc;
     @MockitoBean private DocumentDirectory documentDirectory;
     @MockitoBean private ExportFileDirectory exportFileDirectory;
@@ -166,12 +167,18 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class))
                 .isEqualTo(existingProjects);
 
+        // 模拟升级前已预检的计划，不含新增属性，仍按默认值完成导入。
+        jdbc.update("UPDATE project_import_row SET row_payload = JSON_REMOVE(row_payload, '$.importAttributes') WHERE batch_id = UUID_TO_BIN(?)",
+                preview.batchId().toString());
         var done = imports.confirm(actor, preview.batchId());
         assertThat(done.importedRows()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isEqualTo(existingProjects + 1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class)).isEqualTo(existingProgress + 1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class)).isEqualTo(existingSources + 1);
         assertThat(done.rows().getFirst().status()).isEqualTo("IMPORTED");
+        var importedDetail = projectService.findDetail(actor, done.rows().getFirst().projectId());
+        assertThat(importedDetail.importanceCode()).isEqualTo("NORMAL");
+        assertThat(importedDetail.supportIndustryExpert()).isNull();
 
         var selective = imports.preview(actor, "选择导入.xlsx", workbookWithDistinctNames());
         assertThat(selective.validRows()).isEqualTo(3);
@@ -309,6 +316,10 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject(
                 "SELECT remark FROM project_project WHERE id = UUID_TO_BIN(?)",
                 String.class, recovered.rows().getFirst().projectId().toString())).isEqualTo("导入备注");
+        var detail = projectService.findDetail(actor, recovered.rows().getFirst().projectId());
+        assertThat(detail.importanceCode()).isEqualTo("KEY");
+        assertThat(detail.supportIndustryExpert()).isEqualTo("行业专家");
+        assertThat(detail.productSupportExpertNames()).containsExactly("张专家", "李专家");
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -407,6 +418,10 @@ class ProjectImportIT {
             sheet.getRow(1).createCell(20).setCellValue("平台推广方案");
             sheet.getRow(0).createCell(21).setCellValue("备注");
             sheet.getRow(1).createCell(21).setCellValue("导入备注");
+            sheet.getRow(0).createCell(22).setCellValue("重要度");
+            sheet.getRow(1).createCell(22).setCellValue(" KEY ");
+            sheet.getRow(0).createCell(23).setCellValue("支撑行业专家");
+            sheet.getRow(1).createCell(23).setCellValue("行业专家");
             source.write(output);
             return output.toByteArray();
         }

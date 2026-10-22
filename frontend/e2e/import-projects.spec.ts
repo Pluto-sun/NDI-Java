@@ -96,6 +96,8 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
     '万悟预计金额（万）': '',
     签约主体: '数科签约',
     产品单位支撑专家: '专家甲,专家乙',
+    重要度: 'KEY',
+    支撑行业专家: '行业专家丙',
     产品推广内容: '推广原文',
     备注: '导入备注',
     '项目进展（2026年6月1日）': '首次历史交流',
@@ -178,6 +180,8 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
     signingSubjectCode: 'DS_SIGN',
     constructionContentRaw: '保留建设原文',
     productSupportExpertNames: ['专家甲', '专家乙'],
+    importanceCode: 'KEY',
+    supportIndustryExpert: '行业专家丙',
   });
   expect(
     (
