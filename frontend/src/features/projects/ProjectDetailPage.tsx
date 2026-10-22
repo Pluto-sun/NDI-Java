@@ -16,6 +16,7 @@ import { ProjectProfileForm } from './ProjectProfileForm';
 import { refreshNotificationCounts } from '../approvals/notificationEvents';
 import { ProjectHistory } from './ProjectHistory';
 import { ProjectInactivityAuditPanel } from './ProjectInactivityAuditPanel';
+import { ProjectOperationAuditPanel } from './ProjectOperationAuditPanel';
 
 export function ProjectDetailPage({
   reference,
@@ -427,6 +428,11 @@ export function ProjectDetailPage({
               )}
             </div>
             <ProjectHistory projectId={detail.id} me={me} reference={reference} />
+            <ProjectOperationAuditPanel
+              key={`operation-${detail.id}`}
+              projectId={detail.id}
+              revision={progress.length + detail.versionNo}
+            />
             <ProjectInactivityAuditPanel
               key={detail.id}
               projectId={detail.id}

@@ -1,5 +1,6 @@
 import { jsonBody, request, requestBlob, type Page } from '../../shared/api/http';
 import type {
+  ProjectOperationAudit,
   CreateProjectInput,
   ProjectDetail,
   ProjectMilestone,
@@ -61,6 +62,8 @@ function projectFilterValues(filter: Omit<ProjectQuery, 'page'>): Record<string,
 }
 
 export const projectsApi = {
+  operationAudit: (id: string, page: number) =>
+    request<Page<ProjectOperationAudit>>(`/${id}/operation-audit?page=${page}&size=20`),
   localActors: () => request<ProjectUser[]>('/dev/actors'),
   me: () => request<ProjectUser>('/me'),
   referenceData: () => request<ReferenceData>('/reference-data'),

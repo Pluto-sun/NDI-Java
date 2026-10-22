@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -1391,6 +1392,43 @@ class ProjectApprovalIT {
                         .content("{\"progressContent\":\"再次补写\",\"nextAction\":\"不应保存\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PROJECT_TERMINATED_READ_ONLY"));
+    }
+
+    @Test
+    void operationAuditIncludesActualApprovalActorsWithoutDuplicatingSuccessfulDecisions() throws Exception {
+        var project = createProject();
+        for (var outcome : List.of("REJECTED", "WITHDRAWN", "APPROVED")) {
+            var submitted = mockMvc.perform(post("/api/v1/projects/{id}/major-changes", project)
+                    .header("X-NDI-Actor-Id", cityUserId.toString()).contentType("application/json")
+                    .content(json.writeValueAsString(Map.of("changeType", "PROJECT_NAME", "initiatorLevel", "CITY",
+                            "approverId", provinceUserId, "reason", "审计验证", "projectName", "审计项目-" + outcome))))
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            var request = json.readTree(submitted).path("data").path("id").asText();
+            if (outcome.equals("WITHDRAWN")) {
+                mockMvc.perform(post("/api/v1/projects/approvals/{id}/withdraw", request)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())).andExpect(status().isOk());
+            } else {
+                mockMvc.perform(post("/api/v1/projects/approvals/{id}/decision", request)
+                        .header("X-NDI-Actor-Id", provinceUserId.toString()).contentType("application/json")
+                        .content(json.writeValueAsString(Map.of("approved", outcome.equals("APPROVED"), "opinion", "审核意见"))))
+                        .andExpect(status().isOk());
+            }
+        }
+        var result = mockMvc.perform(get("/api/v1/projects/{id}/operation-audit", project)
+                .header("X-NDI-Actor-Id", cityUserId.toString())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(7)).andReturn().getResponse().getContentAsString();
+        var items = json.readTree(result).path("data").path("items");
+        var types = new ArrayList<String>();
+        items.forEach(item -> {
+            types.add(item.path("eventType").asText());
+            assertThat(item.path("operatorName").asText()).isNotBlank();
+            assertThat(item.has("payload")).isFalse();
+        });
+        assertThat(types).contains("PROJECT_CREATED", "APPROVAL_SUBMITTED", "APPROVAL_REJECTED", "APPROVAL_WITHDRAWN", "MAJOR_CHANGE_APPROVED")
+                .doesNotContain("APPROVAL_APPROVED");
+        assertThat(types.stream().filter("APPROVAL_SUBMITTED"::equals).count()).isEqualTo(3);
+        mockMvc.perform(get("/api/v1/projects/{id}/operation-audit", project)
+                .header("X-NDI-Actor-Id", cityUserId.toString()).param("size", "101")).andExpect(status().isBadRequest());
     }
 
     private UUID createProject() {

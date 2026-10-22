@@ -370,6 +370,23 @@ tbody tr:last-child td {
 .recent-activities-more {
   margin-top: 16px;
 }
+.project-operation-audit table {
+  min-width: 0;
+  table-layout: fixed;
+}
+.project-operation-audit th:first-child {
+  width: 30%;
+}
+.project-operation-audit th:last-child {
+  width: 26%;
+}
+.project-operation-audit th,
+.project-operation-audit td {
+  padding: 12px 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
 .number {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -1342,15 +1359,17 @@ select:disabled {
 .account-password-panel {
   margin-top: 24px;
 }
+.admin-province,
 .admin-city,
 .admin-editor {
   margin-top: 24px;
   margin-bottom: 24px;
 }
+.admin-province summary,
 .admin-city summary {
   cursor: pointer;
   font-weight: 700;
-  min-height: 32px;
+  min-height: 44px;
 }
 .admin-role-options {
   display: grid;

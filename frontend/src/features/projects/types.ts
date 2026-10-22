@@ -1,3 +1,10 @@
+export interface ProjectOperationAudit {
+  id: string;
+  eventType: string;
+  summary: string;
+  operatorName: string;
+  occurredAt: string;
+}
 export interface CodeLabel {
   code: string;
   label: string;

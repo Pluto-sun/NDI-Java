@@ -6,6 +6,8 @@ import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.service.ApprovalSummary;
 import com.pluto.ndi.projects.service.ProjectChangeSummary;
 import com.pluto.ndi.projects.service.ProjectHistoryService;
+import com.pluto.ndi.projects.service.ProjectOperationAuditService;
+import com.pluto.ndi.projects.domain.ProjectOperationAudit;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
@@ -29,10 +31,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectHistoryController {
     private final ProjectHistoryService service;
     private final ApiResponseFactory responses;
+    private final ProjectOperationAuditService operationAudit;
 
-    public ProjectHistoryController(ProjectHistoryService service, ApiResponseFactory responses) {
+    public ProjectHistoryController(ProjectHistoryService service, ApiResponseFactory responses,
+            ProjectOperationAuditService operationAudit) {
         this.service = service;
         this.responses = responses;
+        this.operationAudit = operationAudit;
+    }
+
+    @GetMapping("/operation-audit")
+    public ApiResponse<PageResponse<ProjectOperationAudit>> operationAudit(
+            Authentication authentication, @PathVariable UUID projectId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return responses.success(PageResponse.from(operationAudit.find(actorId(authentication), projectId,
+                PageRequest.of(page, size))));
     }
 
     @GetMapping("/approvals")
