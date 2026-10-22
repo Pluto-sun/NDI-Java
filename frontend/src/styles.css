@@ -314,6 +314,12 @@ a {
 .table-scroll {
   overflow-x: auto;
 }
+.project-list-table {
+  min-width: 1320px;
+}
+.project-list-table td:first-child {
+  min-width: 200px;
+}
 table {
   border-collapse: collapse;
   width: 100%;

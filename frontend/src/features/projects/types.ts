@@ -118,6 +118,12 @@ export interface ProjectDraft {
   updatedAt: string;
 }
 export interface ProjectSummary {
+  provinceId: string;
+  cityId: string;
+  provinceLeaderUserId: string;
+  provinceLeaderName: string | null;
+  signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
+  attributionMonth: string;
   importanceCode: string;
   id: string;
   projectCode: string;
@@ -131,19 +137,13 @@ export interface ProjectSummary {
   opportunityDate: string | null;
 }
 export interface ProjectDetail extends ProjectSummary {
-  provinceLeaderName: string | null;
-  attributionMonth: string;
-  provinceId: string;
-  cityId: string;
   customerNeed: string;
   constructionContentRaw: string;
   productPromotionContent: string | null;
   remark: string | null;
   contractNo: string | null;
   signedAmount: number | null;
-  provinceLeaderUserId: string;
   cityAccountManagerName: string;
-  signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
   productSupportExpertNames: string[];
   plannedBidMonth: string | null;
   applicationScenarioCodes: string[];

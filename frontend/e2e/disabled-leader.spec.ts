@@ -47,6 +47,15 @@ test('停用负责人保留项目姓名和责任信息，维护时仍须改选�
   await page.goto(`/projects/${project.id}`);
   await chooseActor(page, ids.reporter);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
+  const list = await request.get(
+    `http://127.0.0.1:18080/api/v1/projects?provinceLeaderName=${encodeURIComponent(name)}`,
+    {
+      headers: { 'X-NDI-Actor-Id': ids.reporter },
+    },
+  );
+  expect(list.ok(), await list.text()).toBeTruthy();
+  const rows = (await list.json()).data.items as { id: string; provinceLeaderName: string }[];
+  expect(rows.find((row) => row.id === project.id)?.provinceLeaderName).toBe(name);
   const form = page
     .getByRole('heading', { name: '普通信息维护', exact: true })
     .locator('..')

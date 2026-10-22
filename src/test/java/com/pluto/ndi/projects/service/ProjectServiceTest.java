@@ -90,6 +90,7 @@ class ProjectServiceTest {
         when(identityDirectory.isEligibleProvinceLeader(provinceLeaderId, provinceId)).thenReturn(true);
         when(identityDirectory.findProjectUser(provinceLeaderId)).thenReturn(Optional.of(
                 new com.pluto.ndi.identity.service.ProjectUser(provinceLeaderId, "省分负责人", provinceId, null, List.of("PROVINCE_REPORTER"))));
+        when(identityDirectory.findDisplayNames(any())).thenReturn(java.util.Map.of(provinceLeaderId, "省分负责人"));
         when(identityDirectory.canCreateProject(any(), eq(provinceId), eq(cityId))).thenReturn(true);
         when(industryReferenceRepository.existsByIndustryCodeAndEnabledTrue("C25")).thenReturn(true);
         when(duplicateService.candidates(eq(cityId), any())).thenReturn(new ProjectDuplicateCheck("NONE", List.of()));
@@ -105,6 +106,10 @@ class ProjectServiceTest {
         assertThat(result.projectCode()).startsWith("NDI-20261019-");
         assertThat(result.currentStageCode()).isEqualTo("SOLUTION_EXCHANGE");
         assertThat(result.importanceCode()).isEqualTo("NORMAL");
+        assertThat(result.provinceId()).isEqualTo(provinceId);
+        assertThat(result.cityId()).isEqualTo(cityId);
+        assertThat(result.provinceLeaderName()).isEqualTo("省分负责人");
+        assertThat(result.attributionMonth()).isEqualTo(java.time.LocalDate.of(2026, 10, 1));
         assertThat(result.categoryAmounts()).hasSize(2);
         verify(projectRepository).saveAndFlush(any());
         verify(categoryAmountRepository).saveAll(any());
@@ -191,6 +196,29 @@ class ProjectServiceTest {
 
         assertThat(((BusinessException) failure).errorCode())
                 .isEqualTo(ProjectErrorCode.DUPLICATE_CONFIRMATION_REQUIRED);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void enrichesPagedSummariesWithOneDeduplicatedDirectoryLookup() {
+        var scope = new com.pluto.ndi.identity.service.ProjectDataScope(
+                com.pluto.ndi.identity.service.ProjectDataScope.Level.CITY, cityId);
+        when(identityDirectory.findReadableProjectScope(any())).thenReturn(Optional.of(scope));
+        var at = Instant.parse("2026-10-19T02:00:00Z");
+        var first = com.pluto.ndi.projects.domain.entity.ProjectEntity.create(UUID.randomUUID(), "NDI-A", provinceId,
+                cityId, "项目甲", "客户", "C25", "需求", BigDecimal.TEN, provinceLeaderId, "经理", "DS_SIGN", actorId, at);
+        var second = com.pluto.ndi.projects.domain.entity.ProjectEntity.create(UUID.randomUUID(), "NDI-B", provinceId,
+                cityId, "项目乙", "客户", "C25", "需求", BigDecimal.TEN, provinceLeaderId, "经理", "DS_SIGN", actorId, at);
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(projectRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), eq(pageable)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(first, second), pageable, 2));
+        var page = service.findProjects(actorId, pageable);
+        assertThat(page.getContent()).hasSize(2).allSatisfy(project -> {
+            assertThat(project.provinceLeaderName()).isEqualTo("省分负责人");
+            assertThat(project.signingSubjectCode()).isEqualTo("DS_SIGN");
+            assertThat(project.cityId()).isEqualTo(cityId);
+        });
+        verify(identityDirectory).findDisplayNames(List.of(provinceLeaderId));
     }
 
     private CreateProjectCommand validCommand(

@@ -180,7 +180,8 @@ public class ProjectService {
 
         return projectMapper.toSummary(project, categories.stream()
                 .map(category -> new ProjectSummary.CategoryAmount(category.categoryCode(), category.expectedAmount()))
-                .toList());
+                .toList(), identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
+                        .get(project.provinceLeaderUserId()));
     }
 
     @Transactional(readOnly = true)
@@ -195,7 +196,11 @@ public class ProjectService {
         var amountsByProjectId = categoryAmountsByProjectId(projects.getContent().stream()
                 .map(ProjectEntity::id)
                 .toList());
-        return projects.map(project -> projectMapper.toSummary(project, amountsByProjectId.getOrDefault(project.id(), List.of())));
+        // 在分页和权限过滤之后批量查姓名，避免逐项目查目录，也保留停用账号的责任信息。
+        var leaderNames = identityDirectory.findDisplayNames(projects.getContent().stream()
+                .map(ProjectEntity::provinceLeaderUserId).distinct().toList());
+        return projects.map(project -> projectMapper.toSummary(project,
+                amountsByProjectId.getOrDefault(project.id(), List.of()), leaderNames.get(project.provinceLeaderUserId())));
     }
 
     @Transactional(readOnly = true)

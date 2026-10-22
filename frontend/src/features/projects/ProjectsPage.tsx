@@ -394,17 +394,26 @@ export function ProjectsPage({
             <strong>项目清单</strong>
             <span>共 {data?.totalElements ?? 0} 个项目</span>
           </div>
-          <div className="table-scroll">
-            <table>
+          <div
+            className="table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="项目清单表格，可横向滚动"
+          >
+            <table className="project-list-table" aria-label="项目清单">
               <thead>
                 <tr>
-                  <th>项目编号 / 名称</th>
-                  <th>客户</th>
-                  <th>行业</th>
-                  <th>阶段</th>
-                  <th>预计总金额</th>
-                  <th>创建时间</th>
-                  <th>项目日期</th>
+                  <th scope="col">项目编号 / 名称</th>
+                  <th scope="col">归属</th>
+                  <th scope="col">客户</th>
+                  <th scope="col">行业</th>
+                  <th scope="col">阶段</th>
+                  <th scope="col">类别与签约主体</th>
+                  <th scope="col">预计总金额</th>
+                  <th scope="col">省分负责人</th>
+                  <th scope="col">项目所属月份</th>
+                  <th scope="col">创建时间</th>
+                  <th scope="col">项目日期</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,6 +425,14 @@ export function ProjectsPage({
                         {project.projectName}
                       </Link>
                     </td>
+                    <td>
+                      {reference.provinces.find((item) => item.id === project.provinceId)?.name ??
+                        '未匹配省分'}
+                      <div className="subtle">
+                        {reference.cities.find((item) => item.id === project.cityId)?.name ??
+                          '未匹配地市'}
+                      </div>
+                    </td>
                     <td>{project.customerName}</td>
                     <td>
                       {reference.industries.find((item) => item.code === project.industryCode)
@@ -426,7 +443,22 @@ export function ProjectsPage({
                         {label(project.currentStageCode)}
                       </span>
                     </td>
+                    <td>
+                      {project.categoryAmounts
+                        .map(
+                          (item) =>
+                            reference.categories.find(
+                              (category) => category.code === item.categoryCode,
+                            )?.label ?? item.categoryCode,
+                        )
+                        .join('、') || '—'}
+                      <div className="subtle">
+                        {project.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}
+                      </div>
+                    </td>
                     <td className="number">{amount(project.totalAmount)}</td>
+                    <td>{project.provinceLeaderName ?? '负责人信息不可用'}</td>
+                    <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
                     <td>{dateTime(project.createdAt)}</td>
                     <td>
                       {project.opportunityDate

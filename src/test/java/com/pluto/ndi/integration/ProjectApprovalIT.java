@@ -1483,6 +1483,13 @@ class ProjectApprovalIT {
         jdbc.update("UPDATE identity_user_account SET display_name='停用责任人',enabled=false WHERE id=UUID_TO_BIN(?)", provinceUserId.toString());
         var detail = projectService.findDetail(cityUserId, project);
         assertThat(detail.provinceLeaderName()).isEqualTo("停用责任人");
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].provinceId").value(provinceId.toString()))
+                .andExpect(jsonPath("$.data.items[0].cityId").value(cityId.toString()))
+                .andExpect(jsonPath("$.data.items[0].provinceLeaderName").value("停用责任人"))
+                .andExpect(jsonPath("$.data.items[0].signingSubjectCode").value("PROVINCE_SIGN"))
+                .andExpect(jsonPath("$.data.items[0].attributionMonth").isNotEmpty());
         mockMvc.perform(get("/api/v1/projects/{id}", project).header("X-NDI-Actor-Id", cityUserId.toString()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.provinceLeaderName").value("停用责任人"));
         var denied = catchThrowable(() -> profileService.update(cityUserId, project, new UpdateProjectProfileCommand(

@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProjectMapper {
 
-    public ProjectSummary toSummary(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories) {
+    public ProjectSummary toSummary(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
+            String provinceLeaderName) {
         return new ProjectSummary(
                 project.id(),
                 project.projectCode(),
@@ -21,7 +22,9 @@ public class ProjectMapper {
                 project.totalAmount(),
                 project.currentStageCode(),
                 categories,
-                project.createdAt(), project.opportunityDate(), project.importanceCode()
+                project.createdAt(), project.opportunityDate(), project.importanceCode(),
+                project.provinceId(), project.cityId(), project.provinceLeaderUserId(), provinceLeaderName,
+                project.signingSubjectCode(), project.attributionMonth()
         );
     }
 
