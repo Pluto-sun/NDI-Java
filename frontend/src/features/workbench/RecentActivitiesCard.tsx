@@ -1,52 +1,50 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
-import type { ProjectRecentActivity } from '../projects/types';
+import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 
 const PAGE_SIZE = 20;
 
 export function RecentActivitiesCard() {
-  const [items, setItems] = useState<ProjectRecentActivity[] | null>(null);
+  const {
+    data: items,
+    busy,
+    error,
+    refresh,
+  } = useLiveQuery(projectsApi.recentActivities, '近期项目变动加载失败');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const refresh = useCallback(async () => {
-    setBusy(true);
-    setError('');
-    try {
-      setItems(await projectsApi.recentActivities());
-      setVisibleCount(PAGE_SIZE);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '近期项目变动加载失败');
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
 
   return (
-    <section className="panel recent-activities" aria-labelledby="recent-activities-title">
+    <section
+      className="panel recent-activities"
+      aria-labelledby="recent-activities-title"
+      aria-busy={busy}
+    >
       <div className="panel-top">
         <div>
           <h2 id="recent-activities-title">近期项目变动</h2>
-          <p className="subtle">近 30 天已生效的项目操作，按当前数据权限展示。</p>
+          <p className="subtle">近 30 天已生效的项目操作，按当前数据权限展示，每 30 秒自动刷新。</p>
         </div>
         <button
           type="button"
           className="secondary-button"
           disabled={busy}
-          onClick={() => void refresh()}
+          onClick={() => {
+            setVisibleCount(PAGE_SIZE);
+            void refresh();
+          }}
         >
           {busy ? '刷新中…' : '刷新动态'}
         </button>
       </div>
-      {error && <Feedback tone="error">{error}</Feedback>}
+      {error && (
+        <Feedback tone="error">
+          {error}
+          {items && ' 当前保留上次成功结果，数据未更新。'}
+        </Feedback>
+      )}
       {items === null ? (
         !error && <Loading />
       ) : items.length === 0 ? (

@@ -1,25 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
-import type {
-  MonthlyWorkbench,
-  ReferenceData,
-  StageTrendPoint,
-  WorkbenchBreakdown,
-  WorkbenchOverview,
-} from '../projects/types';
+import type { MonthlyWorkbench, ReferenceData, StageTrendPoint } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { amount, previousBusinessMonth } from '../../shared/ui/format';
+import { amount, dateTime, previousBusinessMonth } from '../../shared/ui/format';
+import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { MetricBars } from './MetricBars';
 import { ProjectMapCard } from './ProjectMapCard';
 import { StageTrendChart, type StageTrendMetric } from './StageTrendChart';
 import { RecentActivitiesCard } from './RecentActivitiesCard';
 import { AttributionWorkbenchPanel } from './AttributionWorkbenchPanel';
 
+async function currentOverview(signal: AbortSignal) {
+  // 两个请求均结束后才允许下次刷新，避免单项失败时另一请求仍在运行。
+  const [overview, breakdown] = await Promise.allSettled([
+    projectsApi.overview(signal),
+    projectsApi.breakdown(signal),
+  ]);
+  if (overview.status === 'rejected') throw overview.reason;
+  if (breakdown.status === 'rejected') throw breakdown.reason;
+  return { overview: overview.value, breakdown: breakdown.value };
+}
+
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
-  const [overview, setOverview] = useState<WorkbenchOverview | null>(null);
-  const [breakdown, setBreakdown] = useState<WorkbenchBreakdown | null>(null);
-  const [error, setError] = useState('');
+  const { data, busy, error, updatedAt, refresh } = useLiveQuery(currentOverview, '工作台加载失败');
+  const overview = data?.overview;
+  const breakdown = data?.breakdown;
   const [month, setMonth] = useState(previousBusinessMonth);
   const [fromMonth, setFromMonth] = useState(month);
   const [includeTerminated, setIncludeTerminated] = useState(false);
@@ -35,22 +41,6 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const [historyError, setHistoryError] = useState('');
   const [trendError, setTrendError] = useState('');
   const [historyBusy, setHistoryBusy] = useState(false);
-  useEffect(() => {
-    let active = true;
-    Promise.all([projectsApi.overview(), projectsApi.breakdown()])
-      .then(([summary, groups]) => {
-        if (active) {
-          setOverview(summary);
-          setBreakdown(groups);
-        }
-      })
-      .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : '工作台加载失败');
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
   async function loadHistory() {
     setHistoryBusy(true);
     setHistoryError('');
@@ -109,7 +99,26 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
           查看项目清单
         </Link>
       </div>
-      {error && <Feedback tone="error">{error}</Feedback>}
+      <div className="panel-top" aria-busy={busy}>
+        <p className="subtle">
+          当前概览每 30 秒自动刷新；历史报表仍按手动查询结果展示。
+          {updatedAt && <> 最近成功更新：{dateTime(updatedAt)}</>}
+        </p>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={() => void refresh()}
+        >
+          {busy ? '概览刷新中…' : '刷新当前概览'}
+        </button>
+      </div>
+      {error && (
+        <Feedback tone="error">
+          {error}
+          {data && ' 当前保留上次成功结果，数据未更新。'}
+        </Feedback>
+      )}
       {!overview || !breakdown ? (
         !error && <Loading />
       ) : (

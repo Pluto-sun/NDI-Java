@@ -137,7 +137,7 @@ export const projectsApi = {
       applicationScenarioCodes: string[];
     },
   ) => request<ProjectDetail>(`/${id}/profile`, { method: 'PUT', ...jsonBody(data) }),
-  overview: () => request<WorkbenchOverview>('/workbench/overview'),
+  overview: (signal?: AbortSignal) => request<WorkbenchOverview>('/workbench/overview', { signal }),
   attribution: (filter: {
     from: string;
     to: string;
@@ -156,7 +156,8 @@ export const projectsApi = {
     if (filter.cityId) query.append('cityIds', filter.cityId);
     return request<AttributionWorkbench>(`/workbench/attribution?${query}`);
   },
-  recentActivities: () => request<ProjectRecentActivity[]>('/workbench/recent-activities'),
+  recentActivities: (signal?: AbortSignal) =>
+    request<ProjectRecentActivity[]>('/workbench/recent-activities', { signal }),
   map: (
     provinceId: string | null,
     includeTerminated: boolean,
@@ -175,7 +176,8 @@ export const projectsApi = {
     return request<ProjectMapView>(`/workbench/map?${query}`);
   },
   mapBoundary: (adcode: string) => requestBlob(`/workbench/map/boundaries/${adcode}`),
-  breakdown: () => request<WorkbenchBreakdown>('/workbench/breakdown'),
+  breakdown: (signal?: AbortSignal) =>
+    request<WorkbenchBreakdown>('/workbench/breakdown', { signal }),
   monthly: (month: string, includeTerminated: boolean) =>
     request<MonthlyWorkbench>(
       `/workbench/history?month=${month}&includeTerminated=${includeTerminated}`,
