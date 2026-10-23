@@ -75,4 +75,4 @@ status="$(curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' http://127.0.0.1
 status="$(curl --noproxy '*' -sS -b "$work/cookies" -o /dev/null -w '%{http_code}' http://127.0.0.1:18082/api/v1/projects/dev/actors)"
 [[ "$status" == 403 ]]
 echo '通过：真实发布 JAR 的 prod 空库迁移、管理员初始化、CSRF、登录会话、未登录保护与开发身份禁用。'
-echo '此验收的 HTTP/Cookie 例外仅作用于隔离进程，部署模板仍要求 HTTPS 和安全 Cookie。'
+echo '此验收使用隔离 HTTP 进程；服务器 HTTP 模式使用非 Secure Cookie，HTTPS 模式必须使用 Secure Cookie。'

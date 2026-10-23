@@ -123,6 +123,6 @@ sudo bash deploy.sh --deploy
 
 部署与环境检测流程在一次性 CentOS 7 容器内通过：包含 HTTP/HTTPS、重复部署、配置错误拦截、检测退出码 0/1/2、只读取配置而不执行内容、不修改配置或停止服务、不打印密码。systemd 与上游使用测试替身，不能代替目标服务器实际启动验证。
 
-真实 Nginx 测试通过 HTTP 双端口、页面深链接、API、对象 Host/端口及签名查询保留，并回归 HTTPS 模板。前端修复 HTTP IP 页面缺少 SubtleCrypto/randomUUID 的兼容问题：摘要使用固定版本 @noble/hashes，UUID 仍使用浏览器安全随机数，不使用 Math.random；源码中已无对这两个受安全上下文限制 API 的直接依赖。
+真实 Nginx 测试通过 HTTP 双端口、页面深链接、API、对象 Host/端口及签名查询保留，并回归 HTTPS 模板。前端修复 HTTP IP 页面缺少 SubtleCrypto/randomUUID 的兼容问题：摘要使用固定版本 @noble/hashes，UUID 仍使用浏览器安全随机数，不使用 Math.random；源码中已无对这两个受安全上下文限制 API 的直接依赖。前端构建、格式检查及 3 项摘要/UUID 测试通过，其中包含模拟普通 HTTP IP 页面的真实 Chromium 检查；20 MB 摘要与 Node 标准实现结果一致。
 
 没有连接目标服务器，不能宣称该服务器已就绪。上线前仍需真实验证管理员登录、权限、Excel 导入、附件上传封存及下载，以及用户电脑访问对象地址。
