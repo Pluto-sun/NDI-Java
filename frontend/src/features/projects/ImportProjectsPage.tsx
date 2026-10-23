@@ -1,5 +1,5 @@
 import { Select } from '../../shared/ui/Select';
-import { Fragment, useEffect, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ImportBatch, ImportBatchListItem, ImportWorkbookInspection } from './types';
@@ -69,11 +69,14 @@ function bestHeaderCandidate(sheet: ImportWorkbookInspection['sheets'][number]) 
 }
 
 export function ImportProjectsPage() {
+  const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [inspection, setInspection] = useState<ImportWorkbookInspection | null>(null);
   const [selectedSheet, setSelectedSheet] = useState('');
   const [selectedHeaderRow, setSelectedHeaderRow] = useState(1);
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
+  const [remapping, setRemapping] = useState(false);
+  const [fileBatchId, setFileBatchId] = useState<string | null>(null);
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -190,6 +193,7 @@ export function ImportProjectsPage() {
   }
 
   async function openPlan(id: string) {
+    setRemapping(false);
     setBusy(true);
     setError('');
     try {
@@ -206,7 +210,6 @@ export function ImportProjectsPage() {
     if (!file) return;
     setBusy(true);
     setError('');
-    setBatch(null);
     try {
       const mapping = inspection
         ? Object.fromEntries(inspection.fields.map((field) => [field, fieldMapping[field] ?? '']))
@@ -220,18 +223,20 @@ export function ImportProjectsPage() {
         setError('同一 Excel 列不能映射给多个业务字段。');
         return;
       }
-      displayBatch(
-        await projectsApi.previewImport(
-          file,
-          inspection
-            ? {
-                sheetName: selectedSheet,
-                headerRowNo: selectedHeaderRow,
-                mapping,
-              }
-            : undefined,
-        ),
+      const result = await projectsApi.previewImport(
+        file,
+        inspection
+          ? {
+              sheetName: selectedSheet,
+              headerRowNo: selectedHeaderRow,
+              mapping,
+            }
+          : undefined,
+        remapping ? batch?.batchId : undefined,
       );
+      displayBatch(result);
+      setFileBatchId(result.batchId);
+      setRemapping(false);
       await refreshPlans();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '预检失败');
@@ -258,6 +263,7 @@ export function ImportProjectsPage() {
   }
 
   async function confirm() {
+    if (remapping) return;
     if (
       !batch ||
       selectedRows.size === 0 ||
@@ -371,14 +377,18 @@ export function ImportProjectsPage() {
             Excel 文件
             <input
               type="file"
+              ref={fileInput}
               accept=".xlsx"
               required
               disabled={busy}
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
+                if (!remapping) {
+                  setFileBatchId(null);
+                }
                 setInspection(null);
                 setFieldMapping({});
-                setBatch(null);
+                if (!remapping) setBatch(null);
                 setSelectedRows(new Set());
                 setEditingRow(null);
                 setError('');
@@ -387,17 +397,21 @@ export function ImportProjectsPage() {
           </label>
           <button
             className="secondary-button"
-            disabled={busy || !file}
+            disabled={busy || !file || (!!batch && !remapping)}
             type="button"
             onClick={() => void inspectWorkbook()}
           >
             识别工作表与表头
           </button>
-          <button className="primary-button" disabled={busy || !file} type="submit">
+          <button
+            className="primary-button"
+            disabled={busy || !file || (!!batch && !remapping)}
+            type="submit"
+          >
             {busy ? '处理中…' : '开始预检'}
           </button>
         </form>
-        {inspection && (
+        {inspection && (!batch || remapping) && (
           <div className="import-layout">
             <p className="subtle">
               已识别 {inspection.sheets.length}{' '}
@@ -532,6 +546,50 @@ export function ImportProjectsPage() {
             批次 {batch.batchId} · 状态 {statusLabel(batch.status)}
             {batch.status !== 'PREVIEWED' ? ` · 已导入 ${batch.importedRows} 行` : ''}
           </p>
+          {batch.importedRows === 0 && batch.status !== 'CONFIRMING' && (
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy || remapping}
+                onClick={() => {
+                  setRemapping(true);
+                  setError('');
+                  if (fileBatchId !== batch.batchId) {
+                    setFile(null);
+                    setInspection(null);
+                    if (fileInput.current) fileInput.current.value = '';
+                  } else if (!inspection) void inspectWorkbook();
+                  fileInput.current?.scrollIntoView({ block: 'center' });
+                }}
+              >
+                重新配置字段映射
+              </button>
+              {remapping && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => {
+                    setRemapping(false);
+                    setFile(null);
+                    setInspection(null);
+                    setFileBatchId(null);
+                    setError('');
+                    if (fileInput.current) fileInput.current.value = '';
+                    displayBatch(batch);
+                  }}
+                >
+                  取消重新映射
+                </button>
+              )}
+              {remapping && (
+                <span className="subtle">
+                  请核对上方字段映射后重新预检；若已离开过此页，请重新选择同一原文件。新计划按原文件重新校验，不沿用旧计划的逐行修正；旧记录会保留。
+                </span>
+              )}
+            </div>
+          )}
           {batch.rows.some((row) => row.status === 'FAILED') && (
             <div className="action-row import-actions">
               <button
@@ -580,7 +638,7 @@ export function ImportProjectsPage() {
               <button
                 type="button"
                 className="primary-button"
-                disabled={busy || selectedRows.size === 0}
+                disabled={busy || remapping || selectedRows.size === 0}
                 onClick={() => void confirm()}
               >
                 确认导入已选 {selectedRows.size} 行

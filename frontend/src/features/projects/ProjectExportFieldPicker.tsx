@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { projectsApi } from './api';
 import type { ExportFieldOption } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
@@ -7,16 +7,19 @@ import { Feedback } from '../../shared/ui/Feedback';
 export function ProjectExportFieldPicker({
   selected,
   onChange,
+  onReady,
 }: {
   selected: string[] | null;
   onChange: (fields: string[] | null) => void;
+  onReady: (ready: boolean) => void;
 }) {
   const [options, setOptions] = useState<ExportFieldOption[] | null>(null);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const initialSelection = useRef(selected);
   useEffect(() => {
     let active = true;
-    onChange(null);
+    onReady(false);
     setOptions(null);
     setError('');
     projectsApi
@@ -24,7 +27,14 @@ export function ProjectExportFieldPicker({
       .then((result) => {
         if (active) {
           setOptions(result);
-          onChange(result.filter((field) => field.defaultSelected).map((field) => field.code));
+          const next =
+            initialSelection.current === null
+              ? result.filter((field) => field.defaultSelected).map((field) => field.code)
+              : initialSelection.current.filter((code) =>
+                  result.some((field) => field.code === code),
+                );
+          if (JSON.stringify(next) !== JSON.stringify(initialSelection.current)) onChange(next);
+          onReady(true);
         }
       })
       .catch((cause) => {
@@ -33,10 +43,9 @@ export function ProjectExportFieldPicker({
     return () => {
       active = false;
     };
-  }, [revision, onChange]);
+  }, [revision, onChange, onReady]);
   return (
-    <details className="panel export-field-picker" open={error ? true : undefined}>
-      <summary>导出字段设置{selected ? `（已选 ${selected.length} 项）` : ''}</summary>
+    <div className="export-field-picker">
       {error ? (
         <Feedback tone="error">
           {error}{' '}
@@ -108,6 +117,6 @@ export function ProjectExportFieldPicker({
           )}
         </>
       )}
-    </details>
+    </div>
   );
 }

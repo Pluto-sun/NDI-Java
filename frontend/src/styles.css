@@ -445,11 +445,6 @@ label {
 .export-field-picker {
   margin-bottom: 16px;
 }
-.export-field-picker > summary {
-  cursor: pointer;
-  min-height: 44px;
-  align-content: center;
-}
 .export-field-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));

@@ -9,6 +9,20 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await chooseActor(page, ids.admin);
   const tabs = page.getByRole('group', { name: '项目阶段快捷筛选', exact: true });
   await expect(tabs.getByRole('button')).toHaveCount(5);
+  const heading = page.getByRole('heading', { name: '项目管理驾驶舱', exact: true });
+  await expect(
+    heading.locator('..').getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
+  ).toBeVisible();
+  const buttonBox = await tabs.getByRole('button').first().boundingBox();
+  expect(buttonBox!.height).toBeLessThanOrEqual(36);
+  if (testInfo.project.name === 'desktop') {
+    const titleBox = await heading.boundingBox();
+    const tabsBox = await tabs.boundingBox();
+    expect(tabsBox!.x).toBeGreaterThan(titleBox!.x + titleBox!.width);
+    expect(
+      Math.abs(tabsBox!.y + tabsBox!.height / 2 - titleBox!.y - titleBox!.height / 2),
+    ).toBeLessThan(3);
+  }
   await expect(tabs.getByRole('button', { name: '全部', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -70,6 +84,12 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await page.getByRole('link', { name: '查看项目清单', exact: true }).click();
   await expect(page.getByRole('heading', { name: '项目列表', exact: true })).toBeVisible();
   const listTabs = page.getByRole('group', { name: '项目阶段快捷筛选', exact: true });
+  await expect(
+    page
+      .getByRole('heading', { name: '项目列表', exact: true })
+      .locator('..')
+      .getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
+  ).toBeVisible();
   await expect(listTabs.getByRole('button', { name: '方案交流', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',

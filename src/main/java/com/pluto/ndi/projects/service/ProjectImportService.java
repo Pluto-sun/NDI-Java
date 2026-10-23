@@ -117,8 +117,26 @@ public class ProjectImportService {
     @Transactional
     public ImportBatchSummary preview(UUID actorId, String fileName, byte[] bytes,
             String sheetName, Integer headerRowNo, Map<String, String> fieldMapping) {
+        return preview(actorId, fileName, bytes, sheetName, headerRowNo, fieldMapping, null);
+    }
+
+    @Transactional
+    public ImportBatchSummary preview(UUID actorId, String fileName, byte[] bytes,
+            String sheetName, Integer headerRowNo, Map<String, String> fieldMapping, UUID replacesBatchId) {
         var actor = identity.findProjectActor(actorId).filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        if (replacesBatchId != null) {
+            // 与确认导入共用批次锁；校验失败时整笔事务回滚，原计划不受影响。
+            var previous = batches.findByIdAndActorId(replacesBatchId, actorId)
+                    .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+            if (previous.importedRows() != 0 || "CONFIRMING".equals(previous.status())) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_REMAP_NOT_ALLOWED);
+            }
+            if (!previous.fileSha256().equals(sha256(bytes))) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_REMAP_FILE_MISMATCH);
+            }
+            previous.supersede();
+        }
         List<ProjectExcelReader.ExcelRow> source;
         try {
             source = reader.read(bytes, sheetName, headerRowNo, fieldMapping);

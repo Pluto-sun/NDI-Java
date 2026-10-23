@@ -125,6 +125,16 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
     '验收工作表',
   );
   await expect(page.getByRole('combobox', { name: '表头行', exact: true })).toHaveValue('2');
+  const unmappedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/imports/preview') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: '开始预检', exact: true }).click();
+  const unmapped: ImportBatch = (await (await unmappedResponse).json()).data;
+  expect(unmapped.validRows).toBe(0);
+  await expect(page.getByRole('combobox', { name: '项目名称', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '重新配置字段映射', exact: true }).click();
+  await expect(page.getByRole('button', { name: '确认导入已选 0 行', exact: true })).toBeDisabled();
   await page.getByRole('combobox', { name: '项目名称', exact: true }).selectOption('商机名称');
   const previewEvent = page.waitForResponse(
     (response) =>
@@ -134,6 +144,9 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
   const previewResponse = await previewEvent;
   expect(previewResponse.ok(), await previewResponse.text()).toBeTruthy();
   const preview: ImportBatch = (await previewResponse.json()).data;
+  expect(
+    (await get<ImportBatch>(request, ids.reporter, `/imports/${unmapped.batchId}`)).status,
+  ).toBe('CANCELLED');
   expect(preview.rows.map((item) => item.status)).toEqual(['READY', 'FAILED', 'FAILED', 'READY']);
   expect(
     (
@@ -166,6 +179,7 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
   await page.getByRole('button', { name: '确认导入已选 2 行', exact: true }).click();
   await expect(page.getByText(new RegExp(`批次 ${preview.batchId} · 状态 已完成`))).toBeVisible();
   const completed = await get<ImportBatch>(request, ids.reporter, `/imports/${preview.batchId}`);
+  await expect(page.getByRole('button', { name: '重新配置字段映射', exact: true })).toHaveCount(0);
   expect(completed).toMatchObject({ importedRows: 2, failedRows: 1, skippedRows: 1 });
   expect(completed.rows.map((item) => item.status)).toEqual([
     'IMPORTED',
@@ -201,6 +215,7 @@ test('工作表映射、失败行修正、首条去重、选择性导入、计�
   await page
     .locator('.import-plan-item')
     .filter({ hasText: `${name}.xlsx` })
+    .filter({ hasText: '已完成' })
     .getByRole('button', { name: '查看计划', exact: true })
     .click();
   await expect(page.getByText(new RegExp(`批次 ${preview.batchId} · 状态 已完成`))).toBeVisible();

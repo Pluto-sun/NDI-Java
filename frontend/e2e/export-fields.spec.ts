@@ -31,16 +31,13 @@ test('导出字段按选择顺序持久化，真实 CSV 仅包含所选列并防
   await page.getByRole('textbox', { name: '项目名称', exact: true }).fill(name);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
-  const summary = page.locator('.export-field-picker > summary');
-  await summary.focus();
-  await page.keyboard.press('Enter');
+  await expect(page.locator('.export-field-picker')).toHaveCount(0);
+  await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
   const group = page.getByRole('group', { name: '导出字段选择', exact: true });
   await expect(group.getByRole('checkbox', { checked: true })).toHaveCount(11);
   await page.getByRole('button', { name: '清空导出字段', exact: true }).click();
   await expect(page.getByText('请至少选择一个导出字段。', { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: '生成导出文件', exact: true })).toBeDisabled();
   const labels = [
     '地市客户经理',
     '项目名称',
@@ -72,7 +69,7 @@ test('导出字段按选择顺序持久化，真实 CSV 仅包含所选列并防
   const submitted = page.waitForResponse(
     (response) => response.url().endsWith('/exports') && response.request().method() === 'POST',
   );
-  await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
+  await page.getByRole('button', { name: '生成导出文件', exact: true }).click();
   const response = await submitted;
   expect(response.ok(), await response.text()).toBeTruthy();
   const task = (await response.json()).data;
@@ -94,6 +91,8 @@ test('导出字段按选择顺序持久化，真实 CSV 仅包含所选列并防
   expect(csv).toContain('网络化');
   expect(csv).not.toContain('字段验收客户');
   expect(csv.trim().split(/\r?\n/)).toHaveLength(2);
+  await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
+  await expect(group.getByRole('checkbox', { name: '地市客户经理', exact: true })).toBeChecked();
   await page.getByRole('button', { name: '恢复默认导出字段', exact: true }).click();
   await expect(group.getByRole('checkbox', { checked: true })).toHaveCount(11);
   await expect(page.getByRole('button', { name: '下载 CSV', exact: true })).toHaveCount(0);
@@ -120,13 +119,12 @@ test('导出字段加载失败时展开错误并可重试，加载前不允许�
   });
   await page.goto('/projects');
   await chooseActor(page, ids.reporter);
+  await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
   const retry = page.getByRole('button', { name: '重试加载导出字段', exact: true });
   await expect(retry).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: '生成导出文件', exact: true })).toBeDisabled();
   unavailable = false;
   await retry.click();
-  await expect(page.getByRole('button', { name: '按当前条件导出 CSV', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '生成导出文件', exact: true })).toBeEnabled();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });

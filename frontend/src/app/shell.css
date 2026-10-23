@@ -216,6 +216,12 @@
 .modal-content h2 {
   font-size: 18px;
 }
+.modal-content input[type='checkbox'] {
+  width: 17px;
+  min-height: 17px;
+  height: 17px;
+  padding: 0;
+}
 .modal-content p {
   font-size: 13px;
   line-height: 1.7;

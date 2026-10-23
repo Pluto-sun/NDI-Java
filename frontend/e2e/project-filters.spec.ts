@@ -50,6 +50,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
     (response) => response.url().endsWith('/exports') && response.request().method() === 'POST',
   );
   await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
+  await page.getByRole('button', { name: '生成导出文件', exact: true }).click();
   const response = await submitted;
   expect(response.ok(), await response.text()).toBeTruthy();
   expect(response.request().postDataJSON()).not.toHaveProperty('stage');

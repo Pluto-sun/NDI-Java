@@ -49,6 +49,29 @@ class ProjectImportIT {
     @MockitoBean private ExportFileDirectory exportFileDirectory;
 
     @Test
+    void remappingRequiresSameWorkbookAndZeroImportedRows() throws Exception {
+        var fixture = contractFixture();
+        byte[] bytes = contractWorkbook(fixture.name(), "方案交流", "", "");
+        var original = imports.preview(fixture.actor(), "原文件.xlsx", bytes);
+        var wrongFile = catchThrowable(() -> imports.preview(fixture.actor(), "其他文件.xlsx",
+                contractWorkbook(fixture.name() + "其他", "方案交流", "", ""),
+                null, null, Map.of(), original.batchId()));
+        assertThat(wrongFile).isInstanceOf(BusinessException.class);
+        assertThat(imports.find(fixture.actor(), original.batchId()).status()).isEqualTo("PREVIEWED");
+        var replacement = imports.preview(fixture.actor(), "原文件.xlsx", bytes,
+                null, null, Map.of(), original.batchId());
+        assertThat(imports.find(fixture.actor(), original.batchId()).status()).isEqualTo("CANCELLED");
+        assertThat(imports.find(fixture.actor(), original.batchId()).rows()).isNotEmpty();
+        var failed = imports.preview(fixture.actor(), "重复.xlsx", bytes);
+        assertThat(imports.confirm(fixture.actor(), replacement.batchId()).importedRows()).isEqualTo(1);
+        assertThat(catchThrowable(() -> imports.preview(fixture.actor(), "原文件.xlsx", bytes,
+                null, null, Map.of(), replacement.batchId()))).isInstanceOf(BusinessException.class);
+        assertThat(imports.confirm(fixture.actor(), failed.batchId()).importedRows()).isZero();
+        assertThat(imports.preview(fixture.actor(), "重复.xlsx", bytes, null, null, Map.of(),
+                failed.batchId()).status()).isEqualTo("PREVIEWED");
+    }
+
+    @Test
     void importsCollectionContractsAndRechecksGlobalUniquenessAfterPreview() throws Exception {
         var fixture = contractFixture();
         String contract = "HT-" + UUID.randomUUID();

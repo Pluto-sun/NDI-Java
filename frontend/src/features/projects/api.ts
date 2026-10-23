@@ -199,9 +199,11 @@ export const projectsApi = {
   previewImport: (
     file: File,
     layout?: { sheetName: string; headerRowNo: number; mapping: Record<string, string> },
+    replacesBatchId?: string,
   ) => {
     const body = new FormData();
     body.append('file', file);
+    if (replacesBatchId) body.append('replacesBatchId', replacesBatchId);
     if (layout) {
       body.append('sheetName', layout.sheetName);
       body.append('headerRowNo', String(layout.headerRowNo));

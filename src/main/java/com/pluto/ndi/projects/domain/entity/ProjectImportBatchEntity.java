@@ -67,6 +67,14 @@ public class ProjectImportBatchEntity {
         status = "CANCELLED";
     }
 
+    /** 零入库计划重新映射后停用，原预检行继续保留供核对。 */
+    public void supersede() {
+        if (importedRows != 0 || "CONFIRMING".equals(status)) {
+            throw new IllegalStateException("已有入库记录或正在导入的计划不能重新映射");
+        }
+        status = "CANCELLED";
+    }
+
     public void refreshPreviewCounts(int validRows) {
         if (!"PREVIEWED".equals(status)) throw new IllegalStateException("导入计划不在预检状态");
         this.validRows = validRows;
@@ -76,6 +84,7 @@ public class ProjectImportBatchEntity {
     public UUID id() { return id; }
     public UUID actorId() { return actorId; }
     public String fileName() { return fileName; }
+    public String fileSha256() { return fileSha256; }
     public String sheetName() { return sheetName; }
     public Integer headerRowNumber() { return headerRowNumber; }
     public String fieldMapping() { return fieldMapping; }

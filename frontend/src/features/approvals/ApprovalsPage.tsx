@@ -1,4 +1,5 @@
 import { Select } from '../../shared/ui/Select';
+import { Modal } from '../../shared/ui/Modal';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -287,6 +288,7 @@ export function ApprovalDetailPage({
   const { id } = useParams();
   const [item, setItem] = useState<ApprovalSummary | null>(null);
   const [opinion, setOpinion] = useState('');
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [evidence, setEvidence] = useState<ProjectDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -353,7 +355,7 @@ export function ApprovalDetailPage({
   }
 
   async function withdraw() {
-    if (!id || !window.confirm('确认撤销这条待审申请？')) return;
+    if (!id || busy || item?.status !== 'PENDING') return;
     loadRevision.current += 1;
     setBusy(true);
     setError('');
@@ -365,6 +367,7 @@ export function ApprovalDetailPage({
           : null,
       );
       setMessage('申请已撤销。');
+      setWithdrawOpen(false);
       refreshNotificationCounts();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '撤销失败');
@@ -545,11 +548,36 @@ export function ApprovalDetailPage({
                 type="button"
                 className="secondary-button"
                 disabled={busy}
-                onClick={() => void withdraw()}
+                onClick={() => setWithdrawOpen(true)}
               >
                 撤销申请
               </button>
             </div>
+          )}
+          {withdrawOpen && (
+            <Modal title="撤销审批申请" busy={busy} onClose={() => setWithdrawOpen(false)}>
+              <h2 tabIndex={-1}>确认撤销这条待审申请？</h2>
+              <p>撤销后不能继续审批，申请记录仍会保留。如需再次申请，请新建申请。</p>
+              {error && <Feedback tone="error">{error}</Feedback>}
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => setWithdrawOpen(false)}
+                >
+                  保留申请
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy}
+                  onClick={() => void withdraw()}
+                >
+                  {busy ? '撤销中…' : '确认撤销'}
+                </button>
+              </div>
+            </Modal>
           )}
         </div>
       )}

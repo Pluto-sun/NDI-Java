@@ -7,6 +7,7 @@ import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, dateTime } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
+import { Modal } from '../../shared/ui/Modal';
 import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
 
 const emptyAdvanced = {
@@ -55,6 +56,8 @@ export function ProjectsPage({
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
   const [exportTask, setExportTask] = useState<ExportTask | null>(null);
   const [exportFields, setExportFields] = useState<string[] | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportReady, setExportReady] = useState(false);
   const currentFields = useRef(exportFields);
   currentFields.current = exportFields;
   const currentQuery = useRef(query);
@@ -124,8 +127,10 @@ export function ProjectsPage({
       const { page: _page, ...filter } = query;
       void _page;
       const result = await projectsApi.exportProjects(filter, appliedFields);
-      if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
+      if (currentQuery.current === appliedQuery && currentFields.current === appliedFields) {
         setExportTask(result);
+        setExportOpen(false);
+      }
     } catch (cause) {
       if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
         setError(cause instanceof Error ? cause.message : '导出提交失败');
@@ -151,10 +156,19 @@ export function ProjectsPage({
     reference.stages.find((item) => item.code === code)?.label ?? code;
   return (
     <section>
-      <div className="page-heading">
+      <div className="page-heading project-stage-heading">
         <div>
           <span className="eyebrow">PROJECTS</span>
-          <h1>项目列表</h1>
+          <div className="title-with-stage">
+            <h1>项目列表</h1>
+            <ProjectStageTabs
+              value={query.stage}
+              onChange={(next) => {
+                setStage(next);
+                setQuery((current) => ({ ...current, page: 0, stage: next }));
+              }}
+            />
+          </div>
           <p>查看权限范围内的项目主档，按编号、名称、行业、地市和阶段定位。</p>
         </div>
         {canCreate && (
@@ -163,13 +177,6 @@ export function ProjectsPage({
           </Link>
         )}
       </div>
-      <ProjectStageTabs
-        value={query.stage}
-        onChange={(next) => {
-          setStage(next);
-          setQuery((current) => ({ ...current, page: 0, stage: next }));
-        }}
-      />
       <form
         className="filter-bar"
         onSubmit={(event) => {
@@ -373,13 +380,45 @@ export function ProjectsPage({
           重置筛选
         </button>
       </form>
-      <ProjectExportFieldPicker selected={exportFields} onChange={setExportFields} />
+      {exportOpen && (
+        <Modal title="配置项目导出" busy={exportBusy} onClose={() => setExportOpen(false)}>
+          <h2 tabIndex={-1}>导出字段设置</h2>
+          <ProjectExportFieldPicker
+            selected={exportFields}
+            onChange={setExportFields}
+            onReady={setExportReady}
+          />
+          {error && <Feedback tone="error">{error}</Feedback>}
+          <div className="form-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={exportBusy}
+              onClick={() => setExportOpen(false)}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={exportBusy || !exportReady || !exportFields?.length}
+              onClick={() => void exportCurrent()}
+            >
+              {exportBusy ? '提交中…' : '生成导出文件'}
+            </button>
+          </div>
+        </Modal>
+      )}
       <div className="action-row">
         <button
           type="button"
           className="secondary-button"
-          onClick={() => void exportCurrent()}
-          disabled={exportBusy || !exportFields?.length}
+          onClick={() => {
+            setError('');
+            setExportReady(false);
+            setExportOpen(true);
+          }}
+          disabled={exportBusy}
         >
           {exportBusy ? '提交中…' : '按当前条件导出 CSV'}
         </button>

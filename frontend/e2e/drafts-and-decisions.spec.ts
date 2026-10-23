@@ -3,6 +3,14 @@ import { test, expect, type Page } from '@playwright/test';
 import { ids, chooseActor, createProject, get, post } from './support/projects';
 
 async function confirmDialog(page: Page, accept: boolean, action: () => Promise<unknown>) {
+  if (/\/approvals\//.test(page.url())) {
+    await action();
+    await page
+      .getByRole('dialog', { name: '撤销审批申请', exact: true })
+      .getByRole('button', { name: accept ? '确认撤销' : '保留申请', exact: true })
+      .click();
+    return;
+  }
   page.once('dialog', (dialog) => (accept ? dialog.accept() : dialog.dismiss()));
   await action();
 }

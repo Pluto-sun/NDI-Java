@@ -68,7 +68,8 @@ public class ProjectImportController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "sheetName", required = false) String sheetName,
             @RequestParam(value = "headerRowNo", required = false) Integer headerRowNo,
-            @RequestParam(value = "mappingJson", required = false) String mappingJson) throws IOException {
+            @RequestParam(value = "mappingJson", required = false) String mappingJson,
+            @RequestParam(value = "replacesBatchId", required = false) UUID replacesBatchId) throws IOException {
         checkFile(file);
         Map<String, String> mapping = Map.of();
         if (mappingJson != null && !mappingJson.isBlank()) {
@@ -80,7 +81,7 @@ public class ProjectImportController {
             }
         }
         return responses.success(service.preview(actorId(authentication), file.getOriginalFilename(),
-                file.getBytes(), sheetName, headerRowNo, mapping));
+                file.getBytes(), sheetName, headerRowNo, mapping, replacesBatchId));
     }
 
     @GetMapping("/{batchId}")

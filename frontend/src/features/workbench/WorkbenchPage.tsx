@@ -111,20 +111,22 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     previousValues = data ? totalValues(data.previous) : [];
   return (
     <section className="project-dashboard">
-      <div className="page-heading dashboard-page-heading">
+      <div className="page-heading dashboard-page-heading project-stage-heading">
         <div>
           <span className="eyebrow">PROJECT OPERATIONS</span>
-          <h1>项目管理驾驶舱</h1>
+          <div className="title-with-stage">
+            <h1>项目管理驾驶舱</h1>
+            <ProjectStageTabs
+              value={stage}
+              onChange={(value) => setSearchParams(value ? { stage: value } : {})}
+            />
+          </div>
           <p>工业互联网三化项目经营驾驶舱 · {stage ? stageName(stage) : '全部阶段'}</p>
         </div>
         <Link className="secondary-button" to={`/projects${stage ? `?stage=${stage}` : ''}`}>
           查看项目清单
         </Link>
       </div>
-      <ProjectStageTabs
-        value={stage}
-        onChange={(value) => setSearchParams(value ? { stage: value } : {})}
-      />
       <div className="dashboard-toolbar">
         <form
           className="dashboard-inline-filters"

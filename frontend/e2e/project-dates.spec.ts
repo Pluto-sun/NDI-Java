@@ -37,6 +37,7 @@ test('项目日期范围校验、空结果、恢复当前日期与真实 CSV 下
     (response) => response.url().endsWith('/exports') && response.request().method() === 'POST',
   );
   await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
+  await page.getByRole('button', { name: '生成导出文件', exact: true }).click();
   const response = await submitted;
   expect(response.ok(), await response.text()).toBeTruthy();
   expect(response.request().postDataJSON()).toMatchObject({
