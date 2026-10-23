@@ -4,6 +4,7 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 import type { Page } from '../../shared/api/http';
 import { Modal } from '../../shared/ui/Modal';
+import { requestUuid } from '../../shared/util/crypto';
 
 const statuses: Record<BackupTask['status'], string> = {
   PENDING: '等待处理',
@@ -166,7 +167,7 @@ export function BackupsPage({ localDevelopment }: { localDevelopment: boolean })
           className="primary-button"
           disabled={!enabled || busy || loading || activeTask || confirming}
           onClick={() => {
-            requestId.current = crypto.randomUUID();
+            requestId.current = requestUuid();
             setConfirming(true);
             setNotice('');
             setError('');

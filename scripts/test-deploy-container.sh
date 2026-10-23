@@ -76,10 +76,10 @@ run_deploy --init-config
 printf '# keep marker\n' >> /etc/ndi/deploy.conf
 run_deploy --init-config
 grep -q 'keep marker' /etc/ndi/deploy.conf
-expect_failure --check '合法域名'
+expect_failure --check 'IPv4'
 echo '通过：配置初始化幂等、占位配置拒绝。'
 
-printf '%s\n' 'APP_HOST=app.example.test' 'FILES_HOST=files.example.test' \
+printf '%s\n' 'DEPLOY_MODE=https' 'APP_HOST=app.example.test' 'FILES_HOST=files.example.test' \
   'APP_CERT=/certs/app.pem' 'APP_KEY=/certs/key.pem' 'FILES_CERT=/certs/app.pem' 'FILES_KEY=/certs/key.pem' \
   'JAVA_BIN=/test-bin/java' 'APP_PORT=8080' 'MINIO_UPSTREAM=127.0.0.1:9000' 'START_TIMEOUT=30' > /etc/ndi/deploy.conf
 printf 'DATABASE_BACKUP_CONFIRMED=yes\n' >> /etc/ndi/deploy.conf
@@ -135,6 +135,44 @@ run_deploy --deploy
 [[ "$(stop_count)" == $((before+1)) ]]
 [[ "$(sha256sum /opt/ndi/backend-current/app.jar)" == "$original_hash" ]]
 echo '通过：首次部署、模板渲染、共享资源保留、同版本再次部署不覆盖运行文件。'
+
+sed -i 's/DEPLOY_MODE=https/DEPLOY_MODE=http/' /etc/ndi/deploy.conf
+printf '%s\n' 'PUBLIC_IP=192.0.2.10' 'WEB_PORT=8088' 'FILES_PORT=9002' >> /etc/ndi/deploy.conf
+sed -i 's/NDI_SECURE_COOKIE=true/NDI_SECURE_COOKIE=false/;s@https://files.example.test@http://192.0.2.10:9002@' /etc/ndi/application.env
+run_deploy --check
+run_deploy --deploy
+grep -q 'listen 8088;' /etc/nginx/conf.d/ndi.conf
+grep -q 'listen 9002;' /etc/nginx/conf.d/ndi.conf
+! grep -q ssl_certificate /etc/nginx/conf.d/ndi.conf
+sed -i 's/NDI_SECURE_COOKIE=false/NDI_SECURE_COOKIE=true/' /etc/ndi/application.env
+expect_failure --check 'COOKIE'
+sed -i 's/NDI_SECURE_COOKIE=true/NDI_SECURE_COOKIE=false/' /etc/ndi/application.env
+echo '通过：HTTP 双端口无证书部署，以及 Cookie 协议不匹配拦截。'
+
+if [[ -f /check-env.sh ]]; then
+  make_mock timeout 'shift; if [[ "$1" == bash ]]; then exit 0; fi; exec "$@"'
+  make_mock mysql 'echo 8.4.0'
+  make_mock mc 'if [[ "$1" == cors ]]; then echo "<AllowedOrigin>http://192.0.2.10:8088</AllowedOrigin>"; else echo '\''Access permission is `private`'\''; fi'
+  printf '%s\n' 'UNUSED=$(touch /test-control/pwned)' >> /etc/ndi/application.env
+  before="$(stop_count)"
+  env_hash="$(sha256sum /etc/ndi/application.env)"
+  bash /check-env.sh --mysql-login-path ndi --minio-alias ndi-app > /test-control/checker-output
+  grep -q 'FAIL=0 UNKNOWN=0' /test-control/checker-output
+  [[ ! -e /test-control/pwned && "$(sha256sum /etc/ndi/application.env)" == "$env_hash" ]]
+  ! grep -Eq 'private_test_password|private_test_secret' /test-control/checker-output
+  assert_no_new_stop
+  touch /test-control/fail-minio
+  checker_status=0
+  bash /check-env.sh > /test-control/checker-output || checker_status=$?
+  [[ "$checker_status" == 1 ]]
+  grep -q 'MinIO 就绪探针失败' /test-control/checker-output
+  rm /test-control/fail-minio
+  checker_status=0
+  bash /check-env.sh > /test-control/checker-output || checker_status=$?
+  [[ "$checker_status" == 2 ]]
+  grep -q '未执行 SQL 登录检查' /test-control/checker-output
+  echo '通过：环境检测退出码 0/1/2、配置不执行、不修改文件/服务及不输出密码。'
+fi
 
 new_bundle
 before="$(stop_count)"

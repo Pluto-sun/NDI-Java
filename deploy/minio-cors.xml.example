@@ -1,7 +1,7 @@
 <CORSConfiguration>
-  <!-- 替换成实际应用 HTTPS Origin，不是 MinIO 对象域名。 -->
+  <!-- 替换成实际应用 Origin，例如 http://实际IP:8088，不是对象入口。 -->
   <CORSRule>
-    <AllowedOrigin>https://CHANGE_ME_APP_HOST</AllowedOrigin>
+    <AllowedOrigin>http://CHANGE_ME:8088</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>

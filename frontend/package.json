@@ -12,6 +12,7 @@
     "format:check": "prettier --check src e2e playwright.config.ts"
   },
   "dependencies": {
+    "@noble/hashes": "2.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"

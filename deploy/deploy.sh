@@ -85,22 +85,43 @@ check_owned_config "$app_env"
 APP_HOST='' FILES_HOST='' APP_CERT='' APP_KEY='' FILES_CERT='' FILES_KEY=''
 JAVA_BIN=/usr/bin/java APP_PORT=8080 MINIO_UPSTREAM=127.0.0.1:9000 START_TIMEOUT=180
 DATABASE_BACKUP_CONFIRMED=no
+DEPLOY_MODE=https PUBLIC_IP='' WEB_PORT=8088 FILES_PORT=9002
 source "$config_file"
 if [[ "$mode" == --deploy && "$DATABASE_BACKUP_CONFIRMED" != yes ]]; then
   fail '请先备份数据库或确认目标为空库，再设置 DATABASE_BACKUP_CONFIRMED=yes。'
 fi
 
+[[ "$DEPLOY_MODE" == http || "$DEPLOY_MODE" == https ]] || fail 'DEPLOY_MODE 仅支持 http 或 https。'
+if [[ "$DEPLOY_MODE" == http ]]; then
+  [[ "$PUBLIC_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail 'PUBLIC_IP 必须填写实际 IPv4 地址。'
+  IFS=. read -r -a octets <<< "$PUBLIC_IP"
+  for octet in "${octets[@]}"; do (( 10#$octet <= 255 )) || fail 'IPv4 地址无效。'; done
+  for key in WEB_PORT FILES_PORT; do
+    value=${!key}
+    [[ "$value" =~ ^[1-9][0-9]{3,4}$ ]] && (( value >= 1024 && value <= 65535 )) || fail "$key 必须为 1024 至 65535。"
+  done
+  [[ "$WEB_PORT" != "$FILES_PORT" && "$WEB_PORT" != "$APP_PORT" && "$FILES_PORT" != "$APP_PORT" && "$WEB_PORT" != "${MINIO_UPSTREAM##*:}" && "$FILES_PORT" != "${MINIO_UPSTREAM##*:}" ]] || fail '应用、对象代理、Java 和 MinIO 端口不能冲突。'
+  app_origin="http://$PUBLIC_IP:$WEB_PORT"
+  files_origin="http://$PUBLIC_IP:$FILES_PORT"
+  secure_cookie=false
+else
 for key in APP_HOST FILES_HOST; do
   value=${!key}
   [[ "$value" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ && "$value" != *CHANGE_ME* && "$value" == *.* ]] || fail "请配置合法域名：$key"
 done
 [[ "$APP_HOST" != "$FILES_HOST" ]] || fail '应用与对象存储必须使用不同域名。'
+  app_origin="https://$APP_HOST"
+  files_origin="https://$FILES_HOST"
+  secure_cookie=true
+fi
 [[ "$APP_PORT" =~ ^[1-9][0-9]{3,4}$ ]] && (( APP_PORT <= 65535 )) || fail 'APP_PORT 必须为 1024 至 65535。'
 (( APP_PORT >= 1024 )) || fail 'APP_PORT 不能使用特权端口。'
 [[ "$START_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ ]] && (( START_TIMEOUT >= 30 && START_TIMEOUT <= 600 )) || fail '启动等待应为 30 至 600 秒。'
 [[ "$MINIO_UPSTREAM" =~ ^[a-zA-Z0-9.-]+:[1-9][0-9]{0,4}$ ]] || fail 'MINIO_UPSTREAM 格式应为内网主机:端口，不包含协议或路径。'
 (( ${MINIO_UPSTREAM##*:} <= 65535 )) || fail 'MinIO 端口无效。'
-for key in JAVA_BIN APP_CERT APP_KEY FILES_CERT FILES_KEY; do
+path_keys=(JAVA_BIN)
+if [[ "$DEPLOY_MODE" == https ]]; then path_keys+=(APP_CERT APP_KEY FILES_CERT FILES_KEY); fi
+for key in "${path_keys[@]}"; do
   value=${!key}
   [[ "$value" =~ ^/[a-zA-Z0-9._/-]+$ && "$value" != *CHANGE_ME* && "$value" != *..* ]] || fail "需要不含空格的真实绝对路径：$key"
   [[ -f "$value" ]] || fail "文件不存在：$key"
@@ -127,9 +148,9 @@ for key in NDI_DATASOURCE_URL NDI_DATASOURCE_USERNAME NDI_DATASOURCE_PASSWORD ND
   value="$(env_value "$key")"
   [[ -n "$value" && "$value" != *CHANGE_ME* && "$value" != *'${'* ]] || fail "缺少真实配置：$key（不输出值）"
 done
-[[ "$(env_value SPRING_PROFILES_ACTIVE)" == prod && "$(env_value NDI_AUTH_MODE)" == SESSION && "$(env_value NDI_SECURE_COOKIE)" == true ]] || fail '必须使用 prod、SESSION 和安全 Cookie。'
+[[ "$(env_value SPRING_PROFILES_ACTIVE)" == prod && "$(env_value NDI_AUTH_MODE)" == SESSION && "$(env_value NDI_SECURE_COOKIE)" == "$secure_cookie" ]] || fail '必须使用 prod、SESSION；HTTP 的 NDI_SECURE_COOKIE=false，HTTPS 则为 true。'
 [[ "$(env_value NDI_MINIO_ENDPOINT)" == "http://$MINIO_UPSTREAM" ]] || fail '应用内网 MinIO 地址需与代理上游一致。'
-[[ "$(env_value NDI_MINIO_PUBLIC_ENDPOINT)" == "https://$FILES_HOST" ]] || fail 'MinIO 公共地址必须匹配对象 HTTPS 域名，且不附加路径。'
+[[ "$(env_value NDI_MINIO_PUBLIC_ENDPOINT)" == "$files_origin" ]] || fail 'MinIO 公共地址必须匹配对象代理入口，且不附加路径。'
 [[ "$(env_value NDI_DATASOURCE_URL)" == jdbc:mysql://* ]] || fail '数据库 URL 必须使用 jdbc:mysql://。'
 if [[ -n "$(env_value NDI_BOOTSTRAP_ADMIN_LOGIN)" || -n "$(env_value NDI_BOOTSTRAP_ADMIN_PASSWORD)" ]]; then
   [[ -n "$(env_value NDI_BOOTSTRAP_ADMIN_LOGIN)" && -n "$(env_value NDI_BOOTSTRAP_ADMIN_PASSWORD)" ]] || fail '首次管理员账号与密码必须同时填写。'
@@ -149,6 +170,12 @@ if command -v getenforce >/dev/null && [[ "$(getenforce)" == Enforcing ]]; then
     command -v "$dependency" >/dev/null || fail "SELinux 检查缺少工具：$dependency"
   done
   getsebool httpd_can_network_connect | grep -q -- '--> on' || fail 'SELinux 未允许 Nginx 代理连接，请管理员配置 httpd_can_network_connect。'
+  if [[ "$DEPLOY_MODE" == http ]]; then
+    command -v semanage >/dev/null || fail 'SELinux 端口检查缺少 semanage。'
+    for port in "$WEB_PORT" "$FILES_PORT"; do
+      semanage port -l | awk -v p="$port" '$1=="http_port_t" && $2=="tcp" {for(i=3;i<=NF;i++){gsub(/,/,"",$i);n=split($i,r,"-");if((n==1 && p==r[1]) || (n==2 && p>=r[1] && p<=r[2]))ok=1}} END{exit !ok}' || fail 'SELinux 未将对外端口标记为 http_port_t；请管理员核对端口策略。'
+    done
+  fi
   for path in /opt/ndi/shared/assets/check.js /opt/ndi/releases/check/frontend/index.html; do
     matchpathcon -n "$path" | grep -q httpd_sys_content_t || fail '请先为 /opt/ndi 配置 httpd_sys_content_t 持久标签。'
   done
@@ -193,6 +220,14 @@ if [[ -n "$listeners" ]]; then
     [[ "$line" == *"pid=$main_pid,"* ]] || fail '应用端口存在其他进程，拒绝停止。'
   done <<< "$listeners"
 fi
+if [[ "$DEPLOY_MODE" == http ]]; then
+  for port in "$WEB_PORT" "$FILES_PORT"; do
+    external_listeners="$(ss -lntp | awk -v suffix=":$port" 'index($4,suffix)==length($4)-length(suffix)+1 {print}')"
+    while IFS= read -r line; do
+      [[ -z "$line" || "$line" == *'("nginx",pid='* ]] || fail '对外端口被非 Nginx 进程占用。'
+    done <<< "$external_listeners"
+  done
+fi
 curl --noproxy '*' -fsS --connect-timeout 3 --max-time 10 "http://$MINIO_UPSTREAM/minio/health/ready" >/dev/null || fail '内网 MinIO 未就绪。'
 nginx -t || fail '现有 Nginx 配置无效，不能部署。'
 
@@ -201,20 +236,22 @@ touch "$stage_dir/.ndi-owned"
 render() {
   local content key
   content="$(< "$1")"
-  for key in APP_HOST FILES_HOST APP_CERT APP_KEY FILES_CERT FILES_KEY JAVA_BIN APP_PORT MINIO_UPSTREAM; do
+  for key in APP_HOST FILES_HOST APP_CERT APP_KEY FILES_CERT FILES_KEY JAVA_BIN APP_PORT MINIO_UPSTREAM PUBLIC_IP WEB_PORT FILES_PORT; do
     content=${content//@@$key@@/${!key}}
   done
   [[ "$content" != *'@@'* ]] || fail '存在未替换的模板变量。'
   printf '%s\n' "$content" > "$2"
 }
 render "$bundle_dir/templates/ndi.service.template" "$stage_dir/ndi.service"
-render "$bundle_dir/templates/ndi.nginx.conf.template" "$stage_dir/ndi.conf"
+nginx_template=ndi.nginx.conf.template
+if [[ "$DEPLOY_MODE" == http ]]; then nginx_template=ndi.nginx.http.conf.template; fi
+render "$bundle_dir/templates/$nginx_template" "$stage_dir/ndi.conf"
 printf 'events {}\nhttp { include /etc/nginx/mime.types; include %s; }\n' "$stage_dir/ndi.conf" > "$stage_dir/preflight.conf"
 nginx -t -c "$stage_dir/preflight.conf" || fail '候选站点配置或证书无效。'
 systemd-analyze verify "$stage_dir/ndi.service" || fail '候选 systemd 配置无效。'
 if [[ "$mode" == --check ]]; then
   echo "检查通过：$release_id。未停止服务、未修改站点或版本指针。"
-  echo '仍须确认域名解析、数据库备份、私有 Bucket、应用凭据权限及 MinIO CORS。'
+  echo '仍须确认浏览器到入口的连通性、数据库备份、私有 Bucket、应用凭据权限及 MinIO CORS。'
   exit 0
 fi
 
@@ -317,16 +354,25 @@ if systemctl is-active --quiet nginx; then systemctl reload nginx; else systemct
 
 # 使用真实证书验证，--resolve 只将本次请求送往本机，不篡改 DNS 或跳过 TLS 校验。
 curl_base=(--noproxy '*' --fail --silent --show-error --connect-timeout 3 --max-time 15 --resolve "$APP_HOST:443:127.0.0.1")
-curl "${curl_base[@]}" "https://$APP_HOST/index.html" | grep -q 'id="root"' || fail 'Nginx 首页验收失败。'
-curl "${curl_base[@]}" "https://$APP_HOST/projects/deployment-check" | grep -q 'id="root"' || fail '前端深链接验收失败。'
+files_curl=(--noproxy '*' -fsS --connect-timeout 3 --max-time 10 --resolve "$FILES_HOST:443:127.0.0.1")
+probe_origin=$app_origin
+probe_files_origin=$files_origin
+if [[ "$DEPLOY_MODE" == http ]]; then
+  curl_base=(--noproxy '*' --fail --silent --show-error --connect-timeout 3 --max-time 15 -H "Host: $PUBLIC_IP:$WEB_PORT")
+  files_curl=(--noproxy '*' -fsS --connect-timeout 3 --max-time 10 -H "Host: $PUBLIC_IP:$FILES_PORT")
+  probe_origin="http://127.0.0.1:$WEB_PORT"
+  probe_files_origin="http://127.0.0.1:$FILES_PORT"
+fi
+curl "${curl_base[@]}" "$probe_origin/index.html" | grep -q 'id="root"' || fail 'Nginx 首页验收失败。'
+curl "${curl_base[@]}" "$probe_origin/projects/deployment-check" | grep -q 'id="root"' || fail '前端深链接验收失败。'
 while IFS= read -r asset_uri; do
-  curl "${curl_base[@]}" "https://$APP_HOST$asset_uri" -o /dev/null || fail '入口静态资源验收失败。'
+  curl "${curl_base[@]}" "$probe_origin$asset_uri" -o /dev/null || fail '入口静态资源验收失败。'
 done < <(grep -oE '/assets/[A-Za-z0-9._/-]+\.(js|css)' "$release_dir/frontend/index.html" | sort -u)
-curl "${curl_base[@]}" "https://$APP_HOST/api/v1/auth/mode" | grep -q 'SESSION' || fail '代理未连接到 SESSION 后端。'
-status="$(curl --noproxy '*' -sS --connect-timeout 3 --max-time 10 --resolve "$APP_HOST:443:127.0.0.1" -o /dev/null -w '%{http_code}' "https://$APP_HOST/api/v1/projects")"
+curl "${curl_base[@]}" "$probe_origin/api/v1/auth/mode" | grep -q 'SESSION' || fail '代理未连接到 SESSION 后端。'
+status="$(curl "${curl_base[@]}" --no-fail -o /dev/null -w '%{http_code}' "$probe_origin/api/v1/projects")"
 [[ "$status" == 401 ]] || fail '未登录业务接口未返回 401，请检查代理和认证。'
-curl --noproxy '*' -fsS --connect-timeout 3 --max-time 10 --resolve "$FILES_HOST:443:127.0.0.1" "https://$FILES_HOST/minio/health/ready" >/dev/null || fail 'MinIO HTTPS 入口验收失败。'
+curl "${files_curl[@]}" "$probe_files_origin/minio/health/ready" >/dev/null || fail 'MinIO 对外入口验收失败。'
 printf 'DEPLOYED_AT=%s\n' "$(date -u +%FT%TZ)" > "$release_dir/deployed.txt"
-echo "部署完成：$release_id；应用入口：https://$APP_HOST"
+echo "部署完成：$release_id；应用入口：$app_origin"
 echo '需继续在真实浏览器验证登录、Excel 导入、附件上传下载和地图。'
 echo '未自动修改 MySQL、MinIO、CORS、防火墙、SELinux 或其他 Nginx 站点。'

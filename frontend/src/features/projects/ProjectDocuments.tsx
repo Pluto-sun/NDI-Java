@@ -5,6 +5,7 @@ import type { DocumentPurpose, ProjectDocument } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
 import { openProjectDocument } from './openDocument';
+import { sha256Hex } from '../../shared/util/crypto';
 
 const purposes: Record<DocumentPurpose, string> = {
   GENERAL: '普通资料',
@@ -66,16 +67,12 @@ export function ProjectDocuments({
     setBusy(true);
     try {
       const bytes = await file.arrayBuffer();
-      const digest = await crypto.subtle.digest('SHA-256', bytes);
-      const sha256Hex = Array.from(new Uint8Array(digest), (value) =>
-        value.toString(16).padStart(2, '0'),
-      ).join('');
       const intent = await projectsApi.beginUpload(projectId, {
         purpose,
         originalName: file.name,
         mediaType,
         byteSize: file.size,
-        sha256Hex,
+        sha256Hex: sha256Hex(bytes),
       });
       const response = await fetch(intent.uploadUrl, {
         method: intent.method,

@@ -1,5 +1,7 @@
 # CentOS 7 前后端打包部署操作说明
 
+> 本文保留最初 HTTPS 交付方案与测试记录。后续已增加并默认采用 IP + HTTP 模式，无证书场景请以 [IP 与 HTTP 部署说明](ip-http-server-readiness-and-deployment-2026-10-23.md) 为准；本页下述域名/证书前置条件仅适用于 HTTPS 模式。
+
 ## 交付范围与前置条件
 
 面向本项目维护人员，现已提供本地打包脚本和服务器部署入口。默认拓扑为 Java、Nginx、MinIO 原生进程同机，前端部署在应用域名根路径，对象存储使用另一 HTTPS 域名。服务器不需要 Node.js、npm、Maven 或 Docker。异机、容器、域名子路径或纯 IP/HTTP 访问不能直接套用本模板。

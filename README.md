@@ -51,3 +51,10 @@ docker build -f docker/Dockerfile -t ndi:local .
 `identity`、`organization`、`projects`、`workflow`、`documents`、`production`、`collection`、`capabilities`、`reporting` 是一级应用模块。跨模块访问只能使用对方公开的应用接口或已发布领域事件，禁止引用其他模块的持久化实体和 Repository。
 
 详细设计与决策记录位于 [docs](docs)。
+
+## IP 与端口部署
+
+无域名、无证书时使用 `DEPLOY_MODE=http`，默认应用端口 8088、对象代理端口 9002。
+服务器数据库及 MinIO 凭据在 `/etc/ndi/application.env` 修改。
+只读环境检测：`sudo bash scripts/check-server-env.sh`（交付包中名为 `check-env.sh`）。
+完整步骤见 [IP 与 HTTP 部署说明](tmp/ip-http-server-readiness-and-deployment-2026-10-23.md)。

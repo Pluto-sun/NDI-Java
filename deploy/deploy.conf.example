@@ -1,5 +1,10 @@
 # 本文件由 root 维护，为受信任的 Bash 配置，不接收网页或其他用户提供的内容。
 # 复制为 /etc/ndi/deploy.conf。以下占位项需改为服务器真实配置。
+DEPLOY_MODE=http
+PUBLIC_IP=CHANGE_ME
+WEB_PORT=8088
+FILES_PORT=9002
+# 以下域名和证书只在 DEPLOY_MODE=https 时使用。
 APP_HOST=CHANGE_ME
 FILES_HOST=CHANGE_ME
 APP_CERT=/etc/nginx/certs/CHANGE_ME-app-fullchain.pem

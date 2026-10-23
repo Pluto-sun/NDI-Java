@@ -15,6 +15,14 @@ content=${content//@@FILES_HOST@@/files.example.test}
 content=${content//@@APP_PORT@@/8080}
 content=${content//@@MINIO_UPSTREAM@@/127.0.0.1:9000}
 printf '%s\n' "$content" > /test-nginx/ndi.conf
+http_content="$(< /source/templates/ndi.nginx.http.conf.template)"
+http_content=${http_content//@@PUBLIC_IP@@/127.0.0.1}
+http_content=${http_content//@@WEB_PORT@@/8088}
+http_content=${http_content//@@FILES_PORT@@/9002}
+http_content=${http_content//@@APP_PORT@@/8080}
+http_content=${http_content//@@MINIO_UPSTREAM@@/127.0.0.1:9000}
+http_content=${http_content//ndi_safe/ndi_http_safe}
+printf '%s\n' "$http_content" > /test-nginx/http.conf
 printf '<html><div id="root"></div></html>\n' > /opt/ndi/frontend-current/index.html
 printf 'console.log("test");\n' > /opt/ndi/shared/assets/test-hash.js
 # 用独立的 Nginx server 充当上游，验证 URI、Host 和查询参数是否保留。
@@ -22,7 +30,7 @@ printf '%s\n' \
   'server { listen 127.0.0.1:8080; location /api/v1/auth/mode { return 200 "SESSION:$request_uri:$http_host:$http_x_forwarded_proto"; } location / { return 401; } }' \
   'server { listen 127.0.0.1:9000; location / { return 200 "$request_uri:$http_host"; } }' > /test-nginx/upstream.conf
 printf '%s\n' 'pid /test-nginx/nginx.pid;' 'error_log /test-nginx/error.log;' 'events {}' \
-  'http { include /etc/nginx/mime.types; include /test-nginx/ndi.conf; include /test-nginx/upstream.conf; }' > /test-nginx/nginx.conf
+  'http { include /etc/nginx/mime.types; include /test-nginx/ndi.conf; include /test-nginx/http.conf; include /test-nginx/upstream.conf; }' > /test-nginx/nginx.conf
 nginx -t -c /test-nginx/nginx.conf
 nginx -c /test-nginx/nginx.conf
 trap 'nginx -s quit -c /test-nginx/nginx.conf' EXIT
@@ -37,4 +45,9 @@ curl "${app_curl[@]}" https://app.example.test/assets/test-hash.js | grep -q con
 curl --noproxy '*' --cacert /test-nginx/cert.pem --resolve files.example.test:443:127.0.0.1 -fsS \
   'https://files.example.test/ndi-documents/staging/test?X-Amz-Signature=temporary-test-signature' | grep -q '/ndi-documents/staging/test?X-Amz-Signature=temporary-test-signature:files.example.test'
 if grep -q temporary-test-signature /var/log/nginx/ndi-files-access.log; then echo '预签名查询参数泄漏到访问日志'; exit 1; fi
+curl --noproxy '*' -fsS http://127.0.0.1:8088/projects/uuid | grep -q 'id="root"'
+curl --noproxy '*' -fsS http://127.0.0.1:8088/api/v1/auth/mode | grep -q 'SESSION:/api/v1/auth/mode:127.0.0.1:8088:http'
+curl --noproxy '*' -fsS 'http://127.0.0.1:9002/ndi-documents/test?X-Amz-Signature=http-test-signature' | grep -q 'X-Amz-Signature=http-test-signature:127.0.0.1:9002'
+! grep -q http-test-signature /var/log/nginx/ndi-files-access.log
+echo '通过：HTTP 双端口、深链接、API 协议以及带端口对象 Host/签名保留。'
 echo '通过：真实 Nginx HTTPS、首页、深链接、资源、缺失资源 404、API 前缀/认证、管理路径屏蔽、对象路径/签名/Host 保留及安全访问日志。'
