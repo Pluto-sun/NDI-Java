@@ -1,0 +1,27 @@
+# Managed by NDI deployment
+[Unit]
+Description=NDI Java Application
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ndi
+Group=ndi
+WorkingDirectory=/var/lib/ndi
+EnvironmentFile=/etc/ndi/application.env
+ExecStart=@@JAVA_BIN@@ -jar /opt/ndi/backend-current/app.jar --spring.profiles.active=prod --ndi.auth.mode=SESSION --server.address=127.0.0.1 --server.port=@@APP_PORT@@ --server.forward-headers-strategy=native
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=120
+SendSIGKILL=no
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ndi
+
+[Install]
+WantedBy=multi-user.target

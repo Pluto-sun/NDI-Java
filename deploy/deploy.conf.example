@@ -1,0 +1,15 @@
+# 本文件由 root 维护，为受信任的 Bash 配置，不接收网页或其他用户提供的内容。
+# 复制为 /etc/ndi/deploy.conf。以下占位项需改为服务器真实配置。
+APP_HOST=CHANGE_ME
+FILES_HOST=CHANGE_ME
+APP_CERT=/etc/nginx/certs/CHANGE_ME-app-fullchain.pem
+APP_KEY=/etc/nginx/certs/CHANGE_ME-app-key.pem
+FILES_CERT=/etc/nginx/certs/CHANGE_ME-files-fullchain.pem
+FILES_KEY=/etc/nginx/certs/CHANGE_ME-files-key.pem
+JAVA_BIN=/usr/bin/java
+APP_PORT=8080
+MINIO_UPSTREAM=127.0.0.1:9000
+START_TIMEOUT=180
+# 确认目标是新空库，或已有可恢复备份后改为 yes；部署会执行 Flyway。
+DATABASE_BACKUP_CONFIRMED=no
+# 若已启用 SELinux，需管理员预先授权静态目录标签及 Nginx 代理连接。

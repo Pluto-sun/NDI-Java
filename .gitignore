@@ -18,6 +18,10 @@ tmp/e2e-report/
 tmp/e2e-logs/
 .env
 var/backups/
+dist/releases/
+tmp/ndi-package.*/
+deploy/*.conf
+deploy/*.env
 .env.*
 !.env.example
 __pycache__/

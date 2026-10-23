@@ -1,0 +1,12 @@
+<CORSConfiguration>
+  <!-- 替换成实际应用 HTTPS Origin，不是 MinIO 对象域名。 -->
+  <CORSRule>
+    <AllowedOrigin>https://CHANGE_ME_APP_HOST</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>

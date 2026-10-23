@@ -27,6 +27,14 @@ npm run dev
 
 打开 `http://127.0.0.1:5173/`，从演示账号中选择省分负责人、地市负责人或接口人。`local` Profile 下的账号选择与 `X-NDI-Actor-Id` 请求头仅用于开发测试，Java 服务在该 Profile 下只绑定 `127.0.0.1`；生产环境不会注册演示账号选择接口，正式认证尚未接入。当前前端已接通项目工作台与历史月报、列表与 CSV 导出、创建与 Excel 导入、详情与普通信息维护、进展及更正、里程碑、资料上传、阶段推进、重大变更、审批待办与已发起申请、审批通知及项目变更历史。与旧系统的完整功能差距和验收记录见 `tmp/project-management-frontend-slices-03-04.md`，当前不能视为生产上线完成。
 
+## Nginx 与 Java 服务器交付
+
+本地执行 `bash scripts/package-release.sh`，或在 Docker 可用时执行 `bash scripts/package-release.sh --verify`，生成 `dist/releases/` 下的前后端交付压缩包。构建使用隔离副本，不覆盖正在使用的 `target`；发布 JAR 不包含本地开发配置。服务器无需 npm 或 Maven。
+
+手动上传、解压后，在交付目录执行 `sudo bash deploy.sh --init-config`，填写 `/etc/ndi/deploy.conf` 和 `/etc/ndi/application.env`，再依次执行 `sudo bash deploy.sh --check`、`sudo bash deploy.sh --deploy`。默认需要两个 HTTPS 域名及证书，脚本同时配置应用与 MinIO 代理，仅管理 NDI 自有站点和服务，不自动配置 Bucket、CORS、防火墙或 SELinux。
+
+完整步骤及 CentOS 7 兼容边界见 [服务器交付说明](tmp/centos7-release-and-deploy-guide-2026-10-23.md)。首次部署须确认空库或已具备可恢复备份，数据库迁移失败不自动切回旧 JAR。
+
 ## 常用命令
 
 ```bash
