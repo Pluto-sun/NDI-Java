@@ -74,7 +74,7 @@ backend_port=$(read_value "$deploy_conf" APP_PORT); backend_port=${backend_port:
 for port in "$web_port" "$files_port" "$backend_port"; do
   if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || (( port > 65535 )); then report FAIL '配置中存在无效端口。'; continue; fi
   if command -v ss >/dev/null; then
-    listener=$(ss -lntp 2>/dev/null | awk -v p=":$port" 'index($4,p)==length($4)-length(p)+1 {print}')
+    listener=$(ss -lntp 2>/dev/null | awk -v p=":$port" 'index($4,p)>0 && index($4,p)==length($4)-length(p)+1 {print}')
     if [[ -z "$listener" ]]; then report PASS "TCP $port 未占用。"; else report WARN "TCP $port 已监听；部署 --check 将核对是否由 NDI/Nginx 托管。"; fi
   fi
 done

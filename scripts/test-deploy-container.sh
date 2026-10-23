@@ -20,6 +20,7 @@ if [[ "${1:-}" == -T ]]; then echo "# configuration file /etc/nginx/conf.d/ndi.c
 make_mock systemd-analyze 'exit 0'
 make_mock ss '
 echo "State Recv-Q Send-Q LocalAddress:Port PeerAddress:Port Process"
+echo '\''LISTEN 0 128 *:80 *:* users:(("nginx",pid=99,fd=3))'\''
 if [[ -f /test-control/foreign-port ]]; then
  echo '\''LISTEN 0 128 127.0.0.1:8080 0.0.0.0:* users:(("other",pid=66,fd=3))'\''
 elif [[ -f /test-control/running ]]; then

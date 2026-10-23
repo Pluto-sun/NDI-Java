@@ -213,7 +213,7 @@ done
 main_pid="$(systemctl show ndi.service -p MainPID 2>/dev/null || true)"
 main_pid=${main_pid#MainPID=}
 [[ "$main_pid" =~ ^[0-9]+$ ]] || main_pid=0
-listeners="$(ss -lntp | awk -v suffix=":$APP_PORT" 'index($4,suffix)==length($4)-length(suffix)+1 {print}')"
+listeners="$(ss -lntp | awk -v suffix=":$APP_PORT" 'index($4,suffix)>0 && index($4,suffix)==length($4)-length(suffix)+1 {print}')"
 if [[ -n "$listeners" ]]; then
   [[ "$main_pid" != 0 ]] || fail '应用端口被未托管进程占用，拒绝强杀或接管。'
   while IFS= read -r line; do
@@ -222,7 +222,7 @@ if [[ -n "$listeners" ]]; then
 fi
 if [[ "$DEPLOY_MODE" == http ]]; then
   for port in "$WEB_PORT" "$FILES_PORT"; do
-    external_listeners="$(ss -lntp | awk -v suffix=":$port" 'index($4,suffix)==length($4)-length(suffix)+1 {print}')"
+    external_listeners="$(ss -lntp | awk -v suffix=":$port" 'index($4,suffix)>0 && index($4,suffix)==length($4)-length(suffix)+1 {print}')"
     while IFS= read -r line; do
       [[ -z "$line" || "$line" == *'("nginx",pid='* ]] || fail '对外端口被非 Nginx 进程占用。'
     done <<< "$external_listeners"
