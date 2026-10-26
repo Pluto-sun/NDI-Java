@@ -52,10 +52,6 @@ export const adminApi = {
       method: 'POST',
       ...jsonBody({ version: user.version, newPassword }),
     }),
-  createCity: (provinceId: string, name: string) =>
-    requestAt(root, '/cities', { method: 'POST', ...jsonBody({ provinceId, name }) }),
-  createProvince: (name: string) =>
-    requestAt(root, '/provinces', { method: 'POST', ...jsonBody({ name }) }),
   saveReviewerMappings: (
     reviewers: { reviewerId: string; version: number; provinceIds: string[] }[],
   ) =>

@@ -17,9 +17,9 @@ public enum ProjectExportField {
     PROVINCE_LEADER("provinceLeaderName", "省分负责人"), CITY_MANAGER("cityAccountManagerName", "地市客户经理"),
     SUPPORT_EXPERTS("productSupportExpertNames", "产品单位支撑专家"), OPPORTUNITY_DATE("opportunityDate", "项目日期"),
     CUSTOMER_INDUSTRY("customerIndustry", "客户所属行业"), CATEGORIES("categories", "三化类别"),
-    UPDATED_AT("updatedAt", "最近更新时间");
+    UPDATED_AT("updatedAt", "最近更新时间"), RESPONSIBLE_PERSONS("responsiblePersons","项目负责人");
 
-    public static final int MAX_FIELDS = 22;
+    public static final int MAX_FIELDS = 23;
     private static final List<ProjectExportField> DEFAULTS = List.of(PROJECT_CODE, PROJECT_NAME, CUSTOMER_NAME,
             INDUSTRY_CODE, TOTAL_AMOUNT, CURRENT_STAGE_CODE, NETWORK_AMOUNT, GEWU_AMOUNT, BIG_DATA_AMOUNT, WANGWU_AMOUNT, CREATED_AT);
     private final String code;

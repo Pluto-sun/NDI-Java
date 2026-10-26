@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { projectsApi } from './api';
 import type {
   ProjectDetail,
@@ -13,6 +13,7 @@ import { amount, businessDate, dateTime } from '../../shared/ui/format';
 import { ProjectDocuments } from './ProjectDocuments';
 import { ProjectRequests } from './ProjectRequests';
 import { ProjectProfileForm } from './ProjectProfileForm';
+import { ProjectPeoplePanel } from './ProjectPeoplePanel';
 import { refreshNotificationCounts } from '../approvals/notificationEvents';
 import { ProjectHistory } from './ProjectHistory';
 import { ProjectInactivityAuditPanel } from './ProjectInactivityAuditPanel';
@@ -26,10 +27,16 @@ export function ProjectDetailPage({
   me: ProjectUser;
 }) {
   const { id } = useParams();
+  const location = useLocation();
+  const candidateReturnTo = (location.state as { projectListReturnTo?: unknown } | null)
+    ?.projectListReturnTo;
+  const returnTo =
+    typeof candidateReturnTo === 'string' && /^\/projects(?:\?|$)/.test(candidateReturnTo)
+      ? candidateReturnTo
+      : '/projects';
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [progress, setProgress] = useState<ProjectProgress[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
-  const [leaders, setLeaders] = useState<ProjectUser[]>([]);
   const [content, setContent] = useState('');
   const [nextAction, setNextAction] = useState('');
   const [progressDate, setProgressDate] = useState('');
@@ -55,10 +62,6 @@ export function ProjectDetailPage({
       setProgress(progresses.items);
       setMilestones(stageHistory.items);
       setError('');
-      void projectsApi
-        .provinceLeaders(project.provinceId)
-        .then(setLeaders)
-        .catch(() => setLeaders([]));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '项目加载失败');
     } finally {
@@ -121,7 +124,7 @@ export function ProjectDetailPage({
     <section>
       <div className="page-heading">
         <div>
-          <Link className="back-link" to="/projects">
+          <Link className="back-link" to={returnTo}>
             ← 返回项目列表
           </Link>
           <h1>{detail?.projectName ?? '项目详情'}</h1>
@@ -140,6 +143,7 @@ export function ProjectDetailPage({
       ) : (
         detail && (
           <>
+            <ProjectPeoplePanel project={detail} editable={!!canProgress} onSaved={setDetail} />
             <div className="detail-grid">
               <div className="panel">
                 <h2>项目主档</h2>
@@ -176,23 +180,6 @@ export function ProjectDetailPage({
                   <div>
                     <dt>项目所属月份</dt>
                     <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>省分负责人</dt>
-                    <dd>
-                      {detail.provinceLeaderName ??
-                        leaders.find((item) => item.id === detail.provinceLeaderUserId)
-                          ?.displayName ??
-                        '负责人账号不可用'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>地市客户经理</dt>
-                    <dd>{detail.cityAccountManagerName}</dd>
-                  </div>
-                  <div>
-                    <dt>产品单位支撑专家</dt>
-                    <dd>{detail.productSupportExpertNames?.join('、') || '—'}</dd>
                   </div>
                   <div>
                     <dt>拟招标月份</dt>
@@ -270,7 +257,6 @@ export function ProjectDetailPage({
             {canProgress && (
               <ProjectProfileForm
                 project={detail}
-                leaders={leaders}
                 reference={reference}
                 onSaved={(project) => {
                   setDetail(project);

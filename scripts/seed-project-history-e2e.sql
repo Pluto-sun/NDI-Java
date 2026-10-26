@@ -30,4 +30,12 @@ SELECT months.month_start,p.id,p.province_id,
 FROM project_project p CROSS JOIN (SELECT DATE('2020-01-01') month_start,100 factor UNION ALL SELECT DATE('2020-02-01'),110) months
 WHERE p.project_code LIKE 'E2E-HISTORY-%';
 UPDATE project_monthly_snapshot_control SET activation_month='2020-01-01',last_completed_month='2020-02-01' WHERE id=1;
+-- 直接造数也须满足统一负责人模型。
+INSERT INTO project_responsible_person(id,project_id,person_name,responsibility,user_id,sort_order)
+SELECT UUID_TO_BIN(UUID()),p.id,u.display_name,'PROVINCE_LEADER',u.id,0
+FROM project_project p JOIN identity_user_account u ON u.id=p.province_leader_user_id
+WHERE p.project_code LIKE 'E2E-HISTORY-%';
+INSERT INTO project_responsible_person(id,project_id,person_name,responsibility,sort_order)
+SELECT UUID_TO_BIN(UUID()),id,city_account_manager_name,'CITY_MANAGER',1
+FROM project_project WHERE project_code LIKE 'E2E-HISTORY-%';
 COMMIT;

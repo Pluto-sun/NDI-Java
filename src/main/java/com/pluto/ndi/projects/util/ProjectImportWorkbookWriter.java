@@ -33,6 +33,7 @@ public class ProjectImportWorkbookWriter {
 
     public byte[] template() {
         var headers = new ArrayList<>(ProjectExcelReader.mappableHeaders());
+        headers.removeAll(List.of("省分负责人","地市客户经理","产品单位支撑专家"));
         var today = LocalDate.now(clock.withZone(ZONE));
         headers.add("项目进展（%d年%d月%d日）".formatted(today.getYear(), today.getMonthValue(), today.getDayOfMonth()));
         try (var book = new XSSFWorkbook()) {
@@ -45,13 +46,13 @@ public class ProjectImportWorkbookWriter {
             style.setFont(font);
             List<String> notes = List.of(
                     "请勿修改“导入数据”工作表名称和表头；单次最多 1000 条，文件不超过 10 MB。",
-                    "必填：省分、地市、客户名称、客户所属行业、项目名称、省分负责人、地市客户经理、项目建设内容、三化类别、项目阶段、项目总金额。",
+                    "必填：省分、地市、客户名称、客户所属行业、项目名称、项目负责人、项目建设内容、三化类别、项目阶段、项目总金额。",
                     "三化类别用逗号分隔；勾选的类别必须填写对应预计金额，分类金额合计不得超过项目总金额，单位均为万元。",
                     "项目阶段支持方案交流、招投标、签约、计收和已终止；计收阶段必须填写合同编号和签约金额（万元）。",
                     "合同编号全局唯一，最长100个字符；签约或已终止项目可保留合同信息，填写时编号和金额须同时提供；方案交流和招投标阶段不得填写。",
                     "首次项目进展可写入以“项目进展（YYYY年M月D日）”命名的列；可按相同格式增加其他日期列。",
-                    "导入前请确认省分负责人已在新系统中启用；重复项目仅保留同地市同名的第一条。",
-                    "产品单位支撑专家为选填责任信息，多人可用逗号分隔；填写后不会自动获得项目权限。",
+                    "项目负责人至少一人，多人以中英文分号分隔，导入后在项目详情配置职责并按需绑定账号。",
+                    "负责人不必为系统账号，职责和账号绑定不授予项目权限；重复项目仅保留同地市同名的第一条。",
                     "拟招标日期选填，格式为 YYYY-MM 或 YYYY-MM-DD，系统按月份保存；应用场景可选填多个，用逗号分隔。",
                     "产品推广内容和备注选填；项目建设内容原文单独保存，便于核对导入来源。",
                     "重要度选填，默认NORMAL，最多30个字符，仅保留原值；支撑行业专家选填，最多500个字符，与产品单位支撑专家独立，均不授予项目权限。");

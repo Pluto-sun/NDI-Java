@@ -38,13 +38,14 @@ public class ProjectProfileService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final ProjectInactivityService inactivity;
+    private final ProjectResponsiblePersonStore people;
 
     public ProjectProfileService(
             ProjectAccessService accessService, IdentityDirectory identityDirectory,
             ProjectIndustryReferenceRepository industryRepository, ProjectRepository projectRepository,
             ProjectChangeEventRepository eventRepository, ProjectService projectService,
             ProjectMonthlySnapshotService monthlySnapshots, ObjectMapper objectMapper, Clock clock,
-            ProjectInactivityService inactivity
+            ProjectInactivityService inactivity, ProjectResponsiblePersonStore people
     ) {
         this.accessService = accessService;
         this.identityDirectory = identityDirectory;
@@ -56,6 +57,7 @@ public class ProjectProfileService {
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.inactivity = inactivity;
+        this.people=people;
     }
 
     @Transactional
@@ -70,11 +72,11 @@ public class ProjectProfileService {
         var customerName = requiredText(command.customerName(), 200);
         var industryCode = requiredText(command.industryCode(), 3).toUpperCase(Locale.ROOT);
         var customerNeed = requiredText(command.customerNeed(), 10_000);
-        var managerName = requiredText(command.cityAccountManagerName(), 100);
+        var managerName = command.cityAccountManagerName()==null ? project.cityAccountManagerName() : requiredText(command.cityAccountManagerName(), 100);
         if (!industryRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_INDUSTRY);
         }
-        if (command.provinceLeaderUserId() == null || !identityDirectory.isEligibleProvinceLeader(
+        if (command.provinceLeaderUserId() != null && !identityDirectory.isEligibleProvinceLeader(
                 command.provinceLeaderUserId(), project.provinceId())) {
             throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
         }
@@ -111,9 +113,11 @@ public class ProjectProfileService {
         monthlySnapshots.ensureBaseline(project);
         var occurredAt = Instant.now(clock);
         if (project.updateProfile(customerName, industryCode, customerNeed,
-                command.provinceLeaderUserId(), managerName, expertNames, bidMonth, scenarios, narrative,
+                command.provinceLeaderUserId()==null ? project.provinceLeaderUserId() : command.provinceLeaderUserId(), managerName, expertNames, bidMonth, scenarios, narrative,
                 actorId, occurredAt)) {
             projectRepository.saveAndFlush(project);
+            if (command.provinceLeaderUserId()!=null || command.cityAccountManagerName()!=null || command.productSupportExpertNames()!=null)
+                people.synchronizeLegacy(project);
             var event = ProjectChangeEventEntity.approvedChange(
                     projectId, project.versionNo(), "PROJECT_PROFILE_UPDATED",
                     eventPayload(before, snapshot(project)), actorId, occurredAt);

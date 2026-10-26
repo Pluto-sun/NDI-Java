@@ -70,7 +70,7 @@ public class ProjectExportRowService {
                 values.put(ProjectExportField.PROVINCE, provinces.getOrDefault(detail.provinceId(), ""));
                 values.put(ProjectExportField.CITY, cities.getOrDefault(detail.cityId(), ""));
                 values.put(ProjectExportField.SIGNING_SUBJECT, detail.signingSubjectCode());
-                values.put(ProjectExportField.PROVINCE_LEADER, leaders.getOrDefault(detail.provinceLeaderUserId(), ""));
+                values.put(ProjectExportField.PROVINCE_LEADER, detail.provinceLeaderUserId()==null ? "" : leaders.getOrDefault(detail.provinceLeaderUserId(), ""));
                 values.put(ProjectExportField.CITY_MANAGER, detail.cityAccountManagerName());
                 values.put(ProjectExportField.SUPPORT_EXPERTS, String.join("、", experts.getOrDefault(summary.id(), List.of())));
                 values.put(ProjectExportField.UPDATED_AT, lastActivities.getOrDefault(summary.id(), detail.updatedAt()).toString());

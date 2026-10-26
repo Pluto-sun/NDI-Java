@@ -70,6 +70,7 @@ public class ProjectService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final ProjectInactivityService inactivity;
+    private final ProjectResponsiblePersonStore people;
 
     public ProjectService(
             IdentityDirectory identityDirectory,
@@ -89,7 +90,7 @@ public class ProjectService {
             ProjectMonthlySnapshotService monthlySnapshots,
             ObjectMapper objectMapper,
             Clock clock,
-            ProjectInactivityService inactivity
+            ProjectInactivityService inactivity, ProjectResponsiblePersonStore people
     ) {
         this.identityDirectory = identityDirectory;
         this.organizationDirectory = organizationDirectory;
@@ -109,6 +110,7 @@ public class ProjectService {
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.inactivity = inactivity;
+        this.people=people;
     }
 
     @Transactional
@@ -160,6 +162,7 @@ public class ProjectService {
                 normalized.applicationScenarioCodes());
         project.replaceNarrative(normalized.narrative());
         projectRepository.saveAndFlush(project);
+        people.initialize(project,normalized.responsiblePersonNames());
         inactivity.initialize(project, occurredAt);
         var categoryEntities = categories.stream()
                 .map(category -> ProjectCategoryAmountEntity.create(project.id(), category.categoryCode(), category.expectedAmount()))
@@ -170,8 +173,8 @@ public class ProjectService {
         progressRepository.save(ProjectProgressEntity.initial(
                 project.id(), normalized.initialProgress(), normalized.nextAction(),
                 normalized.initialProgressOwnerName() == null
-                        ? identityDirectory.findProjectUser(normalized.provinceLeaderUserId())
-                            .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER)).displayName()
+                        ? normalized.responsiblePersonNames()!=null ? normalized.responsiblePersonNames().getFirst()
+                            : identityDirectory.findProjectUser(normalized.provinceLeaderUserId()).orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER)).displayName()
                         : normalized.initialProgressOwnerName(), actorId, occurredAt,
                 LocalDate.ofInstant(occurredAt, ZoneId.of("Asia/Shanghai"))));
         changeEventRepository.save(projectCreatedEvent(project, actorId, occurredAt,
@@ -180,8 +183,8 @@ public class ProjectService {
 
         return projectMapper.toSummary(project, categories.stream()
                 .map(category -> new ProjectSummary.CategoryAmount(category.categoryCode(), category.expectedAmount()))
-                .toList(), identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
-                        .get(project.provinceLeaderUserId()));
+                .toList(), project.provinceLeaderUserId()==null ? null : identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
+                        .get(project.provinceLeaderUserId()),people.find(project.id()));
     }
 
     @Transactional(readOnly = true)
@@ -198,9 +201,10 @@ public class ProjectService {
                 .toList());
         // 在分页和权限过滤之后批量查姓名，避免逐项目查目录，也保留停用账号的责任信息。
         var leaderNames = identityDirectory.findDisplayNames(projects.getContent().stream()
-                .map(ProjectEntity::provinceLeaderUserId).distinct().toList());
+                .map(ProjectEntity::provinceLeaderUserId).filter(java.util.Objects::nonNull).distinct().toList());
+        var personnel=people.find(projects.getContent().stream().map(ProjectEntity::id).toList());
         return projects.map(project -> projectMapper.toSummary(project,
-                amountsByProjectId.getOrDefault(project.id(), List.of()), leaderNames.get(project.provinceLeaderUserId())));
+                amountsByProjectId.getOrDefault(project.id(), List.of()), project.provinceLeaderUserId()==null ? null : leaderNames.get(project.provinceLeaderUserId()),personnel.getOrDefault(project.id(),List.of())));
     }
 
     @Transactional(readOnly = true)
@@ -215,9 +219,9 @@ public class ProjectService {
                 .map(item -> new ProjectSummary.CategoryAmount(item.categoryCode(), item.expectedAmount()))
                 .toList();
         // 鉴权后只读取本项目关联的姓名；停用账号不再可选，但既有责任信息仍须展示。
-        var leaderName = identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
+        var leaderName = project.provinceLeaderUserId()==null ? null : identityDirectory.findDisplayNames(List.of(project.provinceLeaderUserId()))
                 .get(project.provinceLeaderUserId());
-        return projectMapper.toDetail(project, categories, leaderName);
+        return projectMapper.toDetail(project, categories, leaderName,people.find(project.id()));
     }
 
     private ProjectActor requireEnabledActor(UUID actorId) {
@@ -244,6 +248,8 @@ public class ProjectService {
     }
 
     private void verifyProvinceLeader(CreateProjectCommand command) {
+        if (command.responsiblePersonNames()!=null) return;
+        if (command.provinceLeaderUserId()==null) throw new BusinessException(ProjectErrorCode.INVALID_RESPONSIBLE_PERSONS);
         if (!identityDirectory.isEligibleProvinceLeader(command.provinceLeaderUserId(), command.provinceId())) {
             throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
         }
@@ -320,6 +326,13 @@ public class ProjectService {
                 experts.select(project.get("id")).where(builder.equal(project.get("id"), root.get("id")),
                         builder.like(expert, "%" + escapeLike(query.productSupportExpertName()) + "%", '\\'));
                 conditions.add(builder.exists(experts));
+            }
+            if (query.responsiblePersonName()!=null) {
+                var personQuery=criteria.subquery(UUID.class);
+                var person=personQuery.from(com.pluto.ndi.projects.domain.entity.ProjectResponsiblePersonEntity.class);
+                personQuery.select(person.get("projectId")).where(builder.equal(person.get("projectId"),root.get("id")),
+                    builder.like(person.get("name"),"%"+escapeLike(query.responsiblePersonName())+"%",'\\'));
+                conditions.add(builder.exists(personQuery));
             }
             if (query.stage() != null) {
                 conditions.add(builder.equal(root.get("currentStageCode"), query.stage().name()));
@@ -407,8 +420,8 @@ public class ProjectService {
                 trim(command.industryCode()).toUpperCase(Locale.ROOT),
                 customerNeed,
                 command.totalAmount(),
-                command.provinceLeaderUserId(),
-                trim(command.cityAccountManagerName()),
+                command.responsiblePersonNames()!=null ? null : command.provinceLeaderUserId(),
+                command.responsiblePersonNames()!=null || command.cityAccountManagerName()==null ? "" : command.cityAccountManagerName().trim(),
                 command.categoryAmounts(),
                 trim(command.initialProgress()),
                 trim(command.nextAction()),
@@ -417,7 +430,8 @@ public class ProjectService {
                 command.duplicateReason() == null ? null : command.duplicateReason().trim(),
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
                         ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
-                expertNames, bidMonth, scenarios, narrative, importance, initialOwner
+                command.responsiblePersonNames()!=null ? List.of() : expertNames, bidMonth, scenarios, narrative, importance, initialOwner,
+                command.responsiblePersonNames()==null ? null : ProjectResponsiblePersonStore.normalizeNames(command.responsiblePersonNames())
         );
     }
 

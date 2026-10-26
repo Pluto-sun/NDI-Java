@@ -11,6 +11,7 @@ const eventLabels: Record<string, string> = {
   PROJECT_PROFILE_UPDATED: '资料变更',
   STAGE_ADVANCEMENT_APPROVED: '阶段推进',
   MAJOR_CHANGE_APPROVED: '重大变更',
+  PROJECT_PEOPLE_UPDATED: '人员配置',
 };
 const stageName = (code: string | null) =>
   code === 'TERMINATED'
@@ -37,6 +38,7 @@ export function DashboardActivities({
         <h2>近期项目变动情况{stageLabel}</h2>
         <form
           className="dashboard-inline-filters"
+          aria-label="近期变动时间筛选"
           onSubmit={(event) => {
             event.preventDefault();
             if (from && to && from <= to) setRange({ from, to });

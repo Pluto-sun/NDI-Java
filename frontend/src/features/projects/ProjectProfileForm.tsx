@@ -1,19 +1,16 @@
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { projectsApi } from './api';
-import type { ProjectDetail, ProjectUser, ReferenceData } from './types';
+import type { ProjectDetail, ReferenceData } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
-import { parseSupportExperts } from './supportExperts';
 import { Modal } from '../../shared/ui/Modal';
 
 export function ProjectProfileForm({
   project,
-  leaders,
   reference,
   onSaved,
 }: {
   project: ProjectDetail;
-  leaders: ProjectUser[];
   reference: ReferenceData;
   onSaved: (project: ProjectDetail) => void;
 }) {
@@ -28,13 +25,6 @@ export function ProjectProfileForm({
     project.productPromotionContent ?? '',
   );
   const [remark, setRemark] = useState(project.remark ?? '');
-  const [provinceLeaderUserId, setProvinceLeaderUserId] = useState(project.provinceLeaderUserId);
-  const [cityAccountManagerName, setCityAccountManagerName] = useState(
-    project.cityAccountManagerName,
-  );
-  const [supportExpertsText, setSupportExpertsText] = useState(
-    (project.productSupportExpertNames ?? []).join('\n'),
-  );
   const [plannedBidMonth, setPlannedBidMonth] = useState(
     project.plannedBidMonth?.slice(0, 7) ?? '',
   );
@@ -50,9 +40,6 @@ export function ProjectProfileForm({
     setConstructionContentRaw(project.constructionContentRaw);
     setProductPromotionContent(project.productPromotionContent ?? '');
     setRemark(project.remark ?? '');
-    setProvinceLeaderUserId(project.provinceLeaderUserId);
-    setCityAccountManagerName(project.cityAccountManagerName);
-    setSupportExpertsText((project.productSupportExpertNames ?? []).join('\n'));
     setPlannedBidMonth(project.plannedBidMonth?.slice(0, 7) ?? '');
     setApplicationScenarioCodes(project.applicationScenarioCodes ?? []);
   }, [project]);
@@ -69,9 +56,6 @@ export function ProjectProfileForm({
         constructionContentRaw,
         productPromotionContent,
         remark,
-        provinceLeaderUserId,
-        cityAccountManagerName: cityAccountManagerName.trim(),
-        productSupportExpertNames: parseSupportExperts(supportExpertsText),
         plannedBidMonth,
         applicationScenarioCodes,
       });
@@ -161,43 +145,6 @@ export function ProjectProfileForm({
               </label>
             </details>
             <label>
-              省分负责人
-              <Select
-                required
-                value={provinceLeaderUserId}
-                onChange={(event) => setProvinceLeaderUserId(event.target.value)}
-              >
-                {!leaders.some((item) => item.id === project.provinceLeaderUserId) && (
-                  <option value={project.provinceLeaderUserId}>
-                    {project.provinceLeaderName ?? '现有负责人'}（当前责任信息）
-                  </option>
-                )}
-                {leaders.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.displayName}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label>
-              地市客户经理
-              <input
-                required
-                maxLength={100}
-                value={cityAccountManagerName}
-                onChange={(event) => setCityAccountManagerName(event.target.value)}
-              />
-            </label>
-            <label>
-              产品单位支撑专家（选填）
-              <textarea
-                rows={2}
-                value={supportExpertsText}
-                onChange={(event) => setSupportExpertsText(event.target.value)}
-                placeholder="多位专家请换行或用逗号分隔；不自动获得项目权限"
-              />
-            </label>
-            <label>
               拟招标月份（选填）
               <input
                 type="month"
@@ -224,7 +171,7 @@ export function ProjectProfileForm({
                 </label>
               ))}
             </fieldset>
-            <button className="primary-button" type="submit" disabled={busy || !leaders.length}>
+            <button className="primary-button" type="submit" disabled={busy}>
               {busy ? '保存中…' : '保存普通信息'}
             </button>
           </form>

@@ -24,7 +24,8 @@ public record ProjectQuery(
         String productSupportExpertName,
         String keyword,
         LocalDate opportunityDateStart,
-        LocalDate opportunityDateEnd
+        LocalDate opportunityDateEnd,
+        String responsiblePersonName
 ) {
 
     public ProjectQuery {
@@ -36,6 +37,7 @@ public record ProjectQuery(
         cityAccountManagerName = normalize(cityAccountManagerName, false);
         productSupportExpertName = normalize(productSupportExpertName, false);
         keyword = normalize(keyword, false);
+        responsiblePersonName=normalize(responsiblePersonName,false);
         if (opportunityDateStart != null && (opportunityDateStart.getYear() < 1000 || opportunityDateStart.getYear() > 9999)
                 || opportunityDateEnd != null && (opportunityDateEnd.getYear() < 1000 || opportunityDateEnd.getYear() > 9999)
                 || opportunityDateStart != null && opportunityDateEnd != null && opportunityDateStart.isAfter(opportunityDateEnd)) {
@@ -44,6 +46,14 @@ public record ProjectQuery(
         if (signingSubjectCode != null && !Set.of("PROVINCE_SIGN", "DS_SIGN").contains(signingSubjectCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
         }
+    }
+
+    public ProjectQuery(String projectCode,String projectName,ProjectStage stage,String industryCode,
+            UUID provinceId,UUID cityId,boolean includeTerminated,String signingSubjectCode,
+            String provinceLeaderName,String cityAccountManagerName,String productSupportExpertName,String keyword,
+            LocalDate opportunityDateStart,LocalDate opportunityDateEnd) {
+        this(projectCode,projectName,stage,industryCode,provinceId,cityId,includeTerminated,signingSubjectCode,
+            provinceLeaderName,cityAccountManagerName,productSupportExpertName,keyword,opportunityDateStart,opportunityDateEnd,null);
     }
 
     public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,

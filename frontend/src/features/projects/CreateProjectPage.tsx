@@ -13,7 +13,6 @@ import type { Page } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
 import { amountToCents } from '../../shared/ui/format';
 import { dateTime } from '../../shared/ui/format';
-import { parseSupportExperts } from './supportExperts';
 
 export function CreateProjectPage({
   me,
@@ -24,8 +23,7 @@ export function CreateProjectPage({
 }) {
   const navigate = useNavigate();
   const [cityId, setCityId] = useState(me.cityId ?? '');
-  const [leaders, setLeaders] = useState<ProjectUser[]>([]);
-  const [leaderId, setLeaderId] = useState('');
+  const [responsibleText, setResponsibleText] = useState('');
   const [projectName, setProjectName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [industryCode, setIndustryCode] = useState('');
@@ -34,8 +32,6 @@ export function CreateProjectPage({
   const [productPromotionContent, setProductPromotionContent] = useState('');
   const [remark, setRemark] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
-  const [cityAccountManagerName, setCityAccountManagerName] = useState('');
-  const [supportExpertsText, setSupportExpertsText] = useState('');
   const [plannedBidMonth, setPlannedBidMonth] = useState('');
   const [applicationScenarioCodes, setApplicationScenarioCodes] = useState<string[]>([]);
   const [signingSubjectCode, setSigningSubjectCode] = useState<'PROVINCE_SIGN' | 'DS_SIGN'>(
@@ -65,14 +61,6 @@ export function CreateProjectPage({
   );
 
   useEffect(() => {
-    if (!provinceId) return;
-    projectsApi
-      .provinceLeaders(provinceId)
-      .then(setLeaders)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : '负责人目录加载失败'));
-  }, [provinceId]);
-
-  useEffect(() => {
     let active = true;
     projectsApi
       .drafts(draftPage)
@@ -90,7 +78,11 @@ export function CreateProjectPage({
   function formData(): ProjectDraftData {
     return {
       cityId,
-      leaderId,
+      leaderId: '',
+      responsiblePersonNames: responsibleText
+        .split(/[;；\n]+/)
+        .map((name) => name.trim())
+        .filter(Boolean),
       projectName,
       customerName,
       industryCode,
@@ -99,8 +91,7 @@ export function CreateProjectPage({
       productPromotionContent,
       remark,
       totalAmount,
-      cityAccountManagerName,
-      productSupportExpertNames: supportExpertsText.split(/\n/).filter(Boolean),
+      cityAccountManagerName: '',
       plannedBidMonth,
       applicationScenarioCodes,
       signingSubjectCode,
@@ -146,12 +137,25 @@ export function CreateProjectPage({
     }
   }
 
-  function restoreDraft(draft: ProjectDraft) {
+  async function restoreDraft(draft: ProjectDraft) {
     if (!window.confirm(`载入草稿“${draft.title}”？当前未保存内容会被替换。`)) return;
     const data = draft.data;
     setDraftId(draft.id);
     setCityId(data.cityId ?? '');
-    setLeaderId(data.leaderId ?? '');
+    const legacyLeaders =
+      !data.responsiblePersonNames && data.leaderId && provinceId
+        ? await projectsApi.provinceLeaders(provinceId).catch(() => [])
+        : [];
+    setResponsibleText(
+      (
+        data.responsiblePersonNames ??
+        [
+          legacyLeaders.find((user) => user.id === data.leaderId)?.displayName,
+          data.cityAccountManagerName,
+          ...(data.productSupportExpertNames ?? []),
+        ].filter((name): name is string => !!name)
+      ).join('；'),
+    );
     setProjectName(data.projectName ?? '');
     setCustomerName(data.customerName ?? '');
     setIndustryCode(data.industryCode ?? '');
@@ -160,8 +164,6 @@ export function CreateProjectPage({
     setProductPromotionContent(data.productPromotionContent ?? '');
     setRemark(data.remark ?? '');
     setTotalAmount(data.totalAmount ?? '');
-    setCityAccountManagerName(data.cityAccountManagerName ?? '');
-    setSupportExpertsText((data.productSupportExpertNames ?? []).join('\n'));
     setPlannedBidMonth(data.plannedBidMonth ?? '');
     setApplicationScenarioCodes(data.applicationScenarioCodes ?? []);
     setSigningSubjectCode(data.signingSubjectCode === 'DS_SIGN' ? 'DS_SIGN' : 'PROVINCE_SIGN');
@@ -211,8 +213,8 @@ export function CreateProjectPage({
       setError('项目名称至少需要 2 个字符。');
       return;
     }
-    if (!provinceId || !cityId || !leaderId) {
-      setError('请选择地市和省分负责人。');
+    if (!provinceId || !cityId || !responsibleText.trim()) {
+      setError('请选择地市并填写至少一位项目负责人。');
       return;
     }
     const totalCents = amountToCents(totalAmount);
@@ -247,7 +249,10 @@ export function CreateProjectPage({
     setBusy(true);
     setError('');
     try {
-      const productSupportExpertNames = parseSupportExperts(supportExpertsText);
+      const responsiblePersonNames = responsibleText
+        .split(/[;；\n]+/)
+        .map((name) => name.trim())
+        .filter(Boolean);
       const created = await projectsApi.create({
         provinceId,
         cityId,
@@ -259,9 +264,7 @@ export function CreateProjectPage({
         productPromotionContent,
         remark,
         totalAmount,
-        provinceLeaderUserId: leaderId,
-        cityAccountManagerName,
-        productSupportExpertNames,
+        responsiblePersonNames,
         plannedBidMonth,
         applicationScenarioCodes,
         signingSubjectCode,
@@ -547,23 +550,14 @@ export function CreateProjectPage({
         <h2>责任信息</h2>
         <div className="form-grid">
           <label>
-            省分负责人
-            <Select required value={leaderId} onChange={(event) => setLeaderId(event.target.value)}>
-              <option value="">请选择</option>
-              {leaders.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.displayName}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            地市客户经理
-            <input
+            项目负责人
+            <textarea
               required
-              maxLength={100}
-              value={cityAccountManagerName}
-              onChange={(event) => setCityAccountManagerName(event.target.value)}
+              rows={2}
+              maxLength={10100}
+              value={responsibleText}
+              onChange={(event) => setResponsibleText(event.target.value)}
+              placeholder="至少一位；多人以分号分隔，例如：张三；李四。创建后在详情配置职责与账号。"
             />
           </label>
           <label>
@@ -579,15 +573,6 @@ export function CreateProjectPage({
               <option value="PROVINCE_SIGN">省分签约</option>
               <option value="DS_SIGN">数科签约</option>
             </Select>
-          </label>
-          <label>
-            产品单位支撑专家（选填）
-            <textarea
-              rows={2}
-              value={supportExpertsText}
-              onChange={(event) => setSupportExpertsText(event.target.value)}
-              placeholder="多位专家请换行或用逗号分隔；仅用于责任记录"
-            />
           </label>
         </div>
         <h2>规划信息（选填）</h2>

@@ -45,15 +45,14 @@ class ZeroDataProjectIT {
     @Test void initializesDirectoryAccountsAndProjectWithoutAnyLegacyOrDemoData() throws Exception {
         var administrator = sessions.login("zero-admin", "zero-admin-password").user().id();
         assertThat(admin.configuration(administrator).provinces()).hasSize(34);
-        assertThat(admin.configuration(administrator).cities()).isEmpty();
+        assertThat(admin.configuration(administrator).cities()).hasSize(372);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isZero();
-        var province = admin.createProvince(administrator, " 零数据省 ");
-        assertThat(province.name()).isEqualTo("零数据省");
+        var province = admin.configuration(administrator).provinces().stream().filter(item->item.name().equals("广东省")).findFirst().orElseThrow();
         assertThatThrownBy(() -> admin.createProvince(administrator, "零数据省"))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("同名省分");
+                .isInstanceOf(BusinessException.class).hasMessageContaining("预置行政区划目录");
         assertThatThrownBy(() -> admin.createProvince(administrator, " "))
                 .isInstanceOf(BusinessException.class);
-        var city = admin.createCity(administrator, province.id(), "零数据市");
+        var city = admin.configuration(administrator).cities().stream().filter(item->item.name().equals("广州市")&&item.provinceId().equals(province.id())).findFirst().orElseThrow();
         var leader = admin.create(administrator, new AdminAccountCommand("13800000001", "省分负责人", "",
                 List.of("PROVINCE_REPORTER"), province.id(), null), "zero-user-password");
         var reporter = admin.create(administrator, new AdminAccountCommand("13800000002", "地市负责人", "",
@@ -73,24 +72,24 @@ class ZeroDataProjectIT {
         var second = audit.find(reporter.id(), project.id(), PageRequest.of(1, 1));
         assertThat(first.getTotalElements()).isEqualTo(2);
         assertThat(first.getContent().getFirst().id()).isNotEqualTo(second.getContent().getFirst().id());
-        var otherProvince = admin.createProvince(administrator, "另省");
+        var otherProvince = admin.configuration(administrator).provinces().stream().filter(item->item.name().equals("浙江省")).findFirst().orElseThrow();
         var outsider = admin.create(administrator, new AdminAccountCommand("13800000003", "外省负责人", "",
                 List.of("PROVINCE_REPORTER"), otherProvince.id(), null), "zero-user-password");
         assertThatThrownBy(() -> audit.find(outsider.id(), project.id(), PageRequest.of(0, 20)))
                 .isInstanceOf(BusinessException.class);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM system_audit_event WHERE event_type='ORGANIZATION_PROVINCE_CREATED'", Integer.class)).isEqualTo(2);
-        // 管理锁覆盖“不存在的省分”，并发首建也只能成功一次。
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM system_audit_event WHERE event_type='ORGANIZATION_PROVINCE_CREATED'", Integer.class)).isZero();
+        // 即使并发提交旧接口，也不能绕过标准目录约束。
         try (var workers = Executors.newFixedThreadPool(2)) {
             var tasks = List.<java.util.concurrent.Callable<Boolean>>of(() -> createConcurrent(administrator), () -> createConcurrent(administrator));
             var results = workers.invokeAll(tasks);
-            assertThat(List.of(results.get(0).get(), results.get(1).get())).containsExactlyInAnyOrder(true, false);
+            assertThat(List.of(results.get(0).get(), results.get(1).get())).containsExactly(false, false);
         }
     }
 
     private boolean createConcurrent(UUID administrator) {
         try { admin.createProvince(administrator, "并发新省"); return true; }
         catch (BusinessException exception) {
-            assertThat(exception.errorCode().code()).isEqualTo("ORGANIZATION_PROVINCE_CONFLICT");
+            assertThat(exception.errorCode().code()).isEqualTo("ORGANIZATION_CATALOG_READ_ONLY");
             return false;
         }
     }

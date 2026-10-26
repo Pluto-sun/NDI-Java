@@ -173,10 +173,10 @@ class IdentityAdministrationIT {
             Callable<String> create = () -> { start.await(); try { admin.createCity(administrator, province, name); return "OK"; }
                 catch (BusinessException exception) { return exception.errorCode().code(); } };
             var a = executor.submit(create); var b = executor.submit(create); start.countDown();
-            assertThat(List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS))).containsExactlyInAnyOrder("OK", "ORGANIZATION_CITY_CONFLICT");
+            assertThat(List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS))).containsOnly("ORGANIZATION_CATALOG_READ_ONLY");
         }
-        assertThat(admin.configuration(administrator).cities()).anyMatch(item -> item.name().equals(name) && item.provinceId().equals(province));
-        assertCode(() -> admin.createCity(administrator, UUID.randomUUID(), "无效市"), "ORGANIZATION_CITY_INVALID");
+        assertThat(admin.configuration(administrator).cities()).noneMatch(item -> item.name().equals(name));
+        assertCode(() -> admin.createCity(administrator, UUID.randomUUID(), "无效市"), "ORGANIZATION_CATALOG_READ_ONLY");
     }
 
     private String outcome(CountDownLatch start, AdminAccountView actor, AdminAccountView target) throws Exception {

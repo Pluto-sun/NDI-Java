@@ -75,7 +75,7 @@ public class ProjectEntity {
     @Column(name = "current_stage_code", nullable = false)
     private String currentStageCode;
 
-    @Column(name = "province_leader_user_id", nullable = false)
+    @Column(name = "province_leader_user_id")
     private UUID provinceLeaderUserId;
 
     @Column(name = "city_account_manager_name", nullable = false)
@@ -300,6 +300,14 @@ public class ProjectEntity {
     public void recordOpportunityDate(Instant at) { opportunityDate = Objects.requireNonNull(at); }
 
     public void recordCategoryAmountChange(UUID actorId, Instant at) { touch(actorId, at); }
+    public void recordResponsiblePersonChange(UUID actorId, Instant at) { touch(actorId, at); }
+
+    /** 兼容旧读取契约；人员明细始终以独立人员表为准。 */
+    public void replaceResponsibleSummary(UUID leaderId, String manager, List<String> experts) {
+        provinceLeaderUserId=leaderId;
+        cityAccountManagerName=manager;
+        replaceProductSupportExperts(experts);
+    }
 
     public void rename(String newName, UUID actorId, Instant occurredAt) {
         projectName = newName;

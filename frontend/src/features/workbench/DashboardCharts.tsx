@@ -68,22 +68,6 @@ export function DashboardDonut({
   );
 }
 
-/** 迷你图与主趋势都只使用真实所属月份数据，空月份显示为零。 */
-export function Sparkline({ values }: { values: number[] }) {
-  const maximum = Math.max(1, ...values);
-  const points = values
-    .map(
-      (value, index) =>
-        `${(index * 100) / Math.max(1, values.length - 1)},${28 - (value / maximum) * 24}`,
-    )
-    .join(' ');
-  return (
-    <svg className="dashboard-spark" viewBox="0 0 100 32" aria-hidden="true">
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 export function DashboardTrend({
   data,
   metric,

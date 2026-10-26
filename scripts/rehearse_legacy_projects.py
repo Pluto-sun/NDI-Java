@@ -95,6 +95,38 @@ def insert_legacy_project(target, project_id, old, industry_code, leader_id, man
          legacy_opportunity_date(old)))
 
 
+def insert_legacy_responsible_people(target, project_id, members, leader_id):
+    """保留旧人员职责；同名不合并，只有省分负责人绑定原账号。"""
+    roles = {"PROVINCE_LEADER": "PROVINCE_LEADER",
+             "CITY_ACCOUNT_MANAGER": "CITY_MANAGER",
+             "PRODUCT_SUPPORT_EXPERT": "SUPPORT_EXPERT"}
+    province_assigned = False
+    position = 0
+    for member in members:
+        name = (member["person_name_snapshot"] or "").strip()
+        if not name:
+            continue
+        role = roles.get(member["role_code"])
+        account = None
+        if role == "PROVINCE_LEADER":
+            if province_assigned:
+                role = None
+            else:
+                province_assigned = True
+                account = binary(leader_id)
+        execute(target, """INSERT INTO project_responsible_person
+            (id,project_id,person_name,responsibility,user_id,sort_order)
+            VALUES (%s,%s,%s,%s,%s,%s)""",
+            (fresh_id(), project_id, name, role, account, position))
+        position += 1
+    if not province_assigned:
+        execute(target, """INSERT INTO project_responsible_person
+            (id,project_id,person_name,responsibility,user_id,sort_order)
+            SELECT %s,%s,display_name,'PROVINCE_LEADER',id,%s
+            FROM identity_user_account WHERE id=%s""",
+            (fresh_id(), project_id, position, binary(leader_id)))
+
+
 def backfill_legacy_opportunity_dates(target, source_projects):
     report = {"restored": [], "skipped_existing": [], "unmapped": [], "failed": []}
     for old in source_projects:
@@ -266,6 +298,7 @@ def main():
                 creator_id = binary(old["creator_id"])
                 insert_legacy_project(target, project_id, old, industry_codes[old["customer_industry"]],
                                       leaders[0], managers[0], creator_id)
+                insert_legacy_responsible_people(target, project_id, project_members, leaders[0])
                 for code, amount in category_amounts:
                     execute(target, "INSERT INTO project_category_amount(id,project_id,category_code,expected_amount) VALUES (%s,%s,%s,%s)",
                             (fresh_id(), project_id, code, amount))

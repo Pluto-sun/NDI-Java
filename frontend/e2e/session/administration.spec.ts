@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { test, expect, type BrowserContext } from '@playwright/test';
 
 async function deviceLogin(context: BrowserContext, loginName: string, password: string) {
@@ -10,26 +10,19 @@ async function deviceLogin(context: BrowserContext, loginName: string, password:
   expect(response.status()).toBe(201);
 }
 
-test('管理员创建地市与账号、编辑、重置密码和启停均在正式会话中生效', async ({
+test('管理员使用既有地市创建账号、编辑、重置密码和启停均在正式会话中生效', async ({
   page,
   browser,
 }, testInfo) => {
   const phone = `138${randomInt(10000000, 99999999)}`;
-  const cityName = `验收地市-${randomUUID().slice(0, 8)}`;
+  const cityName = '本地演示市';
   const password = 'new-user-test-password';
   await page.goto('/admin/accounts');
   await page.getByLabel('账号', { exact: true }).fill('e2e_admin');
   await page.getByLabel('密码', { exact: true }).fill('e2e-session-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByRole('heading', { name: '账号与组织', exact: true })).toBeVisible();
-  await page.getByText('新增地市', { exact: true }).click();
-  await page
-    .getByRole('combobox', { name: '地市归属省分', exact: true })
-    .selectOption({ label: '本地演示省' });
-  await page.getByLabel('新增地市名称', { exact: true }).fill(cityName);
-  await page.getByRole('button', { name: '添加地市', exact: true }).click();
-  await expect(page.getByText('地市已添加，账号归属选项已更新。', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '关闭新增地市', exact: true }).click();
+  await expect(page.getByRole('button', { name: '新增地市', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '新建账号', exact: true }).click();
   await page.getByLabel('登录账号', { exact: true }).fill(phone);
   await page.getByLabel('账号姓名', { exact: true }).fill('浏览器账号验收');

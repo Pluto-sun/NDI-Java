@@ -372,10 +372,18 @@ public class ProjectImportService {
 
     private ProjectImportCandidate normalize(ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
         required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称",
-                "省分负责人", "地市客户经理", "项目建设内容", "三化类别", "项目阶段");
+                "项目建设内容", "三化类别", "项目阶段");
+        List<String> responsibleNames=null;
+        boolean unified=!row.get("项目负责人").isBlank();
+        if (unified) {
+            try { responsibleNames=ProjectResponsiblePersonStore.names(row.get("项目负责人")); }
+            catch (BusinessException error) { errors.add(error.errorCode().message()); }
+        } else if (row.get("省分负责人").isBlank() && row.get("地市客户经理").isBlank() && row.get("产品单位支撑专家").isBlank()) {
+            errors.add("项目负责人不能为空");
+        }
         var location = organizations.findEnabledLocationByNames(row.get("省分"), row.get("地市"));
         if (location.isEmpty()) errors.add("省分或地市未在新系统启用或名称不唯一："
-                + row.get("省分") + " / " + row.get("地市") + "；请核对原始地市，或由管理员在账号与组织中配置");
+                + row.get("省分") + " / " + row.get("地市") + "；请按行政区划核对原文件，或在预检中修正该行");
         else if (!identity.canImportProject(actor, location.get().provinceId(), location.get().cityId())) {
             errors.add("无此省市项目导入权限");
         }
@@ -383,7 +391,7 @@ public class ProjectImportService {
         if (industry.isEmpty()) errors.add("行业名称未匹配有效代码");
         var leader = location.flatMap(value -> identity.findEligibleProvinceLeaderByName(
                 row.get("省分负责人"), value.provinceId()));
-        if (location.isPresent() && leader.isEmpty()) errors.add("省分负责人未唯一匹配本省有效账号");
+        // 兼容旧模板；仅旧省分负责人列尝试匹配账号，新名单绝不按姓名自动绑定。
         var stage = STAGE_LABELS.get(row.get("项目阶段"));
         if (stage == null) errors.add("项目阶段未识别");
         var signingSubject = switch (row.get("签约主体")) {
@@ -455,10 +463,10 @@ public class ProjectImportService {
                 .map(item -> new ProjectImportCandidate.Progress(item.occurredAt(), item.content())).toList();
         return new ProjectImportCandidate(location.get().provinceId(), location.get().cityId(),
                 row.get("项目名称"), row.get("客户名称"), industry.get().industryCode(),
-                row.get("项目建设内容"), total, leader.get(), row.get("地市客户经理"),
+                row.get("项目建设内容"), total, unified ? null : leader.orElse(null), unified ? "" : row.get("地市客户经理"),
                 signingSubject, stage, List.copyOf(categories), progress, Instant.now(clock),
-                expertNames, bidMonth, scenarios, narrative, contractNo.isBlank() ? null : contractNo, signedAmount,
-                importAttributes);
+                unified ? List.of() : expertNames, bidMonth, scenarios, narrative, contractNo.isBlank() ? null : contractNo, signedAmount,
+                importAttributes,responsibleNames,unified ? null : row.get("省分负责人"));
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {

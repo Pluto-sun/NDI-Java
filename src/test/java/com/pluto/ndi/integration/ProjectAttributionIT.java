@@ -185,7 +185,6 @@ class ProjectAttributionIT {
         assertThat(result.current().bigData().count()).isEqualTo(1);
         assertThat(result.current().bigData().amount()).isEqualByComparingTo("0");
         assertThat(result.current().totalAmount()).isEqualByComparingTo("100");
-        assertThat(result.previous().projectCount()).isZero();
         assertThat(result.provinces()).hasSize(1);
         assertThat(result.trend().getFirst().summary()).isEqualTo(result.current());
         assertThat(dashboard.view(leader, filter).current().projectCount()).isEqualTo(2);

@@ -29,11 +29,26 @@ public record CreateProjectCommand(
         List<String> applicationScenarioCodes,
         ProjectNarrative narrative,
         String importanceCode,
-        String initialProgressOwnerName
+        String initialProgressOwnerName,
+        List<String> responsiblePersonNames
 ) {
 
     public CreateProjectCommand {
         categoryAmounts = List.copyOf(categoryAmounts);
+    }
+
+    /** 旧调用方在过渡期仍接受原三类责任字段。 */
+    public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,
+            String customerName, String industryCode, String customerNeed, BigDecimal totalAmount,
+            UUID provinceLeaderUserId, String cityAccountManagerName, List<CategoryAmount> categoryAmounts,
+            String initialProgress, String nextAction, UUID draftId, boolean confirmNew,
+            String duplicateReason, String signingSubjectCode, List<String> productSupportExpertNames,
+            String plannedBidMonth, List<String> applicationScenarioCodes, ProjectNarrative narrative,
+            String importanceCode, String initialProgressOwnerName) {
+        this(provinceId,cityId,projectName,customerName,industryCode,customerNeed,totalAmount,
+            provinceLeaderUserId,cityAccountManagerName,categoryAmounts,initialProgress,nextAction,
+            draftId,confirmNew,duplicateReason,signingSubjectCode,productSupportExpertNames,
+            plannedBidMonth,applicationScenarioCodes,narrative,importanceCode,initialProgressOwnerName,null);
     }
 
     public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,

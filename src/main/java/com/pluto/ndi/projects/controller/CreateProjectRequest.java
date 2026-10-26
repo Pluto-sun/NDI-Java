@@ -22,8 +22,8 @@ public record CreateProjectRequest(
         @NotBlank(message = "客户所属行业不得为空") @Size(max = 3, message = "客户所属行业代码不正确") String industryCode,
         @NotBlank(message = "客户需求不得为空") String customerNeed,
         @NotNull(message = "项目总金额不得为空") @DecimalMin(value = "0", message = "项目总金额不得小于0") BigDecimal totalAmount,
-        @NotNull(message = "省分负责人不得为空") UUID provinceLeaderUserId,
-        @NotBlank(message = "地市客户经理不得为空") @Size(max = 100, message = "地市客户经理不得超过100个字符") String cityAccountManagerName,
+        UUID provinceLeaderUserId,
+        @Size(max = 100, message = "地市客户经理不得超过100个字符") String cityAccountManagerName,
         @NotEmpty(message = "至少选择一个三化类别") List<@Valid CategoryAmountRequest> categoryAmounts,
         @NotBlank(message = "首条项目进展不得为空") String initialProgress,
         @NotBlank(message = "下一步动作不得为空") String nextAction,
@@ -39,7 +39,8 @@ public record CreateProjectRequest(
         String remark,
         @Size(max = 30, message = "重要性代码不得超过30个字符") String importanceCode,
         @com.fasterxml.jackson.annotation.JsonAlias("progressOwnerName")
-        @Size(max = 100, message = "首条进展负责人不得超过100个字符") String initialProgressOwnerName
+        @Size(max = 100, message = "首条进展负责人不得超过100个字符") String initialProgressOwnerName,
+        @Size(min=1,max=100) List<@NotBlank @Size(max=100) String> responsiblePersonNames
 ) {
 
     CreateProjectCommand toCommand() {
@@ -67,7 +68,8 @@ public record CreateProjectRequest(
                 applicationScenarioCodes,
                 new ProjectNarrative(constructionContentRaw, productPromotionContent, remark),
                 importanceCode,
-                initialProgressOwnerName
+                initialProgressOwnerName,
+                responsiblePersonNames
         );
     }
 

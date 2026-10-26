@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 
 /** 项目模块对外暴露的稳定错误码。 */
 public enum ProjectErrorCode implements ErrorCode {
+    INVALID_RESPONSIBLE_PERSONS(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_RESPONSIBLE_PERSONS", "项目负责人无效", "每项目须有1至100位负责人，姓名最长100字；省分负责人至多一位，绑定账号不得重复且须符合资格"),
     INVALID_ATTRIBUTION_FILTER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ATTRIBUTION_FILTER", "所属月份筛选无效", "请选择有效月份区间，最多36个月；阶段和属地筛选不得包含无效值"),
     INVALID_CREATION_ATTRIBUTES(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_CREATION_ATTRIBUTES", "创建可选属性无效", "重要性代码最长30字，首条进展负责人最长100字"),
     INVALID_EXPORT_FIELDS(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_EXPORT_FIELDS", "导出字段无效", "至少选择一个合法字段，字段不能重复"),

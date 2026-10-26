@@ -73,6 +73,14 @@ class IdentityPermissionService implements IdentityDirectory {
     }
 
     @Override
+    public List<ProjectUser> searchProjectBindingAccounts(String keyword,UUID provinceId,boolean provinceOnly) {
+        var pattern="%"+(keyword==null?"":keyword.strip().toLowerCase(java.util.Locale.ROOT)
+            .replace("!","!!").replace("%","!%").replace("_","!_"))+"%";
+        var page=org.springframework.data.domain.PageRequest.of(0,100,org.springframework.data.domain.Sort.by("displayName","id"));
+        return toProjectUsers(userAccountRepository.findProjectBindingAccounts(pattern,provinceId,provinceOnly,PROVINCE_LEADER_ROLES,page));
+    }
+
+    @Override
     public List<ProjectUser> findEligibleStageApprovers(UUID provinceId) {
         return toProjectUsers(userAccountRepository.findAllById(reviewers.reviewers(provinceId)).stream().filter(UserAccountEntity::enabled).toList()).stream()
                 .filter(user -> user.roleCodes().contains(INTERFACE_PROJECT_READER_ROLE)
@@ -188,7 +196,7 @@ class IdentityPermissionService implements IdentityDirectory {
     @Override
     public Map<UUID, String> findDisplayNames(java.util.Collection<UUID> userIds) {
         if (userIds.isEmpty()) return Map.of();
-        return userAccountRepository.findAllById(userIds).stream()
+        return userAccountRepository.findAllById(userIds.stream().filter(java.util.Objects::nonNull).toList()).stream()
                 .collect(Collectors.toUnmodifiableMap(UserAccountEntity::id, UserAccountEntity::displayName));
     }
 
@@ -303,10 +311,11 @@ class IdentityPermissionService implements IdentityDirectory {
             ProjectReminderAudience audience) {
         return switch (audience) {
             case PROVINCE -> {
-                var leaders = findEligibleProvinceLeaders(provinceId).stream()
+                var leaders = toProjectUsers(userAccountRepository.findByProvinceIdAndEnabledTrueOrderByLoginNameAscIdAsc(provinceId)).stream()
+                        .filter(user -> user.roleCodes().stream().anyMatch(PROVINCE_LEADER_ROLES::contains))
                         .filter(user -> !user.roleCodes().contains(SYSTEM_ADMIN_ROLE)).toList();
                 var assigned = leaders.stream().filter(user -> user.id().equals(assignedLeaderId)).toList();
-                yield assigned.isEmpty() ? leaders : assigned;
+                yield assigned.isEmpty() ? leaders.stream().limit(1).toList() : assigned;
             }
             case INTERFACE -> findEligibleStageApprovers(provinceId);
             case GROUP -> toProjectUsers(userAccountRepository.findEnabledByRoles(

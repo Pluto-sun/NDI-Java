@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import pymysql
 from unittest.mock import MagicMock, patch
-from rehearse_legacy_projects import legacy_opportunity_date, insert_legacy_project, backfill_legacy_opportunity_dates
+from rehearse_legacy_projects import legacy_opportunity_date, insert_legacy_project, backfill_legacy_opportunity_dates, insert_legacy_responsible_people
 
 
 class LegacyOpportunityDateTest(unittest.TestCase):
@@ -60,6 +60,27 @@ class LegacyOpportunityDateTest(unittest.TestCase):
             self.assertEqual(report['restored'], [])
             self.assertEqual(len(report['failed']), 1)
             target.rollback.assert_called_once()
+
+
+class LegacyResponsiblePeopleTest(unittest.TestCase):
+    def test_homonyms_keep_separate_roles_and_only_one_province_binding(self):
+        leader = str(uuid.uuid4())
+        members = [dict(person_name_snapshot="同名", role_code=role) for role in
+                   ["PROVINCE_LEADER", "CITY_ACCOUNT_MANAGER", "PRODUCT_SUPPORT_EXPERT", "PROVINCE_LEADER"]]
+        with patch('rehearse_legacy_projects.execute') as execute:
+            insert_legacy_responsible_people(MagicMock(), uuid.uuid4().bytes, members, leader)
+            rows = [call.args[2] for call in execute.call_args_list]
+            self.assertEqual(len(rows), 4)
+            self.assertEqual([row[3] for row in rows], ["PROVINCE_LEADER", "CITY_MANAGER", "SUPPORT_EXPERT", None])
+            self.assertEqual([row[4] for row in rows], [uuid.UUID(leader).bytes, None, None, None])
+            self.assertEqual([row[5] for row in rows], [0, 1, 2, 3])
+
+    def test_missing_leader_snapshot_uses_bound_account_name(self):
+        leader = str(uuid.uuid4())
+        with patch('rehearse_legacy_projects.execute') as execute:
+            insert_legacy_responsible_people(MagicMock(), uuid.uuid4().bytes, [], leader)
+            self.assertIn("FROM identity_user_account", execute.call_args.args[1])
+            self.assertEqual(execute.call_args.args[2][-1], uuid.UUID(leader).bytes)
 
 
 if __name__ == '__main__':

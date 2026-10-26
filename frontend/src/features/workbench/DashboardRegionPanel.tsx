@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { projectsApi } from '../projects/api';
 import { Feedback } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
@@ -19,6 +19,9 @@ export function DashboardRegionPanel({
   const [geoJson, setGeoJson] = useState<unknown>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   useEffect(() => {
     let active = true;
     setError('');
@@ -48,6 +51,35 @@ export function DashboardRegionPanel({
     <div className="dashboard-region-grid">
       <section className="panel dashboard-map" aria-label={`驾驶舱项目区域分布${stageLabel}`}>
         <h2>项目区域分布{stageLabel}</h2>
+        <div className="action-row" aria-label="驾驶舱地图操作">
+          <button
+            type="button"
+            className="text-button"
+            disabled={zoom >= 3}
+            onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
+          >
+            放大地图
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            disabled={zoom <= 1}
+            onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
+          >
+            缩小地图
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+          >
+            重置地图
+          </button>
+          <small className="subtle">{Math.round(zoom * 100)}% · 放大后可拖动或使用方向键移动</small>
+        </div>
         {error && (
           <Feedback>
             图形暂不可用：{error}。右侧排名仍可使用。
@@ -56,7 +88,49 @@ export function DashboardRegionPanel({
             </button>
           </Feedback>
         )}
-        <svg viewBox="0 0 680 440" role="img" aria-label="省分项目分布地图，具体数据见省分排名表">
+        <svg
+          style={{
+            touchAction: zoom > 1 ? 'none' : 'pan-y',
+            cursor: zoom > 1 ? 'grab' : 'default',
+          }}
+          viewBox={`${340 - 340 / zoom + pan.x} ${220 - 220 / zoom + pan.y} ${680 / zoom} ${440 / zoom}`}
+          role="img"
+          aria-label="省分项目分布地图，具体数据见省分排名表"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            const step = 25 / zoom;
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+              event.preventDefault();
+              setPan((value) => ({
+                x:
+                  value.x +
+                  (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0),
+                y:
+                  value.y +
+                  (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0),
+              }));
+            }
+          }}
+          onPointerDown={(event) => {
+            if (zoom <= 1) return;
+            drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!drag.current) return;
+            const scale = 680 / event.currentTarget.getBoundingClientRect().width / zoom;
+            setPan({
+              x: drag.current.panX - (event.clientX - drag.current.x) * scale,
+              y: drag.current.panY - (event.clientY - drag.current.y) * scale,
+            });
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+        >
           {shapes.map((shape) => {
             const row = byName.get(canonical(shape.name));
             const ratio = row ? value(row) / maximum : 0;

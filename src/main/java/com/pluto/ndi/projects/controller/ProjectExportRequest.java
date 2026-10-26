@@ -25,12 +25,13 @@ public record ProjectExportRequest(
         @Size(max = 200, message = "关键字不得超过200个字符") String keyword,
         LocalDate opportunityDateStart,
         LocalDate opportunityDateEnd,
-        @Size(max = ProjectExportField.MAX_FIELDS, message = "导出字段数量超出限制") List<String> fields
+        @Size(max = ProjectExportField.MAX_FIELDS, message = "导出字段数量超出限制") List<String> fields,
+        @Size(max=100) String responsiblePersonName
 ) {
     public ProjectQuery toQuery() {
         return new ProjectQuery(projectCode, projectName, stage, industryCode,
                 provinceId, cityId, includeTerminated == null || includeTerminated,
                 signingSubjectCode, provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
-                opportunityDateStart, opportunityDateEnd);
+                opportunityDateStart, opportunityDateEnd,responsiblePersonName);
     }
 }

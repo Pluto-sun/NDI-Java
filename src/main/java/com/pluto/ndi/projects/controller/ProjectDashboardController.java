@@ -22,6 +22,7 @@ public class ProjectDashboardController {
     @GetMapping
     public ApiResponse<ProjectDashboard> view(Authentication authentication,
             @RequestParam String from, @RequestParam String to,
+            @RequestParam(defaultValue = "ALL") ProjectDashboardPart part,
             @RequestParam(required = false) ProjectStage stage,
             @RequestParam(defaultValue = "") String category, @RequestParam(defaultValue = "") String product,
             @RequestParam(defaultValue = "false") boolean includeTerminated) {
@@ -30,7 +31,7 @@ public class ProjectDashboardController {
         }
         try {
             return responses.success(service.view(actor.userId(), new ProjectDashboardFilter(YearMonth.parse(from),
-                    YearMonth.parse(to), stage, category, product, includeTerminated)));
+                    YearMonth.parse(to), stage, category, product, includeTerminated), part));
         } catch (DateTimeParseException exception) {
             throw new BusinessException(ProjectErrorCode.INVALID_ATTRIBUTION_FILTER);
         }

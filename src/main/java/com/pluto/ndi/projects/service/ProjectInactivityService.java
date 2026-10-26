@@ -36,14 +36,16 @@ public class ProjectInactivityService {
     private final ProjectAccessService access;
     private final IdentityDirectory identities;
     private final Clock clock;
+    private final ProjectResponsiblePersonStore people;
 
     public ProjectInactivityService(ProjectRepository projects, ProjectInactivityMapper mapper,
-            ProjectAccessService access, IdentityDirectory identities, Clock clock) {
+            ProjectAccessService access, IdentityDirectory identities, Clock clock,ProjectResponsiblePersonStore people) {
         this.projects = projects;
         this.mapper = mapper;
         this.access = access;
         this.identities = identities;
         this.clock = clock;
+        this.people=people;
     }
 
     public record ScanResult(UUID caseId, String audience, int recipients, boolean delivered, String status) { }
@@ -85,7 +87,15 @@ public class ProjectInactivityService {
         var caseId = existing.map(ProjectInactivityCase::id).orElseGet(() -> mapper.open(project, activity, now));
         var audience = days >= 36 ? ProjectReminderAudience.GROUP
                 : days >= 33 ? ProjectReminderAudience.INTERFACE : ProjectReminderAudience.PROVINCE;
-        var sentAt = existing.map(item -> switch (audience) {
+        UUID assigned=people.provinceAccount(project.id());
+        var recipients=identities.findProjectReminderRecipients(project.provinceId(),assigned,audience);
+        boolean redirected=audience==ProjectReminderAudience.PROVINCE && recipients.isEmpty();
+        if (redirected) {
+            audience=ProjectReminderAudience.INTERFACE;
+            recipients=identities.findProjectReminderRecipients(project.provinceId(),assigned,audience);
+        }
+        final var targetAudience=audience;
+        var sentAt = existing.map(item -> switch (targetAudience) {
             case PROVINCE -> item.provinceSentAt();
             case INTERFACE -> item.interfaceSentAt();
             case GROUP -> item.groupSentAt();
@@ -93,13 +103,16 @@ public class ProjectInactivityService {
         if (sentAt != null || existing.filter(item -> !"OPEN".equals(item.status())).isPresent()) {
             return new ScanResult(caseId, audience.name(), 0, false, "ALREADY_HANDLED");
         }
-        var recipients = identities.findProjectReminderRecipients(project.provinceId(),
-                project.provinceLeaderUserId(), audience);
-        if (recipients.isEmpty()) return new ScanResult(caseId, audience.name(), 0, false, "NO_RECIPIENTS");
+        if (recipients.isEmpty()) {
+            mapper.audit(project.id(),caseId,null,"INACTIVITY_NO_RECIPIENTS","省分及负责接口人无可用接收账号，需检查配置",now);
+            return new ScanResult(caseId, audience.name(), 0, false, "NO_RECIPIENTS");
+        }
         for (var recipient : recipients) mapper.notice(caseId, recipient.id(), audience.name(), now, false);
         mapper.escalated(caseId, audience, now);
+        if (redirected) mapper.escalated(caseId,ProjectReminderAudience.PROVINCE,now);
         mapper.audit(project.id(), caseId, null, "INACTIVITY_REMINDER_" + audience.name(),
-                "连续" + days + "天未变动，通知" + recipients.size() + "名接收人", now);
+                "连续" + days + "天未变动，接收账号=" + recipients.stream().map(user -> user.id().toString()).toList()
+                + (redirected ? "；省分无合格接收人，立即转交负责接口人" : ""), now);
         return new ScanResult(caseId, audience.name(), recipients.size(), true, "DELIVERED");
     }
 
@@ -205,7 +218,7 @@ public class ProjectInactivityService {
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
         var now = Instant.now(clock);
         var handled = "INTERFACE_TO_PROVINCE".equals(route.route())
-                ? identities.findProjectReminderRecipients(project.provinceId(), project.provinceLeaderUserId(),
+                ? identities.findProjectReminderRecipients(project.provinceId(), people.provinceAccount(project.id()),
                         ProjectReminderAudience.INTERFACE).stream().map(ProjectUser::id).toList()
                 : List.of(actorId);
         mapper.handle(caseId, handled, now);

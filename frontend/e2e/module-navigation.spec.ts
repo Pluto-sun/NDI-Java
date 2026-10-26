@@ -48,24 +48,24 @@ test('七个模块、多级菜单、占位页及个人中心可用', async ({ pa
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  await page.getByRole('button', { name: '新增地市', exact: true }).click();
-  const modal = page.getByRole('dialog', { name: '新增地市', exact: true });
+  await expect(page.getByRole('button', { name: '新增地市', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '新增省分', exact: true })).toHaveCount(0);
+  await trigger.click();
+  const modal = page.getByRole('dialog', { name: '创建账号', exact: true });
   await expect(modal).toBeVisible();
-  await modal.getByRole('combobox', { name: '地市归属省分', exact: true }).click();
+  await modal.getByRole('combobox', { name: '所属省分', exact: true }).click();
   await expect(page.getByRole('listbox', { name: '可选项', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('themed-select-modal.png'), fullPage: false });
   await page
     .getByRole('listbox', { name: '可选项', exact: true })
     .getByRole('option', { name: '北京市', exact: true })
     .click();
-  await expect(modal.getByRole('combobox', { name: '地市归属省分', exact: true })).not.toHaveValue(
-    '',
-  );
+  await expect(modal.getByRole('combobox', { name: '所属省分', exact: true })).not.toHaveValue('');
   await expect(page.getByRole('listbox')).toHaveCount(0);
-  await modal.getByRole('combobox', { name: '地市归属省分', exact: true }).press('ArrowDown');
+  await modal.getByRole('combobox', { name: '所属省分', exact: true }).press('ArrowDown');
   await expect(page.getByRole('listbox')).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: '关闭新增地市', exact: true }).click();
+  await page.getByRole('button', { name: '关闭创建账号', exact: true }).click();
   await nav.getByRole('link', { name: '项目管理驾驶舱', exact: true }).click();
   await expect(page.getByRole('button', { name: '刷新驾驶舱', exact: true })).toBeEnabled();
   await expect(page.locator('.dashboard-kpi')).toHaveCount(5);

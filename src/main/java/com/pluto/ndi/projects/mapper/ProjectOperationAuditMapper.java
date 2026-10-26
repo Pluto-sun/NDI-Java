@@ -18,6 +18,7 @@ public class ProjectOperationAuditMapper {
         SELECT CONCAT('EVENT:',BIN_TO_UUID(e.id)) id,e.event_type,
                CASE e.event_type WHEN 'PROJECT_CREATED' THEN '创建项目'
                  WHEN 'PROJECT_PROFILE_UPDATED' THEN '更新项目资料与责任信息'
+                 WHEN 'PROJECT_PEOPLE_UPDATED' THEN '配置项目负责人及账号关联'
                  WHEN 'STAGE_ADVANCEMENT_APPROVED' THEN '阶段推进审批通过'
                  WHEN 'MAJOR_CHANGE_APPROVED' THEN '重大变更审批通过'
                  ELSE '项目资料变更' END summary,e.actor_id,e.occurred_at

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 /** 驾驶舱数据契约；数量与金额分别汇总，跨分类的数量允许重复。 */
-public record ProjectDashboard(YearMonth from, YearMonth to, Summary current, Summary previous,
+public record ProjectDashboard(YearMonth from, YearMonth to, Summary current,
         List<Stage> stages, List<Region> provinces, List<Month> trend) {
     public record Value(long count, BigDecimal amount) { }
     public record Summary(long projectCount, BigDecimal totalAmount, long provinceCount,

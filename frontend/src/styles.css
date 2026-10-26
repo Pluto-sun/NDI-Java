@@ -445,6 +445,44 @@ label {
 .export-field-picker {
   margin-bottom: 16px;
 }
+.project-person-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.project-person-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.project-person-list small {
+  color: var(--muted);
+}
+.person-role {
+  background: var(--red-soft);
+  color: var(--red-dark);
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+.project-person-editor {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.project-person-editor legend {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 0 6px;
+}
 .export-field-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));

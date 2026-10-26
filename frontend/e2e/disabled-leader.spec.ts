@@ -46,7 +46,7 @@ test('停用负责人保留项目姓名和责任信息，维护时仍须改选�
   expect(disabled.ok(), await disabled.text()).toBeTruthy();
   await page.goto(`/projects/${project.id}`);
   await chooseActor(page, ids.reporter);
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.locator('.project-person-list').getByText(name, { exact: true })).toBeVisible();
   const list = await request.get(
     `http://127.0.0.1:18080/api/v1/projects?provinceLeaderName=${encodeURIComponent(name)}`,
     {
@@ -56,18 +56,15 @@ test('停用负责人保留项目姓名和责任信息，维护时仍须改选�
   expect(list.ok(), await list.text()).toBeTruthy();
   const rows = (await list.json()).data.items as { id: string; provinceLeaderName: string }[];
   expect(rows.find((row) => row.id === project.id)?.provinceLeaderName).toBe(name);
-  const panel = page
-    .getByRole('heading', { name: '普通信息维护', exact: true })
-    .locator('..')
-    .locator('..');
-  await panel.getByRole('button', { name: '编辑', exact: true }).click();
-  const form = page.getByRole('dialog', { name: '编辑项目普通信息', exact: true });
-  await expect(form.getByRole('combobox', { name: '省分负责人', exact: true })).toHaveValue(
+  await page.getByRole('button', { name: '配置人员', exact: true }).click();
+  const form = page.getByRole('dialog', { name: '配置项目负责人', exact: true });
+  const owner = form.getByRole('group', { name: '负责人 1', exact: true });
+  await expect(owner.getByRole('combobox', { name: '关联系统账号', exact: true })).toHaveValue(
     leader.id,
   );
-  await form.getByRole('button', { name: '保存普通信息', exact: true }).click();
+  await form.getByRole('button', { name: '保存人员配置', exact: true }).click();
   await expect(form.getByRole('alert')).toContainText('省分负责人');
-  await form.getByRole('combobox', { name: '省分负责人', exact: true }).selectOption(ids.leader);
-  await form.getByRole('button', { name: '保存普通信息', exact: true }).click();
-  await expect(page.getByText('演示省分负责人', { exact: true }).first()).toBeVisible();
+  await owner.getByRole('combobox', { name: '关联系统账号', exact: true }).selectOption(ids.leader);
+  await form.getByRole('button', { name: '保存人员配置', exact: true }).click();
+  await expect(page.getByText('关联账号：演示省分负责人', { exact: true }).first()).toBeVisible();
 });

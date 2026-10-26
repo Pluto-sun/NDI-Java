@@ -270,10 +270,11 @@ class ProjectInactivityIT {
         var lastAt = age(project, 40);
         jdbc.update("UPDATE identity_user_account SET enabled = false WHERE id = UUID_TO_BIN(?)", leader.toString());
         var missing = inactivity.recordIfDue(project, lastAt.plus(30, ChronoUnit.DAYS)).orElseThrow();
-        assertThat(missing.delivered()).isFalse();
-        assertThat(mapper.find(missing.caseId()).orElseThrow().provinceSentAt()).isNull();
+        assertThat(missing.delivered()).isTrue();
+        assertThat(missing.audience()).isEqualTo("INTERFACE");
+        assertThat(mapper.find(missing.caseId()).orElseThrow().provinceSentAt()).isNotNull();
         jdbc.update("UPDATE identity_user_account SET enabled = true WHERE id = UUID_TO_BIN(?)", leader.toString());
-        assertThat(inactivity.recordIfDue(project, lastAt.plus(30, ChronoUnit.DAYS)).orElseThrow().delivered()).isTrue();
+        assertThat(inactivity.recordIfDue(project, lastAt.plus(30, ChronoUnit.DAYS)).orElseThrow().delivered()).isFalse();
         var request = approvals.submitMajorChange(cityUser, project, new MajorChangeCommand(
                 MajorChangeType.TERMINATE, ProjectInitiatorLevel.CITY, leader, "客户取消项目", null, null, null));
         approvals.decide(leader, request.id(), true, null);

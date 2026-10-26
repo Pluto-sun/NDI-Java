@@ -24,11 +24,22 @@ public record ProjectSummary(
         UUID provinceLeaderUserId,
         String provinceLeaderName,
         String signingSubjectCode,
-        LocalDate attributionMonth
+        LocalDate attributionMonth,
+        List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> responsiblePersons
 ) {
 
     public ProjectSummary {
         categoryAmounts = List.copyOf(categoryAmounts);
+        responsiblePersons = responsiblePersons==null ? List.of() : List.copyOf(responsiblePersons);
+    }
+
+    public ProjectSummary(UUID id,String projectCode,String projectName,String customerName,String industryCode,
+            BigDecimal totalAmount,String currentStageCode,List<CategoryAmount> categoryAmounts,Instant createdAt,
+            Instant opportunityDate,String importanceCode,UUID provinceId,UUID cityId,UUID provinceLeaderUserId,
+            String provinceLeaderName,String signingSubjectCode,LocalDate attributionMonth) {
+        this(id,projectCode,projectName,customerName,industryCode,totalAmount,currentStageCode,categoryAmounts,
+            createdAt,opportunityDate,importanceCode,provinceId,cityId,provinceLeaderUserId,provinceLeaderName,
+            signingSubjectCode,attributionMonth,List.of());
     }
 
     public ProjectSummary(UUID id, String projectCode, String projectName, String customerName, String industryCode,

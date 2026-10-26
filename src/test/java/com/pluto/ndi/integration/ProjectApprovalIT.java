@@ -1635,7 +1635,7 @@ class ProjectApprovalIT {
                 .contains("专家乙、专家甲", "PROVINCE_SIGN", "方案交流", "客户经理", "网络化", "2030-01-01T00:00:00Z");
         assertThat(exportService.find(cityUserId, task).rowCount()).isEqualTo(1);
         mockMvc.perform(get("/api/v1/projects/exports/fields").header("X-NDI-Actor-Id", cityUserId.toString()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(22));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(23));
         for (var invalid : List.of(List.<String>of(), List.of("unknown"), List.of("projectName", "projectName"))) {
             mockMvc.perform(post("/api/v1/projects/exports").header("X-NDI-Actor-Id", cityUserId.toString())
                             .contentType("application/json").content(json.writeValueAsString(Map.of("fields", invalid))))

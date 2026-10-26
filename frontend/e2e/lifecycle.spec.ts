@@ -33,8 +33,9 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
   await page.getByRole('combobox', { name: '客户所属行业', exact: true }).selectOption('C25');
   await page.getByRole('spinbutton', { name: '项目总金额（万元）', exact: true }).fill('100');
   await page.getByRole('textbox', { name: '客户需求', exact: true }).fill('验证完整项目生命周期');
-  await page.getByRole('combobox', { name: '省分负责人', exact: true }).selectOption(ids.leader);
-  await page.getByRole('textbox', { name: '地市客户经理', exact: true }).fill('闭环验收经理');
+  await page
+    .getByRole('textbox', { name: '项目负责人', exact: true })
+    .fill('闭环验收经理；演示省分负责人');
   await page.getByRole('checkbox', { name: '网络化', exact: true }).check();
   await page.getByRole('spinbutton', { name: '预计金额（万元）', exact: true }).fill('50');
   await page.getByRole('textbox', { name: '项目进展', exact: true }).fill('客户需求已明确');

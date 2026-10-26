@@ -27,10 +27,10 @@ import org.springframework.stereotype.Component;
 public class ProjectExcelReader {
     private static final String SHEET = "导入数据";
     private static final List<String> REQUIRED = List.of("省分", "地市", "客户名称", "客户所属行业",
-            "项目名称", "省分负责人", "地市客户经理", "项目建设内容", "三化类别",
+            "项目名称", "项目建设内容", "三化类别",
             "项目阶段", "项目总金额（万）", "网络化预计金额（万）", "格物预计金额（万）",
             "大数据预计金额（万）", "万悟预计金额（万）");
-    private static final List<String> OPTIONAL = List.of("签约主体", "产品单位支撑专家",
+    private static final List<String> OPTIONAL = List.of("项目负责人", "省分负责人", "地市客户经理", "签约主体", "产品单位支撑专家",
             "拟招标日期", "应用场景", "产品推广内容", "备注", "合同编号", "签约金额（万）", "重要度", "支撑行业专家");
     public static final String CATEGORY_SLOTS = "__CATEGORY_SLOTS__";
     private static final List<String> CATEGORY_SLOT_HEADERS = List.of(

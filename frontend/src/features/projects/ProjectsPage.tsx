@@ -1,6 +1,6 @@
 import { Select } from '../../shared/ui/Select';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
@@ -12,9 +12,7 @@ import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectSta
 
 const emptyAdvanced = {
   signingSubjectCode: '',
-  provinceLeaderName: '',
-  cityAccountManagerName: '',
-  productSupportExpertName: '',
+  responsiblePersonName: '',
   keyword: '',
   opportunityDateStart: '',
   opportunityDateEnd: '',
@@ -23,36 +21,97 @@ const emptyAdvanced = {
 export function ProjectsPage({
   reference,
   canCreate,
+  userId,
 }: {
   reference: ReferenceData;
   canCreate: boolean;
+  userId: string;
 }) {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const draftKey = `ndi.project-list-draft:${userId}:/projects${location.search}`;
+  const [savedDraft] = useState<Record<string, unknown> | null>(() => {
+    try {
+      const value: unknown = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null');
+      return value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  const draftString = (key: string, fallback: string) =>
+    typeof savedDraft?.[key] === 'string' ? String(savedDraft[key]) : fallback;
+  const query = useMemo(
+    () => ({
+      page: Math.max(0, Math.min(100000, Number(searchParams.get('page')) || 0)),
+      projectName: searchParams.get('projectName') ?? '',
+      stage: searchParams.get('stage') ?? '',
+      projectCode: searchParams.get('projectCode') ?? '',
+      industryCode: searchParams.get('industryCode') ?? '',
+      cityId: searchParams.get('cityId') ?? '',
+      includeTerminated: searchParams.get('includeTerminated') !== 'false',
+      ...(Object.fromEntries(
+        Object.keys(emptyAdvanced).map((key) => [key, searchParams.get(key) ?? '']),
+      ) as typeof emptyAdvanced),
+    }),
+    [searchParams],
+  );
+  function setQuery(value: typeof query | ((current: typeof query) => typeof query)) {
+    const next = typeof value === 'function' ? value(query) : value;
+    const params = new URLSearchParams();
+    Object.entries(next).forEach(([key, value]) => {
+      if (value !== '' && !(key === 'page' && value === 0)) params.set(key, String(value));
+    });
+    setSearchParams(params);
+  }
   const initialCityId = searchParams.get('cityId') ?? '';
-  const [name, setName] = useState('');
+  const [name, setName] = useState(draftString('projectName', query.projectName));
   const initialStage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
     ? searchParams.get('stage')!
     : '';
-  const [stage, setStage] = useState(initialStage);
-  const [projectCode, setProjectCode] = useState('');
-  const [industryCode, setIndustryCode] = useState('');
-  const [cityId, setCityId] = useState(initialCityId);
-  const [includeTerminated, setIncludeTerminated] = useState(true);
-  const [advanced, setAdvanced] = useState(emptyAdvanced);
+  const [stage, setStage] = useState(draftString('stage', initialStage));
+  const [projectCode, setProjectCode] = useState(draftString('projectCode', query.projectCode));
+  const [industryCode, setIndustryCode] = useState(draftString('industryCode', query.industryCode));
+  const [cityId, setCityId] = useState(draftString('cityId', initialCityId));
+  const [includeTerminated, setIncludeTerminated] = useState(
+    typeof savedDraft?.includeTerminated === 'boolean'
+      ? savedDraft.includeTerminated
+      : query.includeTerminated,
+  );
+  const [advanced, setAdvanced] = useState({
+    ...emptyAdvanced,
+    ...Object.fromEntries(
+      Object.keys(emptyAdvanced).map((key) => [
+        key,
+        draftString(key, query[key as keyof typeof emptyAdvanced]),
+      ]),
+    ),
+  });
+  const lastAppliedQuery = useRef(query);
+  const [advancedOpen, setAdvancedOpen] = useState(
+    savedDraft?.advancedOpen === true || Object.values(advanced).some(Boolean),
+  );
   const invalidDateRange =
     !!advanced.opportunityDateStart &&
     !!advanced.opportunityDateEnd &&
     advanced.opportunityDateStart > advanced.opportunityDateEnd;
-  const [query, setQuery] = useState({
-    page: 0,
-    projectName: '',
-    stage: initialStage,
-    projectCode: '',
-    industryCode: '',
-    cityId: initialCityId,
-    includeTerminated: true,
-    ...emptyAdvanced,
-  });
+  useEffect(() => {
+    if (lastAppliedQuery.current === query) return;
+    lastAppliedQuery.current = query;
+    setName(query.projectName);
+    setProjectCode(query.projectCode);
+    setStage(query.stage);
+    setIndustryCode(query.industryCode);
+    setCityId(query.cityId);
+    setIncludeTerminated(query.includeTerminated);
+    setAdvanced({
+      ...emptyAdvanced,
+      ...Object.fromEntries(
+        Object.keys(emptyAdvanced).map((key) => [key, query[key as keyof typeof emptyAdvanced]]),
+      ),
+    });
+  }, [query]);
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
   const [exportTask, setExportTask] = useState<ExportTask | null>(null);
   const [exportFields, setExportFields] = useState<string[] | null>(null);
@@ -65,6 +124,18 @@ export function ProjectsPage({
   const [exportBusy, setExportBusy] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
+  const returnTo = `/projects${location.search}`;
+  useEffect(() => {
+    if (!busy && data) {
+      const frame = requestAnimationFrame(() =>
+        window.scrollTo(
+          0,
+          Number(sessionStorage.getItem(`ndi.project-list-scroll:${returnTo}`)) || 0,
+        ),
+      );
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [busy, data, returnTo]);
 
   useEffect(() => {
     let active = true;
@@ -256,7 +327,11 @@ export function ProjectsPage({
           />
           含已终止项目
         </label>
-        <details className="project-advanced-filters">
+        <details
+          className="project-advanced-filters"
+          open={advancedOpen}
+          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+        >
           <summary>更多筛选条件</summary>
           <div className="form-grid">
             <label>
@@ -319,34 +394,14 @@ export function ProjectsPage({
               </Select>
             </label>
             <label>
-              省分负责人
+              项目负责人
               <input
                 maxLength={100}
-                value={advanced.provinceLeaderName}
+                value={advanced.responsiblePersonName}
                 onChange={(event) =>
-                  setAdvanced({ ...advanced, provinceLeaderName: event.target.value })
+                  setAdvanced({ ...advanced, responsiblePersonName: event.target.value })
                 }
-                placeholder="按当前目录姓名查找"
-              />
-            </label>
-            <label>
-              地市客户经理
-              <input
-                maxLength={100}
-                value={advanced.cityAccountManagerName}
-                onChange={(event) =>
-                  setAdvanced({ ...advanced, cityAccountManagerName: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              产品单位支撑专家
-              <input
-                maxLength={100}
-                value={advanced.productSupportExpertName}
-                onChange={(event) =>
-                  setAdvanced({ ...advanced, productSupportExpertName: event.target.value })
-                }
+                placeholder="按负责人姓名查找，不区分职责"
               />
             </label>
           </div>
@@ -358,6 +413,7 @@ export function ProjectsPage({
           type="button"
           className="text-button"
           onClick={() => {
+            sessionStorage.removeItem(draftKey);
             setName('');
             setProjectCode('');
             setStage('');
@@ -461,7 +517,7 @@ export function ProjectsPage({
                   <th scope="col">阶段</th>
                   <th scope="col">类别与签约主体</th>
                   <th scope="col">预计总金额</th>
-                  <th scope="col">省分负责人</th>
+                  <th scope="col">项目负责人</th>
                   <th scope="col">项目所属月份</th>
                   <th scope="col">创建时间</th>
                   <th scope="col">项目日期</th>
@@ -472,7 +528,30 @@ export function ProjectsPage({
                   <tr key={project.id}>
                     <td>
                       <span className="subtle">{project.projectCode}</span>
-                      <Link className="table-link" to={`/projects/${project.id}`}>
+                      <Link
+                        className="table-link"
+                        to={`/projects/${project.id}`}
+                        state={{ projectListReturnTo: returnTo }}
+                        onClick={() => {
+                          sessionStorage.setItem(
+                            `ndi.project-list-scroll:${returnTo}`,
+                            String(window.scrollY),
+                          );
+                          sessionStorage.setItem(
+                            draftKey,
+                            JSON.stringify({
+                              projectName: name,
+                              stage,
+                              projectCode,
+                              industryCode,
+                              cityId,
+                              includeTerminated,
+                              ...advanced,
+                              advancedOpen,
+                            }),
+                          );
+                        }}
+                      >
                         {project.projectName}
                       </Link>
                     </td>
@@ -508,7 +587,9 @@ export function ProjectsPage({
                       </div>
                     </td>
                     <td className="number">{amount(project.totalAmount)}</td>
-                    <td>{project.provinceLeaderName ?? '负责人信息不可用'}</td>
+                    <td>
+                      {project.responsiblePersons?.map((person) => person.name).join('；') || '—'}
+                    </td>
                     <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
                     <td>{dateTime(project.createdAt)}</td>
                     <td>

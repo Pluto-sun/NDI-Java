@@ -38,9 +38,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   await expect(page.getByLabel('项目日期起', { exact: true })).toBeFocused();
   await page.getByRole('checkbox', { name: '含已终止项目', exact: true }).uncheck();
   await page.getByRole('combobox', { name: '签约主体', exact: true }).selectOption('DS_SIGN');
-  await page.getByRole('textbox', { name: '省分负责人', exact: true }).fill('省分负责人');
-  await page.getByRole('textbox', { name: '地市客户经理', exact: true }).fill('%_');
-  await page.getByRole('textbox', { name: '产品单位支撑专家', exact: true }).fill('%_专家');
+  await page.getByRole('textbox', { name: '项目负责人', exact: true }).fill('%_专家');
   await page.getByRole('textbox', { name: '编号或名称关键字', exact: true }).fill(prefix);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(2);
@@ -58,9 +56,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   expect(response.request().postDataJSON()).toHaveProperty('includeTerminated', false);
   expect(response.request().postDataJSON()).toMatchObject({
     signingSubjectCode: 'DS_SIGN',
-    productSupportExpertName: '%_专家',
-    provinceLeaderName: '省分负责人',
-    cityAccountManagerName: '%_',
+    responsiblePersonName: '%_专家',
     keyword: prefix,
   });
   await expect(page.getByText(/^导出任务：COMPLETED/)).toBeVisible({ timeout: 20_000 });
@@ -74,7 +70,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   expect(csv.trim().split(/\r?\n/)).toHaveLength(2);
   await page.getByRole('button', { name: '重置筛选', exact: true }).click();
   await expect(page.getByRole('button', { name: '下载 CSV', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('textbox', { name: '地市客户经理', exact: true })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: '项目负责人', exact: true })).toHaveValue('');
   await expect(page.getByRole('combobox', { name: '签约主体', exact: true })).toHaveValue('');
   await expect(page.getByRole('link', { name: `${prefix}-其他`, exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -93,8 +89,8 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   });
   if (testInfo.project.name === 'small-screen') {
     await page.setViewportSize({ width: 812, height: 375 });
-    await page.getByRole('textbox', { name: '省分负责人', exact: true }).scrollIntoViewIfNeeded();
-    await expect(page.getByRole('textbox', { name: '省分负责人', exact: true })).toBeVisible();
+    await page.getByRole('textbox', { name: '项目负责人', exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole('textbox', { name: '项目负责人', exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBeTruthy();

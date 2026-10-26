@@ -41,7 +41,7 @@ public class ProjectDashboardActivityRepository {
                 JOIN project_project project ON project.id = event.project_id
                 JOIN organization_province province ON province.id = project.province_id
                 JOIN project_industry_reference industry ON industry.industry_code = project.industry_code
-                JOIN identity_user_account leader ON leader.id = project.province_leader_user_id
+                LEFT JOIN identity_user_account leader ON leader.id = project.province_leader_user_id
                 LEFT JOIN (SELECT project_id, GROUP_CONCAT(category_code ORDER BY category_code) products
                            FROM project_category_amount GROUP BY project_id) category ON category.project_id = project.id
                 WHERE event.occurred_at >= :since AND event.occurred_at < :until

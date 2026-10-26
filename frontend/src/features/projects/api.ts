@@ -7,6 +7,7 @@ import type {
   ProjectMilestone,
   ProjectProgress,
   ProjectSummary,
+  ProjectResponsiblePerson,
   ProjectUser,
   ReferenceData,
   WorkbenchBreakdown,
@@ -47,6 +48,7 @@ export interface ProjectQuery {
   provinceLeaderName?: string;
   cityAccountManagerName?: string;
   productSupportExpertName?: string;
+  responsiblePersonName?: string;
   keyword?: string;
   opportunityDateStart?: string;
   opportunityDateEnd?: string;
@@ -84,6 +86,23 @@ export const projectsApi = {
     return request<Page<ProjectSummary>>(`?${query}`);
   },
   detail: (id: string) => request<ProjectDetail>(`/${id}`),
+  configurePeople: (id: string, expectedVersion: number, people: ProjectResponsiblePerson[]) =>
+    request<ProjectDetail>(`/${id}/people`, {
+      method: 'PUT',
+      ...jsonBody({
+        expectedVersion,
+        people: people.map(({ id, name, responsibility, userId }) => ({
+          id,
+          name,
+          responsibility,
+          userId,
+        })),
+      }),
+    }),
+  peopleAccounts: (id: string, keyword: string, provinceOnly: boolean) =>
+    request<ProjectUser[]>(
+      `/${id}/people/accounts?${new URLSearchParams({ keyword, provinceOnly: String(provinceOnly) })}`,
+    ),
   progresses: (id: string) => request<Page<ProjectProgress>>(`/${id}/progress?page=0&size=20`),
   milestones: (id: string) => request<Page<ProjectMilestone>>(`/${id}/milestones?page=0&size=20`),
   projectApprovals: (id: string, page: number) =>
@@ -130,9 +149,9 @@ export const projectsApi = {
       constructionContentRaw: string;
       productPromotionContent: string;
       remark: string;
-      provinceLeaderUserId: string;
-      cityAccountManagerName: string;
-      productSupportExpertNames: string[];
+      provinceLeaderUserId?: string;
+      cityAccountManagerName?: string;
+      productSupportExpertNames?: string[];
       plannedBidMonth: string;
       applicationScenarioCodes: string[];
     },

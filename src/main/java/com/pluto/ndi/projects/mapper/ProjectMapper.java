@@ -13,6 +13,10 @@ public class ProjectMapper {
 
     public ProjectSummary toSummary(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
             String provinceLeaderName) {
+        return toSummary(project,categories,provinceLeaderName,List.of());
+    }
+    public ProjectSummary toSummary(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
+            String provinceLeaderName, List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> people) {
         return new ProjectSummary(
                 project.id(),
                 project.projectCode(),
@@ -24,12 +28,16 @@ public class ProjectMapper {
                 categories,
                 project.createdAt(), project.opportunityDate(), project.importanceCode(),
                 project.provinceId(), project.cityId(), project.provinceLeaderUserId(), provinceLeaderName,
-                project.signingSubjectCode(), project.attributionMonth()
+                project.signingSubjectCode(), project.attributionMonth(), people
         );
     }
 
     public ProjectDetailSummary toDetail(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
             String provinceLeaderName) {
+        return toDetail(project,categories,provinceLeaderName,List.of());
+    }
+    public ProjectDetailSummary toDetail(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
+            String provinceLeaderName,List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> people) {
         return new ProjectDetailSummary(
                 project.id(), project.projectCode(), project.provinceId(), project.cityId(),
                 project.projectName(), project.customerName(), project.industryCode(), project.customerNeed(),
@@ -40,7 +48,7 @@ public class ProjectMapper {
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
                 project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode(),
-                project.attributionMonth(), provinceLeaderName, project.supportIndustryExpert()
+                project.attributionMonth(), provinceLeaderName, project.supportIndustryExpert(),people
         );
     }
 }

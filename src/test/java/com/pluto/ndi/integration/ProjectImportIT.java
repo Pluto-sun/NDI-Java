@@ -49,6 +49,26 @@ class ProjectImportIT {
     @MockitoBean private ExportFileDirectory exportFileDirectory;
 
     @Test
+    void importsUnifiedPeopleWithoutRequiringAnySystemAccount() throws Exception {
+        var fixture=contractFixture();
+        byte[] bytes;
+        try (var book=new XSSFWorkbook(new java.io.ByteArrayInputStream(contractWorkbook(fixture.name(),"方案交流","","")));var output=new ByteArrayOutputStream()) {
+            var sheet=book.getSheet("导入数据");
+            sheet.getRow(0).createCell(18).setCellValue("项目负责人");
+            sheet.getRow(1).createCell(18).setCellValue("外部姓名甲；外部姓名乙;外部姓名甲");
+            sheet.getRow(1).getCell(5).setCellValue("");sheet.getRow(1).getCell(6).setCellValue("");
+            book.write(output);bytes=output.toByteArray();
+        }
+        var preview=imports.preview(fixture.actor(),"统一负责人.xlsx",bytes);
+        assertThat(preview.validRows()).isEqualTo(1);
+        var imported=imports.confirm(fixture.actor(),preview.batchId());
+        assertThat(imported.importedRows()).isEqualTo(1);
+        var detail=projectService.findDetail(fixture.actor(),imported.rows().getFirst().projectId());
+        assertThat(detail.responsiblePersons()).extracting(p->p.name()).containsExactly("外部姓名甲","外部姓名乙","外部姓名甲");
+        assertThat(detail.responsiblePersons()).allMatch(p->p.responsibility()==null&&p.userId()==null);
+    }
+
+    @Test
     void remappingRequiresSameWorkbookAndZeroImportedRows() throws Exception {
         var fixture = contractFixture();
         byte[] bytes = contractWorkbook(fixture.name(), "方案交流", "", "");
@@ -157,11 +177,9 @@ class ProjectImportIT {
     void keepsFirstDuplicateAndRejectsMissingAmountThenConfirmsOnce() throws Exception {
         UUID province = UUID.fromString(jdbc.queryForObject(
                 "SELECT BIN_TO_UUID(id) FROM organization_province WHERE province_code='440000'", String.class));
-        UUID city = UUID.randomUUID();
+        UUID city = UUID.fromString(jdbc.queryForObject("SELECT BIN_TO_UUID(id) FROM organization_city WHERE city_code='440100'",String.class));
         UUID actor = UUID.randomUUID();
         UUID leader = UUID.randomUUID();
-        jdbc.update("INSERT INTO organization_city(id,province_id,city_code,city_name,enabled) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?,?,true)",
-                city.toString(), province.toString(), city.toString().replace("-", ""), "广州市");
         addUser(actor, province, city, "city-test", "地市导入人", "CITY_REPORTER");
         addUser(leader, province, null, "leader-test", "省分负责人", "PROVINCE_REPORTER");
         int existingProjects = jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class);

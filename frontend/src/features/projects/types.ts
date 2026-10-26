@@ -71,8 +71,9 @@ export interface CreateProjectInput {
   productPromotionContent: string;
   remark: string;
   totalAmount: string;
-  provinceLeaderUserId: string;
-  cityAccountManagerName: string;
+  responsiblePersonNames: string[];
+  provinceLeaderUserId?: string;
+  cityAccountManagerName?: string;
   categoryAmounts: { categoryCode: string; expectedAmount: string }[];
   initialProgress: string;
   nextAction: string;
@@ -80,7 +81,7 @@ export interface CreateProjectInput {
   confirmNew?: boolean;
   duplicateReason?: string;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
-  productSupportExpertNames: string[];
+  productSupportExpertNames?: string[];
   plannedBidMonth: string | null;
   applicationScenarioCodes: string[];
 }
@@ -89,6 +90,7 @@ export interface ProjectDuplicateCheck {
   candidates: { projectId: string; projectCode: string; projectName: string; similarity: number }[];
 }
 export interface ProjectDraftData {
+  responsiblePersonNames?: string[];
   cityId: string;
   leaderId: string;
   projectName: string;
@@ -118,9 +120,10 @@ export interface ProjectDraft {
   updatedAt: string;
 }
 export interface ProjectSummary {
+  responsiblePersons: ProjectResponsiblePerson[];
   provinceId: string;
   cityId: string;
-  provinceLeaderUserId: string;
+  provinceLeaderUserId: string | null;
   provinceLeaderName: string | null;
   signingSubjectCode: 'PROVINCE_SIGN' | 'DS_SIGN';
   attributionMonth: string;
@@ -135,6 +138,14 @@ export interface ProjectSummary {
   categoryAmounts: CategoryAmount[];
   createdAt: string;
   opportunityDate: string | null;
+}
+export interface ProjectResponsiblePerson {
+  id: string | null;
+  name: string;
+  responsibility: 'PROVINCE_LEADER' | 'CITY_MANAGER' | 'SUPPORT_EXPERT' | null;
+  userId: string | null;
+  accountName: string | null;
+  accountEnabled: boolean;
 }
 export interface ProjectDetail extends ProjectSummary {
   supportIndustryExpert: string | null;

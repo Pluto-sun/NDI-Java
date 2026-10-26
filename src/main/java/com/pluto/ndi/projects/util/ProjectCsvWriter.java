@@ -45,6 +45,7 @@ public final class ProjectCsvWriter {
             case BIG_DATA_AMOUNT -> amount(project, "BIG_DATA");
             case WANGWU_AMOUNT -> amount(project, "WANGWU");
             case CREATED_AT -> project.createdAt().toString();
+            case RESPONSIBLE_PERSONS -> project.responsiblePersons().stream().map(com.pluto.ndi.projects.domain.ProjectResponsiblePerson::name).collect(Collectors.joining("；"));
             case PROVINCE, CITY, SIGNING_SUBJECT, PROVINCE_LEADER, CITY_MANAGER, SUPPORT_EXPERTS, CUSTOMER_INDUSTRY, UPDATED_AT -> row.extra(field);
             case CATEGORIES -> project.categoryAmounts().stream().map(item -> ProjectCategory.valueOf(item.categoryCode()))
                     .sorted().map(ProjectCategory::label).collect(Collectors.joining("、"));

@@ -3,8 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAccount, type AdminConfiguration } from './api';
 import { AccountEditor } from './AccountEditor';
 import { PasswordResetForm } from './PasswordResetForm';
-import { CityCreateForm } from './CityCreateForm';
-import { ProvinceCreateForm } from './ProvinceCreateForm';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import type { Page } from '../../shared/api/http';
 import { Modal } from '../../shared/ui/Modal';
@@ -106,23 +104,9 @@ export function AccountsPage({
         </div>
       )}
       {notice && <Feedback tone="success">{notice}</Feedback>}
-      {configuration && (
-        <ProvinceCreateForm
-          onCreated={async () => {
-            setConfiguration(await adminApi.configuration());
-            await onReferenceChanged();
-          }}
-        />
-      )}
-      {configuration && (
-        <CityCreateForm
-          configuration={configuration}
-          onCreated={async () => {
-            setConfiguration(await adminApi.configuration());
-            await onReferenceChanged();
-          }}
-        />
-      )}
+      <p className="subtle">
+        省市采用预置行政区划目录，配置账号时从目录选择，不再允许自行新增省市。
+      </p>
       <form
         className="filter-bar"
         onSubmit={(event) => {

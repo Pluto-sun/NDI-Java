@@ -13,6 +13,7 @@ public interface IdentityDirectory {
     Optional<ProjectUser> findProjectUser(UUID userId);
 
     List<ProjectUser> findEnabledProjectUsers();
+    List<ProjectUser> searchProjectBindingAccounts(String keyword, UUID provinceId, boolean provinceOnly);
 
     List<ProjectUser> findEligibleProvinceLeaders(UUID provinceId);
 

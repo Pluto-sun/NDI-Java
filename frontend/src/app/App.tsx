@@ -337,7 +337,9 @@ export function App() {
               <Route path="/capability" element={<ModulePlaceholder title="能力指标管理" />} />
               <Route
                 path="/projects"
-                element={<ProjectsPage reference={reference} canCreate={canCreate} />}
+                element={
+                  <ProjectsPage reference={reference} canCreate={canCreate} userId={me.id} />
+                }
               />
               <Route
                 path="/projects/new"

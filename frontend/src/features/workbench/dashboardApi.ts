@@ -18,7 +18,6 @@ export interface Dashboard {
   from: string;
   to: string;
   current: DashboardSummary;
-  previous: DashboardSummary;
   stages: { stageCode: string; summary: DashboardSummary }[];
   provinces: { id: string; name: string; summary: DashboardSummary }[];
   trend: { month: string; summary: DashboardSummary }[];
@@ -30,6 +29,7 @@ export interface DashboardFilter {
   includeTerminated: boolean;
   category?: string;
   product?: string;
+  part?: 'OVERVIEW' | 'REGIONS' | 'TREND';
 }
 export interface DashboardActivity {
   id: string;

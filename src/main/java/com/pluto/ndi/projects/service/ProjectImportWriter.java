@@ -54,6 +54,7 @@ public class ProjectImportWriter {
     private final ProjectCityWriteLock cityWriteLock;
     private final ProjectMonthlySnapshotService monthlySnapshots;
     private final ProjectInactivityService inactivity;
+    private final ProjectResponsiblePersonStore people;
 
     public ProjectImportWriter(IdentityDirectory identity, OrganizationDirectory organizations,
             ProjectIndustryReferenceRepository industries, ProjectRepository projects,
@@ -62,7 +63,7 @@ public class ProjectImportWriter {
             ProjectSourceRecordRepository sources, ProjectImportRowRepository rows,
             ProjectNumberGenerator numbers, ObjectMapper json, Clock clock, JdbcTemplate jdbc,
             ProjectCityWriteLock cityWriteLock,
-            ProjectMonthlySnapshotService monthlySnapshots, ProjectInactivityService inactivity) {
+            ProjectMonthlySnapshotService monthlySnapshots, ProjectInactivityService inactivity,ProjectResponsiblePersonStore people) {
         this.identity = identity; this.organizations = organizations; this.industries = industries;
         this.projects = projects; this.categories = categories; this.progress = progress;
         this.milestones = milestones; this.events = events; this.sources = sources;
@@ -71,6 +72,7 @@ public class ProjectImportWriter {
         this.cityWriteLock = cityWriteLock;
         this.monthlySnapshots = monthlySnapshots;
         this.inactivity = inactivity;
+        this.people=people;
     }
 
     public boolean importRow(UUID actorId, UUID rowId) {
@@ -83,7 +85,7 @@ public class ProjectImportWriter {
                 throw new IllegalStateException("项目导入授权已变化");
             }
             if (organizations.findEnabledLocation(candidate.provinceId(), candidate.cityId()).isEmpty()
-                    || !identity.isEligibleProvinceLeader(candidate.provinceLeaderUserId(), candidate.provinceId())
+                    || candidate.provinceLeaderUserId()!=null && !identity.isEligibleProvinceLeader(candidate.provinceLeaderUserId(), candidate.provinceId())
                     || !industries.existsByIndustryCodeAndEnabledTrue(candidate.industryCode())) {
                 throw new IllegalStateException("组织、行业或责任账号已变化");
             }
@@ -123,6 +125,7 @@ public class ProjectImportWriter {
                     ProjectPlanningFields.normalizeScenarios(candidate.applicationScenarioCodes()));
             project.replaceNarrative(ProjectNarrativeText.normalize(candidate.narrative(), candidate.customerNeed()));
             projects.saveAndFlush(project);
+            people.initialize(project,candidate.responsiblePersonNames(),candidate.legacyProvinceLeaderName());
             var lastActivityAt = candidate.progress().stream().map(item -> item.occurredAt())
                     .max(Instant::compareTo).filter(at -> at.isAfter(project.updatedAt())).orElse(project.updatedAt());
             inactivity.initialize(project, lastActivityAt);
