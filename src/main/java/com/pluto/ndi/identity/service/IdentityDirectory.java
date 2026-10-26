@@ -1,9 +1,8 @@
 package com.pluto.ndi.identity.service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.List;
-
 
 /** 向项目模块提供账号状态、角色和省分负责人资格。 */
 public interface IdentityDirectory {
@@ -13,13 +12,16 @@ public interface IdentityDirectory {
     Optional<ProjectUser> findProjectUser(UUID userId);
 
     List<ProjectUser> findEnabledProjectUsers();
-    List<ProjectUser> searchProjectBindingAccounts(String keyword, UUID provinceId, boolean provinceOnly);
+
+    List<ProjectUser> searchProjectBindingAccounts(
+            String keyword, UUID provinceId, boolean provinceOnly);
 
     List<ProjectUser> findEligibleProvinceLeaders(UUID provinceId);
 
     List<ProjectUser> findEligibleStageApprovers(UUID provinceId);
 
-    List<ProjectUser> findEligibleMajorChangeApprovers(UUID provinceId, ProjectInitiatorLevel initiatorLevel);
+    List<ProjectUser> findEligibleMajorChangeApprovers(
+            UUID provinceId, ProjectInitiatorLevel initiatorLevel);
 
     boolean canCreateProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
@@ -41,11 +43,16 @@ public interface IdentityDirectory {
 
     boolean canImportProject(ProjectActor actor, UUID provinceId, UUID cityId);
 
-    boolean canInitiateMajorChange(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
+    boolean canUseProjectImport(UUID actorId);
 
-    boolean isEligibleMajorChangeApprover(UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel);
+    boolean canInitiateMajorChange(
+            ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
 
-    boolean canAdvanceProjectStage(ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
+    boolean isEligibleMajorChangeApprover(
+            UUID userId, UUID provinceId, ProjectInitiatorLevel initiatorLevel);
+
+    boolean canAdvanceProjectStage(
+            ProjectActor actor, UUID provinceId, UUID cityId, ProjectInitiatorLevel level);
 
     boolean isEligibleStageApprover(UUID userId, UUID provinceId);
 
@@ -55,10 +62,11 @@ public interface IdentityDirectory {
 
     boolean canUpdateProjectProfile(ProjectActor actor, UUID provinceId, UUID cityId);
 
-    List<ProjectUser> findProjectReminderRecipients(UUID provinceId, UUID assignedLeaderId,
-            ProjectReminderAudience audience);
+    List<ProjectUser> findProjectReminderRecipients(
+            UUID provinceId, UUID assignedLeaderId, ProjectReminderAudience audience);
 
-    Optional<ProjectReminderForwarding> findProjectReminderForwarding(UUID actorId, UUID provinceId, UUID cityId);
+    Optional<ProjectReminderForwarding> findProjectReminderForwarding(
+            UUID actorId, UUID provinceId, UUID cityId);
 
     boolean isSystemAdministrator(UUID actorId);
 }

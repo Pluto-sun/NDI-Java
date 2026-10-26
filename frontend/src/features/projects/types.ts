@@ -285,18 +285,8 @@ export interface ImportBatch {
     projectId: string | null;
     sourceCellsJson: string | null;
     revisionNo: number;
+    nameReview: ImportNameReview | null;
   }[];
-}
-export interface ImportBatchListItem {
-  batchId: string;
-  fileName: string;
-  status: string;
-  totalRows: number;
-  validRows: number;
-  failedRows: number;
-  importedRows: number;
-  createdAt: string;
-  confirmedAt: string | null;
 }
 export interface ImportWorkbookInspection {
   fileName: string;
@@ -405,4 +395,43 @@ export interface MonthlyRevision {
   revisedAt: string;
   beforeCategories: MonthlyWorkbench['categoryTotals'] | null;
   afterCategories: MonthlyWorkbench['categoryTotals'] | null;
+}
+
+export interface ImportNameReview {
+  provinceId: string;
+  cityId: string;
+  level: 'NONE' | 'WEAK' | 'STRONG';
+  score: number;
+  fingerprint: string;
+  evidence: string[];
+  matches: {
+    projectId: string | null;
+    projectCode: string | null;
+    projectName: string;
+    sourceRowNumber: number | null;
+    score: number;
+  }[];
+  confirmed: boolean;
+  reason: string | null;
+}
+export interface ImportConfiguration {
+  sheetName: string | null;
+  headerRowNo: number | null;
+  fieldMapping: Record<string, string>;
+}
+export interface ImportTask {
+  id: string;
+  version: number;
+  step: 1 | 2 | 3;
+  fileName: string;
+  inspection: ImportWorkbookInspection;
+  configuration: ImportConfiguration;
+  selectedRows: number[] | null;
+  batch: ImportBatch | null;
+  updatedAt: string;
+  fieldRules: {
+    name: string;
+    requirement: 'REQUIRED' | 'OPTIONAL' | 'CONDITIONAL';
+    hint: string;
+  }[];
 }

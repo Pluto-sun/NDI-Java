@@ -17,9 +17,11 @@ import { dateTime } from '../../shared/ui/format';
 export function CreateProjectPage({
   me,
   reference,
+  canImport,
 }: {
   me: ProjectUser;
   reference: ReferenceData;
+  canImport: boolean;
 }) {
   const navigate = useNavigate();
   const [cityId, setCityId] = useState(me.cityId ?? '');
@@ -291,9 +293,16 @@ export function CreateProjectPage({
           <h1>新建项目</h1>
           <p>创建后立即进入“方案交流”；项目名称与金额等重大变更需另行申请。</p>
         </div>
-        <Link className="text-button" to="/projects">
-          返回列表
-        </Link>
+        <div className="action-row">
+          {canImport && (
+            <Link className="secondary-button" to="/projects/import">
+              项目导入
+            </Link>
+          )}
+          <Link className="text-button" to="/projects">
+            返回列表
+          </Link>
+        </div>
       </div>
       <div className="panel draft-panel">
         <div className="panel-top">

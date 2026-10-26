@@ -20,8 +20,8 @@ import type {
   ProjectDocument,
   UploadIntent,
   ImportBatch,
-  ImportBatchListItem,
-  ImportWorkbookInspection,
+  ImportTask,
+  ImportConfiguration,
   ExportTask,
   MonthlyWorkbench,
   TrendPoint,
@@ -210,26 +210,42 @@ export const projectsApi = {
     stages.forEach((stage) => query.append('stage', stage));
     return request<StageTrendPoint[]>(`/workbench/stage-trend?${query}`);
   },
-  inspectImport: (file: File) => {
+  importTask: () => request<ImportTask | null>('/imports/task'),
+  uploadImportTask: (file: File, expectedVersion?: number, expectedTaskId?: string) => {
     const body = new FormData();
     body.append('file', file);
-    return request<ImportWorkbookInspection>('/imports/inspect', { method: 'POST', body });
+    if (expectedVersion !== undefined) body.append('expectedVersion', String(expectedVersion));
+    if (expectedTaskId) body.append('expectedTaskId', expectedTaskId);
+    return request<ImportTask>('/imports/task', { method: 'POST', body });
   },
-  previewImport: (
-    file: File,
-    layout?: { sheetName: string; headerRowNo: number; mapping: Record<string, string> },
-    replacesBatchId?: string,
-  ) => {
-    const body = new FormData();
-    body.append('file', file);
-    if (replacesBatchId) body.append('replacesBatchId', replacesBatchId);
-    if (layout) {
-      body.append('sheetName', layout.sheetName);
-      body.append('headerRowNo', String(layout.headerRowNo));
-      body.append('mappingJson', JSON.stringify(layout.mapping));
-    }
-    return request<ImportBatch>('/imports/preview', { method: 'POST', body });
-  },
+  saveImportTask: (
+    expectedTaskId: string,
+    expectedVersion: number,
+    step: number,
+    configuration: ImportConfiguration,
+    selectedRowNumbers: number[] | null,
+  ) =>
+    request<ImportTask>('/imports/task', {
+      method: 'PUT',
+      keepalive: true,
+      ...jsonBody({ expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers }),
+    }),
+  discardImportTask: (expectedVersion: number, expectedTaskId: string) =>
+    request<void>(
+      `/imports/task?expectedVersion=${expectedVersion}&expectedTaskId=${expectedTaskId}`,
+      { method: 'DELETE' },
+    ),
+  decideImportName: (
+    id: string,
+    rowNumber: number,
+    expectedRevision: number,
+    reason: string,
+    fingerprint: string,
+  ) =>
+    request<ImportBatch>(`/imports/${id}/rows/${rowNumber}/name-decision`, {
+      method: 'PUT',
+      ...jsonBody({ expectedRevision, confirmed: true, reason, fingerprint }),
+    }),
   importTemplate: () => requestBlob('/imports/template'),
   failedImportRows: (id: string) => requestBlob(`/imports/${id}/failed-rows/export`),
   importBatch: (id: string) => request<ImportBatch>(`/imports/${id}`),
@@ -243,15 +259,11 @@ export const projectsApi = {
       method: 'PUT',
       ...jsonBody({ expectedRevision, changes }),
     }),
-  importPlans: (page: number) =>
-    request<Page<ImportBatchListItem>>(`/imports?page=${page}&size=20`),
   confirmImport: (id: string, selectedRowNumbers: number[]) =>
     request<ImportBatch>(`/imports/${id}/confirm`, {
       method: 'POST',
       ...jsonBody({ selectedRowNumbers }),
     }),
-  resumeImport: (id: string) => request<ImportBatch>(`/imports/${id}/resume`, { method: 'POST' }),
-  cancelImport: (id: string) => request<ImportBatch>(`/imports/${id}`, { method: 'DELETE' }),
   exportFields: () => request<import('./types').ExportFieldOption[]>('/exports/fields'),
   exportProjects: (filter: Omit<ProjectQuery, 'page'>, fields?: string[]) =>
     request<ExportTask>('/exports', {

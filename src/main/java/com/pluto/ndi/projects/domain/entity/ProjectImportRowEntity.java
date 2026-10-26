@@ -1,34 +1,72 @@
 package com.pluto.ndi.projects.domain.entity;
 
-import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "project_import_row")
 public class ProjectImportRowEntity {
     @Id private UUID id;
-    @Column(name = "batch_id", nullable = false) private UUID batchId;
-    @Column(name = "source_row_number", nullable = false) private int rowNumber;
-    @Column(nullable = false, length = 24) private String status;
-    @Column(name = "normalized_key", length = 512) private String normalizedKey;
+
+    @Column(name = "batch_id", nullable = false)
+    private UUID batchId;
+
+    @Column(name = "source_row_number", nullable = false)
+    private int rowNumber;
+
+    @Column(nullable = false, length = 24)
+    private String status;
+
+    @Column(name = "normalized_key", length = 512)
+    private String normalizedKey;
+
     @Column(name = "row_payload", nullable = false, columnDefinition = "json")
-    @JdbcTypeCode(SqlTypes.JSON) private String rowPayload;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String rowPayload;
+
     @Column(name = "source_payload", columnDefinition = "json")
-    @JdbcTypeCode(SqlTypes.JSON) private String sourcePayload;
-    @Column(name = "revision_no", nullable = false) private int revisionNo;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String sourcePayload;
+
+    @Column(name = "revision_no", nullable = false)
+    private int revisionNo;
+
     @Column(nullable = false, columnDefinition = "json")
-    @JdbcTypeCode(SqlTypes.JSON) private String errors;
-    @Column(name = "project_id") private UUID projectId;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String errors;
 
-    protected ProjectImportRowEntity() { }
+    @Column(name = "project_id")
+    private UUID projectId;
 
-    public static ProjectImportRowEntity preview(UUID batchId, int number, String key,
-            String payload, String sourcePayload, String errors, boolean valid) {
+    @Column(name = "name_review", columnDefinition = "json")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String nameReview;
+
+    public String nameReview() {
+        return nameReview;
+    }
+
+    public void nameReview(String value) {
+        nameReview = value;
+    }
+
+    protected ProjectImportRowEntity() {}
+
+    public static ProjectImportRowEntity preview(
+            UUID batchId,
+            int number,
+            String key,
+            String payload,
+            String sourcePayload,
+            String errors,
+            boolean valid) {
         var item = new ProjectImportRowEntity();
         item.id = UUID.randomUUID();
         item.batchId = batchId;
@@ -41,10 +79,22 @@ public class ProjectImportRowEntity {
         return item;
     }
 
-    public void imported(UUID projectId) { this.projectId = projectId; this.status = "IMPORTED"; }
-    public void skip() { this.status = "SKIPPED"; }
-    public void fail(String errors) { this.errors = errors; this.status = "FAILED"; }
-    public void revise(String sourcePayload, String payload, String key, String errors, boolean valid) {
+    public void imported(UUID projectId) {
+        this.projectId = projectId;
+        this.status = "IMPORTED";
+    }
+
+    public void skip() {
+        this.status = "SKIPPED";
+    }
+
+    public void fail(String errors) {
+        this.errors = errors;
+        this.status = "FAILED";
+    }
+
+    public void revise(
+            String sourcePayload, String payload, String key, String errors, boolean valid) {
         if (!"READY".equals(status) && !"FAILED".equals(status)) {
             throw new IllegalStateException("仅预检行可以修正");
         }
@@ -55,13 +105,48 @@ public class ProjectImportRowEntity {
         this.status = valid ? "READY" : "FAILED";
         this.revisionNo++;
     }
-    public UUID id() { return id; }
-    public int rowNumber() { return rowNumber; }
-    public String status() { return status; }
-    public String rowPayload() { return rowPayload; }
-    public String sourcePayload() { return sourcePayload; }
-    public String normalizedKey() { return normalizedKey; }
-    public int revisionNo() { return revisionNo; }
-    public String errors() { return errors; }
-    public UUID projectId() { return projectId; }
+
+    /** 其他行改名后，仅更新派生校验结果，不篡改该行的原始数据和用户修订号。 */
+    public void refreshValidation(String payload, String key, String errors, boolean valid) {
+        this.rowPayload = payload;
+        this.normalizedKey = key;
+        this.errors = errors;
+        this.status = valid ? "READY" : "FAILED";
+    }
+
+    public UUID id() {
+        return id;
+    }
+
+    public int rowNumber() {
+        return rowNumber;
+    }
+
+    public String status() {
+        return status;
+    }
+
+    public String rowPayload() {
+        return rowPayload;
+    }
+
+    public String sourcePayload() {
+        return sourcePayload;
+    }
+
+    public String normalizedKey() {
+        return normalizedKey;
+    }
+
+    public int revisionNo() {
+        return revisionNo;
+    }
+
+    public String errors() {
+        return errors;
+    }
+
+    public UUID projectId() {
+        return projectId;
+    }
 }

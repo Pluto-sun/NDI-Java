@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { projectsApi } from '../features/projects/api';
 import type { ProjectUser, ReferenceData } from '../features/projects/types';
 import { ActorPicker } from '../features/local-auth/ActorPicker';
@@ -345,7 +345,19 @@ export function App() {
                 path="/projects/new"
                 element={
                   canCreate ? (
-                    <CreateProjectPage me={me} reference={reference} />
+                    <CreateProjectPage me={me} reference={reference} canImport={canImport} />
+                  ) : canImport ? (
+                    <section>
+                      <div className="page-heading">
+                        <div>
+                          <h1>项目创建</h1>
+                          <p>通过 Excel 批量导入项目。</p>
+                        </div>
+                        <Link className="primary-button" to="/projects/import">
+                          项目导入
+                        </Link>
+                      </div>
+                    </section>
                   ) : (
                     <Navigate to="/projects" replace />
                   )

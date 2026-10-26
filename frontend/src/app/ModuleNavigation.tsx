@@ -52,8 +52,7 @@ export function ModuleNavigation({
         <NavLink to="/projects" end>
           项目列表
         </NavLink>
-        {canImport && <NavLink to="/projects/import">项目导入</NavLink>}
-        {canCreate && <NavLink to="/projects/new">项目创建</NavLink>}
+        {(canCreate || canImport) && <NavLink to="/projects/new">项目创建</NavLink>}
       </MenuGroup>
       <MenuGroup title="计收管理" active={pathname === '/revenue'}>
         <NavLink to="/revenue">计收台账</NavLink>
