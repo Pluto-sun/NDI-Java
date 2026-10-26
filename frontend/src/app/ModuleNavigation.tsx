@@ -57,8 +57,10 @@ export function ModuleNavigation({
       <MenuGroup title="计收管理" active={pathname === '/revenue'}>
         <NavLink to="/revenue">计收台账</NavLink>
       </MenuGroup>
-      <MenuGroup title="排产管理" active={pathname === '/scheduling'}>
-        <NavLink to="/scheduling">排产计划</NavLink>
+      <MenuGroup title="排产管理" active={pathname.startsWith('/scheduling')}>
+        <NavLink to="/scheduling" end>
+          排产计划
+        </NavLink>
       </MenuGroup>
       <MenuGroup title="能力指标管理" active={pathname === '/capability'}>
         <NavLink to="/capability">能力指标</NavLink>

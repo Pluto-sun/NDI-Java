@@ -11,6 +11,7 @@ const labels: Record<string, string> = {
   SUBMITTED: '有新的审批申请',
   APPROVED: '申请已通过',
   REJECTED: '申请被驳回',
+  REASSIGNED: '审批待办已交接给您',
   WITHDRAWN: '申请已撤销',
   OVERDUE: '审批已逾期',
   CONFLICT: '申请发生冲突',

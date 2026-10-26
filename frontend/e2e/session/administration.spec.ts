@@ -45,6 +45,10 @@ test('管理员使用既有地市创建账号、编辑、重置密码和启停�
   await page.getByRole('checkbox', { name: '省分三化负责人', exact: true }).check();
   await page.getByRole('checkbox', { name: '省分数字化负责人', exact: true }).check();
   await page.getByRole('button', { name: '保存账号', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page
+    .getByRole('combobox', { name: '管理角色', exact: true })
+    .selectOption('PROVINCE_REPORTER');
   await expect(row).toContainText('编辑后的验收用户');
   await expect(row).toContainText('省分三化负责人');
   await expect(row).toContainText('省分数字化负责人');

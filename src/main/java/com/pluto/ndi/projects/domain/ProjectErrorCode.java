@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 
 /** 项目模块对外暴露的稳定错误码。 */
 public enum ProjectErrorCode implements ErrorCode {
+    SELF_APPROVAL_FORBIDDEN(HttpStatus.CONFLICT,"PROJECT_SELF_APPROVAL_FORBIDDEN","不能交接给申请人","交接后将产生本人审批，请选择其他接口人"),
     IMPORT_TASK_CONFLICT(
             HttpStatus.CONFLICT,
             "PROJECT_IMPORT_TASK_CONFLICT",

@@ -102,7 +102,7 @@ class ProjectInactivityIT {
         cityUser = addUser("CITY_REPORTER", provinceId, cityId);
         leader = addUser("PROVINCE_REPORTER", provinceId, null);
         reviewer = addUser("INTERFACE_REVIEWER", provinceId, null);
-        secondReviewer = addUser("INTERFACE_REVIEWER", provinceId, null);
+        secondReviewer = addUser("INTERFACE_REVIEWER", null, null);
         group = addUser("GROUP_REVIEWER", null, null);
         administrator = addUser("SYSTEM_ADMIN", null, null);
     }
@@ -128,7 +128,7 @@ class ProjectInactivityIT {
         assertThat(projectRepository.findById(project).orElseThrow().updatedAt()).isEqualTo(before.updatedAt());
         inactivity.trigger(administrator, project, 33);
         inactivity.markRead(reviewer, reminder.caseId());
-        assertThat(inactivity.unreadCount(secondReviewer)).isEqualTo(1);
+        assertThat(inactivity.unreadCount(secondReviewer)).isZero();
         inactivity.forward(leader, reminder.caseId(), cityUser, "请跟进");
         inactivity.forward(reviewer, reminder.caseId(), leader, "再次提醒省分");
         assertThat(inactivity.unreadCount(leader)).isEqualTo(1);
@@ -171,11 +171,11 @@ class ProjectInactivityIT {
 
         var second = inactivity.recordIfDue(project, lastAt.plus(33, ChronoUnit.DAYS)).orElseThrow();
         assertThat(second.caseId()).isEqualTo(first.caseId());
-        assertThat(second.recipients()).isEqualTo(2);
+        assertThat(second.recipients()).isEqualTo(1);
         assertThat(inactivity.recipients(reviewer, first.caseId())).extracting(user -> user.id()).containsExactly(leader);
         inactivity.forward(reviewer, first.caseId(), leader, "请省分核实当前项目状态");
         assertThat(inactivity.findMine(secondReviewer, false, page)).isEmpty();
-        assertThat(inactivity.findMine(secondReviewer, true, page).getContent()).hasSize(1);
+        assertThat(inactivity.findMine(secondReviewer, true, page)).isEmpty();
         inactivity.forward(leader, first.caseId(), cityUser, "请地市更新客户交流情况");
         assertThat(inactivity.findMine(cityUser, false, page).getContent()).singleElement()
                 .satisfies(item -> assertThat(item.canForward()).isFalse());
@@ -191,7 +191,7 @@ class ProjectInactivityIT {
         long baseVersion = projectRepository.findById(project).orElseThrow().versionNo();
         progresses.append(cityUser, project, new AppendProgressCommand("已联系客户", "准备下一轮交流", null));
         assertThat(projectRepository.findById(project).orElseThrow().versionNo()).isEqualTo(baseVersion);
-        for (var user : List.of(cityUser, leader, reviewer, secondReviewer, group)) {
+        for (var user : List.of(cityUser, leader, reviewer, group)) {
             assertThat(inactivity.findMine(user, false, page)).isEmpty();
             assertThat(inactivity.findMine(user, true, page).getContent()).singleElement()
                     .satisfies(item -> assertThat(item.status()).isEqualTo("RESOLVED"));

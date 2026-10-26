@@ -43,6 +43,8 @@ const normalized = (value: string) =>
     .replace(/[\s\p{P}\p{S}]/gu, '')
     .replace(/万元|万/g, '');
 const aliases: Record<string, string[]> = {
+  排产月份: ['月份', '排产月'],
+  接口人: ['接口人姓名', '排产接口人'],
   省分: ['省份', '所属省份', '归属省分', '省公司'],
   地市: ['城市', '所属地市', '地市名称', '归属地市'],
   客户名称: ['客户', '客户单位', '客户公司'],
@@ -123,3 +125,25 @@ export function downloadWorkbook(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export type ImportRow = ImportBatch['rows'][number];
+
+/** 固定必填列缺少映射时不允许离开第二步；条件字段由服务端再次核对整份文件。 */
+export function missingMappings(task: ImportTask, configuration: ImportConfiguration): string[] {
+  const people = ['项目负责人', '省分负责人', '地市客户经理', '产品单位支撑专家'];
+  const result = task.fieldRules
+    .filter(
+      (rule) =>
+        rule.requirement === 'REQUIRED' &&
+        (rule.name !== '项目负责人'
+          ? !configuration.fieldMapping[rule.name]
+          : !people.some((name) => configuration.fieldMapping[name])),
+    )
+    .map((rule) => rule.name);
+  if (
+    task.fieldRules.some((rule) => rule.name === '排产月份') &&
+    !task.fieldRules
+      .filter((rule) => rule.name.includes('排产（万元）'))
+      .some((rule) => configuration.fieldMapping[rule.name])
+  )
+    result.push('至少一项排产金额');
+  return result;
+}

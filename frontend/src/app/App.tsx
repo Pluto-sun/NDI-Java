@@ -1,3 +1,4 @@
+import { BrandLogo } from '../shared/ui/BrandLogo';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { projectsApi } from '../features/projects/api';
@@ -16,6 +17,22 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 import { ModuleNavigation } from './ModuleNavigation';
 import { ModulePlaceholder } from '../shared/ui/ModulePlaceholder';
+
+const ProductionListPage = lazy(() =>
+  import('../features/production/ProductionPages').then((module) => ({
+    default: module.ProductionListPage,
+  })),
+);
+const NewProductionPage = lazy(() =>
+  import('../features/production/ProductionPages').then((module) => ({
+    default: module.NewProductionPage,
+  })),
+);
+const ImportProductionPage = lazy(() =>
+  import('../features/production/ProductionPages').then((module) => ({
+    default: module.ImportProductionPage,
+  })),
+);
 
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
@@ -207,14 +224,7 @@ export function App() {
         跳到主内容
       </a>
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            N
-          </span>
-          <span>
-            NDI<small>运营管理平台</small>
-          </span>
-        </div>
+        <BrandLogo />
         <ModuleNavigation
           actorId={me.id}
           canCreate={canCreate}
@@ -333,7 +343,9 @@ export function App() {
                 element={<ModulePlaceholder title="能力指标驾驶舱" />}
               />
               <Route path="/revenue" element={<ModulePlaceholder title="计收管理" />} />
-              <Route path="/scheduling" element={<ModulePlaceholder title="排产管理" />} />
+              <Route path="/scheduling" element={<ProductionListPage />} />
+              <Route path="/scheduling/new" element={<NewProductionPage />} />
+              <Route path="/scheduling/import" element={<ImportProductionPage />} />
               <Route path="/capability" element={<ModulePlaceholder title="能力指标管理" />} />
               <Route
                 path="/projects"

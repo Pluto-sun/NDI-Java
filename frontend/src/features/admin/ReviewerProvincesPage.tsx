@@ -1,78 +1,87 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { adminApi, type AdminAccount, type AdminConfiguration } from './api';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
+import { Modal } from '../../shared/ui/Modal';
+import { Select } from '../../shared/ui/Select';
 
-type PendingMapping = { reviewerId: string; version: number; provinceIds: string[] };
-
-/** 编辑集与当前分页分离，切换页面不丢失尚未保存的映射。 */
+/** 全量省份占用信息与账号分页分离，避免分页造成重复分配。 */
 export function ReviewerProvincesPage() {
   const [configuration, setConfiguration] = useState<AdminConfiguration | null>(null);
   const [accounts, setAccounts] = useState<Page<AdminAccount> | null>(null);
-  const [page, setPage] = useState(0);
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
-  const [pending, setPending] = useState<Record<string, PendingMapping>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const errorSummary = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (error) errorSummary.current?.focus();
-  }, [error]);
+  const [owners, setOwners] = useState<Awaited<ReturnType<typeof adminApi.owners>>>([]);
+  const [unassigned, setUnassigned] = useState<
+    Awaited<ReturnType<typeof adminApi.handoverPending>>
+  >([]);
+  const [page, setPage] = useState(0),
+    [search, setSearch] = useState(''),
+    [query, setQuery] = useState('');
+  const [error, setError] = useState(''),
+    [notice, setNotice] = useState(''),
+    [busy, setBusy] = useState(false);
+  const [editor, setEditor] = useState<AdminAccount | null>(null),
+    [ids, setIds] = useState<string[]>([]);
+  const [transfer, setTransfer] = useState(false),
+    [targets, setTargets] = useState<AdminAccount[]>([]),
+    [target, setTarget] = useState('');
+  const [targetSearch, setTargetSearch] = useState('');
   const load = useCallback(async () => {
-    const [config, users] = await Promise.all([
+    const [c, a, o, u] = await Promise.all([
       adminApi.configuration(),
-      adminApi.accounts(query, 'true', page, 'INTERFACE_REVIEWER'),
+      adminApi.accounts(query, '', page, 'INTERFACE_REVIEWER'),
+      adminApi.owners(),
+      adminApi.handoverPending(),
     ]);
-    setConfiguration(config);
-    setAccounts(users);
+    setConfiguration(c);
+    setAccounts(a);
+    setOwners(o);
+    setUnassigned(u);
   }, [page, query]);
   useEffect(() => {
+    load().catch((c) => setError(c.message));
+  }, [load]);
+  useEffect(() => {
+    if (!transfer) return;
     let active = true;
-    setLoading(true);
-    setError('');
-    Promise.all([
-      adminApi.configuration(),
-      adminApi.accounts(query, 'true', page, 'INTERFACE_REVIEWER'),
-    ])
-      .then(([config, users]) => {
-        if (active) {
-          setConfiguration(config);
-          setAccounts(users);
-        }
+    adminApi
+      .accounts(targetSearch, 'true', 0, 'INTERFACE_REVIEWER')
+      .then((a) => {
+        if (active) setTargets(a.items.filter((u) => u.id !== editor?.id));
       })
-      .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : '接口人范围加载失败');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .catch((c) => setError(c.message));
     return () => {
       active = false;
     };
-  }, [page, query]);
-  const changed = Object.values(pending);
-  function toggle(user: AdminAccount, provinceId: string, checked: boolean) {
-    const original = pending[user.id] ?? {
-      reviewerId: user.id,
-      version: user.version,
-      provinceIds: user.reviewerProvinceIds,
-    };
-    const ids = checked
-      ? [...original.provinceIds, provinceId]
-      : original.provinceIds.filter((id) => id !== provinceId);
-    setPending((previous) => {
-      const next = { ...previous };
-      const same =
-        ids.length === user.reviewerProvinceIds.length &&
-        ids.every((id) => user.reviewerProvinceIds.includes(id));
-      if (same && original.version === user.version) delete next[user.id];
-      else next[user.id] = { ...original, provinceIds: ids };
-      return next;
-    });
-    setNotice('');
+  }, [transfer, targetSearch, editor?.id]);
+  function open(user: AdminAccount, isTransfer = false) {
+    setEditor(user);
+    setIds(isTransfer ? [] : user.reviewerProvinceIds);
+    setTransfer(isTransfer);
+    setTarget('');
+    setTargetSearch('');
+    setError('');
+  }
+  async function save() {
+    if (!editor) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (transfer) {
+        const next = targets.find((u) => u.id === target);
+        if (!next) throw new Error('请选择接任接口人');
+        await adminApi.transfer(editor, next, ids);
+      } else
+        await adminApi.saveReviewerMappings([
+          { reviewerId: editor.id, version: editor.version, provinceIds: ids },
+        ]);
+      setEditor(null);
+      setNotice(transfer ? '范围及相关待审申请已交接' : '负责范围已保存');
+      await load();
+    } catch (c) {
+      setError(c instanceof Error ? c.message : '保存失败');
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <>
@@ -80,188 +89,206 @@ export function ReviewerProvincesPage() {
         <div>
           <span className="eyebrow">REVIEWER SCOPE</span>
           <h1>接口人范围</h1>
-          <p>按接口人配置一个或多个负责省份。未配置时没有项目权限；范围变化会撤销其全部旧会话。</p>
+          <p>每省仅由一名接口人负责。范围变更同步交接相关待审申请，审批期限保持不变。</p>
         </div>
       </div>
-      {error && (
-        <div ref={errorSummary} tabIndex={-1}>
-          <Feedback tone="error">
-            {error}。版本冲突时请先核对账号是否已被其他管理员修改，再放弃旧编辑并刷新。
-          </Feedback>
-        </div>
-      )}
+      {error && !editor && <Feedback tone="error">{error}</Feedback>}
       {notice && <Feedback tone="success">{notice}</Feedback>}
+      {unassigned.length > 0 && (
+        <Feedback tone="error">
+          有 {unassigned.length}{' '}
+          条待审申请等待接口人交接。请为对应省份配置接口人，保存时将一并交接：
+          {[
+            ...new Set(
+              unassigned.map(
+                (u) =>
+                  configuration?.provinces.find((p) => p.id === u.provinceId)?.name || u.provinceId,
+              ),
+            ),
+          ].join('、')}
+        </Feedback>
+      )}
       <form
         className="filter-bar"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setQuery(search);
+        onSubmit={(e) => {
+          e.preventDefault();
           setPage(0);
+          setQuery(search);
         }}
       >
         <label>
-          搜索接口人
-          <input
-            maxLength={100}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          账号或姓名
+          <input value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
-        <button className="secondary-button" disabled={loading || saving}>
-          查询接口人
+        <button type="submit" className="primary-button">
+          查询
         </button>
       </form>
-      <section className="panel reviewer-save-bar">
-        <p>
-          当前有 {changed.length}{' '}
-          位接口人的范围尚未保存。切换分页或查询条件会保留编辑；关闭页面前请保存。
-        </p>
-        <div className="form-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={saving}
-            onClick={async () => {
-              if (changed.length && !window.confirm('放弃所有尚未保存的范围修改并重新读取？'))
-                return;
-              setPending({});
-              setError('');
-              setLoading(true);
-              try {
-                await load();
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : '刷新失败');
-              } finally {
-                setLoading(false);
-              }
-            }}
-          >
-            放弃修改并刷新
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={saving || loading || changed.length === 0 || changed.length > 200}
-            onClick={async () => {
-              setSaving(true);
-              setError('');
-              setNotice('');
-              try {
-                await adminApi.saveReviewerMappings(changed);
-                setPending({});
-                setNotice('负责省份已保存，范围变化的接口人需要重新登录。');
-                await load();
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : '保存失败');
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {saving ? '正在保存…' : '批量保存范围'}
-          </button>
-        </div>
-        {changed.length > 200 && (
-          <Feedback tone="error">每批最多修改 200 位接口人，请分批保存。</Feedback>
-        )}
-      </section>
-      {loading ? (
+      {!accounts ? (
         <Loading />
       ) : (
-        accounts?.items.map((user) => (
-          <section
-            className="panel reviewer-scope-card"
-            key={user.id}
-            aria-label={`${user.displayName}的负责省份`}
+        <section className="panel table-panel">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>姓名 / 登录名</th>
+                  <th>负责省份</th>
+                  <th>账号状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.items.map((user) => (
+                  <tr key={user.id}>
+                    <td>
+                      {user.displayName}
+                      <br />
+                      <small>{user.loginName}</small>
+                    </td>
+                    <td>
+                      {user.reviewerProvinceIds
+                        .map((id) => configuration?.provinces.find((p) => p.id === id)?.name)
+                        .join('、') || '未分配'}
+                    </td>
+                    <td>{user.enabled ? '已启用' : '已停用'}</td>
+                    <td>
+                      <div className="admin-row-actions">
+                        <button
+                          className="text-button"
+                          disabled={!user.enabled}
+                          onClick={() => open(user)}
+                        >
+                          配置
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={!user.reviewerProvinceIds.length}
+                          onClick={() => open(user, true)}
+                        >
+                          交接
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="admin-pager">
+            <button
+              className="secondary-button"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              上一页
+            </button>
+            <span>第 {page + 1} 页</span>
+            <button
+              className="secondary-button"
+              disabled={page + 1 >= accounts.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              下一页
+            </button>
+          </div>
+        </section>
+      )}
+      {editor && (
+        <Modal
+          title={transfer ? '交接负责省份及待审申请' : '配置接口人范围'}
+          onClose={() => setEditor(null)}
+          busy={busy}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
           >
-            <h2>{user.displayName}</h2>
             <p>
-              {user.loginName} · {pending[user.id] ? '有未保存修改' : '已保存'}
+              {editor.displayName} · {editor.loginName}
             </p>
-            {user.roleCodes.includes('SYSTEM_ADMIN') ? (
-              <Feedback>管理员不参与业务审批，不能配置接口人负责范围。</Feedback>
-            ) : (
-              <fieldset disabled={saving} className="change-fieldset">
-                <legend>负责省份</legend>
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                      setPending((previous) => ({
-                        ...previous,
-                        [user.id]: {
-                          reviewerId: user.id,
-                          version: pending[user.id]?.version ?? user.version,
-                          provinceIds:
-                            configuration?.provinces.map((province) => province.id) ?? [],
-                        },
-                      }));
+            {error && <Feedback tone="error">{error}</Feedback>}
+            {transfer && (
+              <>
+                <label>
+                  搜索接任接口人
+                  <input
+                    value={targetSearch}
+                    onChange={(e) => {
+                      setTargetSearch(e.target.value);
+                      setTarget('');
                     }}
-                  >
-                    全选省份
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                      setPending((previous) => ({
-                        ...previous,
-                        [user.id]: {
-                          reviewerId: user.id,
-                          version: pending[user.id]?.version ?? user.version,
-                          provinceIds: [],
-                        },
-                      }));
-                    }}
-                  >
-                    清空选择
-                  </button>
-                </div>
-                <div className="admin-role-options">
-                  {configuration?.provinces.map((province) => (
-                    <label className="check-label" key={province.id}>
+                    placeholder="输入姓名或登录名"
+                  />
+                </label>
+                <label>
+                  接任接口人
+                  <Select value={target} onChange={(e) => setTarget(e.target.value)}>
+                    <option value="">请选择</option>
+                    {targets.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.displayName}（{u.loginName}）
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <p className="subtle">
+                  选择交接省份；只交接接口人节点的待审申请，保留审批期限与原始材料。
+                </p>
+              </>
+            )}
+            <div className="province-choice-grid">
+              {configuration?.provinces
+                .filter((p) => !transfer || editor.reviewerProvinceIds.includes(p.id))
+                .map((p) => {
+                  const owner = owners.find((o) => o.provinceId === p.id);
+                  const disabled = !transfer && !!owner && owner.reviewerId !== editor.id;
+                  return (
+                    <label
+                      key={p.id}
+                      className={disabled ? 'province-choice disabled' : 'province-choice'}
+                    >
                       <input
                         type="checkbox"
-                        checked={(
-                          pending[user.id]?.provinceIds ?? user.reviewerProvinceIds
-                        ).includes(province.id)}
-                        onChange={(event) => toggle(user, province.id, event.target.checked)}
+                        disabled={disabled || busy}
+                        checked={ids.includes(p.id)}
+                        onChange={(e) =>
+                          setIds((old) =>
+                            e.target.checked ? [...old, p.id] : old.filter((id) => id !== p.id),
+                          )
+                        }
                       />
-                      {province.name}
+                      <span>
+                        {p.name}
+                        <small>
+                          {owner ? `已绑定：${owner.displayName}（${owner.loginName}）` : '未分配'}
+                        </small>
+                      </span>
                     </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-          </section>
-        ))
-      )}
-      {!loading && accounts?.items.length === 0 && (
-        <Feedback>没有符合条件的已启用接口人，请先在账号与组织中创建或启用账号。</Feedback>
-      )}
-      {accounts && (
-        <div className="pager admin-pager">
-          <span>
-            共 {accounts.totalElements} 位接口人 · 第 {page + 1} 页
-          </span>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={page === 0 || loading || saving}
-            onClick={() => setPage(page - 1)}
-          >
-            上一页
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={page + 1 >= accounts.totalPages || loading || saving}
-            onClick={() => setPage(page + 1)}
-          >
-            下一页
-          </button>
-        </div>
+                  );
+                })}
+            </div>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setEditor(null)}
+                disabled={busy}
+              >
+                取消
+              </button>
+              <button
+                className="primary-button"
+                disabled={busy || (transfer && (!ids.length || !target))}
+              >
+                {' '}
+                {busy ? '保存中…' : transfer ? '确认交接' : '保存配置'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </>
   );

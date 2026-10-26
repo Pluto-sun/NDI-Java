@@ -5,11 +5,13 @@ import { Feedback } from '../../shared/ui/Feedback';
 
 export function AccountEditor({
   user,
+  defaultRole = 'CITY_REPORTER',
   configuration,
   onSaved,
   onCancel,
 }: {
   user: AdminAccount | null;
+  defaultRole?: string;
   configuration: AdminConfiguration;
   onSaved: (user: AdminAccount) => Promise<void>;
   onCancel: () => void;
@@ -28,7 +30,7 @@ export function AccountEditor({
           loginName: '',
           displayName: '',
           email: '',
-          roleCodes: ['CITY_REPORTER'],
+          roleCodes: [defaultRole],
           provinceId: null,
           cityId: null,
         },

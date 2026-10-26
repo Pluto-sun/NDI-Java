@@ -53,6 +53,12 @@ public class ProjectApprovalNotificationEntity {
         return entity;
     }
 
+    public static ProjectApprovalNotificationEntity handover(UUID requestId, UUID recipientId, Instant at) {
+        var entity = create(requestId, recipientId, ApprovalNotificationKind.REASSIGNED, at);
+        entity.eventKey += ":" + UUID.randomUUID();
+        return entity;
+    }
+
     public void markRead(Instant at) {
         if (readAt == null) {
             readAt = at;

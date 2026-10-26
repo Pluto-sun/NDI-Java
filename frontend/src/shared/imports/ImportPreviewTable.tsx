@@ -1,3 +1,4 @@
+import { useImportWizard } from './context';
 import { useState } from 'react';
 import type { ImportBatch } from './types';
 import { nameAccepted, rowErrors, sourceCells, type ImportRow } from './importWizard';
@@ -20,6 +21,7 @@ export function ImportPreviewTable({
   onName: (row: ImportRow) => void;
   disabled: boolean;
 }) {
+  const config = useImportWizard();
   const [scrollTop, setScrollTop] = useState(0);
   const start = Math.max(0, Math.floor(Math.max(0, scrollTop - 42) / rowHeight) - overscan);
   const end = Math.min(batch.rows.length, start + 20);
@@ -32,7 +34,7 @@ export function ImportPreviewTable({
     >
       <table
         className="import-preview-table"
-        aria-label="项目导入预检结果"
+        aria-label={`${config.title}导入预检结果`}
         aria-rowcount={batch.rows.length + 1}
       >
         <thead>
@@ -82,7 +84,13 @@ export function ImportPreviewTable({
                   <small>
                     {cells['省分']} / {cells['地市']}
                   </small>
-                  <small>{cells['项目总金额（万）'] || '未填金额'} 万元</small>
+                  <small>
+                    {config.amountFields
+                      .map((field) => cells[field])
+                      .filter((value) => value?.trim())
+                      .join(' / ') || '未填金额'}{' '}
+                    万元
+                  </small>
                 </td>
                 <td>
                   <span
@@ -111,7 +119,7 @@ export function ImportPreviewTable({
                       ? errors.join('；')
                       : row.nameReview?.level !== 'NONE' && row.nameReview
                         ? `最高相似度 ${(row.nameReview.score * 100).toFixed(1)}%${row.nameReview.confirmed ? ' · 已确认' : ''}`
-                        : '未发现相似项目'}
+                        : config.noDuplicateMessage}
                   </small>
                 </td>
                 <td>

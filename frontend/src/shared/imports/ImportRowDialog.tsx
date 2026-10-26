@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Modal } from '../../shared/ui/Modal';
-import { Feedback } from '../../shared/ui/Feedback';
-import { projectsApi } from './api';
+import { Modal } from '../ui/Modal';
+import { Feedback } from '../ui/Feedback';
+import { useImportWizard } from './context';
 import type { ImportBatch } from './types';
 import { sourceCells, rowErrors, type ImportRow } from './importWizard';
 
@@ -19,6 +19,7 @@ export function ImportRowDialog({
   onClose: () => void;
   onSaved: (batch: ImportBatch) => void;
 }) {
+  const { api: projectsApi } = useImportWizard();
   const [cells, setCells] = useState(() => sourceCells(row.sourceCellsJson));
   const [reason, setReason] = useState(row.nameReview?.reason ?? '');
   const [confirmed, setConfirmed] = useState(row.nameReview?.confirmed ?? false);
@@ -31,7 +32,7 @@ export function ImportRowDialog({
     try {
       let result: ImportBatch;
       if (mode === 'name')
-        result = await projectsApi.decideImportName(
+        result = await projectsApi.decideImportName!(
           batchId,
           row.rowNumber,
           row.revisionNo,

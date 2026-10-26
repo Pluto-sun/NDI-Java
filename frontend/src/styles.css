@@ -1705,3 +1705,101 @@ button.inline-link {
 .map-stage-filter .checkbox-label {
   min-height: 44px;
 }
+.brand-with-logo {
+  flex-direction: column;
+  gap: 0;
+  text-align: center;
+  padding: 0 0 12px;
+}
+.brand-logo-frame {
+  width: 180px;
+  height: 108px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.brand-logo-frame img {
+  position: absolute;
+  width: 200px;
+  height: auto;
+  max-width: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.brand-with-logo > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.brand-login .brand-logo-frame {
+  width: 300px;
+  height: 180px;
+}
+.brand-login .brand-logo-frame img {
+  width: 300px;
+}
+.transient-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.transient-notice > span:first-child {
+  flex: 1;
+}
+.notice-countdown {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.role-view-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.role-view-picker select {
+  width: 210px;
+}
+@media (max-width: 800px) {
+  .sidebar .brand-logo-frame {
+    width: 112px;
+    height: 62px;
+  }
+  .sidebar .brand-logo-frame img {
+    width: 116px;
+  }
+  .sidebar .brand-with-logo > small {
+    font-size: 10px;
+  }
+}
+
+.province-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.province-choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 10px;
+}
+.province-choice small {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+.province-choice.disabled {
+  background: #f5f6f8;
+  color: #777;
+}
+.province-choice input {
+  width: auto;
+  flex: none;
+}

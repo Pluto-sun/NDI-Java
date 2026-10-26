@@ -151,6 +151,20 @@ class IdentitySessionIT {
         assertThat(response.getContentAsString()).doesNotContain("passwordHash", "token", "credentialVersion");
         return response.getCookie(SessionCookieSupport.COOKIE_NAME);
     }
+    @Test void ordinaryAuthenticatedRequestsKeepCsrfStableAcrossParallelPageReads() throws Exception {
+        var session=login(password);
+        var issued=mvc.perform(get("/api/v1/auth/csrf").cookie(session)).andExpect(status().isOk()).andReturn().getResponse();
+        var cookie=issued.getCookie("XSRF-TOKEN");
+        var token=json.readTree(issued.getContentAsString()).path("data").path("token").asText();
+        assertThat(cookie).isNotNull();
+        for(int i=0;i<3;i++) {
+            var read=mvc.perform(get("/api/v1/auth/me").cookie(session,cookie)).andExpect(status().isOk()).andReturn().getResponse();
+            assertThat(read.getHeaders("Set-Cookie")).noneMatch(value->value.startsWith("XSRF-TOKEN="));
+        }
+        mvc.perform(put("/api/v1/auth/me").cookie(session,cookie).header("X-XSRF-TOKEN",token).contentType(MediaType.APPLICATION_JSON).content("{\"displayName\":\"稳定令牌测试\",\"email\":null}")).andExpect(status().isOk());
+        mvc.perform(put("/api/v1/auth/me").cookie(session,cookie).contentType(MediaType.APPLICATION_JSON).content("{\"displayName\":\"无令牌\",\"email\":null}")).andExpect(status().isForbidden());
+    }
+
     private MockHttpServletRequestBuilder withCsrf(MockHttpServletRequestBuilder builder) throws Exception {
         var response = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
         var token = json.readTree(response.getContentAsString()).path("data").path("token").asText();

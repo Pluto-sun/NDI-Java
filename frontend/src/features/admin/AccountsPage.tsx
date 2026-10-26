@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { Select } from '../../shared/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAccount, type AdminConfiguration } from './api';
@@ -17,6 +18,8 @@ export function AccountsPage({
   myId: string;
   onReferenceChanged: () => Promise<void>;
 }) {
+  const [params, setParams] = useSearchParams();
+  const role = params.get('role') || 'CITY_REPORTER';
   const [configuration, setConfiguration] = useState<AdminConfiguration | null>(null);
   const [result, setResult] = useState<Page<AdminAccount> | null>(null);
   const [search, setSearch] = useState('');
@@ -37,14 +40,14 @@ export function AccountsPage({
     if (action?.type === 'enabled') confirmationTitle.current?.focus();
   }, [action]);
   const load = useCallback(async () => {
-    const accounts = await adminApi.accounts(appliedSearch, enabled, page);
+    const accounts = await adminApi.accounts(appliedSearch, enabled, page, role);
     setResult(accounts);
-  }, [appliedSearch, enabled, page]);
+  }, [appliedSearch, enabled, page, role]);
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
-    Promise.all([adminApi.configuration(), adminApi.accounts(appliedSearch, enabled, page)])
+    Promise.all([adminApi.configuration(), adminApi.accounts(appliedSearch, enabled, page, role)])
       .then(([config, accounts]) => {
         if (active) {
           setConfiguration(config);
@@ -60,7 +63,7 @@ export function AccountsPage({
     return () => {
       active = false;
     };
-  }, [appliedSearch, enabled, page]);
+  }, [appliedSearch, enabled, page, role]);
 
   async function complete(message: string) {
     setAction(null);
@@ -82,7 +85,27 @@ export function AccountsPage({
       <div className="page-heading">
         <div>
           <span className="eyebrow">ADMINISTRATION</span>
-          <h1>账号与组织</h1>
+          <div className="title-with-stage">
+            <h1>账号与组织</h1>
+            <label className="role-view-picker">
+              角色
+              <Select
+                aria-label="管理角色"
+                value={role}
+                disabled={!configuration || busy}
+                onChange={(event) => {
+                  setPage(0);
+                  setParams({ role: event.target.value });
+                }}
+              >
+                {configuration?.roles.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
           <p>维护账号、角色和省市范围。管理员不参与业务审批。</p>
         </div>
         <button
@@ -278,6 +301,7 @@ export function AccountsPage({
       {configuration && action?.type === 'edit' && (
         <Modal title={action.user ? '编辑账号' : '创建账号'} onClose={() => setAction(null)}>
           <AccountEditor
+            defaultRole={role}
             key={action.user?.id ?? 'new'}
             user={action.user}
             configuration={configuration}

@@ -102,6 +102,8 @@ class ReviewerProvinceScopeIT {
     private final PageRequest page = PageRequest.of(0, 20);
     private final String password = "reviewer-test-password";
     UUID admin;
+    @Autowired com.pluto.ndi.projects.service.ProjectReviewerHandoverService handover;
+    @Autowired com.pluto.ndi.projects.service.ProjectOperationAuditService operationAudits;
     AdminAccountView reviewer;
     Region a;
     Region b;
@@ -119,7 +121,7 @@ class ReviewerProvinceScopeIT {
                 UUID.fromString(
                         jdbc.queryForObject(
                                 "SELECT BIN_TO_UUID(id) FROM identity_user_account WHERE"
-                                    + " login_name='scope-admin'",
+                                        + " login_name='scope-admin'",
                                 String.class));
         a = region("广东省");
         b = region("浙江省");
@@ -268,7 +270,7 @@ class ReviewerProvinceScopeIT {
         exports.complete(task.id(), 2);
         jdbc.update(
                 "UPDATE identity_user_account SET province_id=UUID_TO_BIN(?) WHERE"
-                    + " id=UUID_TO_BIN(?)",
+                        + " id=UUID_TO_BIN(?)",
                 b.province().toString(),
                 reviewer.id().toString());
         reviewer = mapping(reviewer, a.province());
@@ -538,7 +540,7 @@ class ReviewerProvinceScopeIT {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT read_at FROM project_approval_notification WHERE"
-                                    + " id=UUID_TO_BIN(?)",
+                                        + " id=UUID_TO_BIN(?)",
                                 java.sql.Timestamp.class,
                                 hidden.id().toString()))
                 .isNull();
@@ -550,6 +552,87 @@ class ReviewerProvinceScopeIT {
                 "UPDATE identity_user_account SET enabled=false WHERE id=UUID_TO_BIN(?)",
                 reviewer.id().toString());
         denied(() -> notificationCounts.counts(reviewer.id()));
+    }
+
+    @Test
+    void uniqueProvinceHandoverMovesPendingApprovalsAndPreservesDueDate() {
+        var request = change(a);
+        var phone =
+                "137"
+                        + String.format(
+                                "%08d",
+                                java.util.concurrent.ThreadLocalRandom.current()
+                                        .nextInt(100000000));
+        var target =
+                administrators.create(
+                        admin,
+                        new AdminAccountCommand(
+                                phone, "接任接口人", null, List.of("INTERFACE_REVIEWER"), null, null),
+                        password);
+        denied(() -> mapping(target, a.province()));
+        var original =
+                jdbc.queryForMap(
+                        "SELECT due_at,submitted_at,base_version FROM project_approval_request"
+                            + " WHERE id=UUID_TO_BIN(?)",
+                        request.id().toString());
+        administrators.transferReviewer(
+                admin,
+                reviewer.id(),
+                reviewer.version(),
+                target.id(),
+                target.version(),
+                List.of(a.province()));
+        assertThat(identities.isEligibleStageApprover(target.id(), a.province())).isTrue();
+        assertThat(identities.isEligibleStageApprover(reviewer.id(), a.province())).isFalse();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT BIN_TO_UUID(approver_id) FROM project_approval_request"
+                                    + " WHERE id=UUID_TO_BIN(?)",
+                                String.class,
+                                request.id().toString()))
+                .isEqualTo(target.id().toString());
+        assertThat(
+                        jdbc.queryForMap(
+                                "SELECT due_at,submitted_at,base_version FROM"
+                                    + " project_approval_request WHERE id=UUID_TO_BIN(?)",
+                                request.id().toString()))
+                .isEqualTo(original);
+        denied(() -> approvals.decide(reviewer.id(), request.id(), true, null));
+        assertThat(notifications.findMine(target.id(), page).getContent())
+                .extracting(ApprovalNotificationSummary::kind)
+                .contains(com.pluto.ndi.projects.domain.ApprovalNotificationKind.REASSIGNED);
+        assertThat(operationAudits.find(target.id(),a.project(),page).getContent()).extracting(com.pluto.ndi.projects.domain.ProjectOperationAudit::eventType).contains("APPROVAL_REASSIGNED");
+        approvals.decide(target.id(), request.id(), true, null);
+    }
+
+    @Test
+    void disabledReviewerLeavesDiscoverablePendingAndNewAssignmentRepairsIt() {
+        var request = change(a);
+        var disabled = administrators.setEnabled(admin, reviewer.id(), reviewer.version(), false);
+        assertThat(handover.unassigned(admin))
+                .extracting(
+                        com.pluto.ndi.projects.service.ProjectReviewerHandoverService.Pending
+                                ::requestId)
+                .contains(request.id());
+        var phone =
+                "136"
+                        + String.format(
+                                "%08d",
+                                java.util.concurrent.ThreadLocalRandom.current()
+                                        .nextInt(100000000));
+        var target =
+                administrators.create(
+                        admin,
+                        new AdminAccountCommand(
+                                phone, "替补接口人", null, List.of("INTERFACE_REVIEWER"), null, null),
+                        password);
+        mapping(target, a.province());
+        assertThat(handover.unassigned(admin))
+                .extracting(
+                        com.pluto.ndi.projects.service.ProjectReviewerHandoverService.Pending
+                                ::requestId)
+                .doesNotContain(request.id());
+        approvals.decide(target.id(), request.id(), true, null);
     }
 
     private AdminAccountView mapping(AdminAccountView user, UUID... ids) {
@@ -581,13 +664,13 @@ class ReviewerProvinceScopeIT {
         var city = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO organization_province (id,province_code,province_name,enabled) VALUES"
-                    + " (UUID_TO_BIN(?),?,?,true)",
+                        + " (UUID_TO_BIN(?),?,?,true)",
                 province.toString(),
                 province.toString().replace("-", ""),
                 name);
         jdbc.update(
                 "INSERT INTO organization_city (id,province_id,city_code,city_name,enabled) VALUES"
-                    + " (UUID_TO_BIN(?),UUID_TO_BIN(?),?,'测试地市',true)",
+                        + " (UUID_TO_BIN(?),UUID_TO_BIN(?),?,'测试地市',true)",
                 city.toString(),
                 province.toString(),
                 city.toString().replace("-", ""));
@@ -619,8 +702,8 @@ class ReviewerProvinceScopeIT {
         var id = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO identity_user_account"
-                    + " (id,login_name,display_name,province_id,city_id,enabled) VALUES"
-                    + " (UUID_TO_BIN(?),?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?),true)",
+                        + " (id,login_name,display_name,province_id,city_id,enabled) VALUES"
+                        + " (UUID_TO_BIN(?),?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?),true)",
                 id.toString(),
                 id.toString(),
                 role,

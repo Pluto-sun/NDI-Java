@@ -96,7 +96,7 @@ WHERE status IN ('AVAILABLE', 'DELETED') ORDER BY id
                 var rows =
                         query.executeQuery(
                                 "SELECT BIN_TO_UUID(id) FROM project_export_task WHERE status ="
-                                    + " 'COMPLETED' ORDER BY id")) {
+                                        + " 'COMPLETED' ORDER BY id")) {
             while (rows.next()) {
                 var location = objects.projectExportLocation(UUID.fromString(rows.getString(1)));
                 result.add(
@@ -114,7 +114,9 @@ WHERE status IN ('AVAILABLE', 'DELETED') ORDER BY id
                 var rows =
                         query.executeQuery(
                                 "SELECT bucket_name,object_key,byte_size,sha256_hex FROM"
-                                    + " project_import_task ORDER BY actor_id")) {
+                                    + " project_import_task UNION ALL SELECT"
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM"
+                                    + " production_import_task")) {
             while (rows.next()) {
                 result.add(
                         new ObjectRef(

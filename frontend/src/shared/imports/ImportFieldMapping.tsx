@@ -1,4 +1,4 @@
-import { Select } from '../../shared/ui/Select';
+import { Select } from '../ui/Select';
 import type { ImportConfiguration, ImportTask } from './types';
 
 export function ImportFieldMapping({
@@ -20,7 +20,7 @@ export function ImportFieldMapping({
     <section aria-label="字段映射设置">
       <h2 tabIndex={-1}>第二步：字段映射</h2>
       <p className="subtle">
-        已根据表头自动匹配，请逐项核对。未映射的必填值会在预检中报错，可逐行补齐。
+        已根据表头自动匹配，请逐项核对。必填列完成映射后才可开始预检；行内空值仍可在预检中修正。
       </p>
       <div
         className="import-mapping-scroll table-scroll"

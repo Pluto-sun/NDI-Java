@@ -150,7 +150,22 @@ class ProjectImportWizardIT {
     }
 
     private Configuration configuration(ProjectImportWizardService.View task) {
-        return new Configuration("导入数据", 2, Map.of("项目名称", "项目名称"));
+        return new Configuration(
+                "导入数据",
+                2,
+                task.inspection().sheets().stream()
+                        .filter(sheet -> sheet.name().equals("导入数据"))
+                        .findFirst()
+                        .orElseThrow()
+                        .headerCandidates()
+                        .stream()
+                        .filter(header -> header.rowNo() == 2)
+                        .findFirst()
+                        .orElseThrow()
+                        .headers()
+                        .stream()
+                        .collect(
+                                java.util.stream.Collectors.toMap(field -> field, field -> field)));
     }
 
     private ProjectImportWizardService.View preview(Fixture f, String... names) throws Exception {
@@ -458,5 +473,47 @@ class ProjectImportWizardIT {
                 .isInstanceOf(BusinessException.class);
         wizard.discard(
                 f.actor(), wizard.current(f.actor()).id(), wizard.current(f.actor()).version());
+    }
+
+    @Test
+    void rejectsMissingRequiredAndConditionalMappingBeforePreview() throws Exception {
+        var f = fixture();
+        var upload =
+                wizard.upload(f.actor(), null, null, "映射.xlsx", workbook("映射" + UUID.randomUUID()));
+        var fields = new HashMap<>(configuration(upload).fieldMapping());
+        fields.put("客户名称", "");
+        var incomplete =
+                wizard.save(
+                        f.actor(),
+                        upload.id(),
+                        upload.version(),
+                        2,
+                        new Configuration("导入数据", 2, fields),
+                        null);
+        assertThatThrownBy(
+                        () ->
+                                wizard.save(
+                                        f.actor(),
+                                        incomplete.id(),
+                                        incomplete.version(),
+                                        3,
+                                        incomplete.configuration(),
+                                        null))
+                .hasMessageContaining("客户名称");
+        fields.put("客户名称", "客户名称");
+        fields.put("网络化预计金额（万）", "");
+        var missingAmount = new Configuration("导入数据", 2, fields);
+        assertThatThrownBy(
+                        () ->
+                                wizard.save(
+                                        f.actor(),
+                                        incomplete.id(),
+                                        incomplete.version(),
+                                        3,
+                                        missingAmount,
+                                        null))
+                .hasMessageContaining("网络化预计金额");
+        assertThat(wizard.current(f.actor()).step()).isEqualTo(2);
+        assertThat(wizard.current(f.actor()).batch()).isNull();
     }
 }

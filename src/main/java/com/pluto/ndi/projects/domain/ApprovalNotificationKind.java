@@ -7,5 +7,6 @@ public enum ApprovalNotificationKind {
     REJECTED,
     WITHDRAWN,
     CONFLICT,
+    REASSIGNED,
     OVERDUE
 }

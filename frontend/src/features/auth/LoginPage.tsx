@@ -1,3 +1,4 @@
+import { BrandLogo } from '../../shared/ui/BrandLogo';
 import { useState } from 'react';
 import { Feedback } from '../../shared/ui/Feedback';
 
@@ -17,14 +18,7 @@ export function LoginPage({
   return (
     <main className="entry">
       <div className="entry-intro">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            N
-          </span>
-          <span>
-            NDI<small>工业三化运营管理平台</small>
-          </span>
-        </div>
+        <BrandLogo login />
         <h1>
           项目协作
           <br />

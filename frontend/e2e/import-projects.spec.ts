@@ -231,3 +231,47 @@ test('首步也可恢复，百行预检按窗口滚动，从头导入放弃原�
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
 });
+
+test('迟到的首次任务读取不会覆盖用户已经恢复的步骤', async ({ page, request }) => {
+  await enter(page);
+  await upload(page, [await sourceRow(request, `恢复竞态-${randomUUID()}`)]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  let count = 0;
+  let release!: () => void;
+  let delivered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const done = new Promise<void>((resolve) => {
+    delivered = resolve;
+  });
+  await page.route('**/api/v1/projects/imports/task', async (route) => {
+    if (route.request().method() !== 'GET' || ++count !== 1) {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    await gate;
+    await route.fulfill({ response });
+    delivered();
+  });
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
+  release();
+  await done;
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.getByRole('heading', { name: '第二步：字段映射', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '存在未完成的导入任务', exact: true }),
+  ).toHaveCount(0);
+  await page.unroute('**/api/v1/projects/imports/task');
+  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await page.getByRole('button', { name: '从头导入', exact: true }).click();
+});

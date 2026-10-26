@@ -25,11 +25,12 @@ public class ProjectImportTaskMapper {
     /** 同账号首次创建也串行，防止两个标签页创建两项活动任务。 */
     public void lock(UUID actor) {
         jdbc.update(
-                "INSERT IGNORE INTO project_import_actor_lock(actor_id) VALUES(UUID_TO_BIN(?))",
+                "INSERT INTO project_import_actor_lock(actor_id) VALUES(UUID_TO_BIN(?)) ON"
+                    + " DUPLICATE KEY UPDATE actor_id=actor_id",
                 actor.toString());
         jdbc.queryForObject(
                 "SELECT BIN_TO_UUID(actor_id) FROM project_import_actor_lock WHERE"
-                    + " actor_id=UUID_TO_BIN(?) FOR UPDATE",
+                        + " actor_id=UUID_TO_BIN(?) FOR UPDATE",
                 String.class,
                 actor.toString());
     }
@@ -48,7 +49,7 @@ public class ProjectImportTaskMapper {
         return jdbc
                 .query(
                         "SELECT * FROM project_import_task WHERE actor_id=UUID_TO_BIN(?) FOR"
-                            + " UPDATE",
+                                + " UPDATE",
                         this::row,
                         actor.toString())
                 .stream()

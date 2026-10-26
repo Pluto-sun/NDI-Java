@@ -1,6 +1,7 @@
 package com.pluto.ndi.identity.domain;
 
 import com.pluto.ndi.shared.web.ErrorCode;
+
 import org.springframework.http.HttpStatus;
 
 public enum IdentityErrorCode implements ErrorCode {
@@ -17,14 +18,32 @@ public enum IdentityErrorCode implements ErrorCode {
     VERSION_CONFLICT(HttpStatus.CONFLICT, "账号已被其他操作修改，请刷新后重新编辑"),
     ACCOUNT_INVALID(HttpStatus.BAD_REQUEST, "新账号须为 11 位手机号，姓名及邮箱须符合格式要求"),
     ROLE_SCOPE_INVALID(HttpStatus.BAD_REQUEST, "角色组合或省市归属不正确，请检查角色与组织范围"),
+    REVIEWER_PROVINCE_CONFLICT(HttpStatus.CONFLICT, "省份已由其他接口人负责，请使用交接操作"),
+    REVIEWER_SELF_APPROVAL(HttpStatus.CONFLICT, "交接后将产生本人审批，请选择其他接口人"),
     SELF_ADMIN_PROTECTED(HttpStatus.CONFLICT, "不能停用自己或移除自己的系统管理员角色"),
     LAST_ADMIN_PROTECTED(HttpStatus.CONFLICT, "不能移除最后一个可登录的系统管理员");
 
     private final HttpStatus status;
     private final String message;
-    IdentityErrorCode(HttpStatus status, String message) { this.status = status; this.message = message; }
-    public HttpStatus status() { return status; }
-    public String code() { return "IDENTITY_" + name(); }
-    public String title() { return message; }
-    public String message() { return message; }
+
+    IdentityErrorCode(HttpStatus status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+
+    public HttpStatus status() {
+        return status;
+    }
+
+    public String code() {
+        return "IDENTITY_" + name();
+    }
+
+    public String title() {
+        return message;
+    }
+
+    public String message() {
+        return message;
+    }
 }

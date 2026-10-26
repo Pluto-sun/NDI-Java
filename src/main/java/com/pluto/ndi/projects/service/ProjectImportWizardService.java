@@ -39,6 +39,7 @@ public class ProjectImportWizardService {
     private final ProjectImportBatchRepository batches;
     private final ProjectImportTaskCleanup cleanup;
     private final Clock clock;
+    private final ProjectExcelReader reader;
 
     public ProjectImportWizardService(
             ProjectImportTaskMapper tasks,
@@ -47,7 +48,8 @@ public class ProjectImportWizardService {
             IdentityDirectory identity,
             ProjectImportBatchRepository batches,
             ProjectImportTaskCleanup cleanup,
-            Clock clock) {
+            Clock clock,
+            ProjectExcelReader reader) {
         this.tasks = tasks;
         this.files = files;
         this.imports = imports;
@@ -55,6 +57,7 @@ public class ProjectImportWizardService {
         this.batches = batches;
         this.cleanup = cleanup;
         this.clock = clock;
+        this.reader = reader;
     }
 
     private void authorize(UUID actor) {
@@ -143,6 +146,27 @@ public class ProjectImportWizardService {
         UUID batch = old.batchId();
         var preview = old.previewConfiguration();
         List<Integer> selection = selected;
+        if (step == 3 && old.step() == 2) {
+            var missing =
+                    com.pluto.ndi.projects.util.ProjectImportMappingRules.missing(
+                            config.fieldMapping(), List.of());
+            if (!missing.isEmpty()) throw new BusinessException(new ImportMappingError(missing));
+            try {
+                var sourceRows =
+                        reader.read(
+                                source(old),
+                                config.sheetName(),
+                                config.headerRowNo(),
+                                config.fieldMapping());
+                missing =
+                        com.pluto.ndi.projects.util.ProjectImportMappingRules.missing(
+                                config.fieldMapping(), sourceRows);
+                if (!missing.isEmpty())
+                    throw new BusinessException(new ImportMappingError(missing));
+            } catch (java.io.IOException | IllegalArgumentException failure) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+            }
+        }
         if (step == 3 && old.step() == 2 && !config.equals(preview)) {
             var result =
                     imports.preview(

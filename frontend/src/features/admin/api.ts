@@ -28,6 +28,29 @@ export interface AdminConfiguration {
 }
 const root = '/api/v1/admin';
 export const adminApi = {
+  owners: () =>
+    requestAt<
+      {
+        provinceId: string;
+        reviewerId: string;
+        displayName: string;
+        loginName: string;
+        version: number;
+      }[]
+    >(root, '/reviewer-province-owners'),
+  handoverPending: () =>
+    requestAt<{ provinceId: string; requestId: string }[]>(root, '/reviewer-pending-handover'),
+  transfer: (source: AdminAccount, target: AdminAccount, provinceIds: string[]) =>
+    requestAt<AdminAccount[]>(root, '/reviewer-transfer', {
+      method: 'POST',
+      ...jsonBody({
+        sourceId: source.id,
+        sourceVersion: source.version,
+        targetId: target.id,
+        targetVersion: target.version,
+        provinceIds,
+      }),
+    }),
   configuration: () => requestAt<AdminConfiguration>(root, '/configuration'),
   accounts: (search: string, enabled: string, page: number, role?: string) => {
     const query = new URLSearchParams({ search, page: String(page), size: '20' });

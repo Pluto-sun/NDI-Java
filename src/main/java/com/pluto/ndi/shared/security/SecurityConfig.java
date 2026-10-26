@@ -56,14 +56,16 @@ class SecurityConfig {
                                 new org.springframework.security.authorization.AuthorizationDecision(localActor))
                         .requestMatchers("/api/v1/auth/**").authenticated()
                         .requestMatchers("/api/v1/admin/**").authenticated()
-                        .requestMatchers("/api/v1/projects/**").authenticated()
+                        .requestMatchers("/api/v1/projects/**", "/api/v1/production/**").authenticated()
                         .anyRequest().denyAll());
         if (localActor) {
             http.csrf(AbstractHttpConfigurer::disable);
             localActorAuthenticationFilter.ifAvailable(filter -> http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
         } else {
             http.csrf(csrf -> csrf.csrfTokenRepository(csrfRepository)
-                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()));
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                    // 会话每次请求重新认证；仅登录、退出和改密时由认证入口轮换 CSRF，避免普通请求互相清除令牌。
+                    .sessionAuthenticationStrategy(new org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy()));
             http.addFilterBefore(new SessionAuthenticationFilter(actorSessions), AnonymousAuthenticationFilter.class);
         }
         return http.build();

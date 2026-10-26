@@ -82,6 +82,17 @@ test('批量配置两个接口人后只读取负责省份，移除范围撤销�
       version: existing.version,
       provinceIds: [a.province],
     });
+    const owners = (
+      await (await administrator.request.get(`${root}/admin/reviewer-province-owners`)).json()
+    ).data as { provinceId: string; reviewerId: string; version: number }[];
+    const previous = owners.find((owner) => owner.provinceId === b.province);
+    if (previous)
+      await mutate(
+        administrator.request,
+        'PUT',
+        `/admin/users/${previous.reviewerId}/reviewer-provinces`,
+        { version: previous.version, provinceIds: [] },
+      );
     const other = await createAccount(
       administrator.request,
       'INTERFACE_REVIEWER',
@@ -155,20 +166,15 @@ test('批量配置两个接口人后只读取负责省份，移除范围撤销�
     await page.getByLabel('密码', { exact: true }).fill('e2e-session-password');
     await page.getByRole('button', { name: '登录', exact: true }).click();
     await expect(page.getByRole('heading', { name: '接口人范围', exact: true })).toBeVisible();
-    const first = page.getByRole('region', { name: '演示省分接口人的负责省份', exact: true });
-    const second = page.getByRole('region', {
-      name: `范围验收接口人-${nonce}的负责省份`,
-      exact: true,
-    });
-    await first.getByRole('checkbox', { name: '浙江省', exact: true }).check();
-    await second.getByRole('checkbox', { name: '浙江省', exact: true }).check();
-    await expect(
-      page.getByText('当前有 2 位接口人的范围尚未保存。', { exact: false }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: '批量保存范围', exact: true }).click();
-    await expect(
-      page.getByText('负责省份已保存，范围变化的接口人需要重新登录。', { exact: true }),
-    ).toBeVisible();
+    const first = page.getByRole('row').filter({ hasText: '演示省分接口人' });
+    const second = page.getByRole('row').filter({ hasText: `范围验收接口人-${nonce}` });
+    await first.getByRole('button', { name: '配置', exact: true }).click();
+    await page.getByRole('checkbox', { name: /^浙江省/ }).check();
+    await page.getByRole('button', { name: '保存配置', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await second.getByRole('button', { name: '配置', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: /^浙江省/ })).toBeDisabled();
+    await page.getByRole('button', { name: '关闭配置接口人范围', exact: true }).click();
     await login(reviewer, 'local_reviewer', 'e2e-session-password');
     const readerPage = await reviewer.newPage();
     await readerPage.goto('/projects');
@@ -190,11 +196,11 @@ test('批量配置两个接口人后只读取负责省份，移除范围撤销�
         { timeout: 15000 },
       )
       .toBe('COMPLETED');
-    await first.getByRole('checkbox', { name: '浙江省', exact: true }).uncheck();
-    await page.getByRole('button', { name: '批量保存范围', exact: true }).click();
-    await expect(
-      page.getByText('负责省份已保存，范围变化的接口人需要重新登录。', { exact: true }),
-    ).toBeVisible();
+    await first.getByRole('button', { name: '交接', exact: true }).click();
+    await page.getByRole('checkbox', { name: /^浙江省/ }).check();
+    await page.getByRole('combobox', { name: '接任接口人', exact: true }).selectOption(other.id);
+    await page.getByRole('button', { name: '确认交接', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect((await reviewer.request.get(`${root}/auth/me`)).status()).toBe(401);
     await login(reviewer, 'local_reviewer', 'e2e-session-password');
     await readerPage.reload();

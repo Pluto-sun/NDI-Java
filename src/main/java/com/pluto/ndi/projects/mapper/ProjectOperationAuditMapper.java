@@ -33,10 +33,11 @@ public class ProjectOperationAuditMapper {
                CASE action.action_code WHEN 'SUBMITTED' THEN
                  IF(a.request_type='STAGE_ADVANCEMENT','提交阶段推进申请','提交重大变更申请')
                  WHEN 'REJECTED' THEN '驳回审批申请' WHEN 'WITHDRAWN' THEN '撤销审批申请'
+                 WHEN 'REASSIGNED' THEN '交接审批待办'
                  ELSE '审批因项目版本冲突未生效' END,
                action.actor_id,action.action_at
         FROM project_approval_action action JOIN project_approval_request a ON a.id=action.request_id
-        WHERE a.project_id=UUID_TO_BIN(:project) AND action.action_code IN ('SUBMITTED','REJECTED','WITHDRAWN','CONFLICT')
+        WHERE a.project_id=UUID_TO_BIN(:project) AND action.action_code IN ('SUBMITTED','REJECTED','WITHDRAWN','CONFLICT','REASSIGNED')
         """;
     private final NamedParameterJdbcTemplate jdbc;
 

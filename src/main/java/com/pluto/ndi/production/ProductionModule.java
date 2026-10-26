@@ -1,6 +1,6 @@
 package com.pluto.ndi.production;
 
-/** Marker for the production scheduling application module. */
+/** 排产计划业务模块入口标记。 */
 public final class ProductionModule {
 
     private ProductionModule() {

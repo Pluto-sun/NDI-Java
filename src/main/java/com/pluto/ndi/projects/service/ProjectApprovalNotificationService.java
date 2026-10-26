@@ -36,6 +36,11 @@ public class ProjectApprovalNotificationService {
         this.clock = clock;
     }
 
+    public void transferred(ProjectApprovalRequestEntity request, UUID previous, Instant at) {
+        repository.readTransferred(request.id(), previous, at);
+        repository.save(ProjectApprovalNotificationEntity.handover(request.id(), request.approverId(), at));
+    }
+
     public void submitted(ProjectApprovalRequestEntity request, Instant at) {
         record(request.id(), request.approverId(), ApprovalNotificationKind.SUBMITTED, at);
     }

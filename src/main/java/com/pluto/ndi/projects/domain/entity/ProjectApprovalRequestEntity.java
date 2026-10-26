@@ -210,6 +210,12 @@ public class ProjectApprovalRequestEntity {
         decidedAt = at;
     }
 
+    /** 交接只改变待审接收人，原版本、期限和材料保持不变。 */
+    public void reassign(UUID reviewerId) {
+        if (status != ApprovalStatus.PENDING) throw new IllegalStateException("只有待审申请可以交接");
+        approverId = reviewerId;
+    }
+
     public UUID id() { return id; }
     public UUID projectId() { return projectId; }
     public String requestType() { return requestType; }

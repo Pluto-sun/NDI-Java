@@ -22,6 +22,10 @@ public interface ProjectApprovalNotificationRepository extends JpaRepository<Pro
     Optional<ProjectApprovalNotificationEntity> findByIdAndRecipientId(UUID id, UUID recipientId);
 
     @Modifying
+    @Query("update ProjectApprovalNotificationEntity n set n.readAt=:at where n.requestId=:requestId and n.recipientId=:recipientId and n.readAt is null")
+    int readTransferred(UUID requestId, UUID recipientId, Instant at);
+
+    @Modifying
     @Query(value = """
             INSERT INTO project_approval_notification (
                 id, request_id, recipient_id, event_key, kind, created_at

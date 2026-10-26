@@ -8,6 +8,8 @@ public interface ImportWorkbookDirectory {
 
     Stored store(UUID id, byte[] bytes);
 
+    Stored storeFor(String module, UUID id, byte[] bytes);
+
     byte[] read(String bucket, String objectKey);
 
     void delete(String bucket, String objectKey);

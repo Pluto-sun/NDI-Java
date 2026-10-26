@@ -22,7 +22,7 @@ test('七个模块、多级菜单、占位页及个人中心可用', async ({ pa
     ['排产驾驶舱', '排产驾驶舱'],
     ['能力指标驾驶舱', '能力指标驾驶舱'],
     ['计收台账', '计收管理'],
-    ['排产计划', '排产管理'],
+    ['排产计划', '排产计划'],
     ['能力指标', '能力指标管理'],
   ]) {
     await nav.getByRole('link', { name: link, exact: true }).click();
@@ -36,11 +36,11 @@ test('七个模块、多级菜单、占位页及个人中心可用', async ({ pa
   await expect(page.locator('.account')).toContainText('模块导航验收管理员');
   await nav.getByRole('link', { name: '接口人范围', exact: true }).click();
   await expect(page.getByRole('heading', { name: '接口人范围', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: '北京市', exact: true }).first()).toBeVisible();
-  await expect(
-    page.getByRole('checkbox', { name: '新疆维吾尔自治区', exact: true }).first(),
-  ).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: '台湾省', exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: '配置', exact: true }).first().click();
+  await expect(page.getByRole('checkbox', { name: /^北京市/ }).first()).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /^新疆维吾尔自治区/ }).first()).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /^台湾省/ }).first()).toBeVisible();
+  await page.getByRole('button', { name: '关闭配置接口人范围', exact: true }).click();
   await nav.getByRole('link', { name: '账号与组织', exact: true }).click();
   const trigger = page.getByRole('button', { name: '新建账号', exact: true });
   await trigger.click();
