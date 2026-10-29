@@ -3,6 +3,8 @@ package com.pluto.ndi.projects.util;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.projects.domain.entity.ProjectImportRowEntity;
+import com.pluto.ndi.projects.service.ProjectReferenceData;
+import com.pluto.ndi.shared.excel.ExcelDropdowns;
 
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
@@ -26,11 +28,24 @@ public class ProjectImportWorkbookWriter {
         this.json = json;
     }
 
-    public byte[] template() {
+    public byte[] template(ProjectReferenceData reference) {
         var headers = new ArrayList<>(ProjectExcelReader.mappableHeaders());
         try (var book = new XSSFWorkbook()) {
             var sheet = book.createSheet("导入数据");
             writeHeader(book, sheet, headers);
+            var dropdowns = new ExcelDropdowns(book, sheet, headers);
+            var regions = new java.util.LinkedHashMap<String, List<String>>();
+            for (var province : reference.provinces()) {
+                regions.put(province.name(), reference.cities().stream()
+                        .filter(city -> city.provinceId().equals(province.id()))
+                        .map(city -> city.name()).toList());
+            }
+            dropdowns.dependent("省分", "地市", regions);
+            dropdowns.list("客户所属行业", reference.industries().stream()
+                    .map(ProjectReferenceData.CodeLabel::label).toList());
+            dropdowns.list("项目阶段", reference.stages().stream()
+                    .map(ProjectReferenceData.CodeLabel::label).toList());
+            dropdowns.list("签约主体", List.of("省分签约", "数科签约"));
             var instructions = book.createSheet("填写说明");
             var font = book.createFont();
             font.setFontName("Arial");
@@ -47,7 +62,10 @@ public class ProjectImportWorkbookWriter {
                             "项目负责人至少一人，多人以中英文分号分隔，导入后在项目详情配置职责并按需绑定账号。",
                             "负责人不必为系统账号，职责和账号绑定不授予项目权限；重复项目仅保留同地市同名的第一条。",
                             "拟招标月份选填，格式为 YYYY-MM 或 YYYY-MM-DD，系统按月份保存；应用场景可选填多个，用逗号分隔。",
-                            "备注选填；项目负责人必须使用统一字段，不再接受旧人员列。");
+                            "备注选填；项目负责人必须使用统一字段，不再接受旧人员列。",
+                            "省分、地市、客户所属行业、项目阶段、签约主体提供下拉，覆盖第2至1001行；地市按同一行省分联动，修改省分后须重新选择地市。",
+                            "选项来自下载时系统启用的字典，字典更新后请重新下载模板；粘贴可能绕过Excel校验，最终以系统预检结果为准。",
+                            "应用场景仍支持多选，按系统场景名称用逗号分隔；拟招标月份按YYYY-MM填写，不作为固定字典下拉。");
             for (int index = 0; index < notes.size(); index++) {
                 var row = instructions.createRow(index);
                 var cell = row.createCell(0);

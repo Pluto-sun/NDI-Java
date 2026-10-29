@@ -1,0 +1,16 @@
+{
+  "command": "./mvnw --batch-mode verify",
+  "build": "SUCCESS",
+  "surefire": {
+    "tests": 80,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "failsafe": {
+    "tests": 146,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}

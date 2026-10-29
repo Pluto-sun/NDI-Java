@@ -187,6 +187,8 @@ public class ProjectExcelReader {
             var formatter = new DataFormatter();
             var sheets = new ArrayList<SheetInspection>();
             for (var sheet : workbook) {
+                int sheetIndex = workbook.getSheetIndex(sheet);
+                if (workbook.isSheetHidden(sheetIndex) || workbook.isSheetVeryHidden(sheetIndex)) continue;
                 var candidates = new ArrayList<HeaderCandidate>();
                 for (int index = 0; index <= Math.min(sheet.getLastRowNum(), 11); index++) {
                     var row = sheet.getRow(index);

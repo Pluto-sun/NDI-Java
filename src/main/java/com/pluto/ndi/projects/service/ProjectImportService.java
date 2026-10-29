@@ -82,6 +82,7 @@ public class ProjectImportService {
     private final Clock clock;
     private final ProjectImportNameReviewService nameReviews;
     private final ProjectImportTaskCleanup taskCleanup;
+    private final ProjectContextService context;
 
     public ProjectImportService(
             ProjectExcelReader reader,
@@ -98,7 +99,9 @@ public class ProjectImportService {
             TransactionTemplate transactions,
             Clock clock,
             ProjectImportNameReviewService nameReviews,
-            ProjectImportTaskCleanup taskCleanup) {
+            ProjectImportTaskCleanup taskCleanup,
+            ProjectContextService context) {
+        this.context = context;
         this.nameReviews = nameReviews;
         this.taskCleanup = taskCleanup;
         this.reader = reader;
@@ -267,7 +270,7 @@ public class ProjectImportService {
         identity.findProjectActor(actorId)
                 .filter(ProjectActor::enabled)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        return workbookWriter.template();
+        return workbookWriter.template(context.referenceData(actorId));
     }
 
     @Transactional(readOnly = true)
