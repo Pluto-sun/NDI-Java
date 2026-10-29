@@ -73,7 +73,10 @@ public class ProjectImportWizardService {
         if (task != null
                 && task.batchId() != null
                 && !Set.of("PREVIEWED", "CONFIRMING")
-                        .contains(batches.findById(task.batchId()).orElseThrow().status())) {
+                        .contains(
+                                batches.findByIdAndActorId(task.batchId(), actor)
+                                        .orElseThrow(ProjectImportWizardService::conflict)
+                                        .status())) {
             cleanup.completed(task.batchId());
             return null;
         }
@@ -138,13 +141,20 @@ public class ProjectImportWizardService {
                 || step > 3
                 || Math.abs(old.step() - step) > 1) throw conflict();
         if (old.batchId() != null
-                && !"PREVIEWED".equals(batches.findById(old.batchId()).orElseThrow().status()))
-            throw conflict();
+                && !"PREVIEWED"
+                        .equals(
+                                batches.findByIdAndActorId(old.batchId(), actor)
+                                        .orElseThrow(ProjectImportWizardService::conflict)
+                                        .status())) throw conflict();
         var config = configuration == null ? old.configuration() : configuration;
         if (config.fieldMapping() == null || config.fieldMapping().size() > 80) throw conflict();
+        config = currentConfiguration(config);
         validateConfiguration(old.inspection(), config, step >= 2);
         UUID batch = old.batchId();
-        var preview = old.previewConfiguration();
+        var preview =
+                old.previewConfiguration() == null
+                        ? null
+                        : currentConfiguration(old.previewConfiguration());
         List<Integer> selection = selected;
         if (step == 3 && old.step() == 2) {
             var missing =
@@ -239,11 +249,16 @@ public class ProjectImportWizardService {
             if (!inspection.fields().contains(mapping.getKey()) || mapping.getValue() == null)
                 throw conflict();
             if (mapping.getValue().isBlank()) continue;
-            if (ProjectExcelReader.CATEGORY_SLOTS.equals(mapping.getValue())
-                    && "三化类别".equals(mapping.getKey())) continue;
             if (!header.headers().contains(mapping.getValue()) || !used.add(mapping.getValue()))
                 throw conflict();
         }
+    }
+
+    private Configuration currentConfiguration(Configuration config) {
+        return new Configuration(
+                config.sheetName(),
+                config.headerRowNo(),
+                ProjectExcelReader.withoutLegacyCategory(config.fieldMapping()));
     }
 
     private View view(ProjectImportTask task) {
@@ -252,17 +267,19 @@ public class ProjectImportWizardService {
                 task.version(),
                 task.step(),
                 task.fileName(),
-                task.inspection(),
-                task.configuration(),
+                new ProjectExcelReader.WorkbookInspection(
+                        task.inspection().fileName(),
+                        ProjectExcelReader.mappableHeaders(),
+                        task.inspection().sheets()),
+                currentConfiguration(task.configuration()),
                 task.selectedRows(),
                 task.batchId() == null ? null : imports.find(task.actorId(), task.batchId()),
                 task.updatedAt(),
-                fieldRules(task.inspection().fields()));
+                fieldRules(ProjectExcelReader.mappableHeaders()));
     }
 
     private List<FieldRule> fieldRules(List<String> fields) {
-        var required =
-                Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "三化类别", "项目阶段", "项目总金额（万）");
+        var required = Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段", "项目总金额（万）");
         return fields.stream()
                 .map(
                         field -> {
@@ -275,7 +292,7 @@ public class ProjectImportWizardService {
                             }
                             if (field.endsWith("预计金额（万）")) {
                                 rule = "CONDITIONAL";
-                                hint = "勾选对应三化类别时必填，分类合计不得超过总金额";
+                                hint = "四项至少填写一项；有值（含 0）自动识别该类别，空值不计入，合计不得超过总金额";
                             }
                             if (Set.of("合同编号", "签约金额（万）").contains(field)) {
                                 rule = "CONDITIONAL";

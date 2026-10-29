@@ -533,14 +533,6 @@ function ImportWizardBody() {
                 <Feedback tone="error">请先映射必填字段：{missing.join('、')}</Feedback>
               )}
               <footer className="import-wizard-footer">
-                <button
-                  type="button"
-                  className="text-button"
-                  disabled={busy || saving > 0}
-                  onClick={() => void close()}
-                >
-                  关闭并暂存
-                </button>
                 <div className="action-row">
                   {step > 1 && (
                     <button

@@ -66,6 +66,7 @@ class ProjectImportWizardIT {
     @Autowired ProjectImportService imports;
     @Autowired ProjectService projects;
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.springframework.transaction.support.TransactionTemplate transactions;
     @Autowired ImportWorkbookDirectory files;
     @Autowired com.pluto.ndi.backup.mapper.MysqlBackupMapper backup;
 
@@ -501,7 +502,8 @@ class ProjectImportWizardIT {
                                         null))
                 .hasMessageContaining("客户名称");
         fields.put("客户名称", "客户名称");
-        fields.put("网络化预计金额（万）", "");
+        for (var amount : com.pluto.ndi.projects.util.ProjectImportAmounts.fields())
+            fields.put(amount, "");
         var missingAmount = new Configuration("导入数据", 2, fields);
         assertThatThrownBy(
                         () ->
@@ -512,8 +514,46 @@ class ProjectImportWizardIT {
                                         3,
                                         missingAmount,
                                         null))
-                .hasMessageContaining("网络化预计金额");
+                .hasMessageContaining("至少一项三化预计金额");
         assertThat(wizard.current(f.actor()).step()).isEqualTo(2);
         assertThat(wizard.current(f.actor()).batch()).isNull();
+    }
+
+    @Test
+    void readsNewPreviewAfterWaitingWithAnOlderTransactionSnapshot() throws Exception {
+        var f = fixture();
+        var upload =
+                wizard.upload(
+                        f.actor(), null, null, "并发预检.xlsx", workbook("并发当前读" + UUID.randomUUID()));
+        var mapped =
+                wizard.save(
+                        f.actor(), upload.id(), upload.version(), 2, configuration(upload), null);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var view =
+                    transactions.execute(
+                            status -> {
+                                // 建立早于新批次的事务快照，再让另一事务完成预检。
+                                jdbc.queryForObject(
+                                        "SELECT COUNT(*) FROM project_import_batch", Long.class);
+                                try {
+                                    executor.submit(
+                                                    () ->
+                                                            wizard.save(
+                                                                    f.actor(),
+                                                                    mapped.id(),
+                                                                    mapped.version(),
+                                                                    3,
+                                                                    mapped.configuration(),
+                                                                    null))
+                                            .get(20, TimeUnit.SECONDS);
+                                } catch (Exception failure) {
+                                    throw new IllegalStateException(failure);
+                                }
+                                return wizard.current(f.actor());
+                            });
+            assertThat(view.step()).isEqualTo(3);
+            assertThat(view.batch().rows()).hasSize(1);
+            assertThat(view.batch().validRows()).isEqualTo(1);
+        }
     }
 }

@@ -1,3 +1,4 @@
+import { BrandLogo } from '../../shared/ui/BrandLogo';
 import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import type { ProjectUser } from '../projects/types';
@@ -19,14 +20,7 @@ export function ActorPicker({
   return (
     <main className="entry">
       <div className="entry-intro">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            N
-          </span>
-          <span>
-            NDI<small>工业三化运营管理平台</small>
-          </span>
-        </div>
+        <BrandLogo login />
         <h1>
           项目管理
           <br />

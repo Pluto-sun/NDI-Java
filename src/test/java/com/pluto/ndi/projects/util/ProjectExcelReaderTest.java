@@ -3,11 +3,12 @@ package com.pluto.ndi.projects.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.Test;
+
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Map;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.junit.jupiter.api.Test;
 
 class ProjectExcelReaderTest {
     private static final List<String> HEADERS = List.of("省分", "地市", "客户名称", "客户所属行业",
@@ -106,7 +107,7 @@ class ProjectExcelReaderTest {
     }
 
     @Test
-    void combinesLegacyCategorySlotsOnlyWhenExplicitlySelected() throws Exception {
+    void ignoresLegacyCategoryColumnsAndMappings() throws Exception {
         byte[] data;
         try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
             var sheet = book.createSheet("旧模板");
@@ -123,11 +124,15 @@ class ProjectExcelReaderTest {
             book.write(output);
             data = output.toByteArray();
         }
-        var rows = new ProjectExcelReader().read(data, "旧模板", 1,
-                Map.of("三化类别", ProjectExcelReader.CATEGORY_SLOTS));
-        assertThat(rows.getFirst().get("三化类别")).isEqualTo("网络化、格物");
-        assertThatThrownBy(() -> new ProjectExcelReader().read(data, "旧模板", 1,
-                Map.of("项目名称", ProjectExcelReader.CATEGORY_SLOTS)))
+        var rows =
+                new ProjectExcelReader().read(data, "旧模板", 1, Map.of("三化类别", "__CATEGORY_SLOTS__"));
+        assertThat(rows.getFirst().cells()).doesNotContainKey("三化类别");
+        assertThat(new ProjectExcelReader().inspect(data, "旧模板.xlsx").fields())
+                .doesNotContain("三化类别");
+        assertThatThrownBy(
+                        () ->
+                                new ProjectExcelReader()
+                                        .read(data, "旧模板", 1, Map.of("项目名称", "__CATEGORY_SLOTS__")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

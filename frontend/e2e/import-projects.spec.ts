@@ -19,7 +19,6 @@ async function sourceRow(request: APIRequestContext, name: string) {
     项目名称: name,
     项目建设内容: '导入建设内容',
     项目负责人: '外部负责人甲；外部负责人乙',
-    三化类别: '网络化',
     项目阶段: '方案交流',
     '项目总金额（万）': '100',
     '网络化预计金额（万）': '50',
@@ -121,7 +120,7 @@ test('自动字段匹配、必选标识、逐级返回、阶段恢复、首条�
   await expect(mapping.getByText('必填', { exact: true }).first()).toBeVisible();
   await expect(mapping.getByText('条件必填', { exact: true }).first()).toBeAttached();
   await expect(mapping.getByText('选填', { exact: true }).first()).toBeAttached();
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await expect(page.getByText(/上次停留在第 2 步/)).toBeVisible();
   await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
@@ -142,7 +141,7 @@ test('自动字段匹配、必选标识、逐级返回、阶段恢复、首条�
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
   await expect(editor).toHaveCount(0);
   await page.getByRole('checkbox', { name: '选择第 6 行', exact: true }).uncheck();
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await expect(page.getByText(/上次停留在第 3 步/)).toBeVisible();
   await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
@@ -209,7 +208,7 @@ test('首步也可恢复，百行预检按窗口滚动，从头导入放弃原�
     page,
     Array.from({ length: 90 }, (_, i) => ({ ...base, 项目名称: `${randomUUID()}-${i}` })),
   );
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await expect(page.getByText(/上次停留在第 1 步/)).toBeVisible();
   await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
@@ -222,7 +221,7 @@ test('首步也可恢复，百行预检按窗口滚动，从头导入放弃原�
     element.scrollTop = element.scrollHeight;
   });
   await expect(page.getByRole('checkbox', { name: '选择第 92 行', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await page.getByRole('button', { name: '从头导入', exact: true }).click();
   await expect(page.getByLabel('Excel 文件', { exact: true })).toHaveValue('');
@@ -236,7 +235,7 @@ test('迟到的首次任务读取不会覆盖用户已经恢复的步骤', async
   await enter(page);
   await upload(page, [await sourceRow(request, `恢复竞态-${randomUUID()}`)]);
   await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   let count = 0;
   let release!: () => void;
   let delivered!: () => void;
@@ -271,7 +270,53 @@ test('迟到的首次任务读取不会覆盖用户已经恢复的步骤', async
     page.getByRole('heading', { name: '存在未完成的导入任务', exact: true }),
   ).toHaveCount(0);
   await page.unroute('**/api/v1/projects/imports/task');
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await page.getByRole('button', { name: '从头导入', exact: true }).click();
+});
+
+test('分类按金额自动识别，零金额计入且不再映射类别，唯一关闭入口仍可暂存', async ({
+  page,
+  request,
+}, testInfo) => {
+  const name = `金额识别-${randomUUID()}`;
+  const row = {
+    ...(await sourceRow(request, name)),
+    三化类别: '旧类别内容忽略',
+    '网络化预计金额（万）': '0',
+    '格物预计金额（万）': '25.50',
+  };
+  await enter(page);
+  await expect(page.getByRole('button', { name: '关闭并暂存', exact: true })).toHaveCount(0);
+  await upload(page, [row]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '映射：三化类别', exact: true })).toHaveCount(0);
+  const network = page.getByRole('combobox', { name: '映射：网络化预计金额（万）', exact: true });
+  const gewu = page.getByRole('combobox', { name: '映射：格物预计金额（万）', exact: true });
+  for (const field of [
+    '网络化预计金额（万）',
+    '格物预计金额（万）',
+    '大数据预计金额（万）',
+    '万悟预计金额（万）',
+  ])
+    await page.getByRole('combobox', { name: `映射：${field}`, exact: true }).selectOption('');
+  await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
+  await network.selectOption('网络化预计金额（万）');
+  await gewu.selectOption('格物预计金额（万）');
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  const task = await get<ImportTask>(request, ids.reporter, '/imports/task');
+  expect(JSON.parse(task.batch!.rows[0].sourceCellsJson!)).not.toHaveProperty('三化类别');
+  await page.screenshot({
+    path: testInfo.outputPath('amount-derived-import.png'),
+    fullPage: false,
+  });
+  const result = await finish(page, 1);
+  const detail = await get<ProjectDetail>(request, ids.reporter, `/${result.rows[0].projectId}`);
+  expect(detail.categoryAmounts.map((c) => c.categoryCode).sort()).toEqual(['GEWU', 'NETWORK']);
+  expect(
+    Number(detail.categoryAmounts.find((c) => c.categoryCode === 'NETWORK')!.expectedAmount),
+  ).toBe(0);
 });

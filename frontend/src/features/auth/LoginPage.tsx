@@ -44,7 +44,7 @@ export function LoginPage({
             }
           }}
         >
-          <span className="eyebrow">NDI ACCOUNT</span>
+          <span className="eyebrow">联通格物</span>
           <h2 id="login-title">登录账号</h2>
           {message && <Feedback>{message}</Feedback>}
           {connectionError && (

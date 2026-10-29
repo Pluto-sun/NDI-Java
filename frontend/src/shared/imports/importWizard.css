@@ -204,3 +204,7 @@
     font-size: 13px;
   }
 }
+
+.import-wizard-footer > .action-row {
+  margin-left: auto;
+}

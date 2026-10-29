@@ -3,6 +3,8 @@ import { chooseActor, ids } from './support/projects';
 
 test('七个模块、多级菜单、占位页及个人中心可用', async ({ page }, testInfo) => {
   await page.goto('/workbench');
+  await expect(page.getByRole('img', { name: '联通格物', exact: true })).toBeVisible();
+  await expect(page).toHaveTitle('联通格物 · 运营管理平台');
   await chooseActor(page, ids.admin);
   const nav = page.getByRole('navigation', { name: '模块导航', exact: true });
   await expect(nav.locator('.nav-module')).toHaveCount(7);

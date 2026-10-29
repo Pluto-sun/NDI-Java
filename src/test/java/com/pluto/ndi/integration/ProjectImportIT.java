@@ -252,6 +252,115 @@ class ProjectImportIT {
                 .isEqualTo("TERMINATED");
     }
 
+    @Test
+    void infersMultipleCategoriesFromAmountsIncludingZeroAndIgnoresLegacyCategoryText()
+            throws Exception {
+        var fixture = contractFixture();
+        byte[] bytes;
+        try (var book =
+                        new XSSFWorkbook(
+                                new java.io.ByteArrayInputStream(
+                                        contractWorkbook(fixture.name(), "方案交流", "", "")));
+                var out = new ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            sheet.getRow(1).getCell(8).setCellValue("不认识的旧类别");
+            sheet.getRow(1).getCell(11).setCellValue("30");
+            sheet.getRow(1).getCell(12).setCellValue("0");
+            sheet.getRow(1).getCell(13).setCellValue("20.50");
+            sheet.getRow(1).getCell(14).setCellValue("");
+            book.write(out);
+            bytes = out.toByteArray();
+        }
+        var preview = imports.preview(fixture.actor(), "自动类别.xlsx", bytes);
+        assertThat(preview.validRows()).isEqualTo(1);
+        assertThat(preview.rows().getFirst().sourceCellsJson()).doesNotContain("三化类别");
+        var done = imports.confirm(fixture.actor(), preview.batchId());
+        var detail = projectService.findDetail(fixture.actor(), done.rows().getFirst().projectId());
+        assertThat(detail.categoryAmounts())
+                .extracting(item -> item.categoryCode())
+                .containsExactlyInAnyOrder("NETWORK", "GEWU", "BIG_DATA");
+        assertThat(detail.categoryAmounts())
+                .anySatisfy(
+                        item -> {
+                            assertThat(item.categoryCode()).isEqualTo("GEWU");
+                            assertThat(item.expectedAmount()).isEqualByComparingTo("0");
+                        });
+    }
+
+    @Test
+    void validatesEveryNonEmptyAmountAndRejectsEmptyCategoriesOrExcessTotal() throws Exception {
+        var fixture = contractFixture();
+        for (var value : List.of("-1", "0.001", "非法数值", "101")) {
+            byte[] bytes;
+            try (var book =
+                            new XSSFWorkbook(
+                                    new java.io.ByteArrayInputStream(
+                                            contractWorkbook(fixture.name(), "方案交流", "", "")));
+                    var out = new ByteArrayOutputStream()) {
+                var sheet = book.getSheetAt(0);
+                sheet.getRow(0).getCell(8).setCellValue("忽略的旧类别");
+                sheet.getRow(1).getCell(12).setCellValue(value);
+                book.write(out);
+                bytes = out.toByteArray();
+            }
+            assertThat(imports.preview(fixture.actor(), "非法金额.xlsx", bytes).failedRows())
+                    .isEqualTo(1);
+        }
+        byte[] empty;
+        try (var book =
+                        new XSSFWorkbook(
+                                new java.io.ByteArrayInputStream(
+                                        contractWorkbook(fixture.name(), "方案交流", "", "")));
+                var out = new ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            sheet.getRow(0).getCell(8).setCellValue("无需类别列");
+            for (int i = 11; i <= 14; i++) sheet.getRow(1).getCell(i).setCellValue("");
+            book.write(out);
+            empty = out.toByteArray();
+        }
+        assertThat(
+                        imports.preview(fixture.actor(), "空金额.xlsx", empty)
+                                .rows()
+                                .getFirst()
+                                .errorsJson())
+                .contains("至少填写一项三化预计金额");
+    }
+
+    @Test
+    void revalidatesLegacyUnconfirmedRowsWithoutDiscardingCorrections() throws Exception {
+        var fixture = contractFixture();
+        var preview =
+                imports.preview(
+                        fixture.actor(),
+                        "旧任务.xlsx",
+                        contractWorkbook(fixture.name(), "方案交流", "", ""));
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var cells =
+                json.readValue(
+                        preview.rows().getFirst().sourceCellsJson(),
+                        new com.fasterxml.jackson.core.type.TypeReference<
+                                java.util.Map<String, String>>() {});
+        cells.put("三化类别", "无效旧类别");
+        cells.put("网络化预计金额（万）", "0");
+        cells.put("项目名称", "已修正的旧任务项目");
+        jdbc.update(
+                "UPDATE project_import_row SET source_payload=CAST(? AS JSON) WHERE"
+                    + " batch_id=UUID_TO_BIN(?)",
+                json.writeValueAsString(cells),
+                preview.batchId().toString());
+        var restored = imports.find(fixture.actor(), preview.batchId());
+        assertThat(restored.validRows()).isEqualTo(1);
+        assertThat(restored.rows().getFirst().sourceCellsJson())
+                .doesNotContain("三化类别")
+                .contains("已修正的旧任务项目");
+        var done = imports.confirm(fixture.actor(), preview.batchId());
+        assertThat(
+                        projectService
+                                .findDetail(fixture.actor(), done.rows().getFirst().projectId())
+                                .categoryAmounts())
+                .hasSize(2);
+    }
+
     private record ContractFixture(UUID actor, String name) {}
 
     private ContractFixture contractFixture() {

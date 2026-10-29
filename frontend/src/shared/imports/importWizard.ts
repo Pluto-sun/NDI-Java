@@ -96,7 +96,11 @@ export function suggestMapping(fields: string[], headers: string[]) {
         used.add(candidate);
       }
     }
-  if (!result['三化类别'] && headers.some((header) => /^三化类别[一二三四]$/.test(header)))
+  if (
+    fields.includes('三化类别') &&
+    !result['三化类别'] &&
+    headers.some((header) => /^三化类别[一二三四]$/.test(header))
+  )
     result['三化类别'] = '__CATEGORY_SLOTS__';
   return result;
 }
@@ -138,6 +142,13 @@ export function missingMappings(task: ImportTask, configuration: ImportConfigura
           : !people.some((name) => configuration.fieldMapping[name])),
     )
     .map((rule) => rule.name);
+  if (
+    task.fieldRules.some((rule) => rule.name === '项目总金额（万）') &&
+    !task.fieldRules
+      .filter((rule) => rule.name.endsWith('预计金额（万）'))
+      .some((rule) => configuration.fieldMapping[rule.name])
+  )
+    result.push('至少一项三化预计金额');
   if (
     task.fieldRules.some((rule) => rule.name === '排产月份') &&
     !task.fieldRules

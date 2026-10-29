@@ -1,5 +1,13 @@
 package com.pluto.ndi.projects.util;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Component;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -14,35 +22,43 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.stereotype.Component;
-
 /** 读取严格模板或经人工确认映射的 Excel，不计算公式。 */
 @Component
 public class ProjectExcelReader {
     private static final String SHEET = "导入数据";
-    private static final List<String> REQUIRED = List.of("省分", "地市", "客户名称", "客户所属行业",
-            "项目名称", "项目建设内容", "三化类别",
-            "项目阶段", "项目总金额（万）", "网络化预计金额（万）", "格物预计金额（万）",
-            "大数据预计金额（万）", "万悟预计金额（万）");
-    private static final List<String> OPTIONAL = List.of("项目负责人", "省分负责人", "地市客户经理", "签约主体", "产品单位支撑专家",
-            "拟招标日期", "应用场景", "产品推广内容", "备注", "合同编号", "签约金额（万）", "重要度", "支撑行业专家");
-    public static final String CATEGORY_SLOTS = "__CATEGORY_SLOTS__";
-    private static final List<String> CATEGORY_SLOT_HEADERS = List.of(
-            "三化类别一", "三化类别二", "三化类别三", "三化类别四");
-    private static final Pattern PROGRESS_DATE = Pattern.compile("项目进展（(\\d{4})年(\\d{1,2})月(\\d{1,2})日）");
+    private static final List<String> REQUIRED =
+            List.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段", "项目总金额（万）");
+    private static final List<String> OPTIONAL =
+            List.of(
+                    "项目负责人",
+                    "省分负责人",
+                    "地市客户经理",
+                    "签约主体",
+                    "产品单位支撑专家",
+                    "拟招标日期",
+                    "应用场景",
+                    "产品推广内容",
+                    "备注",
+                    "合同编号",
+                    "签约金额（万）",
+                    "重要度",
+                    "支撑行业专家");
+    private static final Pattern PROGRESS_DATE =
+            Pattern.compile("项目进展（(\\d{4})年(\\d{1,2})月(\\d{1,2})日）");
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     public static List<String> requiredHeaders() { return REQUIRED; }
     public static List<String> mappableHeaders() {
         var fields = new ArrayList<>(REQUIRED);
+        fields.addAll(ProjectImportAmounts.fields());
         fields.addAll(OPTIONAL);
         return List.copyOf(fields);
+    }
+
+    public static Map<String, String> withoutLegacyCategory(Map<String, String> mapping) {
+        var result = new LinkedHashMap<String, String>(mapping == null ? Map.of() : mapping);
+        result.remove("三化类别");
+        return java.util.Collections.unmodifiableMap(result);
     }
 
     public List<ExcelRow> read(byte[] data) throws IOException {
@@ -66,7 +82,8 @@ public class ProjectExcelReader {
             }
             var formatter = new DataFormatter();
             var sourceHeaders = headers(sheet.getRow(headerIndex), formatter);
-            if (fieldMapping == null) fieldMapping = Map.of();
+            // 兼容旧客户端和暂存映射；旧类别列不再读取，也不参与重复映射校验。
+            fieldMapping = withoutLegacyCategory(fieldMapping);
             var mappedSources = fieldMapping.values().stream()
                     .filter(value -> value != null && !value.isBlank()).toList();
             if (fieldMapping.size() > 64 || !mappableHeaders().containsAll(fieldMapping.keySet())
@@ -78,24 +95,15 @@ public class ProjectExcelReader {
                 throw new IllegalArgumentException("导入模板缺少必需列：" + REQUIRED.stream()
                         .filter(name -> !sourceHeaders.containsKey(name)).toList());
             }
+            if (fieldMapping.isEmpty()
+                    && ProjectImportAmounts.fields().stream()
+                            .noneMatch(sourceHeaders::containsKey)) {
+                throw new IllegalArgumentException("导入模板至少需要一项三化预计金额列");
+            }
             var headers = new LinkedHashMap<String, Integer>();
             var usedColumns = new HashSet<Integer>();
             for (var required : mappableHeaders()) {
                 var source = fieldMapping.getOrDefault(required, required);
-                if (CATEGORY_SLOTS.equals(source)) {
-                    if (!"三化类别".equals(required) || CATEGORY_SLOT_HEADERS.stream()
-                            .noneMatch(sourceHeaders::containsKey)) {
-                        throw new IllegalArgumentException("三化类别槽位映射无效");
-                    }
-                    headers.put(required, -2);
-                    for (var slot : CATEGORY_SLOT_HEADERS) {
-                        Integer column = sourceHeaders.get(slot);
-                        if (column != null && !usedColumns.add(column)) {
-                            throw new IllegalArgumentException("三化类别槽位与其他业务字段重复映射");
-                        }
-                    }
-                    continue;
-                }
                 if (fieldMapping.containsKey(required) && !source.isBlank()
                         && !sourceHeaders.containsKey(source)) {
                     throw new IllegalArgumentException("映射来源列不存在：" + source);
@@ -117,15 +125,11 @@ public class ProjectExcelReader {
                 if (row == null) continue;
                 var cells = new HashMap<String, String>();
                 for (var entry : headers.entrySet()) {
-                    if (entry.getValue() == -2) {
-                        cells.put(entry.getKey(), CATEGORY_SLOT_HEADERS.stream()
-                                .map(sourceHeaders::get).filter(java.util.Objects::nonNull)
-                                .map(column -> value(row.getCell(column), formatter))
-                                .filter(text -> !text.isBlank()).collect(java.util.stream.Collectors.joining("、")));
-                    } else {
-                        cells.put(entry.getKey(), entry.getValue() < 0 ? ""
-                                : value(row.getCell(entry.getValue()), formatter));
-                    }
+                    cells.put(
+                            entry.getKey(),
+                            entry.getValue() < 0
+                                    ? ""
+                                    : value(row.getCell(entry.getValue()), formatter));
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
                 if (result.size() == 1000) throw new IllegalArgumentException("单批次最多导入 1000 行");

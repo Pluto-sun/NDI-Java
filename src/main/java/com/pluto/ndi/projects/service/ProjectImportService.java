@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
+import com.pluto.ndi.projects.domain.ProjectCategory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectNarrative;
 import com.pluto.ndi.projects.domain.entity.ProjectImportBatchEntity;
@@ -53,24 +54,6 @@ import java.util.UUID;
 @Service
 public class ProjectImportService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProjectImportService.class);
-    private static final Map<String, String> CATEGORY_LABELS =
-            Map.of(
-                    "网络化",
-                    "NETWORK",
-                    "数字化(格物)",
-                    "GEWU",
-                    "格物",
-                    "GEWU",
-                    "数字化(大数据)",
-                    "BIG_DATA",
-                    "大数据",
-                    "BIG_DATA",
-                    "智能化",
-                    "WANGWU",
-                    "智能化(万悟)",
-                    "WANGWU",
-                    "万悟",
-                    "WANGWU");
     private static final Map<String, String> STAGE_LABELS =
             Map.of(
                     "方案交流",
@@ -85,17 +68,6 @@ public class ProjectImportService {
                     "COLLECTION",
                     "已终止",
                     "TERMINATED");
-    private static final Map<String, String> AMOUNT_HEADERS =
-            Map.of(
-                    "NETWORK",
-                    "网络化预计金额（万）",
-                    "GEWU",
-                    "格物预计金额（万）",
-                    "BIG_DATA",
-                    "大数据预计金额（万）",
-                    "WANGWU",
-                    "万悟预计金额（万）");
-
     private final ProjectExcelReader reader;
     private final ProjectImportWorkbookWriter workbookWriter;
     private final IdentityDirectory identity;
@@ -266,14 +238,20 @@ public class ProjectImportService {
         return summary(batch, managedRows);
     }
 
-    @Transactional(readOnly = true)
     public ImportBatchSummary find(UUID actorId, UUID batchId) {
-        var batch =
-                batches.findById(batchId)
-                        .filter(item -> item.actorId().equals(actorId))
-                        .orElseThrow(
-                                () -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
-        return summary(batch, rows.findByBatchIdOrderByRowNumber(batchId));
+        // 确认结束后也会由本类内部读取结果，显式事务确保此路径同样能取得批次锁。
+        return transactions.execute(
+                status -> {
+                    var batch =
+                            batches.findByIdAndActorId(batchId, actorId)
+                                    .orElseThrow(
+                                            () ->
+                                                    new BusinessException(
+                                                            ProjectErrorCode.IMPORT_NOT_FOUND));
+                    var batchRows = rows.findLockedByBatchId(batchId);
+                    refreshLegacyCategories(batch, batchRows);
+                    return summary(batch, batchRows);
+                });
     }
 
     @Transactional(readOnly = true)
@@ -355,7 +333,8 @@ public class ProjectImportService {
         }
         var corrected = new HashMap<>(source);
         for (var change : changes.entrySet()) {
-            if (!source.containsKey(change.getKey())
+            if ("三化类别".equals(change.getKey())
+                    || !source.containsKey(change.getKey())
                     || change.getValue() == null
                     || change.getValue().length() > 4000) {
                 throw new BusinessException(ProjectErrorCode.IMPORT_ROW_INVALID);
@@ -486,6 +465,7 @@ public class ProjectImportService {
                                         ProjectErrorCode.IMPORT_ALREADY_CONFIRMED);
                             }
                             var batchRows = rows.findByBatchIdOrderByRowNumber(batchId);
+                            refreshLegacyCategories(locked, batchRows);
                             var ready =
                                     batchRows.stream()
                                             .filter(row -> "READY".equals(row.status()))
@@ -600,7 +580,7 @@ public class ProjectImportService {
 
     private ProjectImportCandidate normalize(
             ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
-        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "三化类别", "项目阶段");
+        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段");
         String projectName = row.get("项目名称");
         if (projectName.length() < 2
                 || projectName.length() > 200
@@ -662,24 +642,20 @@ public class ProjectImportService {
         if (!contractNo.isBlank() && projects.existsByContractNo(contractNo)) errors.add("合同编号已存在");
         var total = amount(row.get("项目总金额（万）"), "项目总金额", errors);
         var categories = new ArrayList<ProjectImportCandidate.CategoryAmount>();
-        Set<String> codes = new HashSet<>();
-        for (String label : row.get("三化类别").split("[,，、]")) {
-            if (label.isBlank()) continue;
-            String code =
-                    CATEGORY_LABELS.get(Normalizer.normalize(label.strip(), Normalizer.Form.NFKC));
-            if (code == null) {
-                errors.add("三化类别未识别：" + label);
-                continue;
-            }
-            if (!codes.add(code)) {
-                errors.add("三化类别重复：" + label);
-                continue;
-            }
-            var categoryAmount = amount(row.get(AMOUNT_HEADERS.get(code)), label + "金额", errors);
+        boolean hasCategoryAmount = false;
+        for (var category : ProjectCategory.values()) {
+            var raw =
+                    row.get(
+                            com.pluto.ndi.projects.util.ProjectImportAmounts.HEADERS.get(
+                                    category.name()));
+            if (raw.isBlank()) continue;
+            hasCategoryAmount = true;
+            var categoryAmount = amount(raw, category.label() + "金额", errors);
             if (categoryAmount != null)
-                categories.add(new ProjectImportCandidate.CategoryAmount(code, categoryAmount));
+                categories.add(
+                        new ProjectImportCandidate.CategoryAmount(category.name(), categoryAmount));
         }
-        if (codes.isEmpty()) errors.add("至少选择一项三化类别");
+        if (!hasCategoryAmount) errors.add("至少填写一项三化预计金额，0 也表示包含该类别");
         if (total != null
                 && categories.stream()
                                 .map(ProjectImportCandidate.CategoryAmount::amount)
@@ -797,6 +773,54 @@ public class ProjectImportService {
                                         .map(value -> value.cityId().toString())
                                         .orElse(raw));
         return location + ":" + ProjectNameMatcher.standard(row.get("项目名称"));
+    }
+
+    /** 旧的未确认预检按新规则重新计算，保留行修正、名称确认与原步骤。 */
+    private void refreshLegacyCategories(
+            ProjectImportBatchEntity batch, List<ProjectImportRowEntity> items) {
+        if (!"PREVIEWED".equals(batch.status())
+                || items.stream()
+                        .noneMatch(
+                                row ->
+                                        row.sourcePayload() != null
+                                                && nameReviews.source(row).containsKey("三化类别")))
+            return;
+        var actor =
+                identity.findProjectActor(batch.actorId())
+                        .filter(ProjectActor::enabled)
+                        .orElseThrow(
+                                () -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        var seen = new HashSet<String>();
+        var locations = new HashMap<String, String>();
+        for (var row : items) {
+            if (!Set.of("READY", "FAILED").contains(row.status()) || row.sourcePayload() == null)
+                continue;
+            var source = new HashMap<>(nameReviews.source(row));
+            source.remove("三化类别");
+            var excel = new ProjectExcelReader.ExcelRow(row.rowNumber(), Map.copyOf(source));
+            var errors = new ArrayList<String>();
+            var key = duplicateKey(excel, locations);
+            if (key != null && !seen.add(key)) errors.add("重复项目：仅保留文件中首条同省、同地市、同名称记录");
+            ProjectImportCandidate candidate = null;
+            try {
+                candidate = normalize(excel, actor, errors);
+            } catch (IllegalArgumentException failure) {
+                errors.add("行内日期或字段格式无效");
+            }
+            var before = row.sourcePayload();
+            row.revise(
+                    stringify(source),
+                    stringify(candidate == null ? source : candidate),
+                    key,
+                    stringify(errors),
+                    errors.isEmpty());
+            revisions.save(
+                    com.pluto.ndi.projects.domain.entity.ProjectImportRowRevisionEntity.create(
+                            row, batch.actorId(), before, Instant.now(clock)));
+        }
+        nameReviews.refresh(batch.actorId(), items);
+        batch.refreshPreviewCounts(
+                (int) items.stream().filter(row -> "READY".equals(row.status())).count());
     }
 
     private void refreshDuplicateRows(ProjectActor actor, List<ProjectImportRowEntity> batchRows) {

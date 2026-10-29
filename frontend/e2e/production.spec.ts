@@ -90,7 +90,7 @@ test('排产导入串行步骤、必填映射、暂存恢复及一次性选中�
   await mapping.selectOption('');
   await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
   await mapping.selectOption('接口人');
-  await page.getByRole('button', { name: '关闭并暂存', exact: true }).click();
+  await page.getByRole('button', { name: '关闭Excel 排产导入', exact: true }).click();
   await page.getByRole('link', { name: '排产导入', exact: true }).click();
   await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
   await expect(page.getByRole('heading', { name: '第二步：字段映射', exact: true })).toBeVisible();

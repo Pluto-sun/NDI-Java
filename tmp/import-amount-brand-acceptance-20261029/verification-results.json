@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-29",
+  "build": "TypeScript、Vite 通过",
+  "unitAndArchitecture": {
+    "tests": 77,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "integration": {
+    "ProjectImportIT": 10,
+    "ProjectImportWizardIT": 7,
+    "ProductionPlanIT": 2,
+    "total": 19,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "localActorDesktopAndMobile": 18,
+    "sessionLoginAndImportDesktopAndMobile": 2,
+    "failures": 0
+  },
+  "scope": "验证使用隔离 MySQL、MinIO 和 18080/15173 服务；未写入 3307 应用库，未重启用户 IDEA 服务。"
+}

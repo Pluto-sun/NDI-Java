@@ -6,8 +6,12 @@ import type { ImportTask, ImportBatch } from '../../src/features/projects/types'
 test('正式管理员会话从创建页导入，上传受 CSRF 保护且完成后不保留活动任务', async ({
   page,
   browser,
-}) => {
+}, testInfo) => {
   await page.goto('/projects/new');
+  await expect(page.getByRole('img', { name: '联通格物', exact: true })).toBeVisible();
+  await expect(page).toHaveTitle('联通格物 · 运营管理平台');
+  await expect(page.getByText('NDI ACCOUNT', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('liantong-gewu-login.png'), fullPage: true });
   await page.getByLabel('账号', { exact: true }).fill('e2e_admin');
   await page.getByLabel('密码', { exact: true }).fill('e2e-session-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
@@ -22,7 +26,6 @@ test('正式管理员会话从创建页导入，上传受 CSRF 保护且完成�
     项目名称: `正式会话导入-${randomUUID()}`,
     项目负责人: '外部负责人',
     项目建设内容: '正式会话建设内容',
-    三化类别: '网络化',
     项目阶段: '方案交流',
     '项目总金额（万）': '100',
     '网络化预计金额（万）': '50',
