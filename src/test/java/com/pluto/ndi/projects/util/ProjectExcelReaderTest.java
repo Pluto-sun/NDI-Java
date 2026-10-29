@@ -150,6 +150,66 @@ class ProjectExcelReaderTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void readsActualBidDateRegardlessOfDisplayFormatAndExcelDateSystem() throws Exception {
+        for (boolean date1904 : List.of(false, true)) {
+            for (var format : List.of("m/d/yy", "d-mmm-yy", "yyyy年m月d日 h:mm")) {
+                byte[] data = bidWorkbook(date1904, cell -> {
+                    cell.setCellValue(java.time.LocalDateTime.of(2026, 11, 20, 23, 59));
+                    var book = cell.getSheet().getWorkbook();
+                    var style = book.createCellStyle();
+                    style.setDataFormat(book.createDataFormat().getFormat(format));
+                    cell.setCellStyle(style);
+                });
+                var rows = new ProjectExcelReader().read(data);
+                assertThat(rows.getFirst().get("拟招标月份")).isEqualTo("2026-11-20");
+                assertThat(ProjectPlanningFields.parseBidMonth(rows.getFirst().get("拟招标月份")))
+                        .isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+                var mapped = new ProjectExcelReader().read(data, "导入数据", 1,
+                        Map.of("拟招标月份", "拟招标日期"));
+                assertThat(mapped.getFirst().get("拟招标月份")).isEqualTo("2026-11-20");
+            }
+        }
+    }
+
+    @Test
+    void keepsTextAndUnformattedNumbersForStrictBidMonthValidation() throws Exception {
+        for (var text : List.of("2026/11/20", "2026-02-30", "11/20/2026", "46346")) {
+            var rows = new ProjectExcelReader().read(bidWorkbook(false, cell -> {
+                cell.setCellValue(text);
+                var style = cell.getSheet().getWorkbook().createCellStyle();
+                style.setDataFormat((short) 14);
+                cell.setCellStyle(style);
+            }));
+            assertThat(rows.getFirst().get("拟招标月份")).isEqualTo(text);
+            if (text.equals("2026/11/20"))
+                assertThat(ProjectPlanningFields.parseBidMonth(text)).isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+            else
+                assertThatThrownBy(() -> ProjectPlanningFields.parseBidMonth(text))
+                        .isInstanceOf(IllegalArgumentException.class);
+        }
+        var numeric = new ProjectExcelReader().read(bidWorkbook(false, cell -> cell.setCellValue(46346)));
+        assertThat(numeric.getFirst().get("拟招标月份")).isEqualTo("46346");
+        assertThatThrownBy(() -> ProjectPlanningFields.parseBidMonth(numeric.getFirst().get("拟招标月份")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ProjectExcelReader().read(
+                bidWorkbook(false, cell -> cell.setCellFormula("DATE(2026,11,20)"))))
+                .hasMessageContaining("不得包含公式");
+    }
+
+    private byte[] bidWorkbook(boolean date1904, java.util.function.Consumer<org.apache.poi.ss.usermodel.Cell> fill)
+            throws Exception {
+        try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook(false)));
+                var out = new ByteArrayOutputStream()) {
+            book.getCTWorkbook().getWorkbookPr().setDate1904(date1904);
+            var sheet = book.getSheetAt(0);
+            sheet.getRow(0).createCell(HEADERS.size()).setCellValue("拟招标日期");
+            fill.accept(sheet.getRow(1).createCell(HEADERS.size()));
+            book.write(out);
+            return out.toByteArray();
+        }
+    }
+
     private byte[] workbook(boolean formula) throws Exception {
         try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
             var sheet = book.createSheet("导入数据");

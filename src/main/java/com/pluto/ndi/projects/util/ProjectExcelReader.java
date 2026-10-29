@@ -3,6 +3,7 @@ package com.pluto.ndi.projects.util;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -30,7 +31,7 @@ public class ProjectExcelReader {
     private static final List<String> REQUIRED =
             List.of(
                     "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人",
-                    "客户需求", "项目阶段", "项目总金额（万）", "首条项目进展", "下一步动作");
+                    "客户需求", "项目阶段", "项目总金额（万）");
     private static final List<String> OPTIONAL =
             List.of("签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
     private static final Map<String, String> FIELD_ALIASES =
@@ -44,6 +45,7 @@ public class ProjectExcelReader {
     public static List<String> requiredHeaders() { return REQUIRED; }
     public static List<String> mappableHeaders() {
         var fields = new ArrayList<>(REQUIRED);
+        fields.addAll(List.of("首条项目进展", "下一步动作"));
         fields.addAll(ProjectImportAmounts.fields());
         fields.addAll(OPTIONAL);
         return List.copyOf(fields);
@@ -166,7 +168,7 @@ public class ProjectExcelReader {
                             entry.getKey(),
                             entry.getValue() < 0
                                     ? ""
-                                    : value(row.getCell(entry.getValue()), formatter));
+                                    : value(row.getCell(entry.getValue()), formatter, entry.getKey()));
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
                 if (result.size() == 1000) throw new IllegalArgumentException("单批次最多导入 1000 行");
@@ -253,9 +255,19 @@ public class ProjectExcelReader {
     }
 
     private String value(Cell cell, DataFormatter formatter) {
+        return value(cell, formatter, null);
+    }
+
+    private String value(Cell cell, DataFormatter formatter, String field) {
         if (cell == null) return "";
         if (cell.getCellType() == CellType.FORMULA) {
             throw new IllegalArgumentException("导入模板不得包含公式，位置：" + cell.getAddress());
+        }
+        // 日期仅在招标月份字段中按原始单元格读取，避免显示格式和时区改变日期含义。
+        if ("拟招标月份".equals(field) && cell.getCellType() == CellType.NUMERIC
+                && DateUtil.isCellDateFormatted(cell)) {
+            var date = cell.getLocalDateTimeCellValue();
+            if (date != null) return date.toLocalDate().toString();
         }
         return formatter.formatCellValue(cell).strip();
     }

@@ -1,0 +1,24 @@
+{
+  "commands": [
+    "./mvnw --batch-mode verify",
+    "./mvnw --batch-mode -Dit.test=ProjectImportIT verify",
+    "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh import-projects.spec.ts"
+  ],
+  "note": "Final suite reports after the full run and corrected LocalDate assertion rerun.",
+  "surefire": {
+    "tests": 82,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "failsafe": {
+    "tests": 149,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "tests": 16,
+    "failures": 0
+  }
+}

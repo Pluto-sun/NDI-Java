@@ -506,14 +506,6 @@ class ProjectImportWizardIT {
                                         null))
                 .hasMessageContaining("客户名称");
         fields.put("客户名称", "客户名称");
-        for (var field : List.of("首条项目进展", "下一步动作")) {
-            var missingProgress = new HashMap<>(fields);
-            missingProgress.put(field, "");
-            assertThatThrownBy(() -> wizard.save(f.actor(), incomplete.id(), incomplete.version(),
-                    3, new Configuration("导入数据", 2, missingProgress), null))
-                    .hasMessageContaining(field);
-        }
-
         for (var amount : com.pluto.ndi.projects.util.ProjectImportAmounts.fields())
             fields.put(amount, "");
         var missingAmount = new Configuration("导入数据", 2, fields);
@@ -529,6 +521,25 @@ class ProjectImportWizardIT {
                 .hasMessageContaining("至少一项三化预计金额");
         assertThat(wizard.current(f.actor()).step()).isEqualTo(2);
         assertThat(wizard.current(f.actor()).batch()).isNull();
+    }
+
+    @Test
+    void optionalProgressMappingsCanBeOmittedAndDoNotCreateAnEmptyProgress() throws Exception {
+        var f = fixture();
+        var upload = wizard.upload(f.actor(), null, null, "选填进展.xlsx", workbook("选填进展" + UUID.randomUUID()));
+        assertThat(upload.fieldRules().stream()
+                .filter(rule -> List.of("首条项目进展", "下一步动作").contains(rule.name())))
+                .allMatch(rule -> rule.requirement().equals("OPTIONAL"));
+        var fields = new HashMap<>(configuration(upload).fieldMapping());
+        fields.put("首条项目进展", "");
+        fields.put("下一步动作", "");
+        var mapped = wizard.save(f.actor(), upload.id(), upload.version(), 2,
+                new Configuration("导入数据", 2, fields), null);
+        var checked = wizard.save(f.actor(), mapped.id(), mapped.version(), 3, mapped.configuration(), null);
+        assertThat(checked.batch().validRows()).isEqualTo(1);
+        var done = imports.confirm(f.actor(), checked.batch().batchId());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)",
+                Integer.class, done.rows().getFirst().projectId().toString())).isZero();
     }
 
     @Test

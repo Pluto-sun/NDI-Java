@@ -110,6 +110,31 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
   await expect(page.getByText('我的导入计划', { exact: true })).toHaveCount(0);
 });
 
+test('首条进展和下一步动作均可不映射，导入后不生成空进展', async ({ page, request }) => {
+  const source = await sourceRow(request, `无进展导入-${randomUUID()}`);
+  const { 首条项目进展: omittedProgress, 下一步动作: omittedAction, ...row } = source;
+  void omittedProgress;
+  void omittedAction;
+  await enter(page);
+  await upload(page, [row]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  for (const field of ['首条项目进展', '下一步动作'])
+    await expect(page.getByRole('combobox', { name: `映射：${field}`, exact: true })).toHaveValue(
+      '',
+    );
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: '第三步：预检与导入', exact: true }),
+  ).toBeVisible();
+  const done = await finish(page, 1);
+  const progress = await get<{ items: ProjectProgress[] }>(
+    request,
+    ids.reporter,
+    `/${done.rows[0].projectId}/progress`,
+  );
+  expect(progress.items).toHaveLength(0);
+});
+
 test('自动字段匹配、必选标识、逐级返回、阶段恢复、首条去重和一次性选择导入', async ({
   page,
   request,
@@ -380,9 +405,7 @@ test('导入字段与模板统一，项目创建和维护只保留备注', async
     const mapping = page.getByRole('combobox', { name: `映射：${field}`, exact: true });
     await expect(mapping).toHaveValue(field);
     await mapping.selectOption('');
-    await expect(
-      page.getByRole('button', { name: '下一步：开始预检', exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeEnabled();
     await mapping.selectOption(field);
   }
   await page.screenshot({

@@ -584,7 +584,7 @@ public class ProjectImportService {
     private ProjectImportCandidate normalize(
             ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
         required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称",
-                "客户需求", "项目阶段", "首条项目进展", "下一步动作");
+                "客户需求", "项目阶段");
         String projectName = row.get("项目名称");
         if (projectName.length() < 2
                 || projectName.length() > 200
@@ -693,8 +693,9 @@ public class ProjectImportService {
                                         new ProjectImportCandidate.Progress(
                                                 item.occurredAt(), item.content(), ""))
                         .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-        progress.add(new ProjectImportCandidate.Progress(
-                Instant.now(clock), row.get("首条项目进展"), row.get("下一步动作")));
+        if (!row.get("首条项目进展").isBlank() || !row.get("下一步动作").isBlank())
+            progress.add(new ProjectImportCandidate.Progress(
+                    Instant.now(clock), row.get("首条项目进展"), row.get("下一步动作")));
         return new ProjectImportCandidate(
                 location.get().provinceId(),
                 location.get().cityId(),
@@ -814,6 +815,8 @@ public class ProjectImportService {
         var source = nameReviews.source(row);
         return !source.containsKey("首条项目进展")
                 || !source.containsKey("下一步动作")
+                || row.errors().contains("首条项目进展不能为空")
+                || row.errors().contains("下一步动作不能为空")
                 || source.keySet().stream().anyMatch(field ->
                         ProjectExcelReader.RETIRED_FIELDS.contains(field)
                                 || !field.equals(ProjectExcelReader.currentField(field)));

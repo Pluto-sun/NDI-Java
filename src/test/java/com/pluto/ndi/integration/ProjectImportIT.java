@@ -83,7 +83,7 @@ class ProjectImportIT {
     }
 
     @Test
-    void requiresInitialProgressAndNextActionAndPersistsCorrections() throws Exception {
+    void allowsEmptyInitialProgressAndNextActionAndPersistsCorrections() throws Exception {
         var fixture = contractFixture();
         byte[] bytes;
         try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(
@@ -96,9 +96,8 @@ class ProjectImportIT {
             bytes = output.toByteArray();
         }
         var preview = imports.preview(fixture.actor(), "首条进展.xlsx", bytes);
-        assertThat(preview.validRows()).isZero();
-        assertThat(preview.rows().getFirst().errorsJson())
-                .contains("首条项目进展不能为空", "下一步动作不能为空");
+        assertThat(preview.validRows()).isEqualTo(1);
+        assertThat(preview.rows().getFirst().errorsJson()).isEqualTo("[]");
         for (var field : List.of("首条项目进展", "下一步动作")) {
             var tooLong = catchThrowable(() -> imports.reviseRow(
                     fixture.actor(), preview.batchId(), 2, 0, Map.of(field, "长".repeat(10001))));
@@ -121,7 +120,7 @@ class ProjectImportIT {
     }
 
     @Test
-    void oldPreviewRequiresNewProgressFieldsOnceAndCanBeCorrected() throws Exception {
+    void oldPreviewRevalidatesOptionalProgressFieldsOnceAndCanBeCorrected() throws Exception {
         var fixture = contractFixture();
         var preview = imports.preview(fixture.actor(), "旧暂存.xlsx",
                 contractWorkbook(fixture.name(), "方案交流", "", ""));
@@ -129,9 +128,14 @@ class ProjectImportIT {
                         + " WHERE batch_id=UUID_TO_BIN(?)",
                 "$.\"首条项目进展\"", "$.\"下一步动作\"", preview.batchId().toString());
         var restored = imports.find(fixture.actor(), preview.batchId());
-        assertThat(restored.validRows()).isZero();
-        assertThat(restored.rows().getFirst().errorsJson())
-                .contains("首条项目进展不能为空", "下一步动作不能为空");
+        assertThat(restored.validRows()).isEqualTo(1);
+        assertThat(restored.rows().getFirst().errorsJson()).isEqualTo("[]");
+        // 兼容曾被旧必填规则拒绝、但已拥有完整字段键的暂存行。
+        jdbc.update("UPDATE project_import_row SET status='FAILED', errors=? WHERE batch_id=UUID_TO_BIN(?)",
+                "[\"首条项目进展不能为空\",\"下一步动作不能为空\"]", preview.batchId().toString());
+        restored = imports.find(fixture.actor(), preview.batchId());
+        assertThat(restored.validRows()).isEqualTo(1);
+        assertThat(restored.rows().getFirst().errorsJson()).isEqualTo("[]");
         int revision = restored.rows().getFirst().revisionNo();
         assertThat(imports.find(fixture.actor(), preview.batchId()).rows().getFirst().revisionNo())
                 .isEqualTo(revision);
@@ -139,6 +143,75 @@ class ProjectImportIT {
                 Map.of("首条项目进展", "进".repeat(5000), "下一步动作", "继续交流"));
         assertThat(fixed.validRows()).isEqualTo(1);
         assertThat(imports.confirm(fixture.actor(), preview.batchId()).importedRows()).isEqualTo(1);
+    }
+
+    @Test
+    void importsEmptyOrPartiallyFilledProgressWithoutCreatingEmptyRecords() throws Exception {
+        for (var input : List.of(List.of("", ""), List.of("仅有进展", ""), List.of("", "仅有下一步动作"))) {
+            var fixture = contractFixture();
+            byte[] bytes;
+            try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                            contractWorkbook(fixture.name(), "方案交流", "", "")));
+                    var out = new ByteArrayOutputStream()) {
+                var sheet = book.getSheetAt(0);
+                sheet.getRow(1).getCell(15).setCellValue("");
+                sheet.getRow(1).getCell(16).setCellValue(input.get(0));
+                sheet.getRow(1).getCell(17).setCellValue(input.get(1));
+                if (input.stream().allMatch(String::isBlank)) {
+                    // 可选字段的整列缺失，也不得阻断旧文件导入。
+                    sheet.getRow(0).removeCell(sheet.getRow(0).getCell(16));
+                    sheet.getRow(0).removeCell(sheet.getRow(0).getCell(17));
+                }
+                book.write(out);
+                bytes = out.toByteArray();
+            }
+            var preview = imports.preview(fixture.actor(), "选填进展.xlsx", bytes);
+            assertThat(preview.validRows()).isEqualTo(1);
+            var done = imports.confirm(fixture.actor(), preview.batchId());
+            String project = done.rows().getFirst().projectId().toString();
+            int count = input.stream().allMatch(String::isBlank) ? 0 : 1;
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)",
+                    Integer.class, project)).isEqualTo(count);
+            if (count == 1)
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)"
+                                + " AND progress_content=? AND next_action=?",
+                        Integer.class, project, input.get(0), input.get(1))).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void recognizesDateCellsAndReportsInvalidTextDatesAsCorrectableRowErrors() throws Exception {
+        for (boolean date1904 : List.of(false, true)) {
+            var fixture = contractFixture();
+            byte[] bytes;
+            try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                            contractWorkbook(fixture.name(), "方案交流", "", "")));
+                    var out = new ByteArrayOutputStream()) {
+                book.getCTWorkbook().getWorkbookPr().setDate1904(date1904);
+                var sheet = book.getSheetAt(0);
+                sheet.getRow(0).createCell(20).setCellValue("拟招标日期");
+                var cell = sheet.getRow(1).createCell(20);
+                if (date1904) {
+                    cell.setCellValue(java.time.LocalDate.of(2026, 11, 20));
+                    var style = book.createCellStyle();
+                    style.setDataFormat(book.createDataFormat().getFormat("d-mmm-yy"));
+                    cell.setCellStyle(style);
+                } else cell.setCellValue("2026-02-30");
+                book.write(out);
+                bytes = out.toByteArray();
+            }
+            var preview = imports.preview(fixture.actor(), "招标日期.xlsx", bytes);
+            if (!date1904) {
+                assertThat(preview.validRows()).isZero();
+                assertThat(preview.rows().getFirst().errorsJson()).contains("拟招标日期");
+                preview = imports.reviseRow(fixture.actor(), preview.batchId(), 2, 0,
+                        Map.of("拟招标月份", "2026/11/20"));
+            }
+            assertThat(preview.validRows()).isEqualTo(1);
+            var done = imports.confirm(fixture.actor(), preview.batchId());
+            var detail = projectService.findDetail(fixture.actor(), done.rows().getFirst().projectId());
+            assertThat(detail.plannedBidMonth()).isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+        }
     }
 
     @Test
