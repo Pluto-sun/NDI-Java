@@ -27,7 +27,8 @@ class ProjectExcelReaderTest {
                     "网络化预计金额（万）",
                     "格物预计金额（万）",
                     "大数据预计金额（万）",
-                    "万悟预计金额（万）");
+                    "万悟预计金额（万）",
+                    "首条项目进展", "下一步动作");
 
     @Test
     void inspectionDoesNotTreatRepeatedDataOrSupportingSheetFormulasAsInvalidHeaders() throws Exception {

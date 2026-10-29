@@ -335,7 +335,8 @@ public class ProjectImportService {
             if (ProjectExcelReader.RETIRED_FIELDS.contains(change.getKey())
                     || !source.containsKey(change.getKey())
                     || change.getValue() == null
-                    || change.getValue().length() > 4000) {
+                    || change.getValue().length() > (Set.of("首条项目进展", "下一步动作")
+                            .contains(change.getKey()) ? 10_000 : 4000)) {
                 throw new BusinessException(ProjectErrorCode.IMPORT_ROW_INVALID);
             }
             corrected.put(change.getKey(), change.getValue().strip());
@@ -579,7 +580,8 @@ public class ProjectImportService {
 
     private ProjectImportCandidate normalize(
             ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
-        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称", "客户需求", "项目阶段");
+        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称",
+                "客户需求", "项目阶段", "首条项目进展", "下一步动作");
         String projectName = row.get("项目名称");
         if (projectName.length() < 2
                 || projectName.length() > 200
@@ -678,14 +680,18 @@ public class ProjectImportService {
         } catch (IllegalArgumentException exception) {
             errors.add(exception.getMessage());
         }
+        for (var field : List.of("首条项目进展", "下一步动作"))
+            if (row.get(field).length() > 10_000) errors.add(field + "不得超过10000个字符");
         if (!errors.isEmpty()) return null;
         var progress =
                 ProjectExcelReader.progressColumns(row.cells()).stream()
                         .map(
                                 item ->
                                         new ProjectImportCandidate.Progress(
-                                                item.occurredAt(), item.content()))
-                        .toList();
+                                                item.occurredAt(), item.content(), ""))
+                        .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        progress.add(new ProjectImportCandidate.Progress(
+                Instant.now(clock), row.get("首条项目进展"), row.get("下一步动作")));
         return new ProjectImportCandidate(
                 location.get().provinceId(),
                 location.get().cityId(),
@@ -759,22 +765,7 @@ public class ProjectImportService {
     private void refreshLegacyFields(
             ProjectImportBatchEntity batch, List<ProjectImportRowEntity> items) {
         if (!"PREVIEWED".equals(batch.status())
-                || items.stream()
-                        .noneMatch(
-                                row ->
-                                        row.sourcePayload() != null
-                                                && nameReviews.source(row).keySet().stream()
-                                                        .anyMatch(
-                                                                field ->
-                                                                        ProjectExcelReader
-                                                                                        .RETIRED_FIELDS
-                                                                                        .contains(
-                                                                                                field)
-                                                                                || !field.equals(
-                                                                                        ProjectExcelReader
-                                                                                                .currentField(
-                                                                                                        field)))))
-            return;
+                || items.stream().noneMatch(this::hasLegacyFields)) return;
         var actor =
                 identity.findProjectActor(batch.actorId())
                         .filter(ProjectActor::enabled)
@@ -787,6 +778,8 @@ public class ProjectImportService {
                 continue;
             var source = new HashMap<>(ProjectExcelReader.currentFields(nameReviews.source(row)));
             source.keySet().removeAll(ProjectExcelReader.RETIRED_FIELDS);
+            source.putIfAbsent("首条项目进展", "");
+            source.putIfAbsent("下一步动作", "");
             var excel = new ProjectExcelReader.ExcelRow(row.rowNumber(), Map.copyOf(source));
             var errors = new ArrayList<String>();
             var key = duplicateKey(excel, locations);
@@ -811,6 +804,16 @@ public class ProjectImportService {
         nameReviews.refresh(batch.actorId(), items);
         batch.refreshPreviewCounts(
                 (int) items.stream().filter(row -> "READY".equals(row.status())).count());
+    }
+
+    private boolean hasLegacyFields(ProjectImportRowEntity row) {
+        if (row.sourcePayload() == null) return false;
+        var source = nameReviews.source(row);
+        return !source.containsKey("首条项目进展")
+                || !source.containsKey("下一步动作")
+                || source.keySet().stream().anyMatch(field ->
+                        ProjectExcelReader.RETIRED_FIELDS.contains(field)
+                                || !field.equals(ProjectExcelReader.currentField(field)));
     }
 
     private void refreshDuplicateRows(ProjectActor actor, List<ProjectImportRowEntity> batchRows) {

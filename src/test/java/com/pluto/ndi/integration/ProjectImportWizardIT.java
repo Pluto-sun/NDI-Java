@@ -121,7 +121,9 @@ class ProjectImportWizardIT {
                 "格物预计金额（万）",
                 "大数据预计金额（万）",
                 "万悟预计金额（万）",
-                "项目负责人"
+                "项目负责人",
+                "首条项目进展",
+                "下一步动作"
             };
             var header = sheet.createRow(1);
             for (int i = 0; i < headers.length; i++) header.createCell(i).setCellValue(headers[i]);
@@ -140,7 +142,9 @@ class ProjectImportWizardIT {
                     "",
                     "",
                     "",
-                    "外部负责人甲；外部负责人乙"
+                    "外部负责人甲；外部负责人乙",
+                    "已完成首次交流",
+                    "安排下次沟通"
                 };
                 var r = sheet.createRow(row + 2);
                 for (int c = 0; c < values.length; c++) r.createCell(c).setCellValue(values[c]);
@@ -502,6 +506,14 @@ class ProjectImportWizardIT {
                                         null))
                 .hasMessageContaining("客户名称");
         fields.put("客户名称", "客户名称");
+        for (var field : List.of("首条项目进展", "下一步动作")) {
+            var missingProgress = new HashMap<>(fields);
+            missingProgress.put(field, "");
+            assertThatThrownBy(() -> wizard.save(f.actor(), incomplete.id(), incomplete.version(),
+                    3, new Configuration("导入数据", 2, missingProgress), null))
+                    .hasMessageContaining(field);
+        }
+
         for (var amount : com.pluto.ndi.projects.util.ProjectImportAmounts.fields())
             fields.put(amount, "");
         var missingAmount = new Configuration("导入数据", 2, fields);

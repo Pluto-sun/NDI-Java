@@ -218,7 +218,7 @@ public class ProjectImportWriter {
                         ProjectProgressEntity.imported(
                                 id,
                                 item.content(),
-                                "",
+                                item.nextAction() == null ? "" : item.nextAction(),
                                 candidate.cityAccountManagerName(),
                                 null,
                                 LocalDate.ofInstant(item.occurredAt(), ZoneId.of("Asia/Shanghai")),

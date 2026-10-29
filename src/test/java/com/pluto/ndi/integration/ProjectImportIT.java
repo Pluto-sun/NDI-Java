@@ -83,6 +83,65 @@ class ProjectImportIT {
     }
 
     @Test
+    void requiresInitialProgressAndNextActionAndPersistsCorrections() throws Exception {
+        var fixture = contractFixture();
+        byte[] bytes;
+        try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(
+                        contractWorkbook(fixture.name(), "方案交流", "", "")));
+                var output = new ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            sheet.getRow(1).getCell(16).setCellValue("");
+            sheet.getRow(1).getCell(17).setCellValue("");
+            book.write(output);
+            bytes = output.toByteArray();
+        }
+        var preview = imports.preview(fixture.actor(), "首条进展.xlsx", bytes);
+        assertThat(preview.validRows()).isZero();
+        assertThat(preview.rows().getFirst().errorsJson())
+                .contains("首条项目进展不能为空", "下一步动作不能为空");
+        for (var field : List.of("首条项目进展", "下一步动作")) {
+            var tooLong = catchThrowable(() -> imports.reviseRow(
+                    fixture.actor(), preview.batchId(), 2, 0, Map.of(field, "长".repeat(10001))));
+            assertThat(((BusinessException) tooLong).errorCode())
+                    .isEqualTo(ProjectErrorCode.IMPORT_ROW_INVALID);
+        }
+        var fixed = imports.reviseRow(fixture.actor(), preview.batchId(), 2, 0,
+                Map.of("首条项目进展", "已完成技术交流", "下一步动作", "准备客户方案"));
+        assertThat(fixed.validRows()).isEqualTo(1);
+        var done = imports.confirm(fixture.actor(), preview.batchId());
+        String projectId = done.rows().getFirst().projectId().toString();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)"
+                        + " AND progress_content=? AND next_action=? AND source_type='IMPORTED'",
+                Integer.class, projectId, "已完成技术交流", "准备客户方案")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)"
+                        + " AND progress_content='完成交流' AND next_action=''",
+                Integer.class, projectId)).isEqualTo(1);
+    }
+
+    @Test
+    void oldPreviewRequiresNewProgressFieldsOnceAndCanBeCorrected() throws Exception {
+        var fixture = contractFixture();
+        var preview = imports.preview(fixture.actor(), "旧暂存.xlsx",
+                contractWorkbook(fixture.name(), "方案交流", "", ""));
+        jdbc.update("UPDATE project_import_row SET source_payload=JSON_REMOVE(source_payload, ?, ?)"
+                        + " WHERE batch_id=UUID_TO_BIN(?)",
+                "$.\"首条项目进展\"", "$.\"下一步动作\"", preview.batchId().toString());
+        var restored = imports.find(fixture.actor(), preview.batchId());
+        assertThat(restored.validRows()).isZero();
+        assertThat(restored.rows().getFirst().errorsJson())
+                .contains("首条项目进展不能为空", "下一步动作不能为空");
+        int revision = restored.rows().getFirst().revisionNo();
+        assertThat(imports.find(fixture.actor(), preview.batchId()).rows().getFirst().revisionNo())
+                .isEqualTo(revision);
+        var fixed = imports.reviseRow(fixture.actor(), preview.batchId(), 2, revision,
+                Map.of("首条项目进展", "进".repeat(5000), "下一步动作", "继续交流"));
+        assertThat(fixed.validRows()).isEqualTo(1);
+        assertThat(imports.confirm(fixture.actor(), preview.batchId()).importedRows()).isEqualTo(1);
+    }
+
+    @Test
     void remappingRequiresSameWorkbookAndZeroImportedRows() throws Exception {
         var fixture = contractFixture();
         byte[] bytes = contractWorkbook(fixture.name(), "方案交流", "", "");
@@ -372,7 +431,7 @@ class ProjectImportIT {
                     .containsExactlyElementsOf(
                             com.pluto.ndi.projects.util.ProjectExcelReader.mappableHeaders());
             assertThat(fields)
-                    .contains("项目负责人", "客户需求", "拟招标月份", "备注")
+                    .contains("项目负责人", "客户需求", "拟招标月份", "备注", "首条项目进展", "下一步动作")
                     .doesNotContain("省分负责人", "地市客户经理", "产品单位支撑专家", "产品推广内容", "重要度", "支撑行业专家");
         }
         byte[] bytes;
@@ -467,12 +526,12 @@ class ProjectImportIT {
             var sheet = book.getSheet("导入数据");
             sheet.removeRow(sheet.getRow(3));
             sheet.removeRow(sheet.getRow(2));
-            sheet.getRow(0).createCell(16).setCellValue("合同编号");
-            sheet.getRow(0).createCell(17).setCellValue("签约金额（万）");
+            sheet.getRow(0).createCell(18).setCellValue("合同编号");
+            sheet.getRow(0).createCell(19).setCellValue("签约金额（万）");
             sheet.getRow(1).getCell(4).setCellValue("合同项目" + UUID.randomUUID());
             sheet.getRow(1).getCell(9).setCellValue(stage);
-            sheet.getRow(1).createCell(16).setCellValue(contract);
-            sheet.getRow(1).createCell(17).setCellValue(amount);
+            sheet.getRow(1).createCell(18).setCellValue(contract);
+            sheet.getRow(1).createCell(19).setCellValue(amount);
             book.write(output);
             return output.toByteArray();
         }
@@ -540,7 +599,7 @@ class ProjectImportIT {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class))
                 .isEqualTo(existingProjects + 1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress", Integer.class))
-                .isEqualTo(existingProgress + 1);
+                .isEqualTo(existingProgress + 2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_source_record", Integer.class))
                 .isEqualTo(existingSources + 1);
         assertThat(done.rows().getFirst().status()).isEqualTo("IMPORTED");
@@ -820,7 +879,9 @@ VALUES (UUID_TO_BIN(?),?,?,UUID_TO_BIN(?),?,true)
                         "格物预计金额（万）",
                         "大数据预计金额（万）",
                         "万悟预计金额（万）",
-                        "项目进展（2026年10月10日）");
+                        "项目进展（2026年10月10日）",
+                        "首条项目进展",
+                        "下一步动作");
         try (var workbook = new XSSFWorkbook();
                 var output = new ByteArrayOutputStream()) {
             var sheet = workbook.createSheet("导入数据");
@@ -845,7 +906,9 @@ VALUES (UUID_TO_BIN(?),?,?,UUID_TO_BIN(?),?,true)
                                         "50",
                                         "",
                                         "",
-                                        "完成交流");
+                                        "完成交流",
+                                        "首次导入进展",
+                                        "安排下一轮交流");
                 for (int column = 0; column < values.size(); column++) {
                     row.createCell(column).setCellValue(values.get(column));
                 }
@@ -906,22 +969,22 @@ VALUES (UUID_TO_BIN(?),?,?,UUID_TO_BIN(?),?,true)
                                         workbookWithLocation(provinceName, cityName)));
                 var output = new ByteArrayOutputStream()) {
             var sheet = source.getSheet("导入数据");
-            sheet.getRow(0).createCell(16).setCellValue("签约主体");
-            sheet.getRow(1).createCell(16).setCellValue("数科签约");
-            sheet.getRow(0).createCell(17).setCellValue("产品单位支撑专家");
-            sheet.getRow(1).createCell(17).setCellValue("张专家，李专家");
-            sheet.getRow(0).createCell(18).setCellValue("拟招标日期");
-            sheet.getRow(1).createCell(18).setCellValue("2026-11-20");
-            sheet.getRow(0).createCell(19).setCellValue("应用场景");
-            sheet.getRow(1).createCell(19).setCellValue("柔性产线快速换产，质量精准追溯");
-            sheet.getRow(0).createCell(20).setCellValue("产品推广内容");
-            sheet.getRow(1).createCell(20).setCellValue("平台推广方案");
-            sheet.getRow(0).createCell(21).setCellValue("备注");
-            sheet.getRow(1).createCell(21).setCellValue("导入备注");
-            sheet.getRow(0).createCell(22).setCellValue("重要度");
-            sheet.getRow(1).createCell(22).setCellValue(" KEY ");
-            sheet.getRow(0).createCell(23).setCellValue("支撑行业专家");
-            sheet.getRow(1).createCell(23).setCellValue("行业专家");
+            sheet.getRow(0).createCell(18).setCellValue("签约主体");
+            sheet.getRow(1).createCell(18).setCellValue("数科签约");
+            sheet.getRow(0).createCell(19).setCellValue("产品单位支撑专家");
+            sheet.getRow(1).createCell(19).setCellValue("张专家，李专家");
+            sheet.getRow(0).createCell(20).setCellValue("拟招标日期");
+            sheet.getRow(1).createCell(20).setCellValue("2026-11-20");
+            sheet.getRow(0).createCell(21).setCellValue("应用场景");
+            sheet.getRow(1).createCell(21).setCellValue("柔性产线快速换产，质量精准追溯");
+            sheet.getRow(0).createCell(22).setCellValue("产品推广内容");
+            sheet.getRow(1).createCell(22).setCellValue("平台推广方案");
+            sheet.getRow(0).createCell(23).setCellValue("备注");
+            sheet.getRow(1).createCell(23).setCellValue("导入备注");
+            sheet.getRow(0).createCell(24).setCellValue("重要度");
+            sheet.getRow(1).createCell(24).setCellValue(" KEY ");
+            sheet.getRow(0).createCell(25).setCellValue("支撑行业专家");
+            sheet.getRow(1).createCell(25).setCellValue("行业专家");
             source.write(output);
             return output.toByteArray();
         }

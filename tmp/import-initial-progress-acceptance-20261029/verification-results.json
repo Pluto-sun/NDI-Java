@@ -1,0 +1,30 @@
+{
+  "surefire": {
+    "suites": 29,
+    "tests": 77,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "failsafe": {
+    "suites": 25,
+    "tests": 145,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "importTests": 14,
+    "sessionImportTests": 2,
+    "failures": 0
+  },
+  "frontendBuild": "passed",
+  "commands": [
+    "./mvnw --batch-mode verify",
+    "./mvnw --batch-mode -Dit.test=ProjectImportIT verify",
+    "npm --prefix frontend run build",
+    "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh import-projects.spec.ts",
+    "NDI_E2E_SKIP_BUILD=1 NDI_E2E_AUTH_MODE=SESSION scripts/run-project-e2e.sh session/import-wizard.spec.ts"
+  ],
+  "note": "后端数值为全量执行、修复测试样例并复跑 ProjectImportIT 后各测试套件的最终报告汇总。"
+}

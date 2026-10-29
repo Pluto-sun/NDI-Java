@@ -28,11 +28,13 @@ import java.util.regex.Pattern;
 public class ProjectExcelReader {
     private static final String SHEET = "导入数据";
     private static final List<String> REQUIRED =
-            List.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
+            List.of(
+                    "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人",
+                    "客户需求", "项目阶段", "项目总金额（万）", "首条项目进展", "下一步动作");
     private static final List<String> OPTIONAL =
             List.of("签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
     private static final Map<String, String> FIELD_ALIASES =
-            Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份");
+            Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份", "项目进展", "首条项目进展");
     public static final Set<String> RETIRED_FIELDS =
             Set.of("三化类别", "省分负责人", "地市客户经理", "产品单位支撑专家", "产品推广内容", "重要度", "支撑行业专家");
     private static final Pattern PROGRESS_DATE =

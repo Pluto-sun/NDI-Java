@@ -7,6 +7,7 @@ import type {
   ImportBatch,
   ReferenceData,
   ProjectDetail,
+  ProjectProgress,
 } from '../src/features/projects/types';
 
 async function sourceRow(request: APIRequestContext, name: string) {
@@ -19,6 +20,8 @@ async function sourceRow(request: APIRequestContext, name: string) {
     项目名称: name,
     项目建设内容: '导入建设内容',
     项目负责人: '外部负责人甲；外部负责人乙',
+    首条项目进展: '已完成首次交流',
+    下一步动作: '安排下一轮沟通',
     项目阶段: '方案交流',
     '项目总金额（万）': '100',
     '网络化预计金额（万）': '50',
@@ -88,6 +91,16 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
   expect(detail.contractNo).toBe(contract);
   expect(Number(detail.signedAmount)).toBe(80.5);
   expect(detail.responsiblePersons).toHaveLength(2);
+  const progress = await get<{ items: ProjectProgress[] }>(
+    request,
+    ids.reporter,
+    `/${detail.id}/progress`,
+  );
+  expect(progress.items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ progressContent: '已完成首次交流', nextAction: '安排下一轮沟通' }),
+    ]),
+  );
   await page.getByRole('button', { name: '返回项目创建', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await expect(page.getByLabel('Excel 文件', { exact: true })).toHaveValue('');
@@ -363,6 +376,15 @@ test('导入字段与模板统一，项目创建和维护只保留备注', async
   await people.selectOption('');
   await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
   await people.selectOption('项目负责人');
+  for (const field of ['首条项目进展', '下一步动作']) {
+    const mapping = page.getByRole('combobox', { name: `映射：${field}`, exact: true });
+    await expect(mapping).toHaveValue(field);
+    await mapping.selectOption('');
+    await expect(
+      page.getByRole('button', { name: '下一步：开始预检', exact: true }),
+    ).toBeDisabled();
+    await mapping.selectOption(field);
+  }
   await page.screenshot({
     path: testInfo.outputPath('current-import-fields.png'),
     fullPage: false,

@@ -280,7 +280,7 @@ public class ProjectImportWizardService {
 
     private List<FieldRule> fieldRules(List<String> fields) {
         var required =
-                Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
+                Set.copyOf(ProjectExcelReader.requiredHeaders());
         return fields.stream()
                 .map(
                         field -> {

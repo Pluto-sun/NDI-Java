@@ -4,8 +4,7 @@ import java.util.*;
 
 /** 区分列映射完整性与行内值校验，条件必填只针对当前文件实际涉及的业务。 */
 public final class ProjectImportMappingRules {
-    public static final Set<String> REQUIRED =
-            Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
+    public static final Set<String> REQUIRED = Set.copyOf(ProjectExcelReader.requiredHeaders());
 
     private ProjectImportMappingRules() {}
 

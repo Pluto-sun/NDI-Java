@@ -19,5 +19,5 @@ public record ProjectImportCandidate(
         com.pluto.ndi.projects.domain.ProjectImportAttributes importAttributes,
         List<String> responsiblePersonNames, String legacyProvinceLeaderName) {
     public record CategoryAmount(String code, BigDecimal amount) { }
-    public record Progress(Instant occurredAt, String content) { }
+    public record Progress(Instant occurredAt, String content, String nextAction) { }
 }

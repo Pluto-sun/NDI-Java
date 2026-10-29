@@ -374,7 +374,7 @@ class ReviewerProvinceScopeIT {
                         "客户名称",
                         "客户所属行业",
                         "项目名称",
-                        "省分负责人",
+                        "项目负责人",
                         "地市客户经理",
                         "项目建设内容",
                         "三化类别",
@@ -384,7 +384,9 @@ class ReviewerProvinceScopeIT {
                         "格物预计金额（万）",
                         "大数据预计金额（万）",
                         "万悟预计金额（万）",
-                        "项目进展（" + month.getYear() + "年" + month.getMonthValue() + "月10日）");
+                        "项目进展（" + month.getYear() + "年" + month.getMonthValue() + "月10日）",
+                        "首条项目进展",
+                        "下一步动作");
         byte[] content;
         try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
                 var output = new java.io.ByteArrayOutputStream()) {
@@ -411,7 +413,9 @@ class ReviewerProvinceScopeIT {
                                 "50",
                                 "",
                                 "",
-                                "已开展交流");
+                                "已开展交流",
+                                "首次范围导入进展",
+                                "继续客户交流");
                 var row = sheet.createRow(index + 1);
                 for (int column = 0; column < values.size(); column++)
                     row.createCell(column).setCellValue(values.get(column));

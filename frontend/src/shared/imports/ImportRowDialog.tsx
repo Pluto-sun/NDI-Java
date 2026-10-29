@@ -126,9 +126,13 @@ export function ImportRowDialog({
                 <label key={field}>
                   {field}
                   <textarea
-                    rows={field.includes('内容') || field.includes('进展') ? 3 : 1}
+                    rows={
+                      field.includes('内容') || field.includes('进展') || field === '下一步动作'
+                        ? 3
+                        : 1
+                    }
                     value={value}
-                    maxLength={4000}
+                    maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
                     onChange={(event) =>
                       setCells((current) => ({ ...current, [field]: event.target.value }))
                     }
