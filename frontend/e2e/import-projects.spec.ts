@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page as BrowserPage, type APIRequestContext } from '@playwright/test';
-import { ids, chooseActor, get, post } from './support/projects';
+import { ids, chooseActor, get, post, createProject } from './support/projects';
 import { importWorkbook } from './support/importWorkbook';
 import type {
   ImportTask,
@@ -319,4 +319,65 @@ test('分类按金额自动识别，零金额计入且不再映射类别，唯�
   expect(
     Number(detail.categoryAmounts.find((c) => c.categoryCode === 'NETWORK')!.expectedAmount),
   ).toBe(0);
+});
+
+test('导入字段与模板统一，项目创建和维护只保留备注', async ({ page, request }, testInfo) => {
+  await page.goto('/projects/new');
+  await chooseActor(page, ids.reporter);
+  await expect(page.getByText('其他项目资料（选填）', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('原始项目建设内容', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('产品推广内容', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('备注（选填）', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  const { 项目负责人: omitted, ...legacy } = await sourceRow(request, `旧人员-${randomUUID()}`);
+  void omitted;
+  await upload(page, [
+    { ...legacy, 省分负责人: '旧省分人员', 地市客户经理: '旧地市人员', 产品单位支撑专家: '旧专家' },
+  ]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '映射：项目负责人', exact: true })).toHaveValue(
+    '',
+  );
+  await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '上一步', exact: true }).click();
+  await upload(page, [await sourceRow(request, `字段一致-${randomUUID()}`)]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  for (const field of [
+    '省分负责人',
+    '地市客户经理',
+    '产品单位支撑专家',
+    '产品推广内容',
+    '重要度',
+    '支撑行业专家',
+  ])
+    await expect(page.getByRole('combobox', { name: `映射：${field}`, exact: true })).toHaveCount(
+      0,
+    );
+  await expect(page.getByRole('combobox', { name: '映射：客户需求', exact: true })).toHaveValue(
+    '项目建设内容',
+  );
+  await expect(
+    page.getByRole('combobox', { name: '映射：拟招标月份', exact: true }),
+  ).toBeAttached();
+  const people = page.getByRole('combobox', { name: '映射：项目负责人', exact: true });
+  await people.selectOption('');
+  await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
+  await people.selectOption('项目负责人');
+  await page.screenshot({
+    path: testInfo.outputPath('current-import-fields.png'),
+    fullPage: false,
+  });
+  await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await page.getByRole('button', { name: '从头导入', exact: true }).click();
+  const created = await createProject(request, `备注维护-${randomUUID()}`);
+  await page.goto(`/projects/${created.id}`);
+  await page.getByRole('button', { name: '编辑', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: '编辑项目普通信息', exact: true });
+  await expect(modal.getByLabel('原始项目建设内容', { exact: true })).toHaveCount(0);
+  await expect(modal.getByLabel('产品推广内容', { exact: true })).toHaveCount(0);
+  await modal.getByLabel('备注（选填）', { exact: true }).fill('保留备注的验证');
+  await modal.getByRole('button', { name: '保存普通信息', exact: true }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(page.getByText('保留备注的验证', { exact: true })).toBeVisible();
 });

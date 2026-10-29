@@ -50,7 +50,8 @@ const aliases: Record<string, string[]> = {
   客户名称: ['客户', '客户单位', '客户公司'],
   客户所属行业: ['所属行业', '行业', '行业名称'],
   项目名称: ['项目名', '商机名称', '商机'],
-  项目建设内容: ['客户需求', '建设内容', '项目内容', '项目需求', '需求'],
+  客户需求: ['项目建设内容', '建设内容', '项目内容', '项目需求', '需求'],
+  拟招标月份: ['拟招标日期', '预计招标月份'],
   项目负责人: ['负责人', '项目责任人', '责任人', '负责人员'],
   '项目总金额（万）': ['总金额', '项目金额', '预计总金额', '项目总金额（万元）'],
   项目阶段: ['阶段', '当前阶段', '生命周期'],
@@ -58,6 +59,15 @@ const aliases: Record<string, string[]> = {
   合同编号: ['合同号'],
   '签约金额（万）': ['签约金额', '合同金额'],
 };
+/** 旧职责列不能充当新的统一负责人字段。 */
+export function allowedMappingSource(field: string, header: string) {
+  return (
+    field !== '项目负责人' ||
+    !['省分负责人', '地市客户经理', '产品单位支撑专家'].some((name) =>
+      normalized(header).includes(normalized(name)),
+    )
+  );
+}
 /** 先占用精确表头，再用别名和包含关系推断，避免同一源列被重复映射。 */
 export function suggestMapping(fields: string[], headers: string[]) {
   const result: Record<string, string> = Object.fromEntries(fields.map((field) => [field, '']));
@@ -73,7 +83,10 @@ export function suggestMapping(fields: string[], headers: string[]) {
     if (!result[field]) {
       const variants = [field, ...(aliases[field] ?? [])].map(normalized);
       const header = headers.find(
-        (header) => !used.has(header) && variants.includes(normalized(header)),
+        (header) =>
+          allowedMappingSource(field, header) &&
+          !used.has(header) &&
+          variants.includes(normalized(header)),
       );
       if (header) {
         result[field] = header;
@@ -82,6 +95,7 @@ export function suggestMapping(fields: string[], headers: string[]) {
       }
       const candidate = headers.find(
         (header) =>
+          allowedMappingSource(field, header) &&
           !used.has(header) &&
           !fields.some((other) => normalized(other) === normalized(header)) &&
           variants.some(
@@ -132,15 +146,8 @@ export type ImportRow = ImportBatch['rows'][number];
 
 /** 固定必填列缺少映射时不允许离开第二步；条件字段由服务端再次核对整份文件。 */
 export function missingMappings(task: ImportTask, configuration: ImportConfiguration): string[] {
-  const people = ['项目负责人', '省分负责人', '地市客户经理', '产品单位支撑专家'];
   const result = task.fieldRules
-    .filter(
-      (rule) =>
-        rule.requirement === 'REQUIRED' &&
-        (rule.name !== '项目负责人'
-          ? !configuration.fieldMapping[rule.name]
-          : !people.some((name) => configuration.fieldMapping[name])),
-    )
+    .filter((rule) => rule.requirement === 'REQUIRED' && !configuration.fieldMapping[rule.name])
     .map((rule) => rule.name);
   if (
     task.fieldRules.some((rule) => rule.name === '项目总金额（万）') &&

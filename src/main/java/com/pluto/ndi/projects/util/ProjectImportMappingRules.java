@@ -5,8 +5,7 @@ import java.util.*;
 /** 区分列映射完整性与行内值校验，条件必填只针对当前文件实际涉及的业务。 */
 public final class ProjectImportMappingRules {
     public static final Set<String> REQUIRED =
-            Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段", "项目总金额（万）");
-    public static final List<String> PEOPLE = List.of("项目负责人", "省分负责人", "地市客户经理", "产品单位支撑专家");
+            Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
 
     private ProjectImportMappingRules() {}
 
@@ -14,7 +13,6 @@ public final class ProjectImportMappingRules {
             Map<String, String> mapping, List<ProjectExcelReader.ExcelRow> rows) {
         var missing = new TreeSet<String>();
         REQUIRED.stream().filter(field -> !mapped(mapping, field)).forEach(missing::add);
-        if (PEOPLE.stream().noneMatch(field -> mapped(mapping, field))) missing.add("项目负责人（或旧人员列）");
         if (ProjectImportAmounts.fields().stream().noneMatch(field -> mapped(mapping, field)))
             missing.add("至少一项三化预计金额");
         for (var row : rows) {

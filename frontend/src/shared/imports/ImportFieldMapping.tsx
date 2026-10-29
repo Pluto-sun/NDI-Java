@@ -1,3 +1,4 @@
+import { allowedMappingSource } from './importWizard';
 import { Select } from '../ui/Select';
 import type { ImportConfiguration, ImportTask } from './types';
 
@@ -78,9 +79,12 @@ export function ImportFieldMapping({
                       <option
                         key={header}
                         value={header}
-                        disabled={Object.entries(configuration.fieldMapping).some(
-                          ([field, value]) => field !== rule.name && value === header,
-                        )}
+                        disabled={
+                          !allowedMappingSource(rule.name, header) ||
+                          Object.entries(configuration.fieldMapping).some(
+                            ([field, value]) => field !== rule.name && value === header,
+                          )
+                        }
                       >
                         {header}
                       </option>

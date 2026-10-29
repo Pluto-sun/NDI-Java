@@ -246,8 +246,8 @@ public class ProjectImportWizardService {
                         .orElseThrow(ProjectImportWizardService::conflict);
         var used = new HashSet<String>();
         for (var mapping : config.fieldMapping().entrySet()) {
-            if (!inspection.fields().contains(mapping.getKey()) || mapping.getValue() == null)
-                throw conflict();
+            if (!ProjectExcelReader.mappableHeaders().contains(mapping.getKey())
+                    || mapping.getValue() == null) throw conflict();
             if (mapping.getValue().isBlank()) continue;
             if (!header.headers().contains(mapping.getValue()) || !used.add(mapping.getValue()))
                 throw conflict();
@@ -258,7 +258,7 @@ public class ProjectImportWizardService {
         return new Configuration(
                 config.sheetName(),
                 config.headerRowNo(),
-                ProjectExcelReader.withoutLegacyCategory(config.fieldMapping()));
+                ProjectExcelReader.currentFields(config.fieldMapping()));
     }
 
     private View view(ProjectImportTask task) {
@@ -279,7 +279,8 @@ public class ProjectImportWizardService {
     }
 
     private List<FieldRule> fieldRules(List<String> fields) {
-        var required = Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段", "项目总金额（万）");
+        var required =
+                Set.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
         return fields.stream()
                 .map(
                         field -> {
@@ -288,7 +289,7 @@ public class ProjectImportWizardService {
                             if (required.contains(field)) hint = "每行必填，可在预检中修正";
                             if (field.equals("项目负责人")) {
                                 rule = "REQUIRED";
-                                hint = "至少一位，分号分隔；兼容旧三类人员列";
+                                hint = "至少一位，分号分隔；导入后在详情配置职责，不自动绑定账号";
                             }
                             if (field.endsWith("预计金额（万）")) {
                                 rule = "CONDITIONAL";

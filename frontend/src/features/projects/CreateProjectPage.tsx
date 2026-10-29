@@ -30,8 +30,6 @@ export function CreateProjectPage({
   const [customerName, setCustomerName] = useState('');
   const [industryCode, setIndustryCode] = useState('');
   const [customerNeed, setCustomerNeed] = useState('');
-  const [constructionContentRaw, setConstructionContentRaw] = useState('');
-  const [productPromotionContent, setProductPromotionContent] = useState('');
   const [remark, setRemark] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [plannedBidMonth, setPlannedBidMonth] = useState('');
@@ -89,8 +87,6 @@ export function CreateProjectPage({
       customerName,
       industryCode,
       customerNeed,
-      constructionContentRaw,
-      productPromotionContent,
       remark,
       totalAmount,
       cityAccountManagerName: '',
@@ -162,8 +158,6 @@ export function CreateProjectPage({
     setCustomerName(data.customerName ?? '');
     setIndustryCode(data.industryCode ?? '');
     setCustomerNeed(data.customerNeed ?? '');
-    setConstructionContentRaw(data.constructionContentRaw ?? '');
-    setProductPromotionContent(data.productPromotionContent ?? '');
     setRemark(data.remark ?? '');
     setTotalAmount(data.totalAmount ?? '');
     setPlannedBidMonth(data.plannedBidMonth ?? '');
@@ -262,8 +256,8 @@ export function CreateProjectPage({
         customerName,
         industryCode,
         customerNeed,
-        constructionContentRaw,
-        productPromotionContent,
+        constructionContentRaw: '',
+        productPromotionContent: '',
         remark,
         totalAmount,
         responsiblePersonNames,
@@ -523,39 +517,15 @@ export function CreateProjectPage({
             />
           </label>
         </div>
-        <details className="optional-details">
-          <summary>其他项目资料（选填）</summary>
-          <div className="form-grid">
-            <label className="span-two">
-              原始项目建设内容
-              <textarea
-                rows={3}
-                maxLength={4000}
-                value={constructionContentRaw}
-                onChange={(event) => setConstructionContentRaw(event.target.value)}
-                placeholder="不填则沿用客户需求"
-              />
-            </label>
-            <label className="span-two">
-              产品推广内容
-              <textarea
-                rows={3}
-                maxLength={4000}
-                value={productPromotionContent}
-                onChange={(event) => setProductPromotionContent(event.target.value)}
-              />
-            </label>
-            <label className="span-two">
-              备注
-              <textarea
-                rows={3}
-                maxLength={10000}
-                value={remark}
-                onChange={(event) => setRemark(event.target.value)}
-              />
-            </label>
-          </div>
-        </details>
+        <label className="optional-details">
+          备注（选填）
+          <textarea
+            rows={3}
+            maxLength={10000}
+            value={remark}
+            onChange={(event) => setRemark(event.target.value)}
+          />
+        </label>
         <h2>责任信息</h2>
         <div className="form-grid">
           <label>

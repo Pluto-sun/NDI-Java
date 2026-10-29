@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -27,22 +28,13 @@ import java.util.regex.Pattern;
 public class ProjectExcelReader {
     private static final String SHEET = "导入数据";
     private static final List<String> REQUIRED =
-            List.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段", "项目总金额（万）");
+            List.of("省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人", "客户需求", "项目阶段", "项目总金额（万）");
     private static final List<String> OPTIONAL =
-            List.of(
-                    "项目负责人",
-                    "省分负责人",
-                    "地市客户经理",
-                    "签约主体",
-                    "产品单位支撑专家",
-                    "拟招标日期",
-                    "应用场景",
-                    "产品推广内容",
-                    "备注",
-                    "合同编号",
-                    "签约金额（万）",
-                    "重要度",
-                    "支撑行业专家");
+            List.of("签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
+    private static final Map<String, String> FIELD_ALIASES =
+            Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份");
+    public static final Set<String> RETIRED_FIELDS =
+            Set.of("三化类别", "省分负责人", "地市客户经理", "产品单位支撑专家", "产品推广内容", "重要度", "支撑行业专家");
     private static final Pattern PROGRESS_DATE =
             Pattern.compile("项目进展（(\\d{4})年(\\d{1,2})月(\\d{1,2})日）");
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -55,10 +47,41 @@ public class ProjectExcelReader {
         return List.copyOf(fields);
     }
 
-    public static Map<String, String> withoutLegacyCategory(Map<String, String> mapping) {
-        var result = new LinkedHashMap<String, String>(mapping == null ? Map.of() : mapping);
-        result.remove("三化类别");
+    public static String currentField(String field) {
+        return FIELD_ALIASES.getOrDefault(field, field);
+    }
+
+    public static Map<String, String> currentFields(Map<String, String> values) {
+        var result = new LinkedHashMap<String, String>();
+        if (values == null) return result;
+        values.forEach(
+                (field, value) -> {
+                    if (!RETIRED_FIELDS.contains(field)) {
+                        var target = currentField(field);
+                        if (!values.containsKey(target) || field.equals(target))
+                            result.put(target, value);
+                    }
+                });
         return java.util.Collections.unmodifiableMap(result);
+    }
+
+    private static boolean containsRequired(Collection<String> headers) {
+        return headers.stream()
+                .map(ProjectExcelReader::currentField)
+                .collect(java.util.stream.Collectors.toSet())
+                .containsAll(REQUIRED);
+    }
+
+    private static String defaultSource(String field, Map<String, Integer> headers) {
+        if (headers.containsKey(field)) return field;
+        return FIELD_ALIASES.entrySet().stream()
+                .filter(
+                        alias ->
+                                alias.getValue().equals(field)
+                                        && headers.containsKey(alias.getKey()))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(field);
     }
 
     public List<ExcelRow> read(byte[] data) throws IOException {
@@ -82,8 +105,13 @@ public class ProjectExcelReader {
             }
             var formatter = new DataFormatter();
             var sourceHeaders = headers(sheet.getRow(headerIndex), formatter);
-            // 兼容旧客户端和暂存映射；旧类别列不再读取，也不参与重复映射校验。
-            fieldMapping = withoutLegacyCategory(fieldMapping);
+            // 兼容旧客户端和暂存映射；已停用字段不再读取，也不参与重复映射校验。
+            fieldMapping = currentFields(fieldMapping);
+            var peopleSource = fieldMapping.getOrDefault("项目负责人", "");
+            if (peopleSource != null
+                    && List.of("省分负责人", "地市客户经理", "产品单位支撑专家").stream()
+                            .anyMatch(peopleSource::contains))
+                throw new IllegalArgumentException("请使用新的项目负责人列，旧职责列不能作为负责人来源");
             var mappedSources = fieldMapping.values().stream()
                     .filter(value -> value != null && !value.isBlank()).toList();
             if (fieldMapping.size() > 64 || !mappableHeaders().containsAll(fieldMapping.keySet())
@@ -91,9 +119,15 @@ public class ProjectExcelReader {
                     || new HashSet<>(mappedSources).size() != mappedSources.size()) {
                 throw new IllegalArgumentException("字段映射目标或来源无效");
             }
-            if (fieldMapping.isEmpty() && !sourceHeaders.keySet().containsAll(REQUIRED)) {
-                throw new IllegalArgumentException("导入模板缺少必需列：" + REQUIRED.stream()
-                        .filter(name -> !sourceHeaders.containsKey(name)).toList());
+            if (fieldMapping.isEmpty() && !containsRequired(sourceHeaders.keySet())) {
+                throw new IllegalArgumentException(
+                        "导入模板缺少必需列："
+                                + REQUIRED.stream()
+                                        .filter(
+                                                name ->
+                                                        !sourceHeaders.containsKey(
+                                                                defaultSource(name, sourceHeaders)))
+                                        .toList());
             }
             if (fieldMapping.isEmpty()
                     && ProjectImportAmounts.fields().stream()
@@ -103,7 +137,8 @@ public class ProjectExcelReader {
             var headers = new LinkedHashMap<String, Integer>();
             var usedColumns = new HashSet<Integer>();
             for (var required : mappableHeaders()) {
-                var source = fieldMapping.getOrDefault(required, required);
+                var source =
+                        fieldMapping.getOrDefault(required, defaultSource(required, sourceHeaders));
                 if (fieldMapping.containsKey(required) && !source.isBlank()
                         && !sourceHeaders.containsKey(source)) {
                     throw new IllegalArgumentException("映射来源列不存在：" + source);
@@ -236,7 +271,9 @@ public class ProjectExcelReader {
     }
 
     public record ExcelRow(int number, Map<String, String> cells) {
-        public String get(String header) { return cells.getOrDefault(header, ""); }
+        public String get(String header) {
+            return cells.getOrDefault(currentField(header), cells.getOrDefault(header, ""));
+        }
     }
     public record ProgressColumn(java.time.Instant occurredAt, String content) { }
     public record WorkbookInspection(String fileName, List<String> fields, List<SheetInspection> sheets) { }

@@ -17,7 +17,6 @@ import com.pluto.ndi.projects.repository.ProjectImportRowRevisionRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExcelReader;
-import com.pluto.ndi.projects.util.ProjectExpertNames;
 import com.pluto.ndi.projects.util.ProjectImportWorkbookWriter;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.projects.util.ProjectNarrativeText;
@@ -249,7 +248,7 @@ public class ProjectImportService {
                                                     new BusinessException(
                                                             ProjectErrorCode.IMPORT_NOT_FOUND));
                     var batchRows = rows.findLockedByBatchId(batchId);
-                    refreshLegacyCategories(batch, batchRows);
+                    refreshLegacyFields(batch, batchRows);
                     return summary(batch, batchRows);
                 });
     }
@@ -333,7 +332,7 @@ public class ProjectImportService {
         }
         var corrected = new HashMap<>(source);
         for (var change : changes.entrySet()) {
-            if ("三化类别".equals(change.getKey())
+            if (ProjectExcelReader.RETIRED_FIELDS.contains(change.getKey())
                     || !source.containsKey(change.getKey())
                     || change.getValue() == null
                     || change.getValue().length() > 4000) {
@@ -465,7 +464,7 @@ public class ProjectImportService {
                                         ProjectErrorCode.IMPORT_ALREADY_CONFIRMED);
                             }
                             var batchRows = rows.findByBatchIdOrderByRowNumber(batchId);
-                            refreshLegacyCategories(locked, batchRows);
+                            refreshLegacyFields(locked, batchRows);
                             var ready =
                                     batchRows.stream()
                                             .filter(row -> "READY".equals(row.status()))
@@ -580,25 +579,20 @@ public class ProjectImportService {
 
     private ProjectImportCandidate normalize(
             ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
-        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目建设内容", "项目阶段");
+        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称", "客户需求", "项目阶段");
         String projectName = row.get("项目名称");
         if (projectName.length() < 2
                 || projectName.length() > 200
                 || ProjectNameMatcher.standard(projectName).isEmpty())
             errors.add("项目名称须为2至200字符，且包含文字或数字");
-        List<String> responsibleNames = null;
-        boolean unified = !row.get("项目负责人").isBlank();
-        if (unified) {
+        List<String> responsibleNames = List.of();
+        if (row.get("项目负责人").isBlank()) errors.add("项目负责人不能为空");
+        else
             try {
                 responsibleNames = ProjectResponsiblePersonStore.names(row.get("项目负责人"));
-            } catch (BusinessException error) {
-                errors.add(error.errorCode().message());
+            } catch (BusinessException failure) {
+                errors.add(failure.errorCode().message());
             }
-        } else if (row.get("省分负责人").isBlank()
-                && row.get("地市客户经理").isBlank()
-                && row.get("产品单位支撑专家").isBlank()) {
-            errors.add("项目负责人不能为空");
-        }
         var location = organizations.findEnabledLocationByNames(row.get("省分"), row.get("地市"));
         if (location.isEmpty())
             errors.add(
@@ -606,19 +600,13 @@ public class ProjectImportService {
                             + row.get("省分")
                             + " / "
                             + row.get("地市")
-                            + "；请按行政区划核对原文件，或在预检中修正该行");
+                            + "；请按行政区划核对原文件，或在预检中修正该行。无需为该地市单独创建账号");
         else if (!identity.canImportProject(
                 actor, location.get().provinceId(), location.get().cityId())) {
             errors.add("无此省市项目导入权限");
         }
         var industry = industries.findByIndustryNameAndEnabledTrue(row.get("客户所属行业"));
         if (industry.isEmpty()) errors.add("行业名称未匹配有效代码");
-        var leader =
-                location.flatMap(
-                        value ->
-                                identity.findEligibleProvinceLeaderByName(
-                                        row.get("省分负责人"), value.provinceId()));
-        // 兼容旧模板；仅旧省分负责人列尝试匹配账号，新名单绝不按姓名自动绑定。
         var stage = STAGE_LABELS.get(row.get("项目阶段"));
         if (stage == null) errors.add("项目阶段未识别");
         var signingSubject =
@@ -664,17 +652,11 @@ public class ProjectImportService {
                         > 0) {
             errors.add("三化金额合计超过项目总金额");
         }
-        List<String> expertNames = List.of();
         List<String> scenarios = List.of();
         String bidMonth = null;
         try {
-            expertNames = ProjectExpertNames.parse(row.get("产品单位支撑专家"));
-        } catch (IllegalArgumentException exception) {
-            errors.add(exception.getMessage());
-        }
-        try {
             scenarios = ProjectPlanningFields.parseScenarios(row.get("应用场景"));
-            var parsedMonth = ProjectPlanningFields.parseBidMonth(row.get("拟招标日期"));
+            var parsedMonth = ProjectPlanningFields.parseBidMonth(row.get("拟招标月份"));
             bidMonth =
                     parsedMonth == null ? null : java.time.YearMonth.from(parsedMonth).toString();
         } catch (IllegalArgumentException exception) {
@@ -684,17 +666,15 @@ public class ProjectImportService {
         try {
             narrative =
                     ProjectNarrativeText.normalize(
-                            new ProjectNarrative(
-                                    row.get("项目建设内容"), row.get("产品推广内容"), row.get("备注")),
-                            row.get("项目建设内容"));
+                            new ProjectNarrative(row.get("客户需求"), null, row.get("备注")),
+                            row.get("客户需求"));
         } catch (IllegalArgumentException exception) {
             errors.add(exception.getMessage());
         }
         com.pluto.ndi.projects.domain.ProjectImportAttributes importAttributes = null;
         try {
             importAttributes =
-                    new com.pluto.ndi.projects.domain.ProjectImportAttributes(
-                            row.get("重要度"), row.get("支撑行业专家"));
+                    new com.pluto.ndi.projects.domain.ProjectImportAttributes(null, null);
         } catch (IllegalArgumentException exception) {
             errors.add(exception.getMessage());
         }
@@ -712,16 +692,16 @@ public class ProjectImportService {
                 row.get("项目名称"),
                 row.get("客户名称"),
                 industry.get().industryCode(),
-                row.get("项目建设内容"),
+                row.get("客户需求"),
                 total,
-                unified ? null : leader.orElse(null),
-                unified ? "" : row.get("地市客户经理"),
+                null,
+                "",
                 signingSubject,
                 stage,
                 List.copyOf(categories),
                 progress,
                 Instant.now(clock),
-                unified ? List.of() : expertNames,
+                List.of(),
                 bidMonth,
                 scenarios,
                 narrative,
@@ -729,7 +709,7 @@ public class ProjectImportService {
                 signedAmount,
                 importAttributes,
                 responsibleNames,
-                unified ? null : row.get("省分负责人"));
+                null);
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {
@@ -776,14 +756,24 @@ public class ProjectImportService {
     }
 
     /** 旧的未确认预检按新规则重新计算，保留行修正、名称确认与原步骤。 */
-    private void refreshLegacyCategories(
+    private void refreshLegacyFields(
             ProjectImportBatchEntity batch, List<ProjectImportRowEntity> items) {
         if (!"PREVIEWED".equals(batch.status())
                 || items.stream()
                         .noneMatch(
                                 row ->
                                         row.sourcePayload() != null
-                                                && nameReviews.source(row).containsKey("三化类别")))
+                                                && nameReviews.source(row).keySet().stream()
+                                                        .anyMatch(
+                                                                field ->
+                                                                        ProjectExcelReader
+                                                                                        .RETIRED_FIELDS
+                                                                                        .contains(
+                                                                                                field)
+                                                                                || !field.equals(
+                                                                                        ProjectExcelReader
+                                                                                                .currentField(
+                                                                                                        field)))))
             return;
         var actor =
                 identity.findProjectActor(batch.actorId())
@@ -795,8 +785,8 @@ public class ProjectImportService {
         for (var row : items) {
             if (!Set.of("READY", "FAILED").contains(row.status()) || row.sourcePayload() == null)
                 continue;
-            var source = new HashMap<>(nameReviews.source(row));
-            source.remove("三化类别");
+            var source = new HashMap<>(ProjectExcelReader.currentFields(nameReviews.source(row)));
+            source.keySet().removeAll(ProjectExcelReader.RETIRED_FIELDS);
             var excel = new ProjectExcelReader.ExcelRow(row.rowNumber(), Map.copyOf(source));
             var errors = new ArrayList<String>();
             var key = duplicateKey(excel, locations);

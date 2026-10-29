@@ -1,6 +1,7 @@
 package com.pluto.ndi.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.pluto.ndi.NdiApplication;
@@ -62,9 +63,8 @@ class ProjectImportIT {
                                         contractWorkbook(fixture.name(), "方案交流", "", "")));
                 var output = new ByteArrayOutputStream()) {
             var sheet = book.getSheet("导入数据");
-            sheet.getRow(0).createCell(18).setCellValue("项目负责人");
-            sheet.getRow(1).createCell(18).setCellValue("外部姓名甲；外部姓名乙;外部姓名甲");
-            sheet.getRow(1).getCell(5).setCellValue("");
+            sheet.getRow(0).getCell(5).setCellValue("项目负责人");
+            sheet.getRow(1).getCell(5).setCellValue("外部姓名甲；外部姓名乙;外部姓名甲");
             sheet.getRow(1).getCell(6).setCellValue("");
             book.write(output);
             bytes = output.toByteArray();
@@ -359,6 +359,76 @@ class ProjectImportIT {
                                 .findDetail(fixture.actor(), done.rows().getFirst().projectId())
                                 .categoryAmounts())
                 .hasSize(2);
+    }
+
+    @Test
+    void templateExactlyMatchesMappingAndRejectsLegacyOnlyPeople() throws Exception {
+        var f = contractFixture();
+        try (var book =
+                new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.template(f.actor())))) {
+            var fields = new java.util.ArrayList<String>();
+            book.getSheetAt(0).getRow(0).forEach(cell -> fields.add(cell.getStringCellValue()));
+            assertThat(fields)
+                    .containsExactlyElementsOf(
+                            com.pluto.ndi.projects.util.ProjectExcelReader.mappableHeaders());
+            assertThat(fields)
+                    .contains("项目负责人", "客户需求", "拟招标月份", "备注")
+                    .doesNotContain("省分负责人", "地市客户经理", "产品单位支撑专家", "产品推广内容", "重要度", "支撑行业专家");
+        }
+        byte[] bytes;
+        try (var book =
+                        new XSSFWorkbook(
+                                new java.io.ByteArrayInputStream(
+                                        contractWorkbook(f.name(), "方案交流", "", "")));
+                var out = new ByteArrayOutputStream()) {
+            book.getSheetAt(0).getRow(0).getCell(5).setCellValue("省分负责人");
+            book.write(out);
+            bytes = out.toByteArray();
+        }
+        assertThatThrownBy(() -> imports.preview(f.actor(), "仅旧人员列.xlsx", bytes))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(
+                        () ->
+                                imports.preview(
+                                        f.actor(),
+                                        "旧列映射.xlsx",
+                                        bytes,
+                                        "导入数据",
+                                        1,
+                                        Map.of("项目负责人", "省分负责人")))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void provinceUserImportsCityWithoutAnyCityAccount() throws Exception {
+        var f = contractFixture();
+        var provinceUser =
+                UUID.fromString(
+                        jdbc.queryForObject(
+                                "SELECT BIN_TO_UUID(u.id) FROM identity_user_account u JOIN"
+                                    + " identity_user_role r ON r.user_id=u.id WHERE"
+                                    + " u.province_id=(SELECT province_id FROM"
+                                    + " identity_user_account WHERE id=UUID_TO_BIN(?)) AND"
+                                    + " r.role_code='PROVINCE_REPORTER'",
+                                String.class,
+                                f.actor().toString()));
+        jdbc.update(
+                "DELETE FROM identity_user_role WHERE user_id=UUID_TO_BIN(?)",
+                f.actor().toString());
+        jdbc.update(
+                "DELETE FROM identity_user_account WHERE id=UUID_TO_BIN(?)", f.actor().toString());
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM identity_user_account WHERE city_id IN"
+                                    + " (SELECT id FROM organization_city WHERE city_name=?)",
+                                Long.class,
+                                f.name()))
+                .isZero();
+        var preview =
+                imports.preview(
+                        provinceUser, "无地市账号.xlsx", contractWorkbook(f.name(), "方案交流", "", ""));
+        assertThat(preview.validRows()).isEqualTo(1);
+        assertThat(imports.confirm(provinceUser, preview.batchId()).importedRows()).isEqualTo(1);
     }
 
     private record ContractFixture(UUID actor, String name) {}
@@ -661,10 +731,10 @@ class ProjectImportIT {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM project_support_expert WHERE project_id ="
-                                    + " UUID_TO_BIN(?)",
+                                        + " UUID_TO_BIN(?)",
                                 Integer.class,
                                 recovered.rows().getFirst().projectId().toString()))
-                .isEqualTo(2);
+                .isZero();
         assertThat(
                         jdbc.queryForObject(
                                         "SELECT planned_bid_month FROM project_project WHERE id ="
@@ -690,10 +760,10 @@ class ProjectImportIT {
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT product_promotion_content FROM project_project WHERE id ="
-                                    + " UUID_TO_BIN(?)",
+                                        + " UUID_TO_BIN(?)",
                                 String.class,
                                 recovered.rows().getFirst().projectId().toString()))
-                .isEqualTo("平台推广方案");
+                .isNull();
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT remark FROM project_project WHERE id = UUID_TO_BIN(?)",
@@ -701,9 +771,9 @@ class ProjectImportIT {
                                 recovered.rows().getFirst().projectId().toString()))
                 .isEqualTo("导入备注");
         var detail = projectService.findDetail(actor, recovered.rows().getFirst().projectId());
-        assertThat(detail.importanceCode()).isEqualTo("KEY");
-        assertThat(detail.supportIndustryExpert()).isEqualTo("行业专家");
-        assertThat(detail.productSupportExpertNames()).containsExactly("张专家", "李专家");
+        assertThat(detail.importanceCode()).isEqualTo("NORMAL");
+        assertThat(detail.supportIndustryExpert()).isNull();
+        assertThat(detail.productSupportExpertNames()).isEmpty();
         imports.recoverStale();
         assertThat(imports.find(actor, preview.batchId()).importedRows()).isEqualTo(1);
     }
@@ -740,7 +810,7 @@ VALUES (UUID_TO_BIN(?),?,?,UUID_TO_BIN(?),?,true)
                         "客户名称",
                         "客户所属行业",
                         "项目名称",
-                        "省分负责人",
+                        "项目负责人",
                         "地市客户经理",
                         "项目建设内容",
                         "三化类别",

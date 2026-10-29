@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-29",
+  "unitAndArchitecture": {
+    "tests": 77,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "integration": {
+    "ProjectImportIT": 12,
+    "ProjectImportWizardIT": 7,
+    "failures": 0,
+    "errors": 0
+  },
+  "browser": {
+    "importCreationDraftApprovalAndProduction": 26,
+    "strictOwnerSourceRegression": 2,
+    "failures": 0
+  },
+  "build": "TypeScript 与 Vite 构建通过",
+  "notes": [
+    "模板表头与映射字段内容及顺序一致，19 列",
+    "无地市账号、省分账号导入成功",
+    "验证使用隔离 MySQL、MinIO，未写入 3307 应用库"
+  ]
+}

@@ -11,10 +11,23 @@ import java.util.List;
 import java.util.Map;
 
 class ProjectExcelReaderTest {
-    private static final List<String> HEADERS = List.of("省分", "地市", "客户名称", "客户所属行业",
-            "项目名称", "省分负责人", "地市客户经理", "项目建设内容", "三化类别",
-            "项目阶段", "项目总金额（万）", "网络化预计金额（万）", "格物预计金额（万）",
-            "大数据预计金额（万）", "万悟预计金额（万）");
+    private static final List<String> HEADERS =
+            List.of(
+                    "省分",
+                    "地市",
+                    "客户名称",
+                    "客户所属行业",
+                    "项目名称",
+                    "项目负责人",
+                    "地市客户经理",
+                    "项目建设内容",
+                    "三化类别",
+                    "项目阶段",
+                    "项目总金额（万）",
+                    "网络化预计金额（万）",
+                    "格物预计金额（万）",
+                    "大数据预计金额（万）",
+                    "万悟预计金额（万）");
 
     @Test
     void inspectionDoesNotTreatRepeatedDataOrSupportingSheetFormulasAsInvalidHeaders() throws Exception {

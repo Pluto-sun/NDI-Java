@@ -18,12 +18,6 @@ export function ProjectProfileForm({
   const [customerName, setCustomerName] = useState(project.customerName);
   const [industryCode, setIndustryCode] = useState(project.industryCode);
   const [customerNeed, setCustomerNeed] = useState(project.customerNeed);
-  const [constructionContentRaw, setConstructionContentRaw] = useState(
-    project.constructionContentRaw,
-  );
-  const [productPromotionContent, setProductPromotionContent] = useState(
-    project.productPromotionContent ?? '',
-  );
   const [remark, setRemark] = useState(project.remark ?? '');
   const [plannedBidMonth, setPlannedBidMonth] = useState(
     project.plannedBidMonth?.slice(0, 7) ?? '',
@@ -37,8 +31,6 @@ export function ProjectProfileForm({
     setCustomerName(project.customerName);
     setIndustryCode(project.industryCode);
     setCustomerNeed(project.customerNeed);
-    setConstructionContentRaw(project.constructionContentRaw);
-    setProductPromotionContent(project.productPromotionContent ?? '');
     setRemark(project.remark ?? '');
     setPlannedBidMonth(project.plannedBidMonth?.slice(0, 7) ?? '');
     setApplicationScenarioCodes(project.applicationScenarioCodes ?? []);
@@ -53,8 +45,11 @@ export function ProjectProfileForm({
         customerName: customerName.trim(),
         industryCode,
         customerNeed: customerNeed.trim(),
-        constructionContentRaw,
-        productPromotionContent,
+        constructionContentRaw:
+          project.constructionContentRaw === project.customerNeed
+            ? ''
+            : project.constructionContentRaw,
+        productPromotionContent: project.productPromotionContent ?? '',
         remark,
         plannedBidMonth,
         applicationScenarioCodes,
@@ -113,37 +108,15 @@ export function ProjectProfileForm({
                 onChange={(event) => setCustomerNeed(event.target.value)}
               />
             </label>
-            <details className="optional-details">
-              <summary>其他项目资料（选填）</summary>
-              <label>
-                原始项目建设内容
-                <textarea
-                  rows={3}
-                  maxLength={4000}
-                  value={constructionContentRaw}
-                  onChange={(event) => setConstructionContentRaw(event.target.value)}
-                  placeholder="清空后沿用客户需求"
-                />
-              </label>
-              <label>
-                产品推广内容
-                <textarea
-                  rows={3}
-                  maxLength={4000}
-                  value={productPromotionContent}
-                  onChange={(event) => setProductPromotionContent(event.target.value)}
-                />
-              </label>
-              <label>
-                备注
-                <textarea
-                  rows={3}
-                  maxLength={10000}
-                  value={remark}
-                  onChange={(event) => setRemark(event.target.value)}
-                />
-              </label>
-            </details>
+            <label>
+              备注（选填）
+              <textarea
+                rows={3}
+                maxLength={10000}
+                value={remark}
+                onChange={(event) => setRemark(event.target.value)}
+              />
+            </label>
             <label>
               拟招标月份（选填）
               <input
