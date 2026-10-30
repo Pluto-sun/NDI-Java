@@ -48,18 +48,7 @@ public class ProjectImportTaskCleanup {
     }
 
     public void release(ProjectImportTask task, boolean afterCommit) {
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCompletion(int status) {
-                        if ((status == STATUS_COMMITTED) == afterCommit) {
-                            try {
-                                files.delete(task.bucket(), task.objectKey());
-                            } catch (RuntimeException failure) {
-                                LOG.error("未完成导入源文件清理失败，任务编号：{}", task.id(), failure);
-                            }
-                        }
-                    }
-                });
+        com.pluto.ndi.shared.imports.ImportFileLifecycle.release(files,task.bucket(),task.objectKey(),afterCommit,
+                failure -> LOG.error("未完成导入源文件清理失败，任务编号：{}", task.id(), failure));
     }
 }

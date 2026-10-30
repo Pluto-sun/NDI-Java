@@ -79,17 +79,22 @@ export function ImportPreviewTable({
                 <td>{row.rowNumber}</td>
                 <td>
                   <strong className="import-cell-clamp">
-                    {cells['项目名称'] || '未填写项目名称'}
+                    {(config.rowTitleFields ?? ['项目名称'])
+                      .map((field) => cells[field])
+                      .filter(Boolean)
+                      .join(' · ') || '未填写标识'}
                   </strong>
                   <small>
-                    {cells['省分']} / {cells['地市']}
+                    {(config.rowLocationFields ?? ['省分', '地市'])
+                      .map((field) => cells[field] || '—')
+                      .join(' / ')}
                   </small>
                   <small>
                     {config.amountFields
                       .map((field) => cells[field])
                       .filter((value) => value?.trim())
                       .join(' / ') || '未填金额'}{' '}
-                    万元
+                    {config.amountUnit ?? '万元'}
                   </small>
                 </td>
                 <td>

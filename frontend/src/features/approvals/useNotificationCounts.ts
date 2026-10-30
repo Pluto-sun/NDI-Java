@@ -1,3 +1,4 @@
+import { revenueApi } from '../revenue/api';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -22,7 +23,16 @@ export function useNotificationCounts(actorId: string) {
       }
       inFlight = true;
       try {
-        const counts = await projectsApi.notificationCounts(controller.signal);
+        const [project, revenue] = await Promise.all([
+          projectsApi.notificationCounts(controller.signal),
+          revenueApi.counts(controller.signal),
+        ]);
+        const counts = {
+          ...project,
+          count: project.count + revenue.unread,
+          approvalUnreadCount: project.approvalUnreadCount + revenue.unread,
+          pendingApprovalCount: project.pendingApprovalCount + revenue.pending,
+        };
         if (active) setSnapshot({ actorId, counts, failed: false });
       } catch {
         if (active) setSnapshot({ actorId, counts: null, failed: true });

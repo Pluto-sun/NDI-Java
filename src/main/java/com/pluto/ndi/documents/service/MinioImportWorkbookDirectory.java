@@ -32,7 +32,7 @@ class MinioImportWorkbookDirectory implements ImportWorkbookDirectory {
     }
 
     public Stored storeFor(String module, UUID id, byte[] bytes) {
-        if (!java.util.Set.of("project", "production").contains(module))
+        if (!java.util.Set.of("project", "production", "revenue").contains(module))
             throw new IllegalArgumentException("导入模块无效");
         var location = new Stored(properties.bucket(), module + "-imports/" + id + ".xlsx");
         try (var stream = new ByteArrayInputStream(bytes)) {

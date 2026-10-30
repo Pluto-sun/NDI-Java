@@ -1,3 +1,4 @@
+import { RevenueNotices } from '../revenue/RevenueSignals';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -76,6 +77,7 @@ export function NotificationsPage() {
           <p>查看项目督办、申请进展与审批逾期提醒。</p>
         </div>
       </div>
+      <RevenueNotices />
       <ProjectInactivityNotices />
       <h2>审批通知</h2>
       <p className="subtle">消息标记已读不会完成审批；督办需转发或更新项目后闭环。</p>

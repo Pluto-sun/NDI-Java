@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-30",
+  "backend": {
+    "surefire": {
+      "suites": 30,
+      "tests": 82,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "failsafe": {
+      "suites": 26,
+      "tests": 157,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "fullVerify": "BUILD SUCCESS",
+    "auditFollowupVerify": "BUILD SUCCESS"
+  },
+  "frontendBuild": "passed",
+  "commands": [
+    "./mvnw --batch-mode verify",
+    "./mvnw --batch-mode -Dit.test=RevenueIT,ProductionPlanIT verify",
+    "npm --prefix frontend run build",
+    "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh revenue.spec.ts production.spec.ts import-projects.spec.ts lifecycle.spec.ts",
+    "NDI_E2E_SKIP_BUILD=1 NDI_E2E_AUTH_MODE=SESSION scripts/run-project-e2e.sh revenue.spec.ts import-wizard.spec.ts"
+  ],
+  "samplePreview": {
+    "totalRows": 14,
+    "validRows": 10,
+    "failedRows": 4,
+    "failedLines": [
+      {
+        "row": 12,
+        "errors": [
+          "条款编号必填"
+        ]
+      },
+      {
+        "row": 13,
+        "errors": [
+          "条款编号必填"
+        ]
+      },
+      {
+        "row": 14,
+        "errors": [
+          "条款编号必填"
+        ]
+      },
+      {
+        "row": 15,
+        "errors": [
+          "条款编号必填"
+        ]
+      }
+    ]
+  },
+  "browser": {
+    "projectProductionRevenue": {
+      "tests": 28,
+      "failures": 0
+    },
+    "sessionImport": {
+      "tests": 4,
+      "failures": 0
+    },
+    "viewports": [
+      "1440x1000",
+      "375x812"
+    ]
+  }
+}

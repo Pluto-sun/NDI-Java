@@ -1,5 +1,9 @@
+import { RevenuePending } from '../revenue/RevenueSignals';
 import { Select } from '../../shared/ui/Select';
-import { Modal } from '../../shared/ui/Modal';
+import {
+  ApprovalDecisionDialog,
+  ApprovalOpinionField,
+} from '../../shared/approval/ApprovalDecisionDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
@@ -95,6 +99,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
           </p>
         </div>
       </div>
+      <RevenuePending />
       <div className="action-row" role="group" aria-label="审批视图">
         <button
           type="button"
@@ -514,15 +519,11 @@ export function ApprovalDetailPage({
                   void decide(true);
                 }}
               >
-                <label>
-                  审核意见（通过时可选，驳回时必填）
-                  <textarea
-                    rows={3}
-                    maxLength={2000}
-                    value={opinion}
-                    onChange={(event) => setOpinion(event.target.value)}
-                  />
-                </label>
+                <ApprovalOpinionField
+                  label="审核意见（通过时可选，驳回时必填）"
+                  value={opinion}
+                  onChange={setOpinion}
+                />
                 <div className="form-actions">
                   <button
                     type="button"
@@ -555,29 +556,17 @@ export function ApprovalDetailPage({
             </div>
           )}
           {withdrawOpen && (
-            <Modal title="撤销审批申请" busy={busy} onClose={() => setWithdrawOpen(false)}>
-              <h2 tabIndex={-1}>确认撤销这条待审申请？</h2>
-              <p>撤销后不能继续审批，申请记录仍会保留。如需再次申请，请新建申请。</p>
-              {error && <Feedback tone="error">{error}</Feedback>}
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => setWithdrawOpen(false)}
-                >
-                  保留申请
-                </button>
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy}
-                  onClick={() => void withdraw()}
-                >
-                  {busy ? '撤销中…' : '确认撤销'}
-                </button>
-              </div>
-            </Modal>
+            <ApprovalDecisionDialog
+              title="撤销审批申请"
+              heading="确认撤销这条待审申请？"
+              description="撤销后不能继续审批，申请记录仍会保留。如需再次申请，请新建申请。"
+              busy={busy}
+              error={error}
+              onClose={() => setWithdrawOpen(false)}
+              onConfirm={withdraw}
+              cancelLabel="保留申请"
+              confirmLabel="确认撤销"
+            />
           )}
         </div>
       )}

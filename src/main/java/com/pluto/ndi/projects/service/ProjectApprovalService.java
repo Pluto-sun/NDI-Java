@@ -109,9 +109,9 @@ public class ProjectApprovalService {
                         command.approverId(), project.provinceId(), command.initiatorLevel())) {
             throw new BusinessException(ProjectErrorCode.APPROVER_INVALID);
         }
-        if (approvalRepository.existsByProjectIdAndStatus(projectId, ApprovalStatus.PENDING)) {
-            throw new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS);
-        }
+        com.pluto.ndi.shared.approval.ApprovalWorkflow.requireNoPending(
+                approvalRepository.existsByProjectIdAndStatus(projectId, ApprovalStatus.PENDING),
+                () -> new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS));
         var reason = requiredText(command.reason(), 2000);
         var changes = command.changeType() == MajorChangeType.FIELD_CHANGES
                 ? fieldChanges.validate(project, command.items()) : List.<ProjectApprovalFieldChange>of();
@@ -163,9 +163,8 @@ public class ProjectApprovalService {
         if (!actorId.equals(request.approverId()) || !isEligibleApprover(actorId, project, request)) {
             throw new BusinessException(ProjectErrorCode.APPROVAL_FORBIDDEN);
         }
-        if (!approved && (opinion == null || opinion.isBlank())) {
-            throw new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE);
-        }
+        com.pluto.ndi.shared.approval.ApprovalWorkflow.requireOpinion(approved, opinion,
+                () -> new BusinessException(ProjectErrorCode.INVALID_MAJOR_CHANGE));
         var at = Instant.now(clock);
         if (project.versionNo() != request.baseVersion()
                 || approved && request.changeType() == MajorChangeType.FIELD_CHANGES && fieldChanges.conflicts(project, request)
@@ -218,9 +217,8 @@ public class ProjectApprovalService {
         var project = lockedProject(projectId);
         var request = approvalRepository.findLockedById(requestId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.APPROVAL_NOT_FOUND));
-        if (request.status() != ApprovalStatus.PENDING) {
-            throw new BusinessException(ProjectErrorCode.APPROVAL_NOT_PENDING);
-        }
+        com.pluto.ndi.shared.approval.ApprovalWorkflow.requirePending(request.status().name(),
+                () -> new BusinessException(ProjectErrorCode.APPROVAL_NOT_PENDING));
         return new LockedApproval(project, request);
     }
 

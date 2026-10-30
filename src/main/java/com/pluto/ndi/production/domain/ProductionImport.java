@@ -1,12 +1,10 @@
 package com.pluto.ndi.production.domain;
 
-import com.pluto.ndi.shared.excel.ExcelWorkbook;
 
-import java.time.Instant;
 import java.util.*;
 
 /** 未完成任务是唯一可恢复状态，确认后不保存可续导批次。 */
-public final class ProductionImport {
+public final class ProductionImport extends com.pluto.ndi.shared.imports.ImportModels {
     private ProductionImport() {}
 
     public static final List<String> REQUIRED =
@@ -20,8 +18,6 @@ public final class ProductionImport {
         fields.add("项目状态");
         return List.copyOf(fields);
     }
-
-    public record Rule(String name, String requirement, String hint) {}
 
     public static List<Rule> rules() {
         return fields().stream()
@@ -39,39 +35,4 @@ public final class ProductionImport {
                                                         : "排产月份".equals(f) ? "yyyy-MM" : ""))
                 .toList();
     }
-
-    public record Configuration(
-            String sheetName, Integer headerRowNo, Map<String, String> fieldMapping) {}
-
-    public record Row(
-            int rowNumber,
-            String status,
-            String errorsJson,
-            UUID recordId,
-            String sourceCellsJson,
-            long revisionNo,
-            Object nameReview) {}
-
-    public record Batch(
-            UUID batchId,
-            String status,
-            int totalRows,
-            int validRows,
-            int failedRows,
-            int skippedRows,
-            int importedRows,
-            Instant confirmedAt,
-            List<Row> rows) {}
-
-    public record Task(
-            UUID id,
-            long version,
-            int step,
-            String fileName,
-            ExcelWorkbook.Inspection inspection,
-            Configuration configuration,
-            List<Integer> selectedRows,
-            Batch batch,
-            Instant updatedAt,
-            List<Rule> fieldRules) {}
 }

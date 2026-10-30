@@ -35,6 +35,8 @@ public final class ExcelWorkbook {
             var sheets = new ArrayList<SheetInfo>();
             if (wb.getNumberOfSheets() > 50) throw new IllegalArgumentException("工作表不能超过 50 个");
             for (var sheet : wb) {
+                int index = wb.getSheetIndex(sheet);
+                if (wb.isSheetHidden(index) || wb.isSheetVeryHidden(index)) continue;
                 var headers = new ArrayList<Header>();
                 for (int i = 0; i <= Math.min(100, sheet.getLastRowNum()); i++) {
                     var row = sheet.getRow(i);

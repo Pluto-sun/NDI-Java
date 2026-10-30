@@ -17,7 +17,7 @@ export function importWorkbook(rows: Record<string, string>[]): Buffer {
   const sheet = data
     .map(
       (cells, index) =>
-        `<row r="${index + 1}">${cells.map((value, column) => `<c r="${String.fromCharCode(65 + column)}${index + 1}" t="inlineStr"><is><t xml:space="preserve">${escape(value)}</t></is></c>`).join('')}</row>`,
+        `<row r="${index + 1}">${cells.map((value, column) => `<c r="${columnName(column)}${index + 1}" t="inlineStr"><is><t xml:space="preserve">${escape(value)}</t></is></c>`).join('')}</row>`,
     )
     .join('');
   const entries = {
@@ -70,4 +70,11 @@ function storedZip(entries: Record<string, string>): Buffer {
   end.writeUInt32LE(directory.length, 12);
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, directory, end]);
+}
+
+function columnName(column: number): string {
+  let result = '';
+  for (let value = column + 1; value > 0; value = Math.floor((value - 1) / 26))
+    result = String.fromCharCode(65 + ((value - 1) % 26)) + result;
+  return result;
 }

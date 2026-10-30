@@ -56,7 +56,7 @@ class SecurityConfig {
                                 new org.springframework.security.authorization.AuthorizationDecision(localActor))
                         .requestMatchers("/api/v1/auth/**").authenticated()
                         .requestMatchers("/api/v1/admin/**").authenticated()
-                        .requestMatchers("/api/v1/projects/**", "/api/v1/production/**").authenticated()
+                        .requestMatchers("/api/v1/projects/**", "/api/v1/production/**", "/api/v1/revenue/**").authenticated()
                         .anyRequest().denyAll());
         if (localActor) {
             http.csrf(AbstractHttpConfigurer::disable);

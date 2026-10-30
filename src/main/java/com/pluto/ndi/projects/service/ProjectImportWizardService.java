@@ -137,9 +137,7 @@ public class ProjectImportWizardService {
         var old = tasks.findLocked(actor).orElseThrow(ProjectImportWizardService::conflict);
         if (!old.id().equals(expectedTaskId)
                 || old.version() != version
-                || step < 1
-                || step > 3
-                || Math.abs(old.step() - step) > 1) throw conflict();
+                || !com.pluto.ndi.shared.imports.ImportWorkflow.validStep(old.step(), step)) throw conflict();
         if (old.batchId() != null
                 && !"PREVIEWED"
                         .equals(
@@ -193,10 +191,7 @@ public class ProjectImportWizardService {
             selection = null;
         }
         if (step == 3 && batch == null) throw conflict();
-        if (selection != null
-                && (selection.size() > 1000
-                        || new HashSet<>(selection).size() != selection.size()
-                        || selection.stream().anyMatch(n -> n == null || n < 1))) throw conflict();
+        if (!com.pluto.ndi.shared.imports.ImportWorkflow.validSelection(selection)) throw conflict();
         var next =
                 new ProjectImportTask(
                         old.id(),
@@ -311,13 +306,7 @@ public class ProjectImportWizardService {
         return bytes;
     }
 
-    private String sha(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
+    private String sha(byte[] bytes) { return com.pluto.ndi.shared.imports.ImportWorkflow.sha256(bytes); }
 
     private static BusinessException conflict() {
         return new BusinessException(ProjectErrorCode.IMPORT_TASK_CONFLICT);

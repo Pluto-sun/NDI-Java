@@ -11,7 +11,7 @@ public final class ProjectImportMappingRules {
     public static List<String> missing(
             Map<String, String> mapping, List<ProjectExcelReader.ExcelRow> rows) {
         var missing = new TreeSet<String>();
-        REQUIRED.stream().filter(field -> !mapped(mapping, field)).forEach(missing::add);
+        missing.addAll(com.pluto.ndi.shared.imports.ImportWorkflow.missing(mapping, REQUIRED));
         if (ProjectImportAmounts.fields().stream().noneMatch(field -> mapped(mapping, field)))
             missing.add("至少一项三化预计金额");
         for (var row : rows) {

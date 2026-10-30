@@ -35,6 +35,9 @@ export interface ImportWizardConfig {
   title: string;
   backTo: string;
   amountFields: string[];
+  amountUnit?: string;
+  rowTitleFields?: string[];
+  rowLocationFields?: string[];
   noDuplicateMessage: string;
   uploadHint: string;
   previewHint: string;

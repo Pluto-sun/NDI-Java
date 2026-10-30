@@ -57,6 +57,18 @@ const ProjectDetailPage = lazy(() =>
     default: module.ProjectDetailPage,
   })),
 );
+const RevenueListPage = lazy(() =>
+  import('../features/revenue/RevenuePages').then((m) => ({ default: m.RevenueListPage })),
+);
+const NewRevenuePage = lazy(() =>
+  import('../features/revenue/RevenuePages').then((m) => ({ default: m.NewRevenuePage })),
+);
+const ImportRevenuePage = lazy(() =>
+  import('../features/revenue/RevenuePages').then((m) => ({ default: m.ImportRevenuePage })),
+);
+const RevenueDetailPage = lazy(() =>
+  import('../features/revenue/RevenuePages').then((m) => ({ default: m.RevenueDetailPage })),
+);
 const ApprovalsPage = lazy(() =>
   import('../features/approvals/ApprovalsPage').then((module) => ({
     default: module.ApprovalsPage,
@@ -342,7 +354,10 @@ export function App() {
                 path="/workbench/capability"
                 element={<ModulePlaceholder title="能力指标驾驶舱" />}
               />
-              <Route path="/revenue" element={<ModulePlaceholder title="计收管理" />} />
+              <Route path="/revenue" element={<RevenueListPage />} />
+              <Route path="/revenue/new" element={<NewRevenuePage />} />
+              <Route path="/revenue/import" element={<ImportRevenuePage />} />
+              <Route path="/revenue/:id" element={<RevenueDetailPage me={me} />} />
               <Route path="/scheduling" element={<ProductionListPage />} />
               <Route path="/scheduling/new" element={<NewProductionPage />} />
               <Route path="/scheduling/import" element={<ImportProductionPage />} />

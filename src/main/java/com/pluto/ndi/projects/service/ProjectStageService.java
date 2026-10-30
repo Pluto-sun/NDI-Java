@@ -78,9 +78,9 @@ public class ProjectStageService {
                 || !identityDirectory.isEligibleStageApprover(command.approverId(), project.provinceId())) {
             throw new BusinessException(ProjectErrorCode.APPROVER_INVALID);
         }
-        if (approvalRepository.existsByProjectIdAndStatus(projectId, ApprovalStatus.PENDING)) {
-            throw new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS);
-        }
+        com.pluto.ndi.shared.approval.ApprovalWorkflow.requireNoPending(
+                approvalRepository.existsByProjectIdAndStatus(projectId, ApprovalStatus.PENDING),
+                () -> new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS));
         validateStage(project, command);
         var at = Instant.now(clock);
         var stageOccurredAt = command.stageOccurredOn().atStartOfDay(BUSINESS_ZONE).toInstant();

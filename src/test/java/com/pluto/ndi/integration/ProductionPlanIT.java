@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.ImportWorkbookDirectory;
 import com.pluto.ndi.production.domain.*;
-import com.pluto.ndi.production.domain.ProductionImport.*;
+import com.pluto.ndi.shared.imports.ImportModels.*;
 import com.pluto.ndi.production.mapper.ProductionPlanMapper;
 import com.pluto.ndi.production.service.*;
 import com.pluto.ndi.shared.web.BusinessException;
