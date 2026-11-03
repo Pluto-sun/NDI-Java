@@ -169,7 +169,7 @@ test('集团三步导入33字段、修正重复条款、只导入一次；接口
   expect(denied.status()).toBe(403);
 });
 
-test('具体组织直接认定，省分不能因集成省分而取得权限', async ({ page, request }) => {
+test('具体组织直接认定，省分不能因集成省分而取得权限', async ({ page, request }, testInfo) => {
   const row = {
     ...source('ORG-' + randomUUID()),
     省份名称: '具体组织',
@@ -197,4 +197,55 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
   await page.goto('/notifications?category=revenue');
   await expect(page.getByRole('heading', { name: '计收通知', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('revenue-notifications.png'), fullPage: true });
+});
+
+test('创建和导入统一按月账期、合同、条款及业务号码四项查重', async ({
+  page,
+  request,
+}, testInfo) => {
+  const contract = 'FOUR-KEY-' + randomUUID();
+  const first = source(contract);
+  await api<Entry>(request, ids.admin, '', { source: first });
+  await page.goto('/revenue/new');
+  await switchActor(page, ids.admin);
+  const reference = await api<Reference>(request, ids.admin, '/reference-data');
+  for (const [field, value] of Object.entries({ ...first, '业务号码/项目编号': '000010' })) {
+    if (field === '省份名称')
+      await page.getByRole('combobox', { name: '省份名称 *', exact: true }).selectOption(value);
+    else
+      await page
+        .getByLabel(field + (reference.required.includes(field) ? ' *' : '（选填）'), {
+          exact: true,
+        })
+        .fill(field === '月账期' ? '2026-10' : field === '费用账期' ? '2026-09' : value);
+  }
+  await page.getByRole('button', { name: '创建计收明细', exact: true }).click();
+  await expect(page).toHaveURL(/\/revenue\/[0-9a-f-]+$/);
+  const repeated = await request.post(root, {
+    headers: { 'X-NDI-Actor-Id': ids.admin },
+    data: { source: { ...first, '业务号码/项目编号': '000010' } },
+  });
+  expect(repeated.status()).toBe(409);
+  await page.goto('/revenue/import');
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '四字段.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook([
+      first,
+      { ...first, '业务号码/项目编号': '000011' },
+      { ...first, '业务号码/项目编号': '000012' },
+      { ...first, '业务号码/项目编号': '000011' },
+    ]),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByText('系统内已存在相同业务唯一键的记录', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('与文件内前序记录重复：业务唯一键相同', { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('four-key-preview.png'), fullPage: true });
+  await page.getByRole('button', { name: '确认导入 2 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  await page.goto('/revenue?search=' + contract);
+  await expect(page.locator('tbody tr')).toHaveCount(4);
 });

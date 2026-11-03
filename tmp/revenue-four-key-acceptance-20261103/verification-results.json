@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-03",
+  "migration": "V44",
+  "backendUnitTests": 84,
+  "revenueIntegrationTests": 12,
+  "browserTests": 8,
+  "failures": 0,
+  "frontendBuild": "passed",
+  "checks": [
+    "三字段相同但业务号码不同允许共存",
+    "四字段相同拒绝创建和导入",
+    "前导零、空值、大小写、完整2000字",
+    "库内、文件内及最终确认重查",
+    "同键及异键并发",
+    "V43旧数据升级后认定及版本保留"
+  ]
+}

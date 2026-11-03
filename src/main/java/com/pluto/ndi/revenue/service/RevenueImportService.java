@@ -57,7 +57,8 @@ public class RevenueImportService extends TabularImportEngine<RevenueFields.Sour
     }
 
     protected Object duplicateKey(RevenueFields.Source s) {
-        return List.of(s.month(), s.contractNo(), s.clauseNo());
+        return List.of(
+                s.month(), s.contractNo(), s.clauseNo(), s.fields().getOrDefault("业务号码/项目编号", ""));
     }
 
     protected boolean duplicate(RevenueFields.Source s) {
