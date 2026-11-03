@@ -65,9 +65,22 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             args.addValue("month", f.month() + "-01");
         }
         if (f.province() != null && !f.province().isBlank()) {
-            if (f.province().equals("ORGANIZATION"))
-                sql.append(" AND e.specific_organization=TRUE");
-            else {
+            if (f.province().equals("ORGANIZATION")) {
+                sql.append(
+                        " AND e.specific_organization=TRUE AND"
+                            + " COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"省份名称\"')),"
+                            + " '') <> :digitalTech");
+                args.addValue(
+                        "digitalTech",
+                        com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+            } else if (f.province().equals("DS_TECH")) {
+                sql.append(
+                        " AND e.specific_organization=TRUE AND"
+                            + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"省份名称\"'))=:digitalTech");
+                args.addValue(
+                        "digitalTech",
+                        com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+            } else {
                 sql.append(" AND e.province_id=UUID_TO_BIN(:province)");
                 args.addValue("province", f.province());
             }

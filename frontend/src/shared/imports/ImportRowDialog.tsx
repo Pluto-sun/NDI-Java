@@ -1,3 +1,4 @@
+import { Select } from '../ui/Select';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
@@ -19,7 +20,8 @@ export function ImportRowDialog({
   onClose: () => void;
   onSaved: (batch: ImportBatch) => void;
 }) {
-  const { api: projectsApi } = useImportWizard();
+  const config = useImportWizard();
+  const { api: projectsApi } = config;
   const [cells, setCells] = useState(() => sourceCells(row.sourceCellsJson));
   const [reason, setReason] = useState(row.nameReview?.reason ?? '');
   const [confirmed, setConfirmed] = useState(row.nameReview?.confirmed ?? false);
@@ -125,18 +127,48 @@ export function ImportRowDialog({
               {Object.entries(cells).map(([field, value]) => (
                 <label key={field}>
                   {field}
-                  <textarea
-                    rows={
-                      field.includes('内容') || field.includes('进展') || field === '下一步动作'
-                        ? 3
-                        : 1
-                    }
-                    value={value}
-                    maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
-                    onChange={(event) =>
-                      setCells((current) => ({ ...current, [field]: event.target.value }))
-                    }
-                  />
+                  {config.fieldOptions?.(field, cells) ? (
+                    <Select
+                      value={value}
+                      onChange={(event) =>
+                        setCells(
+                          (current) =>
+                            config.changeRowField?.(current, field, event.target.value) ?? {
+                              ...current,
+                              [field]: event.target.value,
+                            },
+                        )
+                      }
+                    >
+                      {!config.fieldOptions(field, cells)!.includes(value) && (
+                        <option value={value}>{value || '请选择'}</option>
+                      )}
+                      {config.fieldOptions(field, cells)!.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <textarea
+                      rows={
+                        field.includes('内容') || field.includes('进展') || field === '下一步动作'
+                          ? 3
+                          : 1
+                      }
+                      value={value}
+                      maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
+                      onChange={(event) =>
+                        setCells(
+                          (current) =>
+                            config.changeRowField?.(current, field, event.target.value) ?? {
+                              ...current,
+                              [field]: event.target.value,
+                            },
+                        )
+                      }
+                    />
+                  )}
                 </label>
               ))}
             </div>

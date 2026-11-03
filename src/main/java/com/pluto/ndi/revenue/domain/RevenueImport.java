@@ -22,23 +22,14 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
                                 new Rule(
                                         field,
                                         REQUIRED.contains(field) ? "REQUIRED" : "OPTIONAL",
-                                        field.equals("省份名称")
-                                                ? "标准省份或具体组织；--按具体组织处理"
-                                                : field.equals("地市/组织名称")
-                                                        ? "文本，具体组织必填，不限制为行政地市"
-                                                        : field.equals("月账期")
-                                                                        || field.equals("费用账期")
-                                                                ? "YYYYMM或YYYY-MM"
-                                                                : field.equals("条款金额")
-                                                                                || field.equals(
-                                                                                        com.pluto
-                                                                                                .ndi
-                                                                                                .revenue
-                                                                                                .util
-                                                                                                .RevenueFields
-                                                                                                .SOURCE_AMOUNT)
-                                                                        ? "元，最多两位小数，不进行税额换算"
-                                                                        : ""))
+                                        switch (field) {
+                                            case "省份名称" -> "标准省份、具体组织或数科；--按具体组织处理";
+                                            case "地市/组织名称" -> "具体组织必填；数科仅允许联通数字科技有限公司本部";
+                                            case "审签日期" -> "选填，YYYY-MM-DD或--（无日期）";
+                                            case "月账期", "费用账期" -> "YYYYMM或YYYY-MM";
+                                            case "条款金额", "产品本月计收不含税额/标品含税收入" -> "元，最多两位小数，不进行税额换算";
+                                            default -> "";
+                                        }))
                 .toList();
     }
 }

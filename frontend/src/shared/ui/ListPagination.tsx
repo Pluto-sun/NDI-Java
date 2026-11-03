@@ -7,7 +7,9 @@ export function ListPagination({
   totalPages,
   totalElements,
   onPageChange,
+  disabled = false,
 }: {
+  disabled?: boolean;
   label: string;
   page: number;
   totalPages: number;
@@ -21,7 +23,7 @@ export function ListPagination({
         <button
           type="button"
           className="secondary-button"
-          disabled={page === 0}
+          disabled={disabled || page === 0}
           onClick={() => onPageChange(page - 1)}
         >
           上一页
@@ -32,7 +34,7 @@ export function ListPagination({
         <button
           type="button"
           className="secondary-button"
-          disabled={page + 1 >= totalPages}
+          disabled={disabled || page + 1 >= totalPages}
           onClick={() => onPageChange(page + 1)}
         >
           下一页

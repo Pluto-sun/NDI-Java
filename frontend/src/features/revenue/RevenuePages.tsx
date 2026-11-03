@@ -1,3 +1,4 @@
+import { changeSourceField, sourceFieldOptions } from './sourceOptions';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -90,6 +91,7 @@ export function RevenueListPage() {
               </option>
             ))}
             <option value="ORGANIZATION">具体组织</option>
+            <option value="DS_TECH">数科</option>
           </Select>
         </label>
         <label>
@@ -291,6 +293,34 @@ export function NewRevenuePage() {
   );
 }
 export function ImportRevenuePage() {
+  const [reference, setReference] = useState<Reference | null>(null);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setError('');
+    revenueApi
+      .reference()
+      .then((value) => {
+        if (active) setReference(value);
+      })
+      .catch((cause) => {
+        if (active) setError(message(cause));
+      });
+    return () => {
+      active = false;
+    };
+  }, [revision]);
+  if (error)
+    return (
+      <Feedback tone="error">
+        {error}
+        <button className="text-button" onClick={() => setRevision((value) => value + 1)}>
+          重新加载导入字典
+        </button>
+      </Feedback>
+    );
+  if (!reference) return <Loading />;
   return (
     <ImportWizardPage
       config={{
@@ -298,6 +328,9 @@ export function ImportRevenuePage() {
         title: '计收',
         amountUnit: '元',
         backTo: '/revenue/new',
+        fieldOptions: (field, values) => sourceFieldOptions(field, values, reference),
+        changeRowField: (values, field, value) =>
+          changeSourceField(values, field, value, reference),
         amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入'],
         rowTitleFields: ['项目名称', '合同编号', '条款编号'],
         rowLocationFields: ['省份名称', '地市/组织名称'],

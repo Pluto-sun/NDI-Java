@@ -84,11 +84,21 @@ public class RevenueFields {
         values.put("月账期", month);
         if (!values.get("费用账期").isBlank()) values.put("费用账期", month(values.get("费用账期")));
         String province = values.get("省份名称");
-        boolean organization = Set.of("--", "具体组织").contains(province);
+        boolean organization =
+                Set.of("--", "具体组织").contains(province)
+                        || RevenueSourceOptions.FIXED_ORGANIZATIONS.containsKey(province);
         UUID provinceId = null;
         if (organization) {
-            values.put("省份名称", "具体组织");
-            if (values.get("地市/组织名称").isBlank()) throw invalid("具体组织必须填写地市/组织名称全称");
+            var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(province);
+            if (fixedOrganization != null) {
+                String provided = values.get("地市/组织名称");
+                if (!provided.isBlank() && !provided.equals(fixedOrganization))
+                    throw invalid(province + "的组织名称仅允许选择" + fixedOrganization);
+                values.put("地市/组织名称", fixedOrganization);
+            } else {
+                values.put("省份名称", "具体组织");
+                if (values.get("地市/组织名称").isBlank()) throw invalid("具体组织必须填写地市/组织名称全称");
+            }
         } else {
             var found =
                     organizations.findEnabledProvinces().stream()

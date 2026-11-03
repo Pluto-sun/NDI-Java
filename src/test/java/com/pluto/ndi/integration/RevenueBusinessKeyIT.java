@@ -72,7 +72,7 @@ class RevenueBusinessKeyIT {
         admin = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO identity_user_account(id,login_name,display_name,enabled)"
-                    + " VALUES(UUID_TO_BIN(?),?,'唯一键验收',TRUE)",
+                        + " VALUES(UUID_TO_BIN(?),?,'唯一键验收',TRUE)",
                 admin.toString(),
                 "revenue-key-" + admin);
         jdbc.update(
@@ -204,6 +204,39 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
             book.write(out);
             return out.toByteArray();
         }
+    }
+
+    @Test
+    void digitalTechIsAnIndependentSourceLabelWithFixedOrganizationAndOrganizationAccess() {
+        var source = source();
+        source.put("省份名称", "数科");
+        source.put("地市/组织名称", "");
+        source.put("审签日期", "--");
+        var entry = service.create(admin, source);
+        assertThat(entry.specificOrganization()).isTrue();
+        assertThat(entry.provinceId()).isNull();
+        assertThat(entry.source())
+                .containsEntry("省份名称", "数科")
+                .containsEntry("地市/组织名称", "联通数字科技有限公司本部")
+                .containsEntry("审签日期", "");
+        assertThat(service.reference(admin).fixedOrganizations())
+                .containsEntry("数科", "联通数字科技有限公司本部");
+        var digitalTech =
+                service.list(
+                        admin,
+                        new com.pluto.ndi.revenue.mapper.RevenueMapper.Filter(
+                                null, "DS_TECH", null, null, 0, 100));
+        assertThat(digitalTech.items()).extracting(e -> e.id()).contains(entry.id());
+        var organizations =
+                service.list(
+                        admin,
+                        new com.pluto.ndi.revenue.mapper.RevenueMapper.Filter(
+                                null, "ORGANIZATION", null, null, 0, 100));
+        assertThat(organizations.items()).extracting(e -> e.id()).doesNotContain(entry.id());
+        source.put("地市/组织名称", "其他组织");
+        assertThatThrownBy(() -> service.create(admin, source))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仅允许选择");
     }
 
     @Test

@@ -47,15 +47,45 @@ public final class ExcelDropdowns {
         String mapping = "_ndi_mapping_" + column;
         name(mapping, column, column + 1, Math.max(1, groups.size()));
         String parentCell = "$" + CellReference.convertNumToColString(index(parent)) + "2";
-        add(child, "INDIRECT(IFERROR(VLOOKUP(" + parentCell + "," + mapping
-                        + ",2,FALSE),\"" + empty + "\"))",
+        add(
+                child,
+                "INDIRECT(IFERROR(VLOOKUP("
+                        + parentCell
+                        + ","
+                        + mapping
+                        + ",2,FALSE),\""
+                        + empty
+                        + "\"))",
                 "先选择" + parent + "；修改后请重新选择" + child);
+    }
+
+    /** 指定父项限制为固定下拉，其他父项仍允许自由文本。 */
+    public void conditionalList(
+            String parent, String parentValue, String child, List<String> values) {
+        String range = writeList(child + "-" + parentValue, values);
+        String parentCell = "$" + CellReference.convertNumToColString(index(parent)) + "2";
+        String childCell = "$" + CellReference.convertNumToColString(index(child)) + "2";
+        add(
+                child,
+                "IF("
+                        + parentCell
+                        + "=\""
+                        + parentValue.replace("\"", "\"\"")
+                        + "\","
+                        + range
+                        + ","
+                        + childCell
+                        + ")",
+                "选择" + parentValue + "时使用固定组织，其余来源允许填写文本");
     }
 
     private String writeList(String field, List<String> values) {
         int column = nextColumn++;
-        var distinct = values.stream().filter(value -> value != null && !value.isBlank())
-                .distinct().toList();
+        var distinct =
+                values.stream()
+                        .filter(value -> value != null && !value.isBlank())
+                        .distinct()
+                        .toList();
         cell(0, column, field);
         for (int row = 0; row < distinct.size(); row++) cell(row + 1, column, distinct.get(row));
         String range = "_ndi_options_" + column;
@@ -66,9 +96,15 @@ public final class ExcelDropdowns {
     private void name(String value, int startColumn, int endColumn, int count) {
         var range = book.createName();
         range.setNameName(value);
-        range.setRefersToFormula("'" + options.getSheetName() + "'!$"
-                + CellReference.convertNumToColString(startColumn) + "$2:$"
-                + CellReference.convertNumToColString(endColumn) + "$" + (count + 1));
+        range.setRefersToFormula(
+                "'"
+                        + options.getSheetName()
+                        + "'!$"
+                        + CellReference.convertNumToColString(startColumn)
+                        + "$2:$"
+                        + CellReference.convertNumToColString(endColumn)
+                        + "$"
+                        + (count + 1));
     }
 
     private void cell(int row, int column, String value) {
@@ -79,8 +115,10 @@ public final class ExcelDropdowns {
 
     private void add(String field, String formula, String prompt) {
         var helper = target.getDataValidationHelper();
-        var validation = helper.createValidation(helper.createFormulaListConstraint(formula),
-                new CellRangeAddressList(1, 1000, index(field), index(field)));
+        var validation =
+                helper.createValidation(
+                        helper.createFormulaListConstraint(formula),
+                        new CellRangeAddressList(1, 1000, index(field), index(field)));
         // XSSF 将该开关反向写入 showDropDown，true 表示显示下拉箭头。
         validation.setSuppressDropDownArrow(true);
         validation.setEmptyCellAllowed(true);

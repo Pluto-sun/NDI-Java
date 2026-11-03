@@ -1,3 +1,4 @@
+import { changeSourceField, sourceFieldOptions } from './sourceOptions';
 import { Select } from '../../shared/ui/Select';
 import type { Reference } from './api';
 
@@ -27,7 +28,12 @@ export function RevenueFieldsForm({
         <Select
           required
           value={values[field] ?? ''}
-          onChange={(e) => onChange(field, e.target.value)}
+          onChange={(e) => {
+            const next = changeSourceField(values, field, e.target.value, reference);
+            Object.entries(next)
+              .filter(([key, value]) => value !== values[key])
+              .forEach(([key, value]) => onChange(key, value));
+          }}
         >
           <option value="">请选择</option>
           {reference.provinces.map((p) => (
@@ -36,6 +42,22 @@ export function RevenueFieldsForm({
             </option>
           ))}
           <option value="具体组织">具体组织</option>
+          {Object.keys(reference.fixedOrganizations ?? {}).map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </Select>
+      ) : field === '地市/组织名称' && reference.fixedOrganizations?.[values['省份名称']] ? (
+        <Select
+          value={values[field] || reference.fixedOrganizations[values['省份名称']]}
+          onChange={(e) => onChange(field, e.target.value)}
+        >
+          {sourceFieldOptions(field, values, reference)!.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
         </Select>
       ) : (
         <input
@@ -44,18 +66,13 @@ export function RevenueFieldsForm({
             reference.required.includes(field) ||
             (field === '地市/组织名称' && values['省份名称'] === '具体组织')
           }
-          type={
-            ['月账期', '费用账期'].includes(field)
-              ? 'month'
-              : field === '审签日期'
-                ? 'date'
-                : 'text'
-          }
+          type={['月账期', '费用账期'].includes(field) ? 'month' : 'text'}
           inputMode={
             field === '条款金额' || field === '产品本月计收不含税额/标品含税收入'
               ? 'decimal'
               : undefined
           }
+          placeholder={field === '审签日期' ? 'YYYY-MM-DD 或 --（无日期）' : undefined}
           maxLength={2000}
           onChange={(e) => onChange(field, e.target.value)}
         />

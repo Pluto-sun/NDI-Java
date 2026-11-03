@@ -238,7 +238,7 @@ test('库内高相似项目须弹窗确认和差异说明，未处理前不能�
   expect(result.rows[0].nameReview!.confirmed).toBeTruthy();
 });
 
-test('首步也可恢复，百行预检按窗口滚动，从头导入放弃原任务', async ({ page, request }) => {
+test('首步也可恢复，九十行预检按10条分页，从头导入放弃原任务', async ({ page, request }) => {
   test.setTimeout(90_000);
   const base = await sourceRow(request, '临时');
   await enter(page);
@@ -253,7 +253,11 @@ test('首步也可恢复，百行预检按窗口滚动，从头导入放弃原�
   await expect(page.getByText('已上传：')).toBeVisible();
   await preview(page);
   const table = page.getByRole('table', { name: '项目导入预检结果', exact: true });
-  expect(await table.getByRole('row').count()).toBeLessThan(30);
+  await expect(table.locator('tbody tr')).toHaveCount(10);
+  const pager = page.getByRole('navigation', { name: '项目导入预检分页', exact: true });
+  for (let index = 0; index < 8; index++)
+    await pager.getByRole('button', { name: '下一页', exact: true }).click();
+  await expect(pager).toContainText('第 9 / 9 页');
   const viewport = page.getByLabel('预检结果，可滚动', { exact: true });
   await viewport.evaluate((element) => {
     element.scrollTop = element.scrollHeight;

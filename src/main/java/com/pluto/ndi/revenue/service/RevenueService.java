@@ -6,6 +6,7 @@ import com.pluto.ndi.revenue.domain.*;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.mapper.RevenueMapper;
 import com.pluto.ndi.revenue.util.RevenueFields;
+import com.pluto.ndi.revenue.util.RevenueSourceOptions;
 import com.pluto.ndi.shared.audit.AuditWriter;
 import com.pluto.ndi.shared.web.BusinessException;
 
@@ -49,7 +50,8 @@ public class RevenueService {
             List<ProvinceOption> provinces,
             List<String> fields,
             List<String> required,
-            boolean canCreate) {}
+            boolean canCreate,
+            Map<String, String> fixedOrganizations) {}
 
     @Transactional(readOnly = true)
     public Reference reference(UUID actor) {
@@ -57,7 +59,8 @@ public class RevenueService {
                 organizations.findEnabledProvinces(),
                 RevenueFields.FIELDS,
                 RevenueFields.FIELDS.stream().filter(RevenueFields.REQUIRED::contains).toList(),
-                access.require(actor).creator());
+                access.require(actor).creator(),
+                RevenueSourceOptions.FIXED_ORGANIZATIONS);
     }
 
     @Transactional(readOnly = true)
@@ -71,7 +74,9 @@ public class RevenueService {
         if (f.state() != null
                 && !Set.of("", "UNRECOGNIZED", "PENDING", "RECOGNIZED", "CHANGE_PENDING")
                         .contains(f.state())) throw invalid("办理状态无效");
-        if (f.province() != null && !f.province().isBlank() && !f.province().equals("ORGANIZATION"))
+        if (f.province() != null
+                && !f.province().isBlank()
+                && !Set.of("ORGANIZATION", "DS_TECH").contains(f.province()))
             try {
                 UUID.fromString(f.province());
             } catch (IllegalArgumentException e) {

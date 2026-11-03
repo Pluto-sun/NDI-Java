@@ -76,7 +76,7 @@
   color: #226044;
 }
 .import-preview-scroll {
-  height: min(52vh, 540px);
+  max-height: min(52vh, 540px);
   overflow: auto;
   margin-top: 10px;
 }
@@ -207,4 +207,30 @@
 
 .import-wizard-footer > .action-row {
   margin-left: auto;
+}
+
+.import-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.import-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.import-status-filters button {
+  padding: 7px 12px;
+}
+.import-status-filters button[aria-pressed='true'] {
+  background: var(--red-soft);
+  border-color: var(--red);
+  color: var(--red-dark);
+}
+.import-status-filters button span {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
 }

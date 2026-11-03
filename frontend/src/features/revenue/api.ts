@@ -25,6 +25,7 @@ export interface Entry {
   recognizedAt: string | null;
 }
 export interface Reference {
+  fixedOrganizations: Record<string, string>;
   provinces: { id: string; name: string }[];
   fields: string[];
   required: string[];

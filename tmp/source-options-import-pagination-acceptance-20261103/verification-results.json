@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-03",
+  "frontendBuild": "passed",
+  "unitTests": 87,
+  "integrationTests": 15,
+  "browserRegressionTests": 36,
+  "finalLayoutTests": 8,
+  "failures": 0,
+  "viewports": [
+    "1440x1000",
+    "375x812"
+  ],
+  "checks": [
+    "--审签日期归一为空",
+    "数科固定组织和字典",
+    "模板省份及条件组织下拉",
+    "三个模块状态筛选和10条分页",
+    "跨页选择与行修正归类",
+    "90行预检及暂存恢复"
+  ]
+}

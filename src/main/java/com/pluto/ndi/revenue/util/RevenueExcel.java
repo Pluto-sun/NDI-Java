@@ -80,15 +80,23 @@ public final class RevenueExcel {
             var provinces =
                     new ArrayList<>(reference.provinces().stream().map(p -> p.name()).toList());
             provinces.add("具体组织");
+            provinces.addAll(reference.fixedOrganizations().keySet());
             dropdowns.list("省份名称", provinces);
+            reference
+                    .fixedOrganizations()
+                    .forEach(
+                            (province, organization) ->
+                                    dropdowns.conditionalList(
+                                            "省份名称", province, "地市/组织名称", List.of(organization)));
             var notes = book.createSheet("填写说明");
             var lines =
                     List.of(
                             "来源金额单位：元，最多两位小数；不能把空值或--自动当作0。",
                             "必填：月账期、省份名称、合同编号、条款编号、条款金额、产品本月计收不含税额/标品含税收入。",
-                            "月账期、费用账期支持YYYYMM或YYYY-MM；审签日期支持Excel日期或YYYY-MM-DD。",
+                            "月账期、费用账期支持YYYYMM或YYYY-MM；审签日期选填，支持Excel日期、YYYY-MM-DD或--（无日期）。",
                             "月账期＋合同编号＋条款编号＋业务号码/项目编号全局唯一；未填写业务号码/项目编号时按空值参与判重。",
                             "具体组织必须填写地市/组织名称全称；标准省份下地市仍为文本。",
+                            "省份名称选择数科时，组织名称仅允许联通数字科技有限公司本部；未填时系统自动补齐。",
                             "仅导入33项来源字段，不导入认定金额、通报项目名称、项目状态及对应省分（集成）。",
                             "业务标识请用文本保存以保留前导零；单次最多1000行。");
             for (int i = 0; i < lines.size(); i++)
