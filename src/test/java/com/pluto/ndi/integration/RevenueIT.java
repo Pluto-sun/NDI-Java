@@ -528,20 +528,31 @@ class RevenueIT {
         assertThat(imports.current(admin).step()).isEqualTo(3);
         assertThatThrownBy(() -> imports.batch(group, preview.batch().batchId()))
                 .isInstanceOf(BusinessException.class);
-        var fixed = imports.revise(admin, preview.batch().batchId(), 4, 0, Map.of("条款编号", "002"));
+        var fixed = imports.revise(admin, preview.batch().batchId(), 4, 0, Map.of("条款编号", "--"));
         assertThat(fixed.validRows()).isEqualTo(2);
         var completed = imports.confirm(admin, preview.batch().batchId(), List.of(2, 4));
         assertThat(completed.importedRows()).isEqualTo(2);
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM system_audit_event WHERE"
-                                    + " resource_id=UUID_TO_BIN(?) AND"
-                                    + " resource_type='REVENUE_IMPORT' AND"
-                                    + " event_type='REVENUE_IMPORT_COMPLETED'",
+                                        + " resource_id=UUID_TO_BIN(?) AND"
+                                        + " resource_type='REVENUE_IMPORT' AND"
+                                        + " event_type='REVENUE_IMPORT_COMPLETED'",
                                 Integer.class,
                                 completed.batchId().toString()))
                 .isEqualTo(1);
         assertThat(completed.skippedRows()).isEqualTo(1);
+        var noClause =
+                service.detail(
+                        admin,
+                        completed.rows().stream()
+                                .filter(row -> row.rowNumber() == 4)
+                                .findFirst()
+                                .orElseThrow()
+                                .recordId());
+        assertThat(noClause.source().get("条款编号")).isEqualTo("--");
+        assertThatThrownBy(() -> service.create(admin, noClause.source()))
+                .isInstanceOf(BusinessException.class);
         assertThat(imports.current(admin)).isNull();
         var imported = service.detail(admin, completed.rows().getFirst().recordId());
         assertThat(imported.source().get("业务号码/项目编号")).isEqualTo("000042");

@@ -240,6 +240,45 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
     }
 
     @Test
+    void clauseNormalizationIsSharedByCreationWorkbookDuplicatesAndFinalInsertion()
+            throws Exception {
+        var source = source();
+        source.put("条款编号", "002");
+        source.put("审签日期", "2026/7/20 0:00:00");
+        var saved = service.create(admin, source);
+        assertThat(saved.clauseNo()).isEqualTo("2");
+        assertThat(saved.source()).containsEntry("条款编号", "2").containsEntry("审签日期", "2026-07-20");
+        var same = new LinkedHashMap<>(source);
+        same.put("条款编号", "2");
+        assertThatThrownBy(() -> service.create(admin, same)).isInstanceOf(BusinessException.class);
+        var different = withBusiness(same, "OTHER");
+        assertThat(service.create(admin, different).id()).isNotEqualTo(saved.id());
+        var first = source();
+        first.put("条款编号", "0003");
+        first.put("审签日期", "2026-07-20 00:00:00");
+        var duplicate = new LinkedHashMap<>(first);
+        duplicate.put("条款编号", "3");
+        var task =
+                imports.upload(
+                        admin, "数字条款.xlsx", workbook(List.of(first, duplicate, same)), null, null);
+        var mapping = new LinkedHashMap<String, String>();
+        RevenueFields.FIELDS.forEach(f -> mapping.put(f, f));
+        var config = new Configuration("来源数据", 1, mapping);
+        var second = imports.save(admin, task.id(), task.version(), 2, config, null);
+        var preview = imports.save(admin, task.id(), second.version(), 3, config, null);
+        assertThat(preview.batch().validRows()).isEqualTo(1);
+        assertThat(preview.batch().failedRows()).isEqualTo(2);
+        assertThat(preview.batch().rows().get(1).errorsJson()).contains("文件内前序记录重复");
+        assertThat(preview.batch().rows().get(2).errorsJson()).contains("系统内已存在");
+        var done = imports.confirm(admin, preview.batch().batchId(), List.of(2));
+        var imported = service.detail(admin, done.rows().getFirst().recordId());
+        assertThat(imported.clauseNo()).isEqualTo("3");
+        assertThat(imported.source())
+                .containsEntry("条款编号", "3")
+                .containsEntry("审签日期", "2026-07-20");
+    }
+
+    @Test
     void concurrentIdenticalKeysHaveOneWinnerWhileDifferentBusinessNumbersBothSucceed()
             throws Exception {
         var source = source();

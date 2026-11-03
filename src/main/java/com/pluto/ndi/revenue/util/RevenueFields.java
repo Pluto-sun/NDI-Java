@@ -75,7 +75,10 @@ public class RevenueFields {
         for (var field : FIELDS) {
             var value = Objects.toString(input.get(field), "").strip();
             if (value.length() > 2000) throw invalid(field + "不得超过2000字");
-            values.put(field, value.equals("--") && !field.equals("省份名称") ? "" : value);
+            // 条款编号可用--明确表示无条款编号，不能按普通缺失占位符清空。
+            values.put(
+                    field,
+                    value.equals("--") && !Set.of("省份名称", "条款编号").contains(field) ? "" : value);
         }
         for (var field : FIELDS)
             if (REQUIRED.contains(field) && values.get(field).isBlank())
@@ -113,18 +116,12 @@ public class RevenueFields {
         }
         for (var field : List.of("合同编号", "条款编号"))
             if (values.get(field).length() > 200) throw invalid(field + "不得超过200字");
+        values.put("条款编号", RevenueSourceNormalizer.clauseNumber(values.get("条款编号")));
         var clause = amount(values.get("条款金额"), "条款金额", true);
         var source = amount(values.get(SOURCE_AMOUNT), SOURCE_AMOUNT, false);
         values.put("条款金额", clause.toPlainString());
         values.put(SOURCE_AMOUNT, source.toPlainString());
-        if (!values.get("审签日期").isBlank()) {
-            try {
-                values.put(
-                        "审签日期", LocalDate.parse(values.get("审签日期").replace('/', '-')).toString());
-            } catch (DateTimeParseException e) {
-                throw invalid("审签日期须为有效的YYYY-MM-DD日期");
-            }
-        }
+        values.put("审签日期", RevenueSourceNormalizer.signatureDate(values.get("审签日期")));
         return new Source(
                 Collections.unmodifiableMap(values),
                 month,

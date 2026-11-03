@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-03",
+  "migration": "V45",
+  "backendUnitAndArchitectureTests": 90,
+  "supplementalNormalizerUnitTests": 4,
+  "integrationTests": 16,
+  "browserTests": 12,
+  "frontendBuild": "passed",
+  "failures": 0,
+  "localReadOnlyCollisionGroups": 0,
+  "checks": [
+    "纯数字条款去前导零及大整数",
+    "--和混合条款保留",
+    "常见日期时间严格校验及日期归一",
+    "创建、文件内与库内重复",
+    "Excel数值条款及其他标识前导零",
+    "V45历史归一保留版本认定与待审申请",
+    "旧数据冲突原子失败保留原记录"
+  ]
+}

@@ -72,7 +72,13 @@ export function RevenueFieldsForm({
               ? 'decimal'
               : undefined
           }
-          placeholder={field === '审签日期' ? 'YYYY-MM-DD 或 --（无日期）' : undefined}
+          placeholder={
+            field === '条款编号'
+              ? '纯数字去除前导零；无条款填--'
+              : field === '审签日期'
+                ? '日期、日期时间或 --（无日期）'
+                : undefined
+          }
           maxLength={2000}
           onChange={(e) => onChange(field, e.target.value)}
         />
