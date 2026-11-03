@@ -509,7 +509,7 @@ export function ProjectsPage({
           >
             <table className="project-list-table" aria-label="项目清单">
               <colgroup>
-                {[260, 180, 200, 180, 110, 180, 140, 200, 130].map((width, index) => (
+                {[320, 120, 180, 180, 110, 130, 112, 180, 120].map((width, index) => (
                   <col key={index} style={{ width }} />
                 ))}
               </colgroup>

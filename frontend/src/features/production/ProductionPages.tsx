@@ -1,4 +1,5 @@
 import './production.css';
+import { ListPagination } from '../../shared/ui/ListPagination';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Page } from '../../shared/api/http';
@@ -162,7 +163,31 @@ export function ProductionListPage() {
       ) : (
         <section className="panel table-panel">
           <div className="table-scroll">
-            <table className="production-table">
+            <table
+              className="production-table"
+              aria-label="排产计划清单"
+              style={{
+                width: reference?.writable ? 1512 : 1412,
+                minWidth: reference?.writable ? 1512 : 1412,
+              }}
+            >
+              <colgroup>
+                {[
+                  100,
+                  112,
+                  124,
+                  260,
+                  136,
+                  140,
+                  140,
+                  140,
+                  140,
+                  120,
+                  ...(reference?.writable ? [100] : []),
+                ].map((width, index) => (
+                  <col key={index} style={{ width }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   <th>接口人</th>
@@ -171,7 +196,7 @@ export function ProductionListPage() {
                   <th>项目名称 / 客户名称</th>
                   <th>三化类别</th>
                   {categories.map((c) => (
-                    <th key={c.code}>
+                    <th key={c.code} className="numeric">
                       {c.field}
                       <small>万元</small>
                     </th>
@@ -245,24 +270,13 @@ export function ProductionListPage() {
           {!result?.items.length && (
             <div className="empty-state">暂无排产记录，调整筛选条件或新增排产。</div>
           )}
-          <div className="admin-pager">
-            <span>共 {result?.totalElements ?? 0} 条</span>
-            <button
-              className="secondary-button"
-              disabled={!result?.page}
-              onClick={() => paginate((result?.page ?? 0) - 1)}
-            >
-              上一页
-            </button>
-            <span>第 {(result?.page ?? 0) + 1} 页</span>
-            <button
-              className="secondary-button"
-              disabled={!result || result.page + 1 >= result.totalPages}
-              onClick={() => paginate((result?.page ?? 0) + 1)}
-            >
-              下一页
-            </button>
-          </div>
+          <ListPagination
+            label="排产计划"
+            page={result?.page ?? 0}
+            totalPages={result?.totalPages ?? 0}
+            totalElements={result?.totalElements ?? 0}
+            onPageChange={paginate}
+          />
         </section>
       )}
       {action && reference && (

@@ -30,7 +30,7 @@
   width: auto;
 }
 .production-table {
-  min-width: 1280px;
+  table-layout: fixed;
 }
 .production-table th small,
 .production-table td small {
@@ -39,8 +39,12 @@
   font-size: 11px;
   margin-top: 4px;
 }
+.production-table th,
 .production-table td {
-  vertical-align: middle;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.6;
 }
 .production-table .numeric {
   font-variant-numeric: tabular-nums;

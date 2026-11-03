@@ -1,0 +1,26 @@
+.list-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 16px 18px;
+  color: var(--muted);
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+.list-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.list-pagination span {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.list-pagination .secondary-button {
+  padding: 7px 12px;
+  min-height: 34px;
+  white-space: nowrap;
+  flex: none;
+}

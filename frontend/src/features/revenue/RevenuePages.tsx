@@ -13,6 +13,7 @@ import {
   type Listing,
 } from './api';
 import './revenue.css';
+import { ListPagination } from '../../shared/ui/ListPagination';
 export { RevenueDetailPage } from './RevenueDetailPage';
 const message = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试');
 export function RevenueListPage() {
@@ -197,33 +198,17 @@ export function RevenueListPage() {
             </table>
             {data.items.length === 0 && <p className="empty-state">暂无计收数据</p>}
           </div>
-          <div className="pagination">
-            <button
-              className="secondary-button"
-              disabled={data.page === 0}
-              onClick={() => {
-                const p = new URLSearchParams(params);
-                p.set('page', String(data.page - 1));
-                setParams(p);
-              }}
-            >
-              上一页
-            </button>
-            <span>
-              第 {data.page + 1} / {Math.max(1, data.totalPages)} 页，共 {data.totalElements} 条
-            </span>
-            <button
-              className="secondary-button"
-              disabled={data.page + 1 >= data.totalPages}
-              onClick={() => {
-                const p = new URLSearchParams(params);
-                p.set('page', String(data.page + 1));
-                setParams(p);
-              }}
-            >
-              下一页
-            </button>
-          </div>
+          <ListPagination
+            label="计收列表"
+            page={data.page}
+            totalPages={data.totalPages}
+            totalElements={data.totalElements}
+            onPageChange={(page) => {
+              const next = new URLSearchParams(params);
+              next.set('page', String(page));
+              setParams(next);
+            }}
+          />
         </>
       ) : (
         !error && <Loading />

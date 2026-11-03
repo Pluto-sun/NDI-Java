@@ -101,7 +101,9 @@ test('项目清单固定列宽完整换行，详情金额摘要紧凑且主档�
       })),
     );
   expect(cells).toHaveLength(9);
-  expect(cells[1].width).toBeCloseTo(180, 0);
+  expect(cells.map((cell) => Math.round(cell.width))).toEqual([
+    320, 120, 180, 180, 110, 130, 112, 180, 120,
+  ]);
   expect(cells.every((c) => c.fits && c.whiteSpace === 'normal')).toBeTruthy();
   await table.screenshot({ path: testInfo.outputPath('project-table.png') });
   await table.getByRole('link', { name, exact: true }).click();
