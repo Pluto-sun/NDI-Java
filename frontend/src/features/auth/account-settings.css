@@ -1,0 +1,22 @@
+.account-profile-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.account-profile-heading h2 {
+  margin: 0;
+}
+.account-profile-heading .secondary-button {
+  padding: 8px 14px;
+}
+.account-password-form .form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.account-password-form > p {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}

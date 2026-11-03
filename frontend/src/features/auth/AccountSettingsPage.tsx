@@ -1,3 +1,5 @@
+import { Modal } from '../../shared/ui/Modal';
+import './account-settings.css';
 import { useState } from 'react';
 import { authApi, type AccountProfile } from './api';
 import { Feedback } from '../../shared/ui/Feedback';
@@ -11,6 +13,8 @@ export function AccountSettingsPage({
   onUpdated: (user: AccountProfile) => void;
   onPasswordChanged: () => void;
 }) {
+  const [passwordOpen, setPasswordOpen] = useState(false);
+
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [email, setEmail] = useState(profile.email ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -20,6 +24,13 @@ export function AccountSettingsPage({
   const [passwordError, setPasswordError] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState<'profile' | 'password' | null>(null);
+  function closePassword() {
+    setPasswordOpen(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+  }
   return (
     <>
       <div className="page-heading">
@@ -50,7 +61,20 @@ export function AccountSettingsPage({
           }
         }}
       >
-        <h2>基本资料</h2>
+        <div className="account-profile-heading">
+          <h2>基本资料</h2>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy !== null}
+            onClick={() => {
+              setPasswordError('');
+              setPasswordOpen(true);
+            }}
+          >
+            修改密码
+          </button>
+        </div>
         <p>登录账号：{profile.loginName}。下方姓名为页面展示的用户名，修改后不改变登录账号。</p>
         <div className="form-grid">
           <label>
@@ -82,91 +106,100 @@ export function AccountSettingsPage({
           </button>
         </div>
       </form>
-      <form
-        className="panel form-panel account-password-panel"
-        aria-busy={busy === 'password'}
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setPasswordError('');
-          if (newPassword !== confirmPassword) {
-            setPasswordError('两次输入的新密码不一致。');
-            return;
-          }
-          if (newPassword === currentPassword) {
-            setPasswordError('新密码不能与当前密码相同。');
-            return;
-          }
-          setBusy('password');
-          try {
-            await authApi.changePassword(currentPassword, newPassword);
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
-            onPasswordChanged();
-          } catch (cause) {
-            setPasswordError(cause instanceof Error ? cause.message : '密码修改失败');
-          } finally {
-            setBusy(null);
-          }
-        }}
-      >
-        <h2>修改密码</h2>
-        <p id="password-help">
-          新密码为 6 至 128 个字符。修改成功后，所有已登录设备都会退出，需要重新登录。
-        </p>
-        <input
-          type="text"
-          name="username"
-          autoComplete="username"
-          value={profile.loginName}
-          readOnly
-          hidden
-        />
-        <div className="form-grid">
-          <label>
-            当前密码
+      {passwordOpen && (
+        <Modal title="修改密码" busy={busy === 'password'} onClose={closePassword}>
+          <form
+            className="account-password-form"
+            aria-busy={busy === 'password'}
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setPasswordError('');
+              if (newPassword !== confirmPassword) {
+                setPasswordError('两次输入的新密码不一致。');
+                return;
+              }
+              if (newPassword === currentPassword) {
+                setPasswordError('新密码不能与当前密码相同。');
+                return;
+              }
+              setBusy('password');
+              try {
+                await authApi.changePassword(currentPassword, newPassword);
+                closePassword();
+                onPasswordChanged();
+              } catch (cause) {
+                setPasswordError(cause instanceof Error ? cause.message : '密码修改失败');
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            <p id="password-help">
+              新密码为 6 至 128 个字符。修改成功后，所有已登录设备都会退出，需要重新登录。
+            </p>
             <input
-              type="password"
-              autoComplete="current-password"
-              required
-              maxLength={128}
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={profile.loginName}
+              readOnly
+              hidden
             />
-          </label>
-          <label>
-            新密码
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={6}
-              maxLength={128}
-              aria-describedby="password-help"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </label>
-          <label>
-            确认新密码
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={6}
-              maxLength={128}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
-          </label>
-        </div>
-        {passwordError && <Feedback tone="error">{passwordError}</Feedback>}
-        <div className="form-actions">
-          <button className="primary-button" disabled={busy !== null}>
-            {busy === 'password' ? '正在修改…' : '修改密码并重新登录'}
-          </button>
-        </div>
-      </form>
+            <div className="form-grid">
+              <label>
+                当前密码
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={128}
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                />
+              </label>
+              <label>
+                新密码
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={6}
+                  maxLength={128}
+                  aria-describedby="password-help"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+              </label>
+              <label>
+                确认新密码
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={6}
+                  maxLength={128}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                />
+              </label>
+            </div>
+            {passwordError && <Feedback tone="error">{passwordError}</Feedback>}
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy !== null}
+                onClick={closePassword}
+              >
+                取消
+              </button>
+              <button className="primary-button" disabled={busy !== null}>
+                {busy === 'password' ? '正在修改…' : '修改密码并重新登录'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </>
   );
 }

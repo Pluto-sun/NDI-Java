@@ -82,8 +82,9 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
     page.getByRole('heading', { name: '当前生效认定', exact: true }).locator('..'),
   ).toContainText('尚无生效认定');
   await switchActor(page, reviewer);
-  await page.goto('/approvals');
+  await page.goto('/approvals?business=revenue');
   await expect(page.getByRole('heading', { name: '计收审核待办', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('revenue-inbox.png'), fullPage: true });
   await page.goto('/revenue/' + id);
   await page.getByRole('button', { name: '通过', exact: true }).click();
   const approval = page.getByRole('dialog', { name: '通过计收认定申请', exact: true });
@@ -193,6 +194,7 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
   });
   expect(denied.status()).toBe(403);
   await switchActor(page, ids.reporter);
-  await page.goto('/notifications');
+  await page.goto('/notifications?category=revenue');
   await expect(page.getByRole('heading', { name: '计收通知', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('revenue-notifications.png'), fullPage: true });
 });

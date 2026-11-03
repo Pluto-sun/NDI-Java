@@ -48,6 +48,18 @@ test('正式登录、资料保存、重新加载、退出及修改密码撤销�
     await page.getByLabel('密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '登录', exact: true }).click();
     await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
+    await expect(page.getByLabel('当前密码', { exact: true })).toHaveCount(0);
+    const passwordButton = page.getByRole('button', { name: '修改密码', exact: true });
+    await passwordButton.click();
+    const passwordDialog = page.getByRole('dialog', { name: '修改密码', exact: true });
+    await expect(passwordDialog).toBeVisible();
+    await passwordDialog.getByLabel('当前密码', { exact: true }).fill('cancelled-draft');
+    await page.keyboard.press('Escape');
+    await expect(passwordDialog).toHaveCount(0);
+    await expect(passwordButton).toBeFocused();
+    await passwordButton.click();
+    await expect(passwordDialog.getByLabel('当前密码', { exact: true })).toHaveValue('');
+    await passwordDialog.screenshot({ path: testInfo.outputPath('password-dialog.png') });
     await page.getByLabel('当前密码', { exact: true }).fill(password);
     await page.getByLabel('新密码', { exact: true }).fill('changed-e2e-password');
     await page.getByLabel('确认新密码', { exact: true }).fill('mismatch-password');

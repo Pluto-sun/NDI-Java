@@ -1,6 +1,9 @@
+import './message-center.css';
+import { MessageCenterTabs } from '../../shared/ui/MessageCenterTabs';
+import { ListPagination } from '../../shared/ui/ListPagination';
 import { RevenueNotices } from '../revenue/RevenueSignals';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
 import type { ApprovalNotification } from '../projects/types';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -20,6 +23,11 @@ const labels: Record<string, string> = {
 
 export function NotificationsPage() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const category = ['inactivity', 'revenue'].includes(params.get('category') ?? '')
+    ? params.get('category')!
+    : 'approval';
+  const [total, setTotal] = useState(0);
   const [items, setItems] = useState<ApprovalNotification[]>([]);
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(0);
@@ -29,6 +37,7 @@ export function NotificationsPage() {
   const [revision, setRevision] = useState(0);
   const [reading, setReading] = useState<string | null>(null);
   useEffect(() => {
+    if (category !== 'approval') return;
     let active = true;
     setBusy(true);
     projectsApi
@@ -37,6 +46,7 @@ export function NotificationsPage() {
         if (active) {
           setItems(result.items);
           setPages(result.totalPages);
+          setTotal(result.totalElements);
           setError('');
         }
       })
@@ -49,7 +59,7 @@ export function NotificationsPage() {
     return () => {
       active = false;
     };
-  }, [page, unreadOnly, revision]);
+  }, [page, unreadOnly, revision, category]);
   async function read(item: ApprovalNotification, open = false) {
     setError('');
     setReading(item.id);
@@ -69,51 +79,62 @@ export function NotificationsPage() {
     }
   }
   return (
-    <section>
+    <section className="message-center">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">NOTIFICATIONS</span>
           <h1>消息通知</h1>
-          <p>查看项目督办、申请进展与审批逾期提醒。</p>
+          <p>按业务查看申请动态与项目督办，及时处理需要关注的事项。</p>
         </div>
       </div>
-      <RevenueNotices />
-      <ProjectInactivityNotices />
-      <h2>审批通知</h2>
-      <p className="subtle">消息标记已读不会完成审批；督办需转发或更新项目后闭环。</p>
-      <label className="checkbox-label">
-        <input
-          type="checkbox"
-          checked={unreadOnly}
-          disabled={reading !== null}
-          onChange={(event) => {
-            setUnreadOnly(event.target.checked);
-            setPage(0);
-          }}
-        />
-        仅看未读审批通知
-      </label>
-      {error && <Feedback tone="error">{error}</Feedback>}
-      {busy ? (
-        <Loading />
+      <MessageCenterTabs
+        label="消息分类"
+        value={category}
+        onChange={(value) => {
+          const next = new URLSearchParams(params);
+          next.set('category', value);
+          setParams(next);
+        }}
+        options={[
+          { value: 'approval', label: '审批通知', description: '申请结果与逾期提醒' },
+          { value: 'inactivity', label: '项目督办', description: '超时跟进与处理记录' },
+          { value: 'revenue', label: '计收通知', description: '计收认定审核动态' },
+        ]}
+      />
+      {category === 'revenue' ? (
+        <RevenueNotices />
+      ) : category === 'inactivity' ? (
+        <ProjectInactivityNotices />
       ) : (
-        <div className="panel table-panel">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>通知</th>
-                  <th>时间</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
+        <section className="panel table-panel message-section" aria-label="审批通知列表">
+          <div className="panel-top message-section-heading">
+            <div>
+              <h2>审批通知</h2>
+              <p className="subtle">标记已读不代表审批已完成，请进入申请处理。</p>
+            </div>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={unreadOnly}
+                disabled={reading !== null}
+                onChange={(event) => {
+                  setUnreadOnly(event.target.checked);
+                  setPage(0);
+                }}
+              />
+              仅看未读审批通知
+            </label>
+          </div>
+          {error && <Feedback tone="error">{error}</Feedback>}
+          {busy ? (
+            <Loading />
+          ) : (
+            <>
+              <ul className="message-list">
                 {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
+                  <li className="message-item" key={item.id} data-unread={!item.readAt}>
+                    <div>
                       <Link
-                        className="table-link"
+                        className="message-item-title"
                         to={`/approvals/${item.requestId}`}
                         onClick={(event) => {
                           if (
@@ -131,53 +152,44 @@ export function NotificationsPage() {
                       >
                         {labels[item.kind] ?? item.kind}
                       </Link>
-                    </td>
-                    <td>{dateTime(item.createdAt)}</td>
-                    <td>{item.readAt ? '已读' : '未读'}</td>
-                    <td>
+                      <div className="message-item-meta">
+                        <span
+                          className={`message-state ${item.readAt ? '' : 'message-state-unread'}`}
+                        >
+                          {item.readAt ? '已读' : '未读'}
+                        </span>
+                        <time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time>
+                        <span>项目审批</span>
+                      </div>
+                    </div>
+                    <div className="message-item-actions">
                       {!item.readAt && (
                         <button
                           type="button"
-                          className="text-button"
+                          className="secondary-button"
                           disabled={reading !== null}
                           onClick={() => void read(item)}
                         >
                           {reading === item.id ? '正在标记…' : '标记已读'}
                         </button>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          {!items.length && <div className="empty-state">暂无通知</div>}
-          {pages > 1 && (
-            <div className="pager">
-              <span>
-                第 {page + 1} / {pages} 页
-              </span>
-              <div>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page === 0}
-                  onClick={() => setPage(page - 1)}
-                >
-                  上一页
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page + 1 >= pages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
+              </ul>
+              {!items.length && <div className="empty-state">暂无通知</div>}
+              {pages > 1 && (
+                <ListPagination
+                  label="审批通知"
+                  page={page}
+                  totalPages={pages}
+                  totalElements={total}
+                  onPageChange={setPage}
+                />
+              )}
+            </>
           )}
-        </div>
+        </section>
       )}
     </section>
   );

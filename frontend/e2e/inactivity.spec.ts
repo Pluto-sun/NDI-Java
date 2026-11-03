@@ -12,7 +12,7 @@ test('督办从省分转发地市，追加进展后在历史中闭环', async ({
     projectId: project.id,
     days: 30,
   });
-  await page.goto('/notifications');
+  await page.goto('/notifications?category=inactivity');
   await chooseActor(page, leader);
   await expect(page.getByRole('heading', { name: '消息通知', exact: true })).toBeVisible();
   const card = page.locator('.inactivity-card').filter({ hasText: projectName });
@@ -38,9 +38,10 @@ test('督办从省分转发地市，追加进展后在历史中闭环', async ({
     fullPage: true,
   });
   await card.getByRole('button', { name: '转发督办', exact: true }).click();
-  await card.getByRole('combobox', { name: '接收人', exact: true }).selectOption(reporter);
-  await card.getByLabel('督办备注', { exact: true }).fill('请更新本周客户交流进展');
-  await card.getByRole('button', { name: '发送督办', exact: true }).click();
+  const forwardDialog = page.getByRole('dialog', { name: '转发督办', exact: true });
+  await forwardDialog.getByRole('combobox', { name: '接收人', exact: true }).selectOption(reporter);
+  await forwardDialog.getByLabel('督办备注', { exact: true }).fill('请更新本周客户交流进展');
+  await forwardDialog.getByRole('button', { name: '发送督办', exact: true }).click();
   await expect(page.getByText('督办已转发，处理记录已保留。', { exact: true })).toBeVisible();
   await expect(card).toHaveCount(0);
   await page.getByRole('button', { name: '处理历史', exact: true }).click();
@@ -59,6 +60,10 @@ test('督办从省分转发地市，追加进展后在历史中闭环', async ({
   await page.getByRole('button', { name: '追加进展', exact: true }).click();
   await expect(page.getByText('项目进展已保存。', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: '消息通知', exact: true }).click();
+  await page
+    .getByRole('group', { name: '消息分类', exact: true })
+    .getByRole('button', { name: '项目督办', exact: true })
+    .click();
   await expect(card).toHaveCount(0);
   await page.getByRole('button', { name: '处理历史', exact: true }).click();
   await expect(card).toContainText('已闭环');

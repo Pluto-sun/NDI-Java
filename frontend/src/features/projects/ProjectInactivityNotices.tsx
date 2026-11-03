@@ -1,3 +1,4 @@
+import { Modal } from '../../shared/ui/Modal';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -180,6 +181,8 @@ function InactivityCard({
   }
 
   async function openForward() {
+    setRecipientId('');
+    setNote('');
     setBusy(true);
     setError('');
     try {
@@ -238,7 +241,7 @@ function InactivityCard({
           </li>
         ))}
       </ol>
-      {error && <Feedback tone="error">{error}</Feedback>}
+      {error && recipients === null && <Feedback tone="error">{error}</Feedback>}
       {item.canForward && recipients === null && (
         <button
           type="button"
@@ -250,58 +253,70 @@ function InactivityCard({
         </button>
       )}
       {item.canForward && recipients !== null && (
-        <form className="inline-form" onSubmit={submit}>
-          {!recipients.length && (
-            <Feedback>暂无符合职责和属地的启用接收人，请联系管理员维护账号后重试。</Feedback>
-          )}
-          <label>
-            接收人
-            <Select
-              required
-              value={recipientId}
-              disabled={busy}
-              onChange={(event) => setRecipientId(event.target.value)}
-            >
-              <option value="">请选择接收人</option>
-              {recipients.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            督办备注
-            <textarea
-              required
-              maxLength={2000}
-              value={note}
-              disabled={busy}
-              rows={3}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </label>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => {
-                setRecipients(null);
-                setError('');
-              }}
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={busy || !recipientId || !note.trim()}
-            >
-              {busy ? '发送中…' : '发送督办'}
-            </button>
-          </div>
-        </form>
+        <Modal
+          title="转发督办"
+          busy={busy}
+          onClose={() => {
+            setRecipients(null);
+            setError('');
+            setRecipientId('');
+            setNote('');
+          }}
+        >
+          {error && <Feedback tone="error">{error}</Feedback>}
+          <form className="inline-form" onSubmit={submit}>
+            {!recipients.length && (
+              <Feedback>暂无符合职责和属地的启用接收人，请联系管理员维护账号后重试。</Feedback>
+            )}
+            <label>
+              接收人
+              <Select
+                required
+                value={recipientId}
+                disabled={busy}
+                onChange={(event) => setRecipientId(event.target.value)}
+              >
+                <option value="">请选择接收人</option>
+                {recipients.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              督办备注
+              <textarea
+                required
+                maxLength={2000}
+                value={note}
+                disabled={busy}
+                rows={3}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => {
+                  setRecipients(null);
+                  setError('');
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={busy || !recipientId || !note.trim()}
+              >
+                {busy ? '发送中…' : '发送督办'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
       {!item.canForward && item.status === 'OPEN' && (
         <p className="subtle">请进入项目追加进展或维护项目资料，督办将随有效更新自动闭环。</p>

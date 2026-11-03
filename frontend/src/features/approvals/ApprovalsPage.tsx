@@ -1,3 +1,5 @@
+import './message-center.css';
+import { MessageCenterTabs } from '../../shared/ui/MessageCenterTabs';
 import { RevenuePending } from '../revenue/RevenueSignals';
 import { Select } from '../../shared/ui/Select';
 import {
@@ -5,7 +7,7 @@ import {
   ApprovalOpinionField,
 } from '../../shared/approval/ApprovalDecisionDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { projectsApi } from '../projects/api';
 import { openProjectDocument } from '../projects/openDocument';
 import type {
@@ -44,6 +46,8 @@ function title(request: ApprovalSummary, reference: ReferenceData) {
 }
 
 export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
+  const [params, setParams] = useSearchParams();
+  const business = params.get('business') === 'revenue' ? 'revenue' : 'project';
   const [items, setItems] = useState<ApprovalTask[]>([]);
   const [summaries, setSummaries] = useState<ApprovalSummary[]>([]);
   const [view, setView] = useState<'inbox' | 'submitted' | 'records'>('inbox');
@@ -55,6 +59,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    if (business !== 'project') return;
     let active = true;
     setLoading(true);
     setError('');
@@ -85,199 +90,227 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     return () => {
       active = false;
     };
-  }, [page, view, status, revision]);
+  }, [page, view, status, revision, business]);
   const label = (code: string | null) =>
     reference.stages.find((item) => item.code === code)?.label ?? code ?? '—';
   return (
-    <section>
+    <section className="message-center">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">项目管理 / 审批</span>
-          <h1>审批与申请</h1>
-          <p>
-            待办仅显示指定给我的申请；申请及记录均按账号当前项目数据范围读取，查看记录不授予审批权。
-          </p>
+          <h1>审批待办</h1>
+          <p>集中办理项目变更与计收认定，查看申请进展和处理记录。</p>
         </div>
       </div>
-      <RevenuePending />
-      <div className="action-row" role="group" aria-label="审批视图">
-        <button
-          type="button"
-          className={view === 'inbox' ? 'primary-button' : 'secondary-button'}
-          onClick={() => {
-            setPage(0);
-            setView('inbox');
-          }}
-        >
-          待我审批
-        </button>
-        <button
-          type="button"
-          className={view === 'submitted' ? 'primary-button' : 'secondary-button'}
-          onClick={() => {
-            setPage(0);
-            setView('submitted');
-          }}
-        >
-          我发起的申请
-        </button>
-        <button
-          type="button"
-          className={view === 'records' ? 'primary-button' : 'secondary-button'}
-          onClick={() => {
-            setPage(0);
-            setView('records');
-          }}
-        >
-          可见审批记录
-        </button>
-      </div>
-      {view === 'records' && (
-        <label>
-          审批记录状态
-          <Select
-            value={status}
-            onChange={(event) => {
-              setPage(0);
-              setStatus(event.target.value as typeof status);
-            }}
-          >
-            <option value="">全部状态</option>
-            {Object.entries(statusLabels).map(([code, text]) => (
-              <option value={code} key={code}>
-                {text}
-              </option>
-            ))}
-          </Select>
-        </label>
-      )}
-      {error && (
-        <Feedback tone="error">
-          {error}
-          <button
-            type="button"
-            className="inline-link"
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            重新加载审批列表
-          </button>
-        </Feedback>
-      )}
-      {loading ? (
-        <Loading />
+      <MessageCenterTabs
+        label="审批业务分类"
+        value={business}
+        onChange={(value) => {
+          const next = new URLSearchParams(params);
+          next.set('business', value);
+          setParams(next);
+        }}
+        options={[
+          { value: 'project', label: '项目审批', description: '阶段推进与重大变更' },
+          { value: 'revenue', label: '计收审核', description: '计收认定与调整申请' },
+        ]}
+      />
+      {business === 'revenue' ? (
+        <RevenuePending />
       ) : (
-        <div className="panel table-panel">
-          <div className="panel-top">
-            <strong>
-              {view === 'inbox'
-                ? '待审批申请'
-                : view === 'submitted'
-                  ? '我发起的申请'
-                  : '可见审批记录'}
-            </strong>
-            <span>共 {totalElements} 条</span>
+        <section className="message-section" aria-label="项目审批列表">
+          <div className="message-section-heading">
+            <div>
+              <h2>项目审批</h2>
+              <p className="subtle">待办仅显示指定给我的申请；查看申请记录不授予审批权限。</p>
+            </div>
           </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>项目与申请</th>
-                  <th>阶段</th>
-                  <th>提交时间</th>
-                  <th>{view === 'inbox' ? '截止时间' : '状态'}</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view === 'inbox'
-                  ? items.map((item) => (
-                      <tr key={item.requestId}>
-                        <td>
-                          <strong>{item.projectName}</strong>
-                          <small className="table-subtitle">
-                            {item.requestType === 'STAGE_ADVANCEMENT' ? '阶段推进' : '重大变更'}
-                          </small>
-                        </td>
-                        <td>
-                          {item.targetStageCode
-                            ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
-                            : `${label(item.fromStageCode)}（阶段不变）`}
-                        </td>
-                        <td>{dateTime(item.submittedAt)}</td>
-                        <td>
-                          {dateTime(item.dueAt)}
-                          {item.overdue && <span className="overdue">已逾期</span>}
-                        </td>
-                        <td>
-                          <Link className="inline-link" to={`/approvals/${item.requestId}`}>
-                            查看并处理
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  : summaries.map((item) => (
-                      <tr key={item.id}>
-                        <td>
-                          <Link className="table-link" to={`/projects/${item.projectId}`}>
-                            {item.originalProjectName}
-                          </Link>
-                          <small className="table-subtitle">
-                            {item.requestType === 'STAGE_ADVANCEMENT'
-                              ? '阶段推进'
-                              : (changeLabels[item.changeType!] ?? '重大变更')}
-                          </small>
-                        </td>
-                        <td>
-                          {item.targetStageCode
-                            ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
-                            : label(item.fromStageCode)}
-                        </td>
-                        <td>{dateTime(item.submittedAt)}</td>
-                        <td>
-                          {statusLabels[item.status]}
-                          {item.reviewOpinion && (
-                            <small className="table-subtitle">{item.reviewOpinion}</small>
-                          )}
-                        </td>
-                        <td>
-                          <Link className="inline-link" to={`/approvals/${item.id}`}>
-                            查看申请
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
+          <div className="action-row" role="group" aria-label="审批视图">
+            <button
+              type="button"
+              aria-pressed={view === 'inbox'}
+              className="secondary-button"
+              onClick={() => {
+                setPage(0);
+                setView('inbox');
+              }}
+            >
+              待我审批
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'submitted'}
+              className="secondary-button"
+              onClick={() => {
+                setPage(0);
+                setView('submitted');
+              }}
+            >
+              我发起的申请
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'records'}
+              className="secondary-button"
+              onClick={() => {
+                setPage(0);
+                setView('records');
+              }}
+            >
+              可见审批记录
+            </button>
           </div>
-          {(view === 'inbox' ? !items.length : !summaries.length) && (
-            <div className="empty-state">暂无申请</div>
+          {view === 'records' && (
+            <label className="message-status-filter">
+              审批记录状态
+              <Select
+                value={status}
+                onChange={(event) => {
+                  setPage(0);
+                  setStatus(event.target.value as typeof status);
+                }}
+              >
+                <option value="">全部状态</option>
+                {Object.entries(statusLabels).map(([code, text]) => (
+                  <option value={code} key={code}>
+                    {text}
+                  </option>
+                ))}
+              </Select>
+            </label>
           )}
-          {totalPages > 1 && (
-            <div className="pager">
-              <span>
-                第 {page + 1} / {totalPages} 页
-              </span>
-              <div>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page === 0}
-                  onClick={() => setPage(page - 1)}
-                >
-                  上一页
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page + 1 >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  下一页
-                </button>
+          {error && (
+            <Feedback tone="error">
+              {error}
+              <button
+                type="button"
+                className="inline-link"
+                onClick={() => setRevision((value) => value + 1)}
+              >
+                重新加载审批列表
+              </button>
+            </Feedback>
+          )}
+          {loading ? (
+            <Loading />
+          ) : (
+            <div className="panel table-panel">
+              <div className="panel-top">
+                <strong>
+                  {view === 'inbox'
+                    ? '待审批申请'
+                    : view === 'submitted'
+                      ? '我发起的申请'
+                      : '可见审批记录'}
+                </strong>
+                <span>共 {totalElements} 条</span>
               </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>项目与申请</th>
+                      <th>阶段</th>
+                      <th>提交时间</th>
+                      <th>{view === 'inbox' ? '截止时间' : '状态'}</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {view === 'inbox'
+                      ? items.map((item) => (
+                          <tr key={item.requestId}>
+                            <td>
+                              <strong>{item.projectName}</strong>
+                              <small className="table-subtitle">
+                                {item.requestType === 'STAGE_ADVANCEMENT' ? '阶段推进' : '重大变更'}
+                              </small>
+                            </td>
+                            <td>
+                              {item.targetStageCode
+                                ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
+                                : `${label(item.fromStageCode)}（阶段不变）`}
+                            </td>
+                            <td>{dateTime(item.submittedAt)}</td>
+                            <td>
+                              {dateTime(item.dueAt)}
+                              {item.overdue && <span className="overdue">已逾期</span>}
+                            </td>
+                            <td>
+                              <Link className="inline-link" to={`/approvals/${item.requestId}`}>
+                                查看并处理
+                              </Link>
+                            </td>
+                          </tr>
+                        ))
+                      : summaries.map((item) => (
+                          <tr key={item.id}>
+                            <td>
+                              <Link className="table-link" to={`/projects/${item.projectId}`}>
+                                {item.originalProjectName}
+                              </Link>
+                              <small className="table-subtitle">
+                                {item.requestType === 'STAGE_ADVANCEMENT'
+                                  ? '阶段推进'
+                                  : (changeLabels[item.changeType!] ?? '重大变更')}
+                              </small>
+                            </td>
+                            <td>
+                              {item.targetStageCode
+                                ? `${label(item.fromStageCode)} → ${label(item.targetStageCode)}`
+                                : label(item.fromStageCode)}
+                            </td>
+                            <td>{dateTime(item.submittedAt)}</td>
+                            <td>
+                              <span
+                                className={`message-state message-state-${item.status.toLowerCase()}`}
+                              >
+                                {statusLabels[item.status]}
+                              </span>
+                              {item.reviewOpinion && (
+                                <small className="table-subtitle">{item.reviewOpinion}</small>
+                              )}
+                            </td>
+                            <td>
+                              <Link className="inline-link" to={`/approvals/${item.id}`}>
+                                查看申请
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                  </tbody>
+                </table>
+              </div>
+              {(view === 'inbox' ? !items.length : !summaries.length) && (
+                <div className="empty-state">暂无申请</div>
+              )}
+              {totalPages > 1 && (
+                <div className="pager">
+                  <span>
+                    第 {page + 1} / {totalPages} 页
+                  </span>
+                  <div>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={page === 0}
+                      onClick={() => setPage(page - 1)}
+                    >
+                      上一页
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={page + 1 >= totalPages}
+                      onClick={() => setPage(page + 1)}
+                    >
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </section>
       )}
     </section>
   );
