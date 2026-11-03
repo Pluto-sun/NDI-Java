@@ -9,7 +9,6 @@ import {
   dashboardApi,
   dashboardCategories,
   dashboardProducts,
-  percent,
   type DashboardFilter,
 } from './dashboardApi';
 import { DashboardDonut, DashboardTrend } from './DashboardCharts';
@@ -17,6 +16,7 @@ import { DashboardMonthRange } from './DashboardMonthRange';
 import { DashboardFilters, type ClassificationFilter } from './DashboardFilters';
 import { DashboardRegionPanel } from './DashboardRegionPanel';
 import { DashboardActivities } from './DashboardActivities';
+import { DashboardShare } from './DashboardShare';
 import './dashboard.css';
 
 const AdvancedWorkbench = lazy(() =>
@@ -314,22 +314,10 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                                 <td>{point.summary[item.key].count}</td>
                                 <td>{amount(point.summary[item.key].amount)}</td>
                                 <td>
-                                  <div className="dashboard-share">
-                                    <span
-                                      style={{
-                                        width: percent(
-                                          point.summary[item.key].amount,
-                                          data.current[item.key].amount,
-                                        ),
-                                      }}
-                                    />
-                                    <small>
-                                      {percent(
-                                        point.summary[item.key].amount,
-                                        data.current[item.key].amount,
-                                      )}
-                                    </small>
-                                  </div>
+                                  <DashboardShare
+                                    value={point.summary[item.key].amount}
+                                    total={data.current[item.key].amount}
+                                  />
                                 </td>
                               </tr>
                             ))}

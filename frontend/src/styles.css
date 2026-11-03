@@ -315,11 +315,22 @@ a {
   overflow-x: auto;
 }
 .project-list-table {
-  min-width: 1320px;
+  table-layout: fixed;
+  width: 1580px;
+  min-width: 1580px;
 }
-.project-list-table td:first-child {
-  min-width: 200px;
+.project-list-table th,
+.project-list-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: top;
+  line-height: 1.6;
 }
+.project-list-table .stage {
+  white-space: normal;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
@@ -1802,4 +1813,77 @@ button.inline-link {
 .province-choice input {
   width: auto;
   flex: none;
+}
+
+/* 主档使用完整宽度，分类金额按内容排列，避免少量金额撑满整列。 */
+.project-detail-overview {
+  margin-bottom: 18px;
+}
+.project-detail-overview > .facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px 28px;
+}
+.project-category-summary {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.project-category-summary h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.project-category-summary h3 small {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.project-category-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 210px));
+  gap: 12px;
+  margin: 0;
+}
+.project-category-cards > div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: var(--red-soft);
+}
+.project-category-cards dt {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.project-category-cards dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.project-detail-meta {
+  margin: 20px 0 0;
+}
+.project-detail-page > .detail-grid > .panel {
+  min-width: 0;
+}
+.project-detail-page > .detail-grid:has(.timeline) {
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+}
+@media (max-width: 1100px) {
+  .project-detail-overview > .facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .project-detail-overview > .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .project-detail-page > .detail-grid:has(.timeline) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .project-category-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

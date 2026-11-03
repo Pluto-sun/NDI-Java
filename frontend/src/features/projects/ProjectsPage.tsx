@@ -5,7 +5,7 @@ import { projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { amount, dateTime } from '../../shared/ui/format';
+import { amount } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 import { Modal } from '../../shared/ui/Modal';
 import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
@@ -508,6 +508,11 @@ export function ProjectsPage({
             aria-label="项目清单表格，可横向滚动"
           >
             <table className="project-list-table" aria-label="项目清单">
+              <colgroup>
+                {[260, 180, 200, 180, 110, 180, 140, 200, 130].map((width, index) => (
+                  <col key={index} style={{ width }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   <th scope="col">项目编号 / 名称</th>
@@ -519,8 +524,6 @@ export function ProjectsPage({
                   <th scope="col">预计总金额</th>
                   <th scope="col">项目负责人</th>
                   <th scope="col">项目所属月份</th>
-                  <th scope="col">创建时间</th>
-                  <th scope="col">项目日期</th>
                 </tr>
               </thead>
               <tbody>
@@ -591,12 +594,6 @@ export function ProjectsPage({
                       {project.responsiblePersons?.map((person) => person.name).join('；') || '—'}
                     </td>
                     <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
-                    <td>{dateTime(project.createdAt)}</td>
-                    <td>
-                      {project.opportunityDate
-                        ? dateTime(project.opportunityDate, 'Asia/Shanghai')
-                        : '旧日期待核对'}
-                    </td>
                   </tr>
                 ))}
               </tbody>

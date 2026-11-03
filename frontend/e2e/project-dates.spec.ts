@@ -32,7 +32,7 @@ test('项目日期范围校验、空结果、恢复当前日期与真实 CSV 下
   await end.fill(day);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: '项目日期', exact: true })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: '项目日期', exact: true })).toHaveCount(0);
   const submitted = page.waitForResponse(
     (response) => response.url().endsWith('/exports') && response.request().method() === 'POST',
   );

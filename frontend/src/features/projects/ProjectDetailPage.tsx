@@ -121,7 +121,7 @@ export function ProjectDetailPage({
       (me.roleCodes.includes('CITY_REPORTER') && me.cityId === detail?.cityId));
   const canProgress = canCollaborate && detail?.currentStageCode !== 'TERMINATED';
   return (
-    <section>
+    <section className="project-detail-page">
       <div className="page-heading">
         <div>
           <Link className="back-link" to={returnTo}>
@@ -144,103 +144,101 @@ export function ProjectDetailPage({
         detail && (
           <>
             <ProjectPeoplePanel project={detail} editable={!!canProgress} onSaved={setDetail} />
-            <div className="detail-grid">
-              <div className="panel">
-                <h2>项目主档</h2>
-                <dl className="facts">
-                  <div>
-                    <dt>客户名称</dt>
-                    <dd>{detail.customerName}</dd>
-                  </div>
-                  <div>
-                    <dt>项目日期（Asia/Shanghai）</dt>
-                    <dd>
-                      {detail.opportunityDate
-                        ? dateTime(detail.opportunityDate, 'Asia/Shanghai')
-                        : '旧日期待核对，未纳入日期范围查询'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>所属行业</dt>
-                    <dd>
-                      {reference.industries.find((item) => item.code === detail.industryCode)
-                        ?.label ?? detail.industryCode}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>归属地市</dt>
-                    <dd>
-                      {reference.cities.find((item) => item.id === detail.cityId)?.name ?? '—'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>项目总金额</dt>
-                    <dd>{amount(detail.totalAmount)} 万元</dd>
-                  </div>
-                  <div>
-                    <dt>项目所属月份</dt>
-                    <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>拟招标月份</dt>
-                    <dd>{detail.plannedBidMonth?.slice(0, 7) ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>应用场景</dt>
-                    <dd>
-                      {detail.applicationScenarioCodes
-                        ?.map(
-                          (code) =>
-                            reference.applicationScenarios.find((item) => item.code === code)
-                              ?.label ?? code,
-                        )
-                        .join('、') || '—'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>签约主体</dt>
-                    <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
-                  </div>
-                  <div>
-                    <dt>合同编号</dt>
-                    <dd>{detail.contractNo ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>签约金额</dt>
-                    <dd>
-                      {detail.signedAmount == null ? '—' : `${amount(detail.signedAmount)} 万元`}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="content-block">
-                  <strong>客户需求</strong>
-                  <p>{detail.customerNeed}</p>
+            <div className="panel project-detail-overview">
+              <h2>项目主档</h2>
+              <dl className="facts">
+                <div>
+                  <dt>客户名称</dt>
+                  <dd>{detail.customerName}</dd>
                 </div>
-                {detail.remark && (
-                  <div className="content-block">
-                    <strong>备注</strong>
-                    <p>{detail.remark}</p>
-                  </div>
-                )}
-              </div>
-              <div className="panel">
-                <h2>三化分类金额</h2>
-                <div className="amount-list">
+                <div>
+                  <dt>项目日期（Asia/Shanghai）</dt>
+                  <dd>
+                    {detail.opportunityDate
+                      ? dateTime(detail.opportunityDate, 'Asia/Shanghai')
+                      : '旧日期待核对，未纳入日期范围查询'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>所属行业</dt>
+                  <dd>
+                    {reference.industries.find((item) => item.code === detail.industryCode)
+                      ?.label ?? detail.industryCode}
+                  </dd>
+                </div>
+                <div>
+                  <dt>归属地市</dt>
+                  <dd>{reference.cities.find((item) => item.id === detail.cityId)?.name ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>项目总金额</dt>
+                  <dd>{amount(detail.totalAmount)} 万元</dd>
+                </div>
+                <div>
+                  <dt>项目所属月份</dt>
+                  <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>拟招标月份</dt>
+                  <dd>{detail.plannedBidMonth?.slice(0, 7) ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>应用场景</dt>
+                  <dd>
+                    {detail.applicationScenarioCodes
+                      ?.map(
+                        (code) =>
+                          reference.applicationScenarios.find((item) => item.code === code)
+                            ?.label ?? code,
+                      )
+                      .join('、') || '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>签约主体</dt>
+                  <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
+                </div>
+                <div>
+                  <dt>合同编号</dt>
+                  <dd>{detail.contractNo ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>签约金额</dt>
+                  <dd>
+                    {detail.signedAmount == null ? '—' : `${amount(detail.signedAmount)} 万元`}
+                  </dd>
+                </div>
+              </dl>
+              <section className="project-category-summary" aria-label="三化分类金额">
+                <h3>
+                  三化分类金额 <small>万元</small>
+                </h3>
+                <dl className="project-category-cards">
                   {detail.categoryAmounts.map((item) => (
                     <div key={item.categoryCode}>
-                      <span>
+                      <dt>
                         {reference.categories.find(
                           (category) => category.code === item.categoryCode,
                         )?.label ?? item.categoryCode}
-                      </span>
-                      <strong>{amount(item.expectedAmount)} 万元</strong>
+                      </dt>
+                      <dd>{amount(item.expectedAmount)}</dd>
                     </div>
                   ))}
-                </div>
-                <p className="subtle">
-                  版本 {detail.versionNo} · 更新于 {dateTime(detail.updatedAt)}
-                </p>
+                </dl>
+              </section>
+              <div className="content-block">
+                <strong>客户需求</strong>
+                <p>{detail.customerNeed}</p>
               </div>
+              {detail.remark && (
+                <div className="content-block">
+                  <strong>备注</strong>
+                  <p>{detail.remark}</p>
+                </div>
+              )}
+              <p className="subtle project-detail-meta">
+                版本 {detail.versionNo} · 更新于 {dateTime(detail.updatedAt)}
+              </p>
             </div>
             {canProgress && (
               <ProjectProfileForm

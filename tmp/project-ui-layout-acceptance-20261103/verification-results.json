@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-03",
+  "frontendBuild": "passed",
+  "browserTests": 12,
+  "browserFailures": 0,
+  "viewports": [
+    "1440x1000",
+    "375x812"
+  ],
+  "checks": [
+    "34个标签无重叠且位于省界顶层",
+    "99.4%填充比例",
+    "桌面与窄屏排名无横向裁切",
+    "固定九列表格，归属180px",
+    "详情金额摘要高度小于200px",
+    "筛选、阶段切换、日期与导出回归"
+  ],
+  "finalTargetedTests": 4,
+  "finalTargetedFailures": 0
+}
