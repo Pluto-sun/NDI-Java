@@ -24,7 +24,15 @@ test('全国地图标签不重叠且位于省界上层，99.4%占比使用完整
   await page.goto('/workbench');
   await chooseActor(page, ids.admin);
   const map = page.locator('.dashboard-map');
-  await expect(map.locator('.dashboard-map-label')).toHaveCount(34);
+  await expect(map.locator('.dashboard-map-label')).toHaveCount(29);
+  await expect(map.locator('.dashboard-map-leader')).toHaveCount(0);
+  const compact = map.getByRole('group', { name: '小面积区域快捷查看', exact: true });
+  await expect(compact.getByRole('button')).toHaveText(['北京', '天津', '上海', '香港', '澳门']);
+  await compact.getByRole('button', { name: '上海', exact: true }).focus();
+  await expect(map.getByRole('status')).toContainText('上海市');
+  await expect(map.locator('.dashboard-map-province.is-active')).toHaveCount(1);
+  await compact.getByRole('button', { name: '北京', exact: true }).click();
+  await expect(map.getByRole('status')).toContainText('北京市');
   const labels = await map.locator('.dashboard-map-label').evaluateAll((elements) =>
     elements.map((element) => {
       const box = (element as SVGGraphicsElement).getBBox();

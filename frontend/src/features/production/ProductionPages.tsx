@@ -44,6 +44,20 @@ export function ProductionListPage() {
       active = false;
     };
   }, [load, query]);
+  const columnWidths = [
+    96,
+    100,
+    120,
+    300,
+    112,
+    140,
+    140,
+    140,
+    140,
+    100,
+    ...(reference?.writable ? [88] : []),
+  ];
+  const tableWidth = columnWidths.reduce((total, width) => total + width, 0);
   function change(key: string, value: string) {
     setDraft((old) => ({ ...old, [key]: value, ...(key === 'provinceId' ? { cityId: '' } : {}) }));
   }
@@ -186,24 +200,12 @@ export function ProductionListPage() {
               className="production-table"
               aria-label="排产计划清单"
               style={{
-                width: reference?.writable ? 1512 : 1412,
-                minWidth: reference?.writable ? 1512 : 1412,
+                width: tableWidth,
+                minWidth: tableWidth,
               }}
             >
               <colgroup>
-                {[
-                  100,
-                  112,
-                  124,
-                  260,
-                  136,
-                  140,
-                  140,
-                  140,
-                  140,
-                  120,
-                  ...(reference?.writable ? [100] : []),
-                ].map((width, index) => (
+                {columnWidths.map((width, index) => (
                   <col key={index} style={{ width }} />
                 ))}
               </colgroup>
@@ -228,7 +230,7 @@ export function ProductionListPage() {
                 {result?.items.map((plan) => (
                   <tr key={plan.id}>
                     <td>{plan.reviewerName}</td>
-                    <td>{plan.planMonth}</td>
+                    <td className="production-month">{plan.planMonth}</td>
                     <td>
                       {plan.provinceName}
                       <small>{plan.cityName}</small>

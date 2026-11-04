@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-04",
+  "skill": "frontend-design",
+  "build": "npm --prefix frontend run build: passed",
+  "format": "npm --prefix frontend run format:check: passed",
+  "regression": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh project-ui-layout.spec.ts dashboard.spec.ts design-changes.spec.ts production.spec.ts list-column-pagination.spec.ts",
+    "passed": 16,
+    "initial_map_label_overlap_failures": 2,
+    "resolution": "标签垂直间距增至18，近域避让半径上限32；最终专项复验通过"
+  },
+  "final_map_and_dashboard": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh project-ui-layout.spec.ts dashboard.spec.ts",
+    "passed": 6,
+    "viewports": [
+      "1440x1000",
+      "375x812"
+    ],
+    "additional_control_layout_checks": [
+      "1366x900",
+      "1024x900"
+    ]
+  },
+  "map": {
+    "direct_labels": 29,
+    "compact_regions": 5,
+    "leader_lines": 0,
+    "label_overlap": false
+  },
+  "manual_review": "地图区域与排产桌面截图已人工检查",
+  "database": "isolated e2e only"
+}
