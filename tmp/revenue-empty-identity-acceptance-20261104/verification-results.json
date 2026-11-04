@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-04",
+  "requiredFields": [
+    "月账期",
+    "条款金额",
+    "产品本月计收不含税额/标品含税收入"
+  ],
+  "optionalIdentityFields": [
+    "合同编号",
+    "条款编号",
+    "业务号码/项目编号",
+    "自然客户名称",
+    "产品编码"
+  ],
+  "emptyIdentityRepresentations": [
+    "missing",
+    "blank",
+    "--"
+  ],
+  "migration": "V48",
+  "backend": {
+    "unitAndArchitecturePassed": 93,
+    "integrationPassed": 22,
+    "skipped": 0
+  },
+  "browser": {
+    "initialPassed": 18,
+    "passedAfterTestAndAccessibleLabelFix": 8,
+    "sessionAndCsrfPassed": 2,
+    "distinctCasesPassed": 28
+  },
+  "frontendBuild": "passed",
+  "formatAndWhitespace": "passed",
+  "localDatabaseReadOnlyPreflight": {
+    "normalizationConflictGroups": 0,
+    "writesPerformed": false
+  }
+}

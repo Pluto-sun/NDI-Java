@@ -17,6 +17,8 @@ public final class RevenueSourceNormalizer {
     private RevenueSourceNormalizer() {}
 
     public static String clauseNumber(String value) {
+        value = Objects.toString(value, "").strip();
+        if (value.equals("--")) return "";
         return value.matches("[0-9]+") ? value.replaceFirst("^0+(?!$)", "") : value;
     }
 

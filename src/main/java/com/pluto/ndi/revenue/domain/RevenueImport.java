@@ -24,7 +24,7 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
                                         REQUIRED.contains(field) ? "REQUIRED" : "OPTIONAL",
                                         switch (field) {
                                             case "省份名称" -> "选填；标准省份、具体组织或数科；留空为未归属，--按具体组织处理";
-                                            case "条款编号" -> "选填；可留空或填--，纯数字整数去除前导零（002→2）";
+                                            case "条款编号" -> "选填；留空或--统一为空，纯数字整数去除前导零（002→2）";
                                             case "地市/组织名称" -> "具体组织必填；数科仅允许联通数字科技有限公司本部";
                                             case "审签日期" -> "选填，支持横线或斜线日期及日期时间；--表示无日期";
                                             case "月账期", "费用账期" -> "YYYYMM或YYYY-MM";

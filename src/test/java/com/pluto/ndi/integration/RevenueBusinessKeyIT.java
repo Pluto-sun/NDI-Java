@@ -344,6 +344,60 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
         assertThat(concurrent(another, differentProduct)).containsExactly(true, true);
     }
 
+    @Test
+    void allFiveOptionalIdentifiersShareEmptyPlaceholderAndMissingIdentity() throws Exception {
+        var minimal =
+                new LinkedHashMap<>(
+                        Map.of("月账期", "202612", "条款金额", "100", RevenueFields.SOURCE_AMOUNT, "0"));
+        var saved = service.create(admin, minimal);
+        var placeholders = new LinkedHashMap<>(minimal);
+        for (var field : List.of("合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"))
+            placeholders.put(field, " -- ");
+        assertThat(service.duplicate(service.validate(admin, placeholders))).isTrue();
+        assertThatThrownBy(() -> service.create(admin, placeholders))
+                .isInstanceOf(BusinessException.class);
+        for (var field : List.of("合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码")) {
+            var changed = new LinkedHashMap<>(minimal);
+            changed.put(field, "001");
+            assertThat(service.create(admin, changed).id()).isNotEqualTo(saved.id());
+        }
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        """
+INSERT INTO revenue_entry(id,account_month,specific_organization,contract_no,clause_no,clause_amount,source_amount,source_fields,created_by,created_at,updated_at)
+SELECT UUID_TO_BIN(?),account_month,FALSE,'--','--',clause_amount,source_amount,JSON_OBJECT('业务号码/项目编号','--','自然客户名称','--','产品编码','--'),created_by,created_at,updated_at FROM revenue_entry WHERE id=UUID_TO_BIN(?)
+""",
+                                        UUID.randomUUID().toString(),
+                                        saved.id().toString()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        var first = new LinkedHashMap<>(minimal);
+        first.put("月账期", "202701");
+        placeholders.put("月账期", "202701");
+        var named = new LinkedHashMap<>(first);
+        named.put("自然客户名称", "另一客户");
+        var task =
+                imports.upload(
+                        admin,
+                        "空标识.xlsx",
+                        workbook(List.of(first, placeholders, named)),
+                        null,
+                        null);
+        var mapping = new LinkedHashMap<String, String>();
+        RevenueFields.FIELDS.forEach(f -> mapping.put(f, f));
+        var config = new Configuration("来源数据", 1, mapping);
+        var second = imports.save(admin, task.id(), task.version(), 2, config, null);
+        var preview = imports.save(admin, task.id(), second.version(), 3, config, null);
+        assertThat(preview.batch().validRows()).isEqualTo(2);
+        assertThat(preview.batch().failedRows()).isEqualTo(1);
+        assertThat(preview.batch().rows().get(1).errorsJson()).contains("文件内前序记录重复");
+        assertThat(imports.confirm(admin, preview.batch().batchId(), List.of(2, 4)).importedRows())
+                .isEqualTo(2);
+        first.put("月账期", "202702");
+        placeholders.put("月账期", "202702");
+        assertThat(concurrent(first, placeholders)).containsExactlyInAnyOrder(true, false);
+    }
+
     List<Boolean> concurrent(Map<String, String> first, Map<String, String> second)
             throws Exception {
         var pool = Executors.newFixedThreadPool(2);

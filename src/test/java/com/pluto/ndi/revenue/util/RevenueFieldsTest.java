@@ -37,14 +37,14 @@ class RevenueFieldsTest {
     }
 
     @Test
-    void allowsMissingClauseNumberAndPreservesExplicitPlaceholder() {
+    void normalizesMissingAndPlaceholderClauseNumbersToEmpty() {
         var input = source();
         input.put("条款编号", "  --  ");
         var result = fields.normalize(input);
-        assertThat(result.clauseNo()).isEqualTo("--");
-        assertThat(result.fields()).containsEntry("条款编号", "--");
+        assertThat(result.clauseNo()).isEmpty();
+        assertThat(result.fields()).containsEntry("条款编号", "");
         assertThat(RevenueImport.REQUIRED)
-                .containsExactlyInAnyOrder("月账期", "自然客户名称", "条款金额", RevenueFields.SOURCE_AMOUNT);
+                .containsExactlyInAnyOrder("月账期", "条款金额", RevenueFields.SOURCE_AMOUNT);
         assertThat(RevenueImport.rules().stream().filter(r -> r.name().equals("条款编号")).findFirst())
                 .isPresent();
         for (String blank : new String[] {"", "   "}) {
@@ -68,7 +68,7 @@ class RevenueFieldsTest {
     }
 
     @Test
-    void onlyFourBusinessFieldsAreRequiredAndUnassignedDoesNotBecomeOrganization() {
+    void onlyThreeBusinessFieldsAreRequiredAndUnassignedDoesNotBecomeOrganization() {
         var input =
                 new LinkedHashMap<>(
                         Map.of(
@@ -92,5 +92,21 @@ class RevenueFieldsTest {
         }
         input.put("省份名称", "具体组织");
         assertThatThrownBy(() -> fields.normalize(input)).hasMessageContaining("组织名称");
+    }
+
+    @Test
+    void everyOptionalIdentityFieldTreatsMissingWhitespaceAndPlaceholderAsEmpty() {
+        var input =
+                new LinkedHashMap<>(
+                        Map.of("月账期", "202611", "条款金额", "10", RevenueFields.SOURCE_AMOUNT, "0"));
+        for (var value : new String[] {"", "   ", "--", "  --  ", "\t--\n"}) {
+            for (var field : new String[] {"合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"})
+                input.put(field, value);
+            var result = fields.normalize(input);
+            assertThat(result.contractNo()).isEmpty();
+            assertThat(result.clauseNo()).isEmpty();
+            for (var field : new String[] {"合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"})
+                assertThat(result.fields().get(field)).isEmpty();
+        }
     }
 }

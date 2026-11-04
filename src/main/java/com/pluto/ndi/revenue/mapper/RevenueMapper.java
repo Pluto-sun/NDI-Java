@@ -198,7 +198,7 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
     public boolean duplicate(Source c) {
         return jdbc.queryForObject(
                         "SELECT COUNT(*) FROM revenue_entry WHERE account_month=:month AND"
-                                + " contract_no=:contract AND clause_number_key=:clause"
+                                + " contract_number_key=:contract AND clause_number_key=:clause"
                                 + " AND business_number_hash=UNHEX(SHA2(:business,256))"
                                 + " AND natural_customer_name_hash=UNHEX(SHA2(:customer,256))"
                                 + " AND product_code_hash=UNHEX(SHA2(:product,256))",

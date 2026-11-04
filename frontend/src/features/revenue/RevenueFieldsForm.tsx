@@ -22,6 +22,7 @@ export function RevenueFieldsForm({
     '业务号码/项目编号',
     '项目名称',
     '客户名称',
+    '自然客户名称',
   ]);
   const fieldInput = (field: string) => (
     <label key={field}>
@@ -77,7 +78,7 @@ export function RevenueFieldsForm({
           }
           placeholder={
             field === '条款编号'
-              ? '可留空；纯数字去除前导零；无条款可填--'
+              ? '留空或 -- 均表示未填；纯数字去除前导零'
               : field === '审签日期'
                 ? '日期、日期时间或 --（无日期）'
                 : undefined

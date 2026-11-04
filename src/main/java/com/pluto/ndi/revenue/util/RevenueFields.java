@@ -50,7 +50,7 @@ public class RevenueFields {
                     "税率",
                     "产品本月计收不含税额/标品含税收入");
     public static final String SOURCE_AMOUNT = "产品本月计收不含税额/标品含税收入";
-    public static final Set<String> REQUIRED = Set.of("月账期", "自然客户名称", "条款金额", SOURCE_AMOUNT);
+    public static final Set<String> REQUIRED = Set.of("月账期", "条款金额", SOURCE_AMOUNT);
     private final OrganizationDirectory organizations;
 
     public RevenueFields(OrganizationDirectory organizations) {
@@ -74,10 +74,8 @@ public class RevenueFields {
         for (var field : FIELDS) {
             var value = Objects.toString(input.get(field), "").strip();
             if (value.length() > 2000) throw invalid(field + "不得超过2000字");
-            // 条款编号可用--明确表示无条款编号，不能按普通缺失占位符清空。
-            values.put(
-                    field,
-                    value.equals("--") && !Set.of("省份名称", "条款编号").contains(field) ? "" : value);
+            // 业务标识的缺失占位符统一为空，省份的旧占位符仍表示具体组织。
+            values.put(field, value.equals("--") && !field.equals("省份名称") ? "" : value);
         }
         for (var field : FIELDS)
             if (REQUIRED.contains(field) && values.get(field).isBlank())

@@ -14,8 +14,8 @@ class RevenueSourceNormalizerTest {
     void numericIntegerClausesLoseOnlyLeadingZerosWithoutOverflow() {
         var examples =
                 Map.of(
-                        "002", "2", "000", "0", "0", "0", "000200", "200", "--", "--", "A002",
-                        "A002", "2-01", "2-01", "2.01", "2.01");
+                        "002", "2", "000", "0", "0", "0", "000200", "200", "--", "", "A002", "A002",
+                        "2-01", "2-01", "2.01", "2.01");
         examples.forEach(
                 (raw, expected) ->
                         assertThat(RevenueSourceNormalizer.clauseNumber(raw)).isEqualTo(expected));

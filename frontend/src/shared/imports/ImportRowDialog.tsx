@@ -151,6 +151,7 @@ export function ImportRowDialog({
                     </Select>
                   ) : (
                     <textarea
+                      aria-label={field}
                       rows={
                         field.includes('内容') || field.includes('进展') || field === '下一步动作'
                           ? 3
