@@ -27,7 +27,7 @@ const revenueListColumns: { label: string; width: number; numeric?: boolean }[] 
   { label: '来源项目', width: 240 },
   { label: '客户', width: 160 },
   { label: '合同编号', width: 150 },
-  { label: '条款编号', width: 90 },
+  { label: '条款编号', width: 72 },
   { label: '条款金额（元）', width: 200, numeric: true },
   { label: '来源本月计收（元）', width: 200, numeric: true },
   { label: '认定金额（元）', width: 200, numeric: true },

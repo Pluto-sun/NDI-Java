@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-04",
+  "build": "npm --prefix frontend run build: passed",
+  "format": "npm --prefix frontend run format:check: passed",
+  "regression": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh dashboard.spec.ts design-changes.spec.ts production.spec.ts list-column-pagination.spec.ts project-ui-layout.spec.ts revenue-list-design.spec.ts",
+    "passed": 20
+  },
+  "final_dashboard": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh dashboard.spec.ts",
+    "passed": 2,
+    "checked_viewports": [
+      "1440x1000",
+      "1366x900",
+      "1024x900",
+      "375x812"
+    ]
+  },
+  "review": "已人工检查排产桌面清单及驾驶舱全部、方案交流和窄屏截图",
+  "clause_column_width": 72,
+  "database": "isolated e2e; local application database unchanged"
+}

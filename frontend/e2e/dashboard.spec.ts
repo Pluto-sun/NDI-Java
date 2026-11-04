@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { chooseActor, createProject, get, ids } from './support/projects';
 
 test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛选', async ({ page, request }, testInfo) => {
+  await page.route('**/workbench/map/boundaries/100000', (route) =>
+    route.fulfill({
+      json: JSON.parse(
+        readFileSync(new URL('./fixtures/national-boundary.json', import.meta.url), 'utf8'),
+      ),
+    }),
+  );
   const name = `驾驶舱-${randomUUID()}`;
   await createProject(request, name);
   await page.goto('/workbench');
@@ -37,6 +45,44 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
+  const originalViewport = testInfo.project.use.viewport!;
+  for (const viewport of [
+    originalViewport,
+    ...(testInfo.project.name === 'desktop'
+      ? [
+          { width: 1366, height: 900 },
+          { width: 1024, height: 900 },
+        ]
+      : []),
+  ]) {
+    await page.setViewportSize(viewport);
+    const controls = await page
+      .locator(
+        '.dashboard-inline-filters input, .dashboard-inline-filters select, .dashboard-inline-filters button',
+      )
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+        }),
+      );
+    controls.forEach((control, index) => {
+      expect(control.left).toBeGreaterThanOrEqual(0);
+      expect(control.right).toBeLessThanOrEqual(viewport.width);
+      controls.slice(index + 1).forEach((other) => {
+        expect(
+          control.right <= other.left ||
+            other.right <= control.left ||
+            control.bottom <= other.top ||
+            other.bottom <= control.top,
+        ).toBeTruthy();
+      });
+    });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBeTruthy();
+  }
+  await page.setViewportSize(originalViewport);
   await page.screenshot({ path: testInfo.outputPath('dashboard-all.png'), fullPage: true });
   for (const [code, label] of [
     ['SOLUTION_EXCHANGE', '方案交流'],

@@ -1,5 +1,5 @@
 .project-dashboard {
-  --dashboard-gap: 12px;
+  --dashboard-gap: 16px;
   font-variant-numeric: tabular-nums;
 }
 .dashboard-page-heading {
@@ -83,7 +83,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: var(--shadow);
+  box-shadow: none;
   padding: 16px;
   min-width: 0;
   overflow: hidden;
@@ -459,15 +459,9 @@
     font-size: 12px;
   }
 }
-@media (max-width: 1250px) {
+@media (max-width: 1300px) {
   .dashboard-distribution-grid {
     grid-template-columns: 1fr;
-  }
-  .dashboard-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .dashboard-region-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .dashboard-donut svg {
     max-width: 190px;
@@ -547,4 +541,152 @@
 
 .project-dashboard .dashboard-ranking thead th:first-child {
   white-space: nowrap;
+}
+
+/* 日期与分类筛选按区域分组，避免标签和控件混在同一条文字行中。 */
+.dashboard-page-heading > div {
+  min-width: 0;
+}
+.dashboard-page-heading p {
+  margin-top: 8px;
+}
+.dashboard-toolbar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  align-items: flex-end;
+}
+.dashboard-inline-filters {
+  align-items: flex-end;
+  gap: 10px 12px;
+  min-width: 0;
+}
+.dashboard-inline-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.dashboard-inline-filters input,
+.dashboard-inline-filters select {
+  min-width: 0;
+}
+.dashboard-inline-filters input[type='month'] {
+  width: 170px;
+}
+.dashboard-inline-filters .checkbox-label {
+  display: flex;
+  align-self: center;
+  padding-top: 18px;
+}
+.dashboard-inline-filters input[type='checkbox'] {
+  width: auto;
+}
+.dashboard-section-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 24px;
+}
+.dashboard-section-toolbar h2,
+.dashboard-panel-heading h2 {
+  margin-bottom: 0;
+  flex: 1 1 100%;
+}
+.dashboard-panel-heading {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  align-items: flex-end;
+}
+.dashboard-classification-filters select {
+  width: 170px;
+}
+.dashboard-scope {
+  color: var(--muted);
+}
+.dashboard-kpi-value {
+  flex-wrap: wrap;
+}
+.dashboard-kpi-value strong,
+.dashboard-kpi > b {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.project-dashboard .panel {
+  box-shadow: none;
+}
+.dashboard-chart-scroll svg {
+  min-width: 680px;
+}
+.dashboard-map .action-row {
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+@media (min-width: 1301px) {
+  .dashboard-section-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: space-between;
+  }
+  .dashboard-section-toolbar h2 {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 1300px) {
+  .dashboard-region-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 800px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-kpi:last-child {
+    grid-column: 1 / -1;
+  }
+  .dashboard-toolbar,
+  .dashboard-section-toolbar {
+    padding: 12px;
+  }
+  .dashboard-inline-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+  .dashboard-inline-filters label {
+    width: 100%;
+  }
+  .dashboard-inline-filters input[type='month'],
+  .dashboard-inline-filters select {
+    width: 100%;
+    max-width: none;
+  }
+  .dashboard-inline-filters button {
+    justify-self: end;
+  }
+  .dashboard-inline-filters .checkbox-label {
+    padding-top: 0;
+  }
+  .dashboard-toolbar > button {
+    margin-left: auto;
+  }
+  .dashboard-donut {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .dashboard-donut svg,
+  .dashboard-product-grid .dashboard-donut svg {
+    align-self: center;
+    width: 60%;
+    max-width: 200px;
+  }
+  .dashboard-legend {
+    gap: 12px;
+  }
 }

@@ -27,10 +27,12 @@ export function ProductionListPage() {
     const [r, p] = await Promise.all([productionApi.reference(), productionApi.list(request)]);
     setReference(r);
     setResult(p);
+    setError('');
   }, [query]);
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setDraft(Object.fromEntries(new URLSearchParams(query)));
     load()
       .catch((c) => {
         if (active) setError(c.message);
@@ -41,7 +43,7 @@ export function ProductionListPage() {
     return () => {
       active = false;
     };
-  }, [load]);
+  }, [load, query]);
   function change(key: string, value: string) {
     setDraft((old) => ({ ...old, [key]: value, ...(key === 'provinceId' ? { cityId: '' } : {}) }));
   }
@@ -66,9 +68,8 @@ export function ProductionListPage() {
   }
   return (
     <>
-      <div className="page-heading">
+      <div className="page-heading production-list-heading">
         <div>
-          <span className="eyebrow">PRODUCTION PLAN</span>
           <h1>排产计划</h1>
           <p>按月份维护产品排产，金额单位：万元。</p>
         </div>
@@ -82,6 +83,7 @@ export function ProductionListPage() {
       {notice && <Feedback tone="success">{notice}</Feedback>}
       <form
         className="filter-bar production-filters"
+        aria-label="排产筛选"
         onSubmit={(e) => {
           e.preventDefault();
           const next = new URLSearchParams();
@@ -137,7 +139,7 @@ export function ProductionListPage() {
             ))}
           </Select>
         </label>
-        <label>
+        <label className="production-search">
           项目 / 客户 / 接口人
           <input
             value={draft.search ?? ''}
@@ -146,23 +148,40 @@ export function ProductionListPage() {
             placeholder="输入关键词"
           />
         </label>
-        <button className="primary-button">查询</button>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => {
-            setDraft({});
-            setParams({});
-          }}
-        >
-          重置
-        </button>
+        <div className="production-filter-actions">
+          <button className="primary-button" disabled={loading}>
+            查询
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setDraft({});
+              setParams({});
+            }}
+          >
+            重置
+          </button>
+        </div>
       </form>
       {loading ? (
         <Loading />
       ) : (
-        <section className="panel table-panel">
-          <div className="table-scroll">
+        <section
+          className={`panel table-panel production-list-panel ${reference?.writable ? 'production-list-writable' : ''}`}
+        >
+          <div className="production-list-toolbar">
+            <h2>
+              排产明细 <span>{result?.totalElements ?? 0} 条</span>
+            </h2>
+            <span>左右滚动查看全部字段（金额单位：万元）</span>
+          </div>
+          <div
+            className="table-scroll production-list-scroll"
+            role="region"
+            aria-label="排产明细横向滚动区域"
+            tabIndex={0}
+          >
             <table
               className="production-table"
               aria-label="排产计划清单"
@@ -272,6 +291,7 @@ export function ProductionListPage() {
           )}
           <ListPagination
             label="排产计划"
+            disabled={loading}
             page={result?.page ?? 0}
             totalPages={result?.totalPages ?? 0}
             totalElements={result?.totalElements ?? 0}

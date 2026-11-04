@@ -24,7 +24,7 @@ export function DashboardFilters({
       (value.category === 'INTELLIGENT' && item.code === 'WANGWU'),
   );
   return (
-    <div className="dashboard-inline-filters">
+    <div className="dashboard-inline-filters dashboard-classification-filters">
       <label>
         三化类别
         <Select

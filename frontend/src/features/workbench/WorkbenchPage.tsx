@@ -109,7 +109,6 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     <section className="project-dashboard">
       <div className="page-heading dashboard-page-heading project-stage-heading">
         <div>
-          <span className="eyebrow">PROJECT OPERATIONS</span>
           <div className="title-with-stage">
             <h1>项目管理驾驶舱</h1>
             <ProjectStageTabs
@@ -193,7 +192,7 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
           !main.error && <Loading />
         ) : (
           <>
-            <div className="dashboard-kpis">
+            <div className="dashboard-kpis" aria-label="当前经营指标">
               {cards.map((card) => (
                 <article className="dashboard-kpi" key={card.label}>
                   <span>{card.label}</span>
