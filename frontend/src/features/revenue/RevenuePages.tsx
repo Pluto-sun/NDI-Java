@@ -271,7 +271,7 @@ export function NewRevenuePage() {
         <form className="panel form-panel" onSubmit={submit}>
           <p>仅填写来源字段；认定结果由省市提交审核或接口人认定。金额单位：元。</p>
           <p className="subtle">
-            月账期、合同编号、条款编号、业务号码/项目编号四项组合唯一；业务号码/项目编号选填，未填时按空值参与判重。
+            月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；后三项选填，未填时按空值参与判重。
           </p>
           <RevenueFieldsForm
             reference={reference}
@@ -335,7 +335,7 @@ export function ImportRevenuePage() {
         rowTitleFields: ['项目名称', '合同编号', '条款编号'],
         rowLocationFields: ['省份名称', '地市/组织名称'],
         noDuplicateMessage:
-          '月账期、合同编号、条款编号、业务号码/项目编号四项组合唯一；业务号码/项目编号未填时按空值参与判重，同名项目允许多条明细。',
+          '月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；后三项未填时按空值参与判重，同名项目允许多条明细。',
         uploadHint: '仅导入33个来源字段，不导入认定结果。金额单位为元。',
         previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
       }}

@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-04",
+  "uniqueFields": [
+    "月账期",
+    "合同编号",
+    "条款编号",
+    "业务号码/项目编号",
+    "自然客户名称",
+    "产品编码"
+  ],
+  "unitAndArchitecture": {
+    "passed": 91,
+    "skipped": 0
+  },
+  "integration": {
+    "passed": 18,
+    "skipped": 0
+  },
+  "browser": {
+    "passed": 12,
+    "viewports": [
+      "1440x1000",
+      "375x812"
+    ]
+  },
+  "frontendBuild": "passed",
+  "formatAndWhitespace": "passed",
+  "currentApplicationDatabaseModified": false
+}

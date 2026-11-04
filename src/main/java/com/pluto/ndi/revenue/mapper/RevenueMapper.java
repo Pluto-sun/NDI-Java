@@ -196,7 +196,9 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
         return jdbc.queryForObject(
                         "SELECT COUNT(*) FROM revenue_entry WHERE account_month=:month AND"
                                 + " contract_no=:contract AND clause_number_key=:clause"
-                                + " AND business_number_hash=UNHEX(SHA2(:business,256))",
+                                + " AND business_number_hash=UNHEX(SHA2(:business,256))"
+                                + " AND natural_customer_name_hash=UNHEX(SHA2(:customer,256))"
+                                + " AND product_code_hash=UNHEX(SHA2(:product,256))",
                         Map.of(
                                 "month",
                                 c.month() + "-01",
@@ -205,7 +207,11 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                                 "clause",
                                 c.clauseNo(),
                                 "business",
-                                c.fields().getOrDefault("业务号码/项目编号", "")),
+                                c.fields().getOrDefault("业务号码/项目编号", ""),
+                                "customer",
+                                c.fields().getOrDefault("自然客户名称", ""),
+                                "product",
+                                c.fields().getOrDefault("产品编码", "")),
                         Integer.class)
                 > 0;
     }

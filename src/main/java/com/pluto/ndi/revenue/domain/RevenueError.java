@@ -21,7 +21,7 @@ public record RevenueError(HttpStatus status, String code, String message) imple
         return new RevenueError(
                 HttpStatus.CONFLICT,
                 "REVENUE_CONFLICT",
-                "记录或任务已变化，请刷新重试；月账期、合同编号、条款编号与业务号码/项目编号四项相同的记录不能重复");
+                "记录或任务已变化，请刷新重试；月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称与产品编码六项相同的记录不能重复");
     }
 
     public static RevenueError notFound() {

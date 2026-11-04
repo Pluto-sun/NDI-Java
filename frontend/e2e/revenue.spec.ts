@@ -199,11 +199,8 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
   await page.screenshot({ path: testInfo.outputPath('revenue-notifications.png'), fullPage: true });
 });
 
-test('创建和导入统一按月账期、合同、条款及业务号码四项查重', async ({
-  page,
-  request,
-}, testInfo) => {
-  const contract = 'FOUR-KEY-' + randomUUID();
+test('创建和导入统一按六字段查重，客户和产品不同可共存', async ({ page, request }, testInfo) => {
+  const contract = 'SIX-KEY-' + randomUUID();
   const first = source(contract);
   await api<Entry>(request, ids.admin, '', { source: first });
   await page.goto('/revenue/new');
@@ -228,12 +225,13 @@ test('创建和导入统一按月账期、合同、条款及业务号码四项�
   expect(repeated.status()).toBe(409);
   await page.goto('/revenue/import');
   await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
-    name: '四字段.xlsx',
+    name: '六字段.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: importWorkbook([
-      first,
+      { ...first, 自然客户名称: '', 产品编码: '' },
       { ...first, '业务号码/项目编号': '000011' },
-      { ...first, '业务号码/项目编号': '000012' },
+      { ...first, 自然客户名称: '新增自然客户' },
+      { ...first, 产品编码: '000012' },
       { ...first, '业务号码/项目编号': '000011' },
     ]),
   });
@@ -243,11 +241,11 @@ test('创建和导入统一按月账期、合同、条款及业务号码四项�
   await expect(
     page.getByText('与文件内前序记录重复：业务唯一键相同', { exact: true }),
   ).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('four-key-preview.png'), fullPage: true });
-  await page.getByRole('button', { name: '确认导入 2 行并结束任务', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('six-key-preview.png'), fullPage: true });
+  await page.getByRole('button', { name: '确认导入 3 行并结束任务', exact: true }).click();
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   await page.goto('/revenue?search=' + contract);
-  await expect(page.locator('tbody tr')).toHaveCount(4);
+  await expect(page.locator('tbody tr')).toHaveCount(5);
 });
 
 test('数科固定组织、无审签日期与导入修正使用一致选项', async ({ page, request }, testInfo) => {

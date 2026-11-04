@@ -25,7 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** 四字段唯一键在手工创建、导入和并发写入中使用相同口径。 */
+/** 六字段唯一键在手工创建、导入和并发写入中使用相同口径。 */
 @SpringBootTest(classes = NdiApplication.class)
 @Testcontainers(disabledWithoutDocker = true)
 class RevenueBusinessKeyIT {
@@ -285,6 +285,60 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
         assertThat(concurrent(source, source)).containsExactlyInAnyOrder(true, false);
         var other = source();
         assertThat(concurrent(other, withBusiness(other, "000002"))).containsExactly(true, true);
+    }
+
+    @Test
+    void customerAndProductEachDistinguishCreationImportAndConcurrentWrites() throws Exception {
+        var base = source();
+        base.put("自然客户名称", "客户甲");
+        base.put("产品编码", "0002");
+        service.create(admin, base);
+        for (var field : List.of("自然客户名称", "产品编码")) {
+            var changed = new LinkedHashMap<>(base);
+            changed.put(field, field.equals("产品编码") ? "2" : "客户乙");
+            assertThat(service.duplicate(service.validate(admin, changed))).isFalse();
+            service.create(admin, changed);
+            assertThatThrownBy(() -> service.create(admin, changed))
+                    .isInstanceOf(BusinessException.class);
+        }
+        var trimmed = new LinkedHashMap<>(base);
+        trimmed.put("自然客户名称", "  客户甲  ");
+        assertThatThrownBy(() -> service.create(admin, trimmed))
+                .isInstanceOf(BusinessException.class);
+        var first = new LinkedHashMap<>(base);
+        first.put("自然客户名称", "新客户");
+        var otherCustomer = new LinkedHashMap<>(first);
+        otherCustomer.put("自然客户名称", "另一客户");
+        var otherProduct = new LinkedHashMap<>(first);
+        otherProduct.put("产品编码", "0003");
+        var task =
+                imports.upload(
+                        admin,
+                        "六字段.xlsx",
+                        workbook(List.of(first, otherCustomer, otherProduct, first, base)),
+                        null,
+                        null);
+        var mapping = new LinkedHashMap<String, String>();
+        RevenueFields.FIELDS.forEach(f -> mapping.put(f, f));
+        var config = new Configuration("来源数据", 1, mapping);
+        var second = imports.save(admin, task.id(), task.version(), 2, config, null);
+        var preview = imports.save(admin, task.id(), second.version(), 3, config, null);
+        assertThat(preview.batch().validRows()).isEqualTo(3);
+        assertThat(preview.batch().failedRows()).isEqualTo(2);
+        assertThat(preview.batch().rows().get(3).errorsJson()).contains("文件内前序记录重复");
+        assertThat(preview.batch().rows().get(4).errorsJson()).contains("系统内已存在");
+        assertThat(
+                        imports.confirm(admin, preview.batch().batchId(), List.of(2, 3, 4))
+                                .importedRows())
+                .isEqualTo(3);
+        var concurrentBase = source();
+        var differentCustomer = new LinkedHashMap<>(concurrentBase);
+        differentCustomer.put("自然客户名称", "并发客户");
+        assertThat(concurrent(concurrentBase, differentCustomer)).containsExactly(true, true);
+        var another = source();
+        var differentProduct = new LinkedHashMap<>(another);
+        differentProduct.put("产品编码", "0002");
+        assertThat(concurrent(another, differentProduct)).containsExactly(true, true);
     }
 
     List<Boolean> concurrent(Map<String, String> first, Map<String, String> second)
