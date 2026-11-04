@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-04",
+  "skill": "frontend-design",
+  "build": "npm --prefix frontend run build: passed",
+  "format": "npm --prefix frontend run format:check: passed; final changed files rechecked",
+  "regression": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh revenue-list-design.spec.ts revenue.spec.ts list-column-pagination.spec.ts",
+    "passed": 20
+  },
+  "final_layout": {
+    "command": "NDI_E2E_SKIP_BUILD=1 scripts/run-project-e2e.sh revenue-list-design.spec.ts",
+    "passed": 2,
+    "viewports": [
+      "1440x1000",
+      "375x812"
+    ],
+    "maximum_precision_positive_and_negative_amounts": true
+  },
+  "manual_review": "桌面概览、金额与状态区域、窄屏截图已检查",
+  "database": "isolated e2e only; local application database unchanged"
+}
