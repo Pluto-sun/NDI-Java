@@ -1,3 +1,4 @@
+import { revenueText } from './format';
 import { changeSourceField, sourceFieldOptions } from './sourceOptions';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -178,12 +179,14 @@ export function RevenueListPage() {
                 {data.items.map((e) => (
                   <tr key={e.id}>
                     <td>{e.month}</td>
-                    <td>{e.source['省份名称'] || '未归属'}</td>
-                    <td>{e.source['地市/组织名称'] || '—'}</td>
-                    <td>{e.source['项目名称'] || '—'}</td>
-                    <td>{e.source['客户名称'] || e.source['自然客户名称'] || '—'}</td>
-                    <td>{e.contractNo || '—'}</td>
-                    <td>{e.clauseNo || '—'}</td>
+                    <td title={!e.source['省份名称'] ? '未归属' : undefined}>
+                      {revenueText(e.source['省份名称'])}
+                    </td>
+                    <td>{revenueText(e.source['地市/组织名称'])}</td>
+                    <td>{revenueText(e.source['项目名称'])}</td>
+                    <td>{revenueText(e.source['客户名称'] || e.source['自然客户名称'])}</td>
+                    <td>{revenueText(e.contractNo)}</td>
+                    <td>{revenueText(e.clauseNo)}</td>
                     <td>{money(e.clauseAmount)}</td>
                     <td>{money(e.sourceAmount)}</td>
                     <td>{money(e.recognition?.amount)}</td>
@@ -332,6 +335,7 @@ export function ImportRevenuePage() {
         api: revenueImportApi,
         title: '计收',
         amountUnit: '元',
+        emptyValueLabel: '--',
         backTo: '/revenue/new',
         fieldOptions: (field, values) => sourceFieldOptions(field, values, reference),
         changeRowField: (values, field, value) =>

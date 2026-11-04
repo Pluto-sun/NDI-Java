@@ -36,6 +36,7 @@ export interface ImportWizardConfig {
   backTo: string;
   amountFields: string[];
   amountUnit?: string;
+  emptyValueLabel?: string;
   fieldOptions?: (field: string, values: Record<string, string>) => string[] | undefined;
   changeRowField?: (
     values: Record<string, string>,

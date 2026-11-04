@@ -39,7 +39,7 @@ export function RevenueFieldsForm({
               .forEach(([key, value]) => onChange(key, value));
           }}
         >
-          <option value="">未归属（选填）</option>
+          <option value="">--</option>
           {reference.provinces.map((p) => (
             <option key={p.id} value={p.name}>
               {p.name}
@@ -81,7 +81,7 @@ export function RevenueFieldsForm({
               ? '留空或 -- 均表示未填；纯数字去除前导零'
               : field === '审签日期'
                 ? '日期、日期时间或 --（无日期）'
-                : undefined
+                : '--'
           }
           maxLength={2000}
           onChange={(e) => onChange(field, e.target.value)}

@@ -1,3 +1,4 @@
+import { revenueText } from './format';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -81,6 +82,7 @@ function RecognitionForm({
               required
               maxLength={300}
               value={value.reportedProjectName}
+              placeholder="--"
               onChange={(e) => setValue({ ...value, reportedProjectName: e.target.value })}
             />
           </label>
@@ -90,7 +92,7 @@ function RecognitionForm({
               value={value.projectStatus}
               onChange={(e) => setValue({ ...value, projectStatus: e.target.value })}
             >
-              <option value="">未填写</option>
+              <option value="">--</option>
               <option>实施中</option>
               <option>已交付</option>
             </Select>
@@ -101,7 +103,7 @@ function RecognitionForm({
               value={value.integratedProvinceId}
               onChange={(e) => setValue({ ...value, integratedProvinceId: e.target.value })}
             >
-              <option value="">未填写</option>
+              <option value="">--</option>
               {reference.provinces.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -137,16 +139,16 @@ function RecognitionValue({
       </div>
       <div>
         <dt>通报项目名称</dt>
-        <dd>{value.reportedProjectName}</dd>
+        <dd>{revenueText(value.reportedProjectName)}</dd>
       </div>
       <div>
         <dt>项目状态</dt>
-        <dd>{value.projectStatus || '未填写'}</dd>
+        <dd>{revenueText(value.projectStatus)}</dd>
       </div>
       <div>
         <dt>对应省分（集成）</dt>
         <dd>
-          {reference.provinces.find((p) => p.id === value.integratedProvinceId)?.name || '未填写'}
+          {revenueText(reference.provinces.find((p) => p.id === value.integratedProvinceId)?.name)}
         </dd>
       </div>
     </dl>
@@ -238,7 +240,7 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
               {reference.fields.map((f) => (
                 <div key={f}>
                   <dt>{f}</dt>
-                  <dd>{entry.source[f] || '—'}</dd>
+                  <dd>{revenueText(entry.source[f])}</dd>
                 </div>
               ))}
             </dl>

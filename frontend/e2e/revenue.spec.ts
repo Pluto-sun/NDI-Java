@@ -434,7 +434,7 @@ test('自然客户名称选填仍可创建和导入未归属记录，空标识�
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   await page.goto('/revenue?province=UNASSIGNED&search=' + encodeURIComponent(customer));
   await expect(page.locator('tbody tr')).toHaveCount(2);
-  await expect(page.locator('tbody tr').first()).toContainText('未归属');
+  await expect(page.locator('tbody tr').first().locator('td').nth(1)).toHaveText('--');
   const scoped = await api<{ items: Entry[] }>(
     request,
     ids.reporter,
@@ -463,6 +463,16 @@ test('五项标识的空白和--统一判重，仅三列Excel也可导入', asyn
   const entry = await api<Entry>(request, ids.admin, '/' + page.url().split('/').pop()!);
   for (const field of ['合同编号', '条款编号', '业务号码/项目编号', '自然客户名称', '产品编码'])
     expect(entry.source[field]).toBe('');
+  for (const field of ['合同编号', '条款编号', '业务号码/项目编号', '自然客户名称', '产品编码'])
+    await expect(page.getByText(field, { exact: true }).locator('..').locator('dd')).toHaveText(
+      '--',
+    );
+  await expect(
+    page
+      .getByText('产品本月计收不含税额/标品含税收入', { exact: true })
+      .locator('..')
+      .locator('dd'),
+  ).toHaveText('0.00');
   const minimal = { 月账期: month, 条款金额: '100', '产品本月计收不含税额/标品含税收入': '0' };
   const repeated = await request.post(root, {
     headers: { 'X-NDI-Actor-Id': ids.admin },
@@ -482,6 +492,17 @@ test('五项标识的空白和--统一判重，仅三列Excel也可导入', asyn
   await expect(
     page.getByText('与文件内前序记录重复：业务唯一键相同', { exact: true }),
   ).toBeVisible();
+  const preview = page.getByRole('table', { name: '计收导入预检结果', exact: true });
+  await expect(preview.locator('tbody tr').nth(1).locator('strong').first()).toHaveText('--');
+  await expect(preview.locator('tbody tr').nth(1).locator('small').first()).toHaveText('-- / --');
+  await page.getByRole('button', { name: '查看／修正第 4 行', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '修正第 4 行', exact: true });
+  await expect(editor.getByLabel('自然客户名称', { exact: true })).toHaveValue('');
+  await expect(editor.getByLabel('自然客户名称', { exact: true })).toHaveAttribute(
+    'placeholder',
+    '--',
+  );
+  await editor.getByRole('button', { name: '关闭修正第 4 行', exact: true }).click();
   await page.screenshot({
     path: testInfo.outputPath('empty-identity-preview.png'),
     fullPage: true,
@@ -495,4 +516,12 @@ test('五项标识的空白和--统一判重，仅三列Excel也可导入', asyn
   );
   expect(listing.items).toHaveLength(1);
   expect(listing.items[0].source['自然客户名称']).toBe('');
+  await page.goto('/revenue?month=' + importMonth + '&province=UNASSIGNED');
+  const listRow = page.locator('tbody tr').first();
+  await expect(listRow.locator('td').nth(1)).toHaveText('--');
+  await expect(listRow.locator('td').nth(5)).toHaveText('--');
+  await expect(listRow.locator('td').nth(6)).toHaveText('--');
+  await expect(listRow.locator('td').nth(8)).toHaveText('0.00');
+  await expect(listRow.locator('td').nth(9)).toHaveText('--');
+  await page.screenshot({ path: testInfo.outputPath('empty-value-list.png'), fullPage: true });
 });

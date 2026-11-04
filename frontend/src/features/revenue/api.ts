@@ -114,12 +114,7 @@ export const statusLabels: Record<string, string> = {
   REJECTED: '已驳回',
   WITHDRAWN: '已撤销',
 };
-/** 金额按十进制字符串格式化，避免大金额在 JavaScript 中丢失分位精度。 */
-export const money = (value: string | number | null | undefined) => {
-  if (value === null || value === undefined) return '未填写';
-  const [integer, fraction = ''] = String(value).split('.');
-  return integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + fraction.padEnd(2, '0');
-};
+export { money } from './format';
 export const revenueImportApi: ImportWizardApi = {
   importTask: () => request<ImportTask | null>('/imports/task'),
   uploadImportTask: (file, expectedVersion, expectedTaskId) => {

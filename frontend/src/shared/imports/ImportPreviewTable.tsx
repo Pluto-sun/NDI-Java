@@ -112,17 +112,31 @@ export function ImportPreviewTable({
                     <strong className="import-cell-clamp">
                       {(config.rowTitleFields ?? ['项目名称'])
                         .map((field) => cells[field])
-                        .filter(Boolean)
-                        .join(' · ') || '未填写标识'}
+                        .filter((value) =>
+                          config.emptyValueLabel
+                            ? value?.trim() && value.trim() !== config.emptyValueLabel
+                            : Boolean(value),
+                        )
+                        .join(' · ') ||
+                        config.emptyValueLabel ||
+                        '未填写标识'}
                     </strong>
                     <small>
                       {(config.rowLocationFields ?? ['省分', '地市'])
-                        .map((field) => cells[field] || '—')
+                        .map((field) =>
+                          config.emptyValueLabel
+                            ? cells[field]?.trim() || config.emptyValueLabel
+                            : cells[field] || '—',
+                        )
                         .join(' / ')}
                     </small>
                     <small>
                       {config.amountFields
-                        .map((field) => cells[field])
+                        .map((field) =>
+                          config.emptyValueLabel
+                            ? cells[field]?.trim() || config.emptyValueLabel
+                            : cells[field],
+                        )
                         .filter((value) => value?.trim())
                         .join(' / ') || '未填金额'}{' '}
                       {config.amountUnit ?? '万元'}

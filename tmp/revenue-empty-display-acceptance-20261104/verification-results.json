@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-04",
+  "emptyDisplay": "--",
+  "storedEmptyValue": "",
+  "zeroMoneyDisplay": "0.00",
+  "databaseMigrationAdded": false,
+  "frontendBuild": "passed",
+  "formatAndWhitespace": "passed",
+  "browser": {
+    "revenueAndPreviewPaginationPassed": 22,
+    "projectAndProductionImportPassed": 4,
+    "totalPassed": 26,
+    "viewports": [
+      "1440x1000",
+      "375x812"
+    ]
+  },
+  "currentApplicationDatabaseModified": false
+}

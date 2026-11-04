@@ -68,7 +68,7 @@ export function ImportRowDialog({
     >
       <h2 tabIndex={-1}>{mode === 'name' ? '核对相似项目' : '查看与修正导入数据'}</h2>
       <p>
-        {cells['项目名称']} · Excel 原行号 {row.rowNumber}
+        {cells['项目名称'] || config.emptyValueLabel} · Excel 原行号 {row.rowNumber}
       </p>
       {error && <Feedback tone="error">{error}</Feedback>}
       <form onSubmit={(event) => void submit(event)}>
@@ -141,23 +141,24 @@ export function ImportRowDialog({
                       }
                     >
                       {!config.fieldOptions(field, cells)!.includes(value) && (
-                        <option value={value}>{value || '请选择'}</option>
+                        <option value={value}>{value || config.emptyValueLabel || '请选择'}</option>
                       )}
                       {config.fieldOptions(field, cells)!.map((option) => (
                         <option key={option} value={option}>
-                          {option || '未填写'}
+                          {option || config.emptyValueLabel || '未填写'}
                         </option>
                       ))}
                     </Select>
                   ) : (
                     <textarea
                       aria-label={field}
+                      placeholder={config.emptyValueLabel}
                       rows={
                         field.includes('内容') || field.includes('进展') || field === '下一步动作'
                           ? 3
                           : 1
                       }
-                      value={value}
+                      value={config.emptyValueLabel && !value.trim() ? '' : value}
                       maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
                       onChange={(event) =>
                         setCells(
