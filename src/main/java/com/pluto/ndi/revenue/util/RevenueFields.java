@@ -50,8 +50,7 @@ public class RevenueFields {
                     "税率",
                     "产品本月计收不含税额/标品含税收入");
     public static final String SOURCE_AMOUNT = "产品本月计收不含税额/标品含税收入";
-    public static final Set<String> REQUIRED =
-            Set.of("月账期", "省份名称", "合同编号", "条款编号", "条款金额", SOURCE_AMOUNT);
+    public static final Set<String> REQUIRED = Set.of("月账期", "自然客户名称", "条款金额", SOURCE_AMOUNT);
     private final OrganizationDirectory organizations;
 
     public RevenueFields(OrganizationDirectory organizations) {
@@ -102,7 +101,7 @@ public class RevenueFields {
                 values.put("省份名称", "具体组织");
                 if (values.get("地市/组织名称").isBlank()) throw invalid("具体组织必须填写地市/组织名称全称");
             }
-        } else {
+        } else if (!province.isBlank()) {
             var found =
                     organizations.findEnabledProvinces().stream()
                             .filter(

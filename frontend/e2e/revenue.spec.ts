@@ -35,6 +35,7 @@ const source = (name: string) => ({
   '产品本月计收不含税额/标品含税收入': '10.00',
   项目名称: '来源同名项目',
   客户名称: '来源客户',
+  自然客户名称: '来源自然客户',
   '业务号码/项目编号': '000009',
 });
 
@@ -47,18 +48,16 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await page.getByRole('link', { name: '新增计收', exact: true }).click();
   for (const [field, value] of Object.entries(source(contract))) {
     if (field === '省份名称')
-      await page.getByRole('combobox', { name: '省份名称 *', exact: true }).selectOption(value);
+      await page
+        .getByRole('combobox', { name: '省份名称（选填）', exact: true })
+        .selectOption(value);
     else
       await page
         .getByLabel(
           field +
-            ([
-              '月账期',
-              '合同编号',
-              '条款编号',
-              '条款金额',
-              '产品本月计收不含税额/标品含税收入',
-            ].includes(field)
+            (['月账期', '自然客户名称', '条款金额', '产品本月计收不含税额/标品含税收入'].includes(
+              field,
+            )
               ? ' *'
               : '（选填）'),
           { exact: true },
@@ -129,7 +128,7 @@ test('集团三步导入33字段、修正重复条款、只导入一次；接口
   const first = Object.fromEntries(
     reference.fields.map((f) => [f, source(contract)[f as keyof ReturnType<typeof source>] ?? '']),
   );
-  const second = { ...first, 条款编号: '' };
+  const second = { ...first, 自然客户名称: '' };
   await page.goto('/revenue');
   await switchActor(page, group);
   await page.getByRole('link', { name: '计收导入', exact: true }).click();
@@ -140,15 +139,15 @@ test('集团三步导入33字段、修正重复条款、只导入一次；接口
   });
   await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
   await expect(page.getByRole('combobox', { name: '映射：认定金额', exact: true })).toHaveCount(0);
-  const clause = page.getByRole('combobox', { name: '映射：条款编号', exact: true });
+  const clause = page.getByRole('combobox', { name: '映射：自然客户名称', exact: true });
   await clause.selectOption('');
   await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();
-  await clause.selectOption('条款编号');
+  await clause.selectOption('自然客户名称');
   await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
-  await expect(page.getByText('条款编号必填', { exact: true })).toBeVisible();
+  await expect(page.getByText('自然客户名称必填', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '查看／修正第 5 行', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '修正第 5 行', exact: true });
-  await dialog.getByLabel('条款编号', { exact: true }).fill('0002');
+  await dialog.getByLabel('自然客户名称', { exact: true }).fill('修正自然客户');
   await dialog.getByRole('button', { name: '保存并重新校验', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.screenshot({
@@ -208,7 +207,9 @@ test('创建和导入统一按六字段查重，客户和产品不同可共存',
   const reference = await api<Reference>(request, ids.admin, '/reference-data');
   for (const [field, value] of Object.entries({ ...first, '业务号码/项目编号': '000010' })) {
     if (field === '省份名称')
-      await page.getByRole('combobox', { name: '省份名称 *', exact: true }).selectOption(value);
+      await page
+        .getByRole('combobox', { name: '省份名称（选填）', exact: true })
+        .selectOption(value);
     else
       await page
         .getByLabel(field + (reference.required.includes(field) ? ' *' : '（选填）'), {
@@ -228,7 +229,7 @@ test('创建和导入统一按六字段查重，客户和产品不同可共存',
     name: '六字段.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: importWorkbook([
-      { ...first, 自然客户名称: '', 产品编码: '' },
+      { ...first, 产品编码: '' },
       { ...first, '业务号码/项目编号': '000011' },
       { ...first, 自然客户名称: '新增自然客户' },
       { ...first, 产品编码: '000012' },
@@ -252,13 +253,14 @@ test('数科固定组织、无审签日期与导入修正使用一致选项', as
   const contract = 'DS-OPTIONS-' + randomUUID();
   await page.goto('/revenue/new');
   await switchActor(page, ids.admin);
-  await page.getByRole('combobox', { name: '省份名称 *', exact: true }).selectOption('数科');
+  await page.getByRole('combobox', { name: '省份名称（选填）', exact: true }).selectOption('数科');
   const organization = page.getByRole('combobox', { name: '地市/组织名称（选填）', exact: true });
   await expect(organization).toHaveValue('联通数字科技有限公司本部');
   await expect(organization.locator('option')).toHaveCount(1);
   await page.getByLabel('月账期 *', { exact: true }).fill('2026-11');
-  await page.getByLabel('合同编号 *', { exact: true }).fill(contract);
-  await page.getByLabel('条款编号 *', { exact: true }).fill('001');
+  await page.getByLabel('合同编号（选填）', { exact: true }).fill(contract);
+  await page.getByLabel('条款编号（选填）', { exact: true }).fill('001');
+  await page.getByLabel('自然客户名称 *', { exact: true }).fill('数科自然客户');
   await page.getByLabel('条款金额 *', { exact: true }).fill('100');
   await page.getByLabel('产品本月计收不含税额/标品含税收入 *', { exact: true }).fill('10');
   await page.getByText('其他来源字段（选填）', { exact: true }).click();
@@ -281,6 +283,7 @@ test('数科固定组织、无审签日期与导入修正使用一致选项', as
     省份名称: '数科',
     '地市/组织名称': '其他组织',
     合同编号: contract + '-IMPORT',
+    自然客户名称: '数科自然客户',
     条款编号: '001',
     条款金额: '100',
     '产品本月计收不含税额/标品含税收入': '10',
@@ -326,7 +329,9 @@ test('数字条款归一后四字段查重，创建与导入支持常见审签�
   await page.getByText('其他来源字段（选填）', { exact: true }).click();
   for (const [field, value] of Object.entries(first)) {
     if (field === '省份名称')
-      await page.getByRole('combobox', { name: '省份名称 *', exact: true }).selectOption(value);
+      await page
+        .getByRole('combobox', { name: '省份名称（选填）', exact: true })
+        .selectOption(value);
     else
       await page
         .getByLabel(field + (reference.required.includes(field) ? ' *' : '（选填）'), {
@@ -381,4 +386,64 @@ test('数字条款归一后四字段查重，创建与导入支持常见审签�
   expect(list.items).toHaveLength(1);
   expect(list.items[0].clauseNo).toBe('2');
   expect(list.items[0].source['审签日期']).toBe('2026-07-20');
+});
+
+test('仅四项必填可创建和导入未归属记录，空标识仍参与六字段判重', async ({
+  page,
+  request,
+}, testInfo) => {
+  const customer = '最小自然客户-' + randomUUID();
+  await page.goto('/revenue/new');
+  await switchActor(page, ids.admin);
+  await page.getByLabel('月账期 *', { exact: true }).fill('2026-11');
+  await page.getByLabel('自然客户名称 *', { exact: true }).fill(customer);
+  await page.getByLabel('条款金额 *', { exact: true }).fill('100');
+  await page.getByLabel('产品本月计收不含税额/标品含税收入 *', { exact: true }).fill('0');
+  await page.getByRole('button', { name: '创建计收明细', exact: true }).click();
+  await expect(page).toHaveURL(/\/revenue\/[0-9a-f-]+$/);
+  const id = page.url().split('/').pop()!;
+  const saved = await api<Entry>(request, ids.admin, '/' + id);
+  expect(saved.provinceId).toBeNull();
+  expect(saved.specificOrganization).toBe(false);
+  expect(saved.source['合同编号']).toBe('');
+  expect(saved.source['条款编号']).toBe('');
+  const minimal = {
+    月账期: '202611',
+    自然客户名称: customer,
+    条款金额: '100',
+    '产品本月计收不含税额/标品含税收入': '0',
+  };
+  const duplicate = await request.post(root, {
+    headers: { 'X-NDI-Actor-Id': ids.admin },
+    data: { source: minimal },
+  });
+  expect(duplicate.status()).toBe(409);
+  const denied = await request.get(root + '/' + id, {
+    headers: { 'X-NDI-Actor-Id': ids.reporter },
+  });
+  expect(denied.status()).toBe(403);
+  await page.goto('/revenue/import');
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '四项必填.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook([minimal, { ...minimal, 自然客户名称: customer + '-新客户' }]),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByText('系统内已存在相同业务唯一键的记录', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  await page.goto('/revenue?province=UNASSIGNED&search=' + encodeURIComponent(customer));
+  await expect(page.locator('tbody tr')).toHaveCount(2);
+  await expect(page.locator('tbody tr').first()).toContainText('未归属');
+  const scoped = await api<{ items: Entry[] }>(
+    request,
+    ids.reporter,
+    '?province=UNASSIGNED&search=' + encodeURIComponent(customer),
+  );
+  expect(scoped.items).toHaveLength(0);
+  await page.screenshot({
+    path: testInfo.outputPath('unassigned-minimal-list.png'),
+    fullPage: true,
+  });
 });

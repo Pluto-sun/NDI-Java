@@ -48,7 +48,9 @@ export function RevenueListPage() {
         <div>
           <span className="eyebrow">REVENUE MANAGEMENT</span>
           <h1>计收列表</h1>
-          <p>月度来源明细与生效认定分别保留，金额单位：元。</p>
+          <p>
+            月度来源明细与生效认定分别保留，金额单位：元。省份留空为未归属记录，仅全国范围账号可查看，由接口人直接认定。
+          </p>
         </div>
         {reference?.canCreate && (
           <div className="inline-actions">
@@ -92,6 +94,7 @@ export function RevenueListPage() {
             ))}
             <option value="ORGANIZATION">具体组织</option>
             <option value="DS_TECH">数科</option>
+            <option value="UNASSIGNED">未归属</option>
           </Select>
         </label>
         <label>
@@ -175,12 +178,12 @@ export function RevenueListPage() {
                 {data.items.map((e) => (
                   <tr key={e.id}>
                     <td>{e.month}</td>
-                    <td>{e.source['省份名称']}</td>
+                    <td>{e.source['省份名称'] || '未归属'}</td>
                     <td>{e.source['地市/组织名称'] || '—'}</td>
                     <td>{e.source['项目名称'] || '—'}</td>
-                    <td>{e.source['客户名称'] || '—'}</td>
-                    <td>{e.contractNo}</td>
-                    <td>{e.clauseNo}</td>
+                    <td>{e.source['客户名称'] || e.source['自然客户名称'] || '—'}</td>
+                    <td>{e.contractNo || '—'}</td>
+                    <td>{e.clauseNo || '—'}</td>
                     <td>{money(e.clauseAmount)}</td>
                     <td>{money(e.sourceAmount)}</td>
                     <td>{money(e.recognition?.amount)}</td>
@@ -269,9 +272,11 @@ export function NewRevenuePage() {
       {error && <Feedback tone="error">{error}</Feedback>}
       {reference?.canCreate ? (
         <form className="panel form-panel" onSubmit={submit}>
-          <p>仅填写来源字段；认定结果由省市提交审核或接口人认定。金额单位：元。</p>
+          <p>
+            仅填写来源字段；认定结果由省市提交审核或接口人认定。金额单位：元。省份留空为未归属记录，仅全国范围账号可查看，由接口人直接认定。
+          </p>
           <p className="subtle">
-            月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；后三项选填，未填时按空值参与判重。
+            月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；其中月账期、自然客户名称必填，其余四项未填时按空值参与判重。
           </p>
           <RevenueFieldsForm
             reference={reference}
@@ -332,10 +337,10 @@ export function ImportRevenuePage() {
         changeRowField: (values, field, value) =>
           changeSourceField(values, field, value, reference),
         amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入'],
-        rowTitleFields: ['项目名称', '合同编号', '条款编号'],
+        rowTitleFields: ['项目名称', '自然客户名称', '合同编号', '条款编号'],
         rowLocationFields: ['省份名称', '地市/组织名称'],
         noDuplicateMessage:
-          '月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；后三项未填时按空值参与判重，同名项目允许多条明细。',
+          '月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；其中月账期、自然客户名称必填，其余四项未填时按空值参与判重，同名项目允许多条明细。',
         uploadHint: '仅导入33个来源字段，不导入认定结果。金额单位为元。',
         previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
       }}

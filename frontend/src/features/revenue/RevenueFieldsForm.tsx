@@ -15,6 +15,9 @@ export function RevenueFieldsForm({
   const primary = new Set([
     ...reference.required,
     '费用账期',
+    '省份名称',
+    '合同编号',
+    '条款编号',
     '地市/组织名称',
     '业务号码/项目编号',
     '项目名称',
@@ -26,7 +29,7 @@ export function RevenueFieldsForm({
       {reference.required.includes(field) ? ' *' : '（选填）'}
       {field === '省份名称' ? (
         <Select
-          required
+          required={reference.required.includes(field)}
           value={values[field] ?? ''}
           onChange={(e) => {
             const next = changeSourceField(values, field, e.target.value, reference);
@@ -35,7 +38,7 @@ export function RevenueFieldsForm({
               .forEach(([key, value]) => onChange(key, value));
           }}
         >
-          <option value="">请选择</option>
+          <option value="">未归属（选填）</option>
           {reference.provinces.map((p) => (
             <option key={p.id} value={p.name}>
               {p.name}
@@ -74,7 +77,7 @@ export function RevenueFieldsForm({
           }
           placeholder={
             field === '条款编号'
-              ? '纯数字去除前导零；无条款填--'
+              ? '可留空；纯数字去除前导零；无条款可填--'
               : field === '审签日期'
                 ? '日期、日期时间或 --（无日期）'
                 : undefined

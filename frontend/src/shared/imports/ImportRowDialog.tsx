@@ -145,7 +145,7 @@ export function ImportRowDialog({
                       )}
                       {config.fieldOptions(field, cells)!.map((option) => (
                         <option key={option} value={option}>
-                          {option}
+                          {option || '未填写'}
                         </option>
                       ))}
                     </Select>

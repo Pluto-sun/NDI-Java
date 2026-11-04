@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-/** 省市均按本省办理；接口人全国查看，但仅在负责省份及具体组织内认定。 */
+/** 省市均按本省办理；接口人全国查看，但仅在负责省份、具体组织及未归属记录中认定。 */
 @Service
 public class RevenueAccessService {
     private final IdentityDirectory identities;
@@ -21,14 +21,22 @@ public class RevenueAccessService {
             ProjectUser user, boolean national, boolean creator, boolean reviewer, boolean local) {
         public boolean readable(UUID province, boolean organization) {
             return national
-                    || !organization && local && Objects.equals(user.provinceId(), province);
+                    || province != null
+                            && !organization
+                            && local
+                            && Objects.equals(user.provinceId(), province);
         }
 
         public boolean recognize(UUID province, boolean organization) {
             if (creator) return false;
             return reviewer
-                    ? organization || user.reviewerProvinceIds().contains(province)
-                    : !organization && local && Objects.equals(user.provinceId(), province);
+                    ? organization
+                            || province == null
+                            || user.reviewerProvinceIds().contains(province)
+                    : province != null
+                            && !organization
+                            && local
+                            && Objects.equals(user.provinceId(), province);
         }
     }
 

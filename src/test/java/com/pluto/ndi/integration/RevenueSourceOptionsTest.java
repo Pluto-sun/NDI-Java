@@ -17,20 +17,23 @@ class RevenueSourceOptionsTest {
     private final RevenueFields fields = new RevenueFields(mock(OrganizationDirectory.class));
 
     Map<String, String> source() {
-        return new LinkedHashMap<>(
-                Map.of(
-                        "月账期",
-                        "202611",
-                        "省份名称",
-                        "数科",
-                        "合同编号",
-                        "HT001",
-                        "条款编号",
-                        "001",
-                        "条款金额",
-                        "100",
-                        RevenueFields.SOURCE_AMOUNT,
-                        "10"));
+        var result =
+                new LinkedHashMap<>(
+                        Map.of(
+                                "月账期",
+                                "202611",
+                                "省份名称",
+                                "数科",
+                                "合同编号",
+                                "HT001",
+                                "条款编号",
+                                "001",
+                                "条款金额",
+                                "100",
+                                RevenueFields.SOURCE_AMOUNT,
+                                "10"));
+        result.put("自然客户名称", "验收自然客户");
+        return result;
     }
 
     @Test

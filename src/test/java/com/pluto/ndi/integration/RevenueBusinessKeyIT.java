@@ -81,24 +81,27 @@ class RevenueBusinessKeyIT {
     }
 
     Map<String, String> source() {
-        return new LinkedHashMap<>(
-                Map.of(
-                        "月账期",
-                        "202611",
-                        "省份名称",
-                        "--",
-                        "地市/组织名称",
-                        "唯一键验收组织",
-                        "合同编号",
-                        "CONTRACT-" + UUID.randomUUID(),
-                        "条款编号",
-                        "001",
-                        "条款金额",
-                        "100",
-                        RevenueFields.SOURCE_AMOUNT,
-                        "10",
-                        "业务号码/项目编号",
-                        "000001"));
+        var result =
+                new LinkedHashMap<>(
+                        Map.of(
+                                "月账期",
+                                "202611",
+                                "省份名称",
+                                "--",
+                                "地市/组织名称",
+                                "唯一键验收组织",
+                                "合同编号",
+                                "CONTRACT-" + UUID.randomUUID(),
+                                "条款编号",
+                                "001",
+                                "条款金额",
+                                "100",
+                                RevenueFields.SOURCE_AMOUNT,
+                                "10",
+                                "业务号码/项目编号",
+                                "000001"));
+        result.put("自然客户名称", "验收自然客户");
+        return result;
     }
 
     Map<String, String> withBusiness(Map<String, String> source, String number) {

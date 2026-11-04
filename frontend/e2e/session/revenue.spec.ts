@@ -10,6 +10,7 @@ test('正式会话计收创建导入受CSRF保护，集团可创建但不能认�
   const root = '/api/v1/revenue/entries';
   const values = {
     月账期: '202610',
+    自然客户名称: '会话自然客户',
     省份名称: '广东省',
     合同编号: 'SESSION-' + randomUUID(),
     条款编号: '0001',

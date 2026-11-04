@@ -155,28 +155,31 @@ class RevenueIT {
     }
 
     Map<String, String> source() {
-        return new LinkedHashMap<>(
-                Map.of(
-                        "月账期",
-                        "202610",
-                        "费用账期",
-                        "202609",
-                        "省份名称",
-                        provinceName,
-                        "地市/组织名称",
-                        "非行政地市文本",
-                        "合同编号",
-                        "000" + UUID.randomUUID(),
-                        "条款编号",
-                        "001",
-                        "条款金额",
-                        "100.00",
-                        RevenueFields.SOURCE_AMOUNT,
-                        "10.00",
-                        "项目名称",
-                        "同名来源项目",
-                        "业务号码/项目编号",
-                        "000042"));
+        var result =
+                new LinkedHashMap<>(
+                        Map.of(
+                                "月账期",
+                                "202610",
+                                "费用账期",
+                                "202609",
+                                "省份名称",
+                                provinceName,
+                                "地市/组织名称",
+                                "非行政地市文本",
+                                "合同编号",
+                                "000" + UUID.randomUUID(),
+                                "条款编号",
+                                "001",
+                                "条款金额",
+                                "100.00",
+                                RevenueFields.SOURCE_AMOUNT,
+                                "10.00",
+                                "项目名称",
+                                "同名来源项目",
+                                "业务号码/项目编号",
+                                "000042"));
+        result.put("自然客户名称", "验收自然客户");
+        return result;
     }
 
     Recognition value(String amount) {
@@ -220,6 +223,46 @@ class RevenueIT {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.recognize(group, e.id(), e.version(), value("1")))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void unassignedMinimalEntriesRemainNationalAndInterfaceRecognitionIsDirect() {
+        var minimal =
+                new LinkedHashMap<>(
+                        Map.of(
+                                "月账期",
+                                "202611",
+                                "自然客户名称",
+                                "未归属客户-" + UUID.randomUUID(),
+                                "条款金额",
+                                "100",
+                                RevenueFields.SOURCE_AMOUNT,
+                                "0"));
+        var saved = service.create(admin, minimal);
+        assertThat(saved.provinceId()).isNull();
+        assertThat(saved.specificOrganization()).isFalse();
+        assertThat(saved.contractNo()).isEmpty();
+        assertThat(saved.clauseNo()).isEmpty();
+        var unassigned =
+                new RevenueMapper.Filter(null, "UNASSIGNED", minimal.get("自然客户名称"), null, 0, 20);
+        assertThat(service.list(admin, unassigned).items())
+                .extracting(Entry::id)
+                .containsExactly(saved.id());
+        assertThat(service.list(reporter, unassigned).items()).isEmpty();
+
+        assertThat(service.detail(group, saved.id()).canRecognize()).isFalse();
+        assertThat(service.detail(reviewer, saved.id()).canRecognize()).isTrue();
+        for (var actor : List.of(reporter, cityReporter, outsider))
+            assertThatThrownBy(() -> service.detail(actor, saved.id()))
+                    .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.create(admin, minimal))
+                .isInstanceOf(BusinessException.class);
+        var different = new LinkedHashMap<>(minimal);
+        different.put("合同编号", "新增合同");
+        assertThat(service.create(admin, different).id()).isNotEqualTo(saved.id());
+        var applied = service.recognize(reviewer, saved.id(), saved.version(), value("5"));
+        assertThat(applied.recognition().amount()).isEqualByComparingTo("5");
+        assertThat(service.requests(reviewer, saved.id())).isEmpty();
     }
 
     @Test
@@ -500,6 +543,7 @@ class RevenueIT {
         var s = source();
         var bad = new LinkedHashMap<>(s);
         bad.put("条款编号", "");
+        bad.put("自然客户名称", "");
         var bytes = workbook(List.of(s, s, bad), true);
         assertThatThrownBy(() -> imports.upload(reviewer, "来源.xlsx", bytes, null, null))
                 .isInstanceOf(BusinessException.class);
@@ -511,7 +555,7 @@ class RevenueIT {
         var full = new Configuration("来源数据", 1, mapping);
         var second = imports.save(admin, task.id(), 0, 2, full, null);
         var missing = new LinkedHashMap<>(mapping);
-        missing.put("条款编号", "");
+        missing.put("自然客户名称", "");
         assertThatThrownBy(
                         () ->
                                 imports.save(
@@ -521,14 +565,20 @@ class RevenueIT {
                                         3,
                                         new Configuration("来源数据", 1, missing),
                                         null))
-                .hasMessageContaining("条款编号");
+                .hasMessageContaining("自然客户名称");
         var preview = imports.save(admin, task.id(), second.version(), 3, full, null);
         assertThat(preview.batch().validRows()).isEqualTo(1);
         assertThat(preview.batch().failedRows()).isEqualTo(2);
         assertThat(imports.current(admin).step()).isEqualTo(3);
         assertThatThrownBy(() -> imports.batch(group, preview.batch().batchId()))
                 .isInstanceOf(BusinessException.class);
-        var fixed = imports.revise(admin, preview.batch().batchId(), 4, 0, Map.of("条款编号", "--"));
+        var fixed =
+                imports.revise(
+                        admin,
+                        preview.batch().batchId(),
+                        4,
+                        0,
+                        Map.of("条款编号", "--", "自然客户名称", "修正自然客户"));
         assertThat(fixed.validRows()).isEqualTo(2);
         var completed = imports.confirm(admin, preview.batch().batchId(), List.of(2, 4));
         assertThat(completed.importedRows()).isEqualTo(2);

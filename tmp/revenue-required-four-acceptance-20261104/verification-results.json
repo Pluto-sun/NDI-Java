@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-04",
+  "requiredFields": [
+    "月账期",
+    "自然客户名称",
+    "条款金额",
+    "产品本月计收不含税额/标品含税收入"
+  ],
+  "migration": "V47",
+  "backend": {
+    "unitAndArchitecturePassed": 92,
+    "integrationPassed": 19,
+    "filterFixVerification": {
+      "unitAndArchitecturePassed": 92,
+      "integrationPassed": 9
+    },
+    "skipped": 0
+  },
+  "browser": {
+    "existingRegressionPassed": 20,
+    "minimalAndUnassignedPassedAfterFix": 2,
+    "sessionAndCsrfPassed": 2,
+    "distinctCasesPassed": 24
+  },
+  "frontendBuild": "passed",
+  "formatAndWhitespace": "passed",
+  "currentApplicationDatabaseModified": false
+}

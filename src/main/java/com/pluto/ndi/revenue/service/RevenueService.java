@@ -76,7 +76,7 @@ public class RevenueService {
                         .contains(f.state())) throw invalid("办理状态无效");
         if (f.province() != null
                 && !f.province().isBlank()
-                && !Set.of("ORGANIZATION", "DS_TECH").contains(f.province()))
+                && !Set.of("ORGANIZATION", "DS_TECH", "UNASSIGNED").contains(f.province()))
             try {
                 UUID.fromString(f.province());
             } catch (IllegalArgumentException e) {

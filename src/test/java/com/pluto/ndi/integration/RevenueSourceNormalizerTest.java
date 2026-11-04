@@ -113,7 +113,9 @@ class RevenueSourceNormalizerTest {
                             org.mockito.Mockito.mock(
                                     com.pluto.ndi.organization.service.OrganizationDirectory
                                             .class));
-            assertThat(fields.normalize(line.cells()).fields())
+            var input = new java.util.LinkedHashMap<>(line.cells());
+            input.put("自然客户名称", "验收自然客户");
+            assertThat(fields.normalize(input).fields())
                     .containsEntry("条款编号", "2")
                     .containsEntry("合同编号", "000001")
                     .containsEntry("业务号码/项目编号", "000042")

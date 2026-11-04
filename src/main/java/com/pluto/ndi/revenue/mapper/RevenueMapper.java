@@ -65,7 +65,9 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             args.addValue("month", f.month() + "-01");
         }
         if (f.province() != null && !f.province().isBlank()) {
-            if (f.province().equals("ORGANIZATION")) {
+            if (f.province().equals("UNASSIGNED")) {
+                sql.append(" AND e.province_id IS NULL AND e.specific_organization=FALSE");
+            } else if (f.province().equals("ORGANIZATION")) {
                 sql.append(
                         " AND e.specific_organization=TRUE AND"
                             + " COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"省份名称\"')),"
@@ -88,10 +90,11 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
         if (f.search() != null && !f.search().isBlank()) {
             sql.append(
                     " AND (e.contract_no LIKE :q OR e.clause_no LIKE :q OR"
-                            + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"项目名称\"')) LIKE :q OR"
-                            + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"客户名称\"')) LIKE :q OR"
-                            + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"业务号码/项目编号\"')) LIKE"
-                            + " :q)");
+                        + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"项目名称\"')) LIKE :q OR"
+                        + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"客户名称\"')) LIKE :q OR"
+                        + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"自然客户名称\"')) LIKE :q OR"
+                        + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"业务号码/项目编号\"')) LIKE"
+                        + " :q)");
             args.addValue(
                     "q",
                     "%"

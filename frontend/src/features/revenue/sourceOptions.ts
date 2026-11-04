@@ -23,6 +23,7 @@ export function sourceFieldOptions(
 ) {
   if (field === '省份名称')
     return [
+      '',
       ...reference.provinces.map((p) => p.name),
       '具体组织',
       ...Object.keys(reference.fixedOrganizations ?? {}),
