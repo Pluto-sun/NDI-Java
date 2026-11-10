@@ -30,6 +30,6 @@ export default defineConfig({
     command: 'npm run dev -- --port 15173 --strictPort',
     url: 'http://127.0.0.1:15173',
     reuseExistingServer: false,
-    env: { NDI_DEV_API_TARGET: 'http://127.0.0.1:18080' },
+    env: { NDI_DEV_API_TARGET: 'http://127.0.0.1:18080', NDI_FRONTEND_HOST: '127.0.0.1' },
   },
 });
