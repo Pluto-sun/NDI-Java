@@ -32,7 +32,11 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
 """;
 
     public record Filter(
-            String month, String province, String search, String state, int page, int size) {}
+            String month, String province, String search, String state, int page, int size, String organization) {
+        public Filter(String month, String province, String search, String state, int page, int size) {
+            this(month, province, search, state, page, size, null);
+        }
+    }
 
     public record Summary(
             long total,
@@ -103,6 +107,11 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             // LIKE 的转义字符单独声明，避免用户输入成为通配符。
             var text = sql.toString().replace("LIKE :q", "LIKE :q ESCAPE '!'");
             sql = new StringBuilder(text);
+        }
+        if (f.organization() != null && !f.organization().isBlank()) {
+            sql.append(" AND JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"地市/组织名称\"')) LIKE :organization ESCAPE '!'");
+            args.addValue("organization", "%" + f.organization().strip().replace("!", "!!")
+                    .replace("%", "!%").replace("_", "!_") + "%");
         }
         String pending =
                 "EXISTS(SELECT 1 FROM revenue_recognition_request r WHERE r.entry_id=e.id AND"

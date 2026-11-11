@@ -58,14 +58,14 @@ public class ProjectExportRowService {
         var experts = fields.contains(ProjectExportField.SUPPORT_EXPERTS) ? projects.findExportExperts(ids).stream().collect(
                 Collectors.groupingBy(ProjectExportExpert::projectId, Collectors.mapping(ProjectExportExpert::name, Collectors.toList()))) : Map.<UUID, List<String>>of();
         var industryNames = fields.contains(ProjectExportField.CUSTOMER_INDUSTRY) ? industries.findAllById(summaries.stream()
-                .map(ProjectSummary::industryCode).collect(Collectors.toSet())).stream().collect(Collectors.toMap(
+                .map(ProjectSummary::industryCode).filter(java.util.Objects::nonNull).collect(Collectors.toSet())).stream().collect(Collectors.toMap(
                 ProjectIndustryReferenceEntity::industryCode, ProjectIndustryReferenceEntity::industryName)) : Map.<String, String>of();
         var lastActivities = fields.contains(ProjectExportField.UPDATED_AT) ? activities.findLastActivities(ids) : Map.<UUID, Instant>of();
         return summaries.stream().map(summary -> {
             var detail = details.get(summary.id());
             if (needsDetails && detail == null) throw new IllegalStateException("导出项目元数据已变化，请重新提交");
             var values = new EnumMap<ProjectExportField, String>(ProjectExportField.class);
-            values.put(ProjectExportField.CUSTOMER_INDUSTRY, industryNames.getOrDefault(summary.industryCode(), ""));
+            values.put(ProjectExportField.CUSTOMER_INDUSTRY, summary.industryCode() == null ? "" : industryNames.getOrDefault(summary.industryCode(), ""));
             if (detail != null) {
                 values.put(ProjectExportField.PROVINCE, provinces.getOrDefault(detail.provinceId(), ""));
                 values.put(ProjectExportField.CITY, cities.getOrDefault(detail.cityId(), ""));

@@ -171,13 +171,13 @@ public class ProjectMonthlySnapshotService {
         var cityNames = organizations.findCityNames(pending.stream().map(item -> item.state().cityId)
                 .distinct().toList());
         Map<String, String> industryNames = industries.findAllById(pending.stream()
-                .map(item -> item.state().industryCode).distinct().toList()).stream()
+                .map(item -> item.state().industryCode).filter(Objects::nonNull).distinct().toList()).stream()
                 .collect(Collectors.toMap(item -> item.industryCode(), item -> item.industryName()));
         for (var item : pending) {
             var state = item.state();
             snapshots.insert(new Snapshot(item.projectId(), month, state.provinceId, state.cityId,
                     cityNames.getOrDefault(state.cityId, state.cityId.toString()), state.industryCode,
-                    industryNames.getOrDefault(state.industryCode, state.industryCode),
+                    state.industryCode == null ? "未填写" : industryNames.getOrDefault(state.industryCode, state.industryCode),
                     state.stageCode, state.totalAmount, state.categories, 0), at);
         }
     }
@@ -200,7 +200,7 @@ public class ProjectMonthlySnapshotService {
                 state = new MutableState(event.provinceId(), event.cityId(), event.industryCode(),
                         event.stageCode(), event.totalAmount(), event.categories());
             } else if (state != null) {
-                if (event.industryCode() != null) state.industryCode = event.industryCode();
+                if ("PROFILE".equals(event.sourceKind())) state.industryCode = event.industryCode();
                 if (event.stageCode() != null) state.stageCode = event.stageCode();
                 if (event.totalAmount() != null) state.totalAmount = event.totalAmount();
                 if (event.categories() != null) state.categories = event.categories();
@@ -214,7 +214,7 @@ public class ProjectMonthlySnapshotService {
         var cityName = previous != null && previous.cityId().equals(state.cityId)
                 ? previous.cityName() : organizations.findCityNames(List.of(state.cityId))
                         .getOrDefault(state.cityId, state.cityId.toString());
-        var industryName = previous != null && previous.industryCode().equals(state.industryCode)
+        var industryName = state.industryCode == null ? "未填写" : previous != null && Objects.equals(previous.industryCode(), state.industryCode)
                 ? previous.industryName() : industries.findById(state.industryCode)
                         .map(item -> item.industryName()).orElse(state.industryCode);
         return new Snapshot(projectId, month, state.provinceId, state.cityId, cityName,
@@ -224,7 +224,7 @@ public class ProjectMonthlySnapshotService {
 
     private boolean sameValues(Snapshot first, Snapshot second) {
         return first.provinceId().equals(second.provinceId()) && first.cityId().equals(second.cityId())
-                && first.industryCode().equals(second.industryCode())
+                && Objects.equals(first.industryCode(), second.industryCode())
                 && first.stageCode().equals(second.stageCode())
                 && first.totalAmount().compareTo(second.totalAmount()) == 0
                 && first.categories().network().compareTo(second.categories().network()) == 0

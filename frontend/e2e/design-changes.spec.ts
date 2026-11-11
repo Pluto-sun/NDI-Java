@@ -19,7 +19,7 @@ test('四区月份独立，阶段切换保留时间，地图支持缩放和键�
   await main.getByLabel('所属月份起始', { exact: true }).fill('2000-01');
   await main.getByLabel('所属月份结束', { exact: true }).fill('2000-01');
   await main.getByRole('button', { name: '应用月份', exact: true }).click();
-  await expect(page.locator('.dashboard-kpi').first().locator('strong')).toHaveText('0');
+  await expect(page.locator('.dashboard-kpi').first().locator('strong').first()).toHaveText('0');
   await expect(region.getByLabel('区域月份起始', { exact: true })).toHaveValue(original);
   await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveValue(original);
   await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveValue(original);
@@ -48,8 +48,8 @@ test('四区月份独立，阶段切换保留时间，地图支持缩放和键�
   await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveValue('2002-01');
   await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveValue('2003-01');
   await expect(page.getByText(/较上期|上期为/)).toHaveCount(0);
-  const svg = page.getByRole('img', {
-    name: '省分项目分布地图，具体数据见省分排名表',
+  const svg = page.getByRole('group', {
+    name: '省分项目分布地图',
     exact: true,
   });
   if (process.env.NDI_E2E_LIVE_MAP === '1') {

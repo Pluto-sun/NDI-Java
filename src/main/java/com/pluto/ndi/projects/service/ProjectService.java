@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -147,7 +148,7 @@ public class ProjectService {
                 normalized.cityId(),
                 normalized.projectName(),
                 normalized.customerName(),
-                normalized.industryCode(),
+                normalized.industryCode().isBlank() ? null : normalized.industryCode(),
                 normalized.customerNeed(),
                 normalized.totalAmount(),
                 normalized.provinceLeaderUserId(),
@@ -256,7 +257,7 @@ public class ProjectService {
     }
 
     private void verifyIndustry(String industryCode) {
-        if (!industryReferenceRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
+        if (!industryCode.isBlank() && !industryReferenceRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_INDUSTRY);
         }
     }
@@ -416,8 +417,8 @@ public class ProjectService {
                 command.provinceId(),
                 command.cityId(),
                 trim(command.projectName()),
-                trim(command.customerName()),
-                trim(command.industryCode()).toUpperCase(Locale.ROOT),
+                Objects.toString(command.customerName(), "").strip(),
+                Objects.toString(command.industryCode(), "").strip().toUpperCase(Locale.ROOT),
                 customerNeed,
                 command.totalAmount(),
                 command.responsiblePersonNames()!=null ? null : command.provinceLeaderUserId(),

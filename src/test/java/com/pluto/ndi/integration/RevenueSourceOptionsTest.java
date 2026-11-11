@@ -79,7 +79,7 @@ class RevenueSourceOptionsTest {
         try (var book = new XSSFWorkbook(new ByteArrayInputStream(template))) {
             var sheet = book.getSheetAt(0);
             var validations = sheet.getDataValidations();
-            assertThat(validations).hasSize(2);
+            assertThat(validations).hasSize(3);
             var province = validations.getFirst().getValidationConstraint().getFormula1();
             var range =
                     new org.apache.poi.ss.util.AreaReference(

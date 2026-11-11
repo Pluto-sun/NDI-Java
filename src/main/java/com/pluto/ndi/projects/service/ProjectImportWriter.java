@@ -114,7 +114,8 @@ public class ProjectImportWriter {
                     || candidate.provinceLeaderUserId() != null
                             && !identity.isEligibleProvinceLeader(
                                     candidate.provinceLeaderUserId(), candidate.provinceId())
-                    || !industries.existsByIndustryCodeAndEnabledTrue(candidate.industryCode())) {
+                    || candidate.industryCode() != null
+                            && !industries.existsByIndustryCodeAndEnabledTrue(candidate.industryCode())) {
                 throw new IllegalStateException("组织、行业或责任账号已变化");
             }
             byte[] cityKey = cityWriteLock.binary(candidate.cityId());

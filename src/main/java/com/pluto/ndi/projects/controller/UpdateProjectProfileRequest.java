@@ -13,8 +13,8 @@ import jakarta.validation.constraints.Size;
 /** 普通信息使用全量替换，避免把未提交字段误解释为清空。 */
 public record UpdateProjectProfileRequest(
         @NotNull @Min(0) Long expectedVersion,
-        @NotBlank @Size(max = 200) String customerName,
-        @NotBlank @Size(max = 3) String industryCode,
+        @NotNull @Size(max = 200) String customerName,
+        @NotNull @Size(max = 3) String industryCode,
         @NotBlank @Size(max = 10_000) String customerNeed,
         UUID provinceLeaderUserId,
         @Size(max = 100) String cityAccountManagerName,

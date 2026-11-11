@@ -16,7 +16,7 @@ export function ProjectProfileForm({
 }) {
   const [open, setOpen] = useState(false);
   const [customerName, setCustomerName] = useState(project.customerName);
-  const [industryCode, setIndustryCode] = useState(project.industryCode);
+  const [industryCode, setIndustryCode] = useState(project.industryCode ?? '');
   const [customerNeed, setCustomerNeed] = useState(project.customerNeed);
   const [remark, setRemark] = useState(project.remark ?? '');
   const [plannedBidMonth, setPlannedBidMonth] = useState(
@@ -29,7 +29,7 @@ export function ProjectProfileForm({
   const [error, setError] = useState('');
   useEffect(() => {
     setCustomerName(project.customerName);
-    setIndustryCode(project.industryCode);
+    setIndustryCode(project.industryCode ?? '');
     setCustomerNeed(project.customerNeed);
     setRemark(project.remark ?? '');
     setPlannedBidMonth(project.plannedBidMonth?.slice(0, 7) ?? '');
@@ -78,7 +78,6 @@ export function ProjectProfileForm({
             <label>
               客户名称
               <input
-                required
                 maxLength={200}
                 value={customerName}
                 onChange={(event) => setCustomerName(event.target.value)}
@@ -87,10 +86,10 @@ export function ProjectProfileForm({
             <label>
               所属行业
               <Select
-                required
                 value={industryCode}
                 onChange={(event) => setIndustryCode(event.target.value)}
               >
+                <option value="">未填写</option>
                 {reference.industries.map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.label}

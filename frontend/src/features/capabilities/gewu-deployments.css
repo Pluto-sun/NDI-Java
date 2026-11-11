@@ -1,0 +1,91 @@
+.gewu-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gewu-page-heading {
+  flex-wrap: wrap;
+}
+.gewu-filters label {
+  min-width: 128px;
+}
+.gewu-register {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+.gewu-register-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.gewu-register-heading h2 {
+  margin: 0;
+}
+.gewu-register-heading small,
+.gewu-register-heading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.gewu-scroll table {
+  width: max-content;
+  table-layout: fixed;
+}
+.gewu-scroll td,
+.gewu-scroll th {
+  padding: 11px 12px;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.gewu-scroll tbody td:first-child {
+  font-weight: 650;
+}
+.gewu-scroll .gewu-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.gewu-scroll th:last-child,
+.gewu-scroll td:last-child {
+  position: sticky;
+  right: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+.gewu-scroll .gewu-actions {
+  flex-wrap: nowrap;
+}
+.gewu-editor-group {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.gewu-editor-group legend {
+  padding: 0 6px;
+  font-weight: 650;
+}
+@media (max-width: 520px) {
+  .gewu-filters label {
+    min-width: min(100%, 130px);
+  }
+}
+
+.gewu-project-context {
+  display: none;
+}
+@media (max-width: 620px) {
+  .gewu-project-context {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+}

@@ -1,6 +1,5 @@
-import { jsonBody, requestAt, requestBlobAt, type Page } from '../../shared/api/http';
-import type { ImportWizardApi } from '../../shared/imports/context';
-import type { ImportTask, ImportBatch } from '../../shared/imports/types';
+import { jsonBody, requestAt, type Page } from '../../shared/api/http';
+import { tabularImportApi } from '../../shared/imports/tabularImportApi';
 export interface Recognition {
   amount: string | number;
   reportedProjectName: string;
@@ -115,36 +114,4 @@ export const statusLabels: Record<string, string> = {
   WITHDRAWN: '已撤销',
 };
 export { money } from './format';
-export const revenueImportApi: ImportWizardApi = {
-  importTask: () => request<ImportTask | null>('/imports/task'),
-  uploadImportTask: (file, expectedVersion, expectedTaskId) => {
-    const body = new FormData();
-    body.append('file', file);
-    if (expectedVersion !== undefined) body.append('expectedVersion', String(expectedVersion));
-    if (expectedTaskId) body.append('expectedTaskId', expectedTaskId);
-    return request<ImportTask>('/imports/task', { method: 'POST', body });
-  },
-  saveImportTask: (expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers) =>
-    request<ImportTask>('/imports/task', {
-      method: 'PUT',
-      keepalive: true,
-      ...jsonBody({ expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers }),
-    }),
-  discardImportTask: (expectedVersion, expectedTaskId) =>
-    request<void>(
-      `/imports/task?expectedVersion=${expectedVersion}&expectedTaskId=${expectedTaskId}`,
-      { method: 'DELETE' },
-    ),
-  importBatch: (id) => request<ImportBatch>(`/imports/${id}`),
-  reviseImportRow: (id, row, expectedRevision, changes) =>
-    request<ImportBatch>(`/imports/${id}/rows/${row}`, {
-      method: 'PUT',
-      ...jsonBody({ expectedRevision, changes }),
-    }),
-  confirmImport: (id, selectedRowNumbers) =>
-    request<ImportBatch>(`/imports/${id}/confirm`, {
-      method: 'POST',
-      ...jsonBody({ selectedRowNumbers }),
-    }),
-  importTemplate: () => requestBlobAt(root, '/imports/template'),
-};
+export const revenueImportApi = tabularImportApi(root);

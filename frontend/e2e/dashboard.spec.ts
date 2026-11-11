@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { chooseActor, createProject, get, ids } from './support/projects';
+import { chooseActor, createProject, get, ids, post } from './support/projects';
 
 test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛选', async ({ page, request }, testInfo) => {
   await page.route('**/workbench/map/boundaries/100000', (route) =>
@@ -13,6 +13,21 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   );
   const name = `驾驶舱-${randomUUID()}`;
   await createProject(request, name);
+  await post(request, ids.reporter, '', {
+    provinceId: ids.province,
+    cityId: ids.city,
+    projectName: `联网设备接入-${randomUUID()}`,
+    customerNeed: '驾驶舱产品趋势验收',
+    totalAmount: '100',
+    responsiblePersonNames: ['验收负责人'],
+    categoryAmounts: [
+      { categoryCode: 'GEWU', expectedAmount: '60' },
+      { categoryCode: 'BIG_DATA', expectedAmount: '20' },
+      { categoryCode: 'WANGWU', expectedAmount: '10' },
+    ],
+    initialProgress: '完成调研',
+    nextAction: '交流方案',
+  });
   await page.goto('/workbench');
   await chooseActor(page, ids.admin);
   const tabs = page.getByRole('group', { name: '项目阶段快捷筛选', exact: true });
@@ -35,7 +50,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     'aria-pressed',
     'true',
   );
-  await expect(page.locator('.dashboard-kpi')).toHaveCount(5);
+  await expect(page.locator('.dashboard-kpi')).toHaveCount(4);
   await expect(
     page.getByRole('heading', { name: '阶段分布概览（项目数／金额）', exact: true }),
   ).toBeVisible();
@@ -83,6 +98,24 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     ).toBeTruthy();
   }
   await page.setViewportSize(originalViewport);
+  const trend = page.locator('.dashboard-trend');
+  await expect(trend.getByRole('combobox', { name: '产品类别' })).toHaveValue('GEWU');
+  const legend = trend.locator('.stage-trend-legend');
+  await expect(legend.getByRole('button')).toHaveCount(4);
+  const lineToggle = legend.getByRole('button', { name: '方案交流', exact: true });
+  await lineToggle.click();
+  await expect(lineToggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(trend.locator('.stage-trend-line')).toHaveCount(3);
+  await lineToggle.click();
+  const rank = page.getByRole('region', { name: '省分排名', exact: true });
+  await rank.getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: '地市排名', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '返回全国', exact: true }).click();
+  await expect(rank).toBeVisible();
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
   await page.screenshot({ path: testInfo.outputPath('dashboard-all.png'), fullPage: true });
   for (const [code, label] of [
     ['SOLUTION_EXCHANGE', '方案交流'],
@@ -98,7 +131,10 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     await tabs.getByRole('button', { name: label, exact: true }).click();
     expect((await loaded).ok()).toBeTruthy();
     await expect(
-      page.getByRole('heading', { name: `产品分布概览（${label}阶段）`, exact: true }),
+      page.getByRole('heading', {
+        name: `阶段分布概览（项目数／金额）（${label}阶段）`,
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: `趋势分析（${label}阶段）`, exact: true }),
@@ -109,7 +145,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
       ids.admin,
       `/workbench/dashboard?from=${now.slice(0, 4)}-01&to=${now}&stage=${code}`,
     );
-    await expect(page.locator('.dashboard-kpi').first().locator('strong')).toHaveText(
+    await expect(page.locator('.dashboard-kpi').first().locator('strong').first()).toHaveText(
       String(stats.current.projectCount),
     );
   }
@@ -117,7 +153,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   const regionFilters = page.locator('.dashboard-section-toolbar');
   await regionFilters
     .getByRole('combobox', { name: '三化类别', exact: true })
-    .selectOption('DIGITAL');
+    .selectOption('INTELLIGENT');
   await regionFilters.getByRole('combobox', { name: '产品', exact: true }).selectOption('BIG_DATA');
   await expect(regionFilters.getByRole('combobox', { name: '产品', exact: true })).toHaveValue(
     'BIG_DATA',
@@ -126,6 +162,10 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
   await page.screenshot({ path: testInfo.outputPath('dashboard-solution.png'), fullPage: true });
   await page.getByRole('link', { name: '查看项目清单', exact: true }).click();
   await expect(page.getByRole('heading', { name: '项目列表', exact: true })).toBeVisible();

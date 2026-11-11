@@ -88,7 +88,7 @@ test('导出字段按选择顺序持久化，真实 CSV 仅包含所选列并防
   expect(csv).toContain('"\'@专家乙、支撑专家甲"');
   expect(csv).toContain('DS_SIGN');
   expect(csv).toContain('方案交流');
-  expect(csv).toContain('网络化');
+  expect(csv).toContain('5G工业专网');
   expect(csv).not.toContain('字段验收客户');
   expect(csv.trim().split(/\r?\n/)).toHaveLength(2);
   await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();

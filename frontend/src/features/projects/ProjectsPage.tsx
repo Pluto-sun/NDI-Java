@@ -566,10 +566,12 @@ export function ProjectsPage({
                           '未匹配地市'}
                       </div>
                     </td>
-                    <td>{project.customerName}</td>
+                    <td>{project.customerName || '未填写'}</td>
                     <td>
                       {reference.industries.find((item) => item.code === project.industryCode)
-                        ?.label ?? project.industryCode}
+                        ?.label ??
+                        project.industryCode ??
+                        '未填写'}
                     </td>
                     <td>
                       <span className={`stage stage-${project.currentStageCode.toLowerCase()}`}>

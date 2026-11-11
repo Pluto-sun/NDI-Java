@@ -62,6 +62,20 @@ public class IdentityAuthenticationController {
         noStore(response); sessions.logout(actorId(auth), SessionCookieSupport.read(request));
         clear(request, response); return responses.success(null);
     }
+    @PostMapping("/login-name")
+    public ApiResponse<?> changeLoginName(Authentication auth, @Valid @RequestBody LoginNameRequest body,
+            HttpServletRequest request, HttpServletResponse response) {
+        noStore(response);
+        profiles.changeLoginName(actorId(auth), body.currentPassword(), body.newLoginName());
+        clear(request, response);
+        return responses.success(null);
+    }
+
+    public record LoginNameRequest(@NotBlank @Size(max = 128) String currentPassword,
+            @NotBlank @Size(max = 80) String newLoginName) {
+        @Override public String toString() { return "LoginNameRequest[凭据已隐藏]"; }
+    }
+
     @PostMapping("/password")
     public ApiResponse<?> password(Authentication auth, @Valid @RequestBody PasswordRequest body,
             HttpServletRequest request, HttpServletResponse response) {

@@ -8,11 +8,14 @@ export function AccountSettingsPage({
   profile,
   onUpdated,
   onPasswordChanged,
+  onLoginNameChanged,
 }: {
   profile: AccountProfile;
   onUpdated: (user: AccountProfile) => void;
   onPasswordChanged: () => void;
+  onLoginNameChanged: () => void;
 }) {
+  const [loginNameOpen, setLoginNameOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   const [displayName, setDisplayName] = useState(profile.displayName);
@@ -37,7 +40,7 @@ export function AccountSettingsPage({
         <div>
           <span className="eyebrow">ACCOUNT</span>
           <h1>个人设置</h1>
-          <p>修改个人资料与登录密码。角色及数据范围由管理员维护。</p>
+          <p>修改个人资料、登录账号与密码。角色及数据范围由管理员维护。</p>
         </div>
       </div>
       <form
@@ -75,7 +78,17 @@ export function AccountSettingsPage({
             修改密码
           </button>
         </div>
-        <p>登录账号：{profile.loginName}。下方姓名为页面展示的用户名，修改后不改变登录账号。</p>
+        <div className="account-profile-heading">
+          <p>登录账号 {profile.loginName}</p>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy !== null}
+            onClick={() => setLoginNameOpen(true)}
+          >
+            修改登录账号
+          </button>
+        </div>
         <div className="form-grid">
           <label>
             姓名
@@ -106,6 +119,9 @@ export function AccountSettingsPage({
           </button>
         </div>
       </form>
+      {loginNameOpen && (
+        <LoginNameDialog onClose={() => setLoginNameOpen(false)} onChanged={onLoginNameChanged} />
+      )}
       {passwordOpen && (
         <Modal title="修改密码" busy={busy === 'password'} onClose={closePassword}>
           <form
@@ -201,5 +217,66 @@ export function AccountSettingsPage({
         </Modal>
       )}
     </>
+  );
+}
+
+function LoginNameDialog({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal title="修改登录账号" busy={busy} onClose={onClose}>
+      <form
+        className="account-password-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          setBusy(true);
+          setError('');
+          try {
+            await authApi.changeLoginName(
+              String(data.get('password')),
+              String(data.get('loginName')),
+            );
+            onChanged();
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : '登录账号修改失败');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p>修改后请使用新账号重新登录。</p>
+        <label>
+          新登录账号
+          <input
+            name="loginName"
+            inputMode="numeric"
+            autoComplete="username"
+            maxLength={11}
+            pattern="1[0-9]{10}"
+            required
+          />
+        </label>
+        <label>
+          当前密码
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            maxLength={128}
+            required
+          />
+        </label>
+        {error && <Feedback tone="error">{error}</Feedback>}
+        <div className="dialog-actions">
+          <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>
+            取消
+          </button>
+          <button className="primary-button" disabled={busy}>
+            保存并重新登录
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

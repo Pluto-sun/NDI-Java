@@ -139,7 +139,7 @@ public class ProjectMapService {
             throw new BusinessException(ProjectErrorCode.INVALID_MAP_ADCODE);
         }
         var scope = scope(actorId);
-        if ("100000".equals(adcode) && (scope.level() == ProjectDataScope.Level.NATIONAL || scope.provinceIds().size() > 1)) return;
+        if ("100000".equals(adcode)) return;
         var matchingProvinces = organizations.findEnabledProvinces().stream()
                 .filter(item -> adcode.equals(adcodes.province(item.name()))).map(ProvinceOption::id)
                 .collect(Collectors.toSet());

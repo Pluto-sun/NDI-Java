@@ -37,6 +37,7 @@ export interface ImportWizardConfig {
   amountFields: string[];
   amountUnit?: string;
   emptyValueLabel?: string;
+  fieldLabel?: (field: string) => string;
   fieldOptions?: (field: string, values: Record<string, string>) => string[] | undefined;
   changeRowField?: (
     values: Record<string, string>,

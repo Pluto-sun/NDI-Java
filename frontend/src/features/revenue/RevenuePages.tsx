@@ -31,6 +31,8 @@ const revenueListColumns: { label: string; width: number; numeric?: boolean }[] 
   { label: '条款金额（元）', width: 200, numeric: true },
   { label: '来源本月计收（元）', width: 200, numeric: true },
   { label: '认定金额（元）', width: 200, numeric: true },
+  { label: '通报项目名称', width: 220 },
+  { label: '对应省分（集成）', width: 135 },
   { label: '办理状态', width: 120 },
   { label: '操作', width: 70 },
 ];
@@ -118,6 +120,15 @@ export function RevenueListPage() {
             <option value="DS_TECH">数科</option>
             <option value="UNASSIGNED">未归属</option>
           </Select>
+        </label>
+        <label>
+          地市／组织
+          <input
+            value={draft.organization ?? ''}
+            maxLength={300}
+            placeholder="输入地市或组织名称"
+            onChange={(event) => change('organization', event.target.value)}
+          />
         </label>
         <label>
           办理状态
@@ -239,6 +250,14 @@ export function RevenueListPage() {
                       <td className="revenue-numeric">{money(e.sourceAmount)}</td>
                       <td className="revenue-numeric revenue-recognized-amount">
                         {money(e.recognition?.amount)}
+                      </td>
+                      <td>{revenueText(e.recognition?.reportedProjectName)}</td>
+                      <td>
+                        {revenueText(
+                          reference?.provinces.find(
+                            (item) => item.id === e.recognition?.integratedProvinceId,
+                          )?.name,
+                        )}
                       </td>
                       <td>
                         <span
@@ -402,7 +421,10 @@ export function ImportRevenuePage() {
         amountUnit: '元',
         emptyValueLabel: '--',
         backTo: '/revenue/new',
-        fieldOptions: (field, values) => sourceFieldOptions(field, values, reference),
+        fieldOptions: (field, values) =>
+          field === '对应省分（集成）'
+            ? ['', ...reference.provinces.map((province) => province.name)]
+            : sourceFieldOptions(field, values, reference),
         changeRowField: (values, field, value) =>
           changeSourceField(values, field, value, reference),
         amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入'],
@@ -410,7 +432,8 @@ export function ImportRevenuePage() {
         rowLocationFields: ['省份名称', '地市/组织名称'],
         noDuplicateMessage:
           '月账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码六项组合唯一；其中仅月账期必填，其余五项未填或--统一按空字符串参与判重，同名项目允许多条明细。',
-        uploadHint: '仅导入33个来源字段，不导入认定结果。金额单位为元。',
+        uploadHint:
+          '认定金额、通报项目名称、对应省分（集成）均填写且金额大于零时，导入为已认定。金额单位为元。',
         previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
       }}
     />

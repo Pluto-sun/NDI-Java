@@ -1850,9 +1850,10 @@ button.inline-link {
   background: var(--red-soft);
 }
 .project-category-cards dt {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--muted);
   margin-bottom: 6px;
+  font-weight: 650;
 }
 .project-category-cards dd {
   margin: 0;

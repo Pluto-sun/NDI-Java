@@ -583,8 +583,9 @@ public class ProjectImportService {
 
     private ProjectImportCandidate normalize(
             ProjectExcelReader.ExcelRow row, ProjectActor actor, List<String> errors) {
-        required(row, errors, "省分", "地市", "客户名称", "客户所属行业", "项目名称",
+        required(row, errors, "省分", "地市", "项目名称",
                 "客户需求", "项目阶段");
+        if (row.get("客户名称").length() > 200) errors.add("客户名称不得超过200个字符");
         String projectName = row.get("项目名称");
         if (projectName.length() < 2
                 || projectName.length() > 200
@@ -611,7 +612,7 @@ public class ProjectImportService {
             errors.add("无此省市项目导入权限");
         }
         var industry = industries.findByIndustryNameAndEnabledTrue(row.get("客户所属行业"));
-        if (industry.isEmpty()) errors.add("行业名称未匹配有效代码");
+        if (!row.get("客户所属行业").isBlank() && industry.isEmpty()) errors.add("行业名称未匹配有效代码");
         var stage = STAGE_LABELS.get(row.get("项目阶段"));
         if (stage == null) errors.add("项目阶段未识别");
         var signingSubject =
@@ -701,7 +702,7 @@ public class ProjectImportService {
                 location.get().cityId(),
                 row.get("项目名称"),
                 row.get("客户名称"),
-                industry.get().industryCode(),
+                industry.map(item -> item.industryCode()).orElse(null),
                 row.get("客户需求"),
                 total,
                 null,

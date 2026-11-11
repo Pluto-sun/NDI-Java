@@ -136,7 +136,7 @@ test('集团三步导入33字段、修正重复条款、只导入一次；接口
     buffer: importWorkbook([first, first, second]),
   });
   await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: '映射：认定金额', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: '映射：认定金额', exact: true })).toHaveValue('');
   const amountMapping = page.getByRole('combobox', { name: '映射：条款金额', exact: true });
   await amountMapping.selectOption('');
   await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();

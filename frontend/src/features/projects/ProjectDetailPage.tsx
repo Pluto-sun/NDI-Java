@@ -149,7 +149,7 @@ export function ProjectDetailPage({
               <dl className="facts">
                 <div>
                   <dt>客户名称</dt>
-                  <dd>{detail.customerName}</dd>
+                  <dd>{detail.customerName || '未填写'}</dd>
                 </div>
                 <div>
                   <dt>项目日期（Asia/Shanghai）</dt>
@@ -163,7 +163,9 @@ export function ProjectDetailPage({
                   <dt>所属行业</dt>
                   <dd>
                     {reference.industries.find((item) => item.code === detail.industryCode)
-                      ?.label ?? detail.industryCode}
+                      ?.label ??
+                      detail.industryCode ??
+                      '未填写'}
                   </dd>
                 </div>
                 <div>

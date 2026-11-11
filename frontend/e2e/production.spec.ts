@@ -24,9 +24,9 @@ test('排产新增、筛选、编辑和删除保持金额零值及空值区分',
   await page.getByLabel('排产月份 *', { exact: true }).fill('2026-10');
   await page.getByLabel('项目名称 *', { exact: true }).fill(name);
   await page.getByLabel('客户名称 *', { exact: true }).fill('排产客户');
-  await page.getByRole('checkbox', { name: '网络化', exact: true }).check();
-  await page.getByRole('checkbox', { name: '格物', exact: true }).check();
-  await page.getByLabel('工业专网排产（万元）', { exact: true }).fill('0');
+  await page.getByRole('checkbox', { name: '5G工业专网', exact: true }).check();
+  await page.getByRole('checkbox', { name: '格物工业互联网平台', exact: true }).check();
+  await page.getByLabel('5G工业专网排产（万元）', { exact: true }).fill('0');
   await page.getByRole('button', { name: '保存排产', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: name });
   await expect(row).toBeVisible();
@@ -35,7 +35,7 @@ test('排产新增、筛选、编辑和删除保持金额零值及空值区分',
   await page.getByLabel('项目 / 客户 / 接口人', { exact: true }).fill(name);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await row.getByRole('button', { name: '编辑', exact: true }).click();
-  await page.getByLabel('工业专网排产（万元）', { exact: true }).fill('123.45');
+  await page.getByLabel('5G工业专网排产（万元）', { exact: true }).fill('123.45');
   await page.getByRole('button', { name: '保存排产', exact: true }).click();
   await expect(row).toContainText('123.45');
   await page.screenshot({ path: testInfo.outputPath('production-list.png'), fullPage: true });
@@ -105,7 +105,7 @@ test('排产导入串行步骤、必填映射、暂存恢复及一次性选中�
   await page
     .getByRole('button', { name: `查看／修正第 ${invalid.rowNumber} 行`, exact: true })
     .click();
-  await page.getByLabel('工业专网排产（万元）', { exact: true }).fill('2.34');
+  await page.getByLabel('5G工业专网排产（万元）', { exact: true }).fill('2.34');
   await page.getByRole('button', { name: '保存并重新校验', exact: true }).click();
   await expect(
     page.getByRole('dialog', { name: `修正第 ${invalid.rowNumber} 行`, exact: true }),

@@ -43,7 +43,9 @@ public class ProjectResponsiblePersonStore {
 
     public static List<String> names(String input) {
         return normalizeNames(
-                input == null ? List.of() : Arrays.asList(input.split("[;；\\r\\n]+")));
+                input == null ? List.of() : Arrays.stream(input.split("[;；\\r\\n]+"))
+                        .map(part -> part.replaceFirst("^[^:：]*[:：]", ""))
+                        .toList());
     }
 
     public static List<String> normalizeNames(List<String> input) {

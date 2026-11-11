@@ -69,11 +69,11 @@ public class ProjectProfileService {
         if (project.versionNo() != command.expectedVersion()) {
             throw new BusinessException(ProjectErrorCode.VERSION_CONFLICT);
         }
-        var customerName = requiredText(command.customerName(), 200);
-        var industryCode = requiredText(command.industryCode(), 3).toUpperCase(Locale.ROOT);
+        var customerName = optionalText(command.customerName(), 200);
+        var industryCode = optionalText(command.industryCode(), 3).toUpperCase(Locale.ROOT);
         var customerNeed = requiredText(command.customerNeed(), 10_000);
         var managerName = command.cityAccountManagerName()==null ? project.cityAccountManagerName() : requiredText(command.cityAccountManagerName(), 100);
-        if (!industryRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
+        if (!industryCode.isEmpty() && !industryRepository.existsByIndustryCodeAndEnabledTrue(industryCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_INDUSTRY);
         }
         if (command.provinceLeaderUserId() != null && !identityDirectory.isEligibleProvinceLeader(
@@ -112,7 +112,7 @@ public class ProjectProfileService {
         var before = snapshot(project);
         monthlySnapshots.ensureBaseline(project);
         var occurredAt = Instant.now(clock);
-        if (project.updateProfile(customerName, industryCode, customerNeed,
+        if (project.updateProfile(customerName, industryCode.isEmpty() ? null : industryCode, customerNeed,
                 command.provinceLeaderUserId()==null ? project.provinceLeaderUserId() : command.provinceLeaderUserId(), managerName, expertNames, bidMonth, scenarios, narrative,
                 actorId, occurredAt)) {
             projectRepository.saveAndFlush(project);
@@ -126,6 +126,10 @@ public class ProjectProfileService {
             inactivity.resolveAfterActivity(project, actorId, occurredAt);
         }
         return projectService.findDetail(actorId, projectId);
+    }
+
+    private String optionalText(String value, int maxLength) {
+        return value == null || value.isBlank() ? "" : requiredText(value, maxLength);
     }
 
     private String requiredText(String value, int maxLength) {

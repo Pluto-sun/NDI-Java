@@ -14,12 +14,12 @@ test('一份申请修改名称总额与分类金额，由指定省分审批后�
   await page.getByRole('button', { name: '发起重大变更', exact: true }).click();
   const form = page.getByRole('form', { name: '重大变更申请', exact: true });
   await form.getByRole('checkbox', { name: '变更项目总金额', exact: true }).check();
-  await form.getByRole('checkbox', { name: '变更网络化金额', exact: true }).check();
-  await form.getByRole('checkbox', { name: '变更格物金额', exact: true }).check();
+  await form.getByRole('checkbox', { name: '变更5G工业专网金额', exact: true }).check();
+  await form.getByRole('checkbox', { name: '变更格物工业互联网平台金额', exact: true }).check();
   await form.getByRole('textbox', { name: /^调整后项目名称/ }).fill(newName);
   await form.getByRole('spinbutton', { name: /^调整后项目总金额/ }).fill('150.00');
-  await form.getByRole('spinbutton', { name: /^调整后网络化金额/ }).fill('80.00');
-  await form.getByRole('spinbutton', { name: /^调整后格物金额/ }).fill('20.00');
+  await form.getByRole('spinbutton', { name: /^调整后5G工业专网金额/ }).fill('80.00');
+  await form.getByRole('spinbutton', { name: /^调整后格物工业互联网平台金额/ }).fill('20.00');
   await form
     .getByRole('combobox', { name: '重大变更审批人', exact: true })
     .selectOption(ids.leader);
@@ -36,10 +36,10 @@ test('一份申请修改名称总额与分类金额，由指定省分审批后�
   await expect(table.getByRole('columnheader', { name: '申请目标值', exact: true })).toBeInViewport(
     { ratio: 1 },
   );
-  await expect(table.getByRole('row').filter({ hasText: '网络化金额' })).toContainText(
+  await expect(table.getByRole('row').filter({ hasText: '5G工业专网金额' })).toContainText(
     '50.00 万元',
   );
-  await expect(table.getByRole('row').filter({ hasText: '网络化金额' })).toContainText(
+  await expect(table.getByRole('row').filter({ hasText: '5G工业专网金额' })).toContainText(
     '80.00 万元',
   );
   const before = await get<{ projectName: string; totalAmount: number }>(

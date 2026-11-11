@@ -62,6 +62,11 @@ public final class ExcelWorkbook {
             Map<String, String> mapping,
             List<String> fields)
             throws IOException {
+        return read(data, sheetName, rowNo, mapping, fields, Set.of());
+    }
+
+    public static List<Line> read(byte[] data, String sheetName, Integer rowNo,
+            Map<String, String> mapping, List<String> fields, Set<String> dateFields) throws IOException {
         try (var wb = open(data)) {
             var sheet = wb.getSheet(sheetName);
             if (sheet == null || rowNo == null || rowNo < 1 || rowNo > 101)
@@ -82,7 +87,10 @@ public final class ExcelWorkbook {
                 var cells = new LinkedHashMap<String, String>();
                 for (var field : fields) {
                     var column = source.get(mapping.getOrDefault(field, ""));
-                    cells.put(field, column == null ? "" : value(dataRow.getCell(column)));
+                    var cell = column == null ? null : dataRow.getCell(column);
+                    cells.put(field, cell != null && dateFields.contains(field)
+                            && cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)
+                            ? cell.getLocalDateTimeCellValue().toLocalDate().toString() : value(cell));
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
                 result.add(new Line(i + 1, cells));

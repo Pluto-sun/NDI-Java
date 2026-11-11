@@ -62,8 +62,11 @@ export function ModuleNavigation({
           排产计划
         </NavLink>
       </MenuGroup>
-      <MenuGroup title="能力指标管理" active={pathname === '/capability'}>
-        <NavLink to="/capability">能力指标</NavLink>
+      <MenuGroup title="能力指标管理" active={pathname.startsWith('/capability')}>
+        <NavLink to="/capability/gewu">已部署格物项目清单</NavLink>
+        <NavLink to="/capability/wangwu">万悟部署情况</NavLink>
+        <NavLink to="/capability/agents-live">已上线智能体指标追踪</NavLink>
+        <NavLink to="/capability/agents-development">开发中智能体指标追踪</NavLink>
       </MenuGroup>
       <MenuGroup title="消息与审批" active={/^\/(notifications|approvals)/.test(pathname)}>
         <NotificationNavLinks actorId={actorId} />

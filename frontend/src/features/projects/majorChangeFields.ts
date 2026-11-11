@@ -3,10 +3,10 @@ import type { ProjectChangeField, ReferenceData } from './types';
 export const changeFieldLabels: Record<ProjectChangeField, string> = {
   PROJECT_NAME: '项目名称',
   TOTAL_AMOUNT: '项目总金额',
-  NETWORK_AMOUNT: '网络化金额',
-  GEWU_AMOUNT: '格物金额',
-  BIG_DATA_AMOUNT: '大数据金额',
-  WANGWU_AMOUNT: '万悟金额',
+  NETWORK_AMOUNT: '5G工业专网金额',
+  GEWU_AMOUNT: '格物工业互联网平台金额',
+  BIG_DATA_AMOUNT: '工业大数据平台金额',
+  WANGWU_AMOUNT: '万悟工业智能体平台金额',
   STAGE: '项目阶段',
 };
 

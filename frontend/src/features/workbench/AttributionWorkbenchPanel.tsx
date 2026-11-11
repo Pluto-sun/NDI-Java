@@ -10,10 +10,10 @@ import { MetricBars } from './MetricBars';
 const metrics: { value: StageTrendMetric; label: string }[] = [
   { value: 'projectCount', label: '项目数量' },
   { value: 'totalExpectedAmount', label: '项目总金额' },
-  { value: 'network', label: '网络化金额' },
-  { value: 'gewu', label: '格物金额' },
-  { value: 'bigData', label: '大数据金额' },
-  { value: 'wangwu', label: '万悟金额' },
+  { value: 'network', label: '5G工业专网金额' },
+  { value: 'gewu', label: '格物工业互联网平台金额' },
+  { value: 'bigData', label: '工业大数据平台金额' },
+  { value: 'wangwu', label: '万悟工业智能体平台金额' },
 ];
 
 /** 所属月份每项目仅一份；与下方历史月末快照保持独立筛选和结果。 */

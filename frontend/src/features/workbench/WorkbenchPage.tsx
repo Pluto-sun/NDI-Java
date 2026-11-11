@@ -11,7 +11,8 @@ import {
   dashboardProducts,
   type DashboardFilter,
 } from './dashboardApi';
-import { DashboardDonut, DashboardTrend } from './DashboardCharts';
+import { StageTrendChart } from './StageTrendChart';
+import { Select } from '../../shared/ui/Select';
 import { DashboardMonthRange } from './DashboardMonthRange';
 import { DashboardFilters, type ClassificationFilter } from './DashboardFilters';
 import { DashboardRegionPanel } from './DashboardRegionPanel';
@@ -46,10 +47,8 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     category: '',
     product: '',
   });
-  const [trendFilter, setTrendFilter] = useState<ClassificationFilter>({
-    category: '',
-    product: '',
-  });
+  const [trendProduct, setTrendProduct] =
+    useState<(typeof dashboardProducts)[number]['code']>('GEWU');
   const [regionMetric, setRegionMetric] = useState<'amount' | 'count'>('amount');
   const [trendMetric, setTrendMetric] = useState<'amount' | 'count'>('amount');
   const [advanced, setAdvanced] = useState(false);
@@ -72,10 +71,10 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const loadTrend = useCallback(
     (signal: AbortSignal) =>
       dashboardApi.view(
-        { ...trendRange, stage, includeTerminated, ...trendFilter, part: 'TREND' },
+        { ...trendRange, stage, includeTerminated, product: trendProduct, part: 'TREND' },
         signal,
       ),
-    [trendRange, stage, includeTerminated, trendFilter],
+    [trendRange, stage, includeTerminated, trendProduct],
   );
   const main = useLiveQuery(load, '驾驶舱加载失败');
   const regions = useLiveQuery(loadRegions, '区域分布加载失败');
@@ -86,25 +85,35 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const cards = data
     ? [
         {
-          label: '全国项目数',
-          value: `${data.current.projectCount}`,
-          unit: '个',
-          detail: '权限范围内去重项目数',
+          label: '全国项目数及总金额',
+          count: data.current.projectCount,
+          total: data.current.totalAmount,
         },
         ...dashboardCategories.map((item) => ({
           label: `${item.label}项目数及总金额`,
-          value: `${data.current[item.key].count}`,
-          unit: '个',
-          detail: `${amount(data.current[item.key].amount)} 万元`,
+          count: data.current[item.key].count,
+          total: data.current[item.key].amount,
         })),
-        {
-          label: '覆盖省份',
-          value: `${data.current.provinceCount}`,
-          unit: '个',
-          detail: '有项目的省份',
-        },
       ]
     : [];
+  const trendStages = stage
+    ? [stage]
+    : PROJECT_STAGE_TABS.filter((item) => item.code).map((item) => item.code);
+  const productKey = dashboardProducts.find((item) => item.code === trendProduct)!.key;
+  const trendPoints = trend.data?.trend.flatMap((month) =>
+    trendStages.map((stageCode) => {
+      const product = month.stages.find((item) => item.stageCode === stageCode)?.summary[
+        productKey
+      ];
+      return {
+        month: month.month,
+        stageCode,
+        projectCount: product?.count ?? 0,
+        totalExpectedAmount: product?.amount ?? 0,
+        categoryTotals: { network: 0, gewu: 0, bigData: 0, wangwu: 0 },
+      };
+    }),
+  );
   return (
     <section className="project-dashboard">
       <div className="page-heading dashboard-page-heading project-stage-heading">
@@ -196,138 +205,64 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
               {cards.map((card) => (
                 <article className="dashboard-kpi" key={card.label}>
                   <span>{card.label}</span>
-                  <div className="dashboard-kpi-value">
-                    <strong>{card.value}</strong>
-                    <small>{card.unit}</small>
+                  <div className="dashboard-kpi-pair">
+                    <div>
+                      <small>项目数（个）</small>
+                      <strong>{card.count}</strong>
+                    </div>
+                    <div>
+                      <small>项目总金额（万元）</small>
+                      <strong>{amount(card.total)}</strong>
+                    </div>
                   </div>
-                  <b>{card.detail}</b>
                 </article>
               ))}
             </div>
-            <div className="dashboard-distribution-grid">
-              <section className="panel">
-                <h2>{stage ? `项目分布概览${stageLabel}` : '项目金额分布概览'}</h2>
-                <DashboardDonut
-                  label={stage ? '项目总数' : '项目总金额'}
-                  total={stage ? data.current.projectCount : data.current.totalAmount}
-                  unit={stage ? '个' : '万元'}
-                  items={[
-                    ...dashboardCategories.map((item) => ({
-                      label: item.label,
-                      value: data.current[item.key][stage ? 'count' : 'amount'],
-                    })),
-                    ...(!stage &&
-                    data.current.totalAmount >
-                      data.current.network.amount +
-                        data.current.digital.amount +
-                        data.current.intelligent.amount
-                      ? [
-                          {
-                            label: '未分配分类金额',
-                            value:
-                              data.current.totalAmount -
-                              data.current.network.amount -
-                              data.current.digital.amount -
-                              data.current.intelligent.amount,
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-                <p className="subtle">
-                  {stage
-                    ? '总项目数去重；类别分别计数，同一项目可重复参与，占比按类别参与次数计算。'
-                    : '分类预计金额与未分配金额共同构成项目总金额；金额单位为万元。'}
-                </p>
-              </section>
-              {stage ? (
-                <section className="panel">
-                  <h2>产品分布概览{stageLabel}</h2>
-                  <div className="dashboard-product-grid">
-                    <div>
-                      <h3>按项目数</h3>
-                      <DashboardDonut
-                        label="项目总数"
-                        total={data.current.projectCount}
-                        unit="个"
-                        items={dashboardProducts.map((item) => ({
-                          label: item.label,
-                          value: data.current[item.key].count,
-                        }))}
-                      />
-                    </div>
-                    <div>
-                      <h3>按产品金额</h3>
-                      <DashboardDonut
-                        label="产品分类金额"
-                        total={dashboardProducts.reduce(
-                          (sum, item) => sum + data.current[item.key].amount,
-                          0,
-                        )}
-                        unit="万元"
-                        items={dashboardProducts.map((item) => ({
-                          label: item.label,
-                          value: data.current[item.key].amount,
-                        }))}
-                      />
-                    </div>
-                  </div>
-                  <p className="subtle">
-                    产品项目数允许重复，占比按产品参与次数计算；数字化项目数已在格物与大数据之间去重。
-                  </p>
-                </section>
-              ) : (
-                <section className="panel">
-                  <h2>阶段分布概览（项目数／金额）</h2>
-                  <div className="dashboard-category-stages">
-                    {dashboardCategories.map((item) => (
-                      <article key={item.key}>
-                        <header>
-                          <h3>
-                            {item.label} <small>（{item.product}）</small>
-                          </h3>
-                          <strong>
-                            {data.current[item.key].count} 个 <span>｜</span>{' '}
-                            {amount(data.current[item.key].amount)} 万元
-                          </strong>
-                        </header>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>项目阶段</th>
-                              <th>项目数</th>
-                              <th>金额（万元）</th>
-                              <th>金额占比</th>
+            <section className="panel dashboard-stage-distribution">
+              <h2>阶段分布概览（项目数／金额）{stageLabel}</h2>
+              <div className="dashboard-category-stages">
+                {dashboardProducts.map((item) => (
+                  <article key={item.code}>
+                    <header>
+                      <h3>{item.label}</h3>
+                    </header>
+                    <table aria-label={`${item.label}阶段分布`}>
+                      <thead>
+                        <tr>
+                          <th>阶段</th>
+                          <th>项目数</th>
+                          <th>金额（万元）</th>
+                          <th>金额占比</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.stages
+                          .filter((point) => !stage || point.stageCode === stage)
+                          .map((point) => (
+                            <tr key={point.stageCode}>
+                              <th scope="row">
+                                <span
+                                  className={`stage-chip stage-${point.stageCode.toLowerCase()}`}
+                                >
+                                  {stageName(point.stageCode)}
+                                </span>
+                              </th>
+                              <td>{point.summary[item.key].count}</td>
+                              <td>{amount(point.summary[item.key].amount)}</td>
+                              <td>
+                                <DashboardShare
+                                  value={point.summary[item.key].amount}
+                                  total={data.current[item.key].amount}
+                                />
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {data.stages.map((point) => (
-                              <tr key={point.stageCode}>
-                                <th>
-                                  <span
-                                    className={`stage-chip stage-${point.stageCode.toLowerCase()}`}
-                                  >
-                                    {stageName(point.stageCode)}
-                                  </span>
-                                </th>
-                                <td>{point.summary[item.key].count}</td>
-                                <td>{amount(point.summary[item.key].amount)}</td>
-                                <td>
-                                  <DashboardShare
-                                    value={point.summary[item.key].amount}
-                                    total={data.current[item.key].amount}
-                                  />
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
+                          ))}
+                      </tbody>
+                    </table>
+                  </article>
+                ))}
+              </div>
+            </section>
           </>
         )}
       </section>
@@ -360,21 +295,46 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
             onApply={setTrendRange}
             busy={trend.busy}
           />
-          <DashboardFilters
-            value={trendFilter}
-            onChange={setTrendFilter}
-            metric={trendMetric}
-            onMetricChange={setTrendMetric}
-          />
+          <div className="dashboard-trend-controls">
+            <label>
+              产品类别
+              <Select
+                value={trendProduct}
+                onChange={(event) => setTrendProduct(event.target.value as typeof trendProduct)}
+              >
+                {dashboardProducts.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              指标
+              <Select
+                value={trendMetric}
+                onChange={(event) => setTrendMetric(event.target.value as typeof trendMetric)}
+              >
+                <option value="amount">项目金额</option>
+                <option value="count">项目数量</option>
+              </Select>
+            </label>
+          </div>
         </div>
-        <p className="subtle">
-          {trendRange.from} 至 {trendRange.to} · 左轴：
-          {trendMetric === 'amount' ? '三化金额（万元）' : '分类项目数（可重复）'}
-          ；右轴：去重项目数；各月按唯一所属月份计数，不是月末存量。
-        </p>
         {trend.error && <Feedback tone="error">{trend.error}</Feedback>}
-        {trend.busy && !trend.data && <Loading />}
-        {trend.data && <DashboardTrend data={trend.data} metric={trendMetric} stacked={!!stage} />}
+        {trend.busy && !trendPoints && <Loading />}
+        {trendPoints && (
+          <StageTrendChart
+            key={stage}
+            points={trendPoints}
+            stages={trendStages}
+            stageName={stageName}
+            metric={trendMetric === 'amount' ? 'totalExpectedAmount' : 'projectCount'}
+            metricLabel={trendMetric === 'amount' ? '项目金额（万元）' : '项目数量（个）'}
+            caption="按项目所属月份统计"
+            interactive
+          />
+        )}
       </section>
       <DashboardActivities filter={activityFilter} stageLabel={stageLabel} />
       <div className="dashboard-advanced">

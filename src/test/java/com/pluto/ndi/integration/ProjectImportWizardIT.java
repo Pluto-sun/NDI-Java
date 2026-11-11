@@ -486,7 +486,7 @@ class ProjectImportWizardIT {
         var upload =
                 wizard.upload(f.actor(), null, null, "映射.xlsx", workbook("映射" + UUID.randomUUID()));
         var fields = new HashMap<>(configuration(upload).fieldMapping());
-        fields.put("客户名称", "");
+        fields.put("项目名称", "");
         var incomplete =
                 wizard.save(
                         f.actor(),
@@ -504,8 +504,8 @@ class ProjectImportWizardIT {
                                         3,
                                         incomplete.configuration(),
                                         null))
-                .hasMessageContaining("客户名称");
-        fields.put("客户名称", "客户名称");
+                .hasMessageContaining("项目名称");
+        fields.put("项目名称", "项目名称");
         for (var amount : com.pluto.ndi.projects.util.ProjectImportAmounts.fields())
             fields.put(amount, "");
         var missingAmount = new Configuration("导入数据", 2, fields);

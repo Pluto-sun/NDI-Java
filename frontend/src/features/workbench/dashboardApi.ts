@@ -13,14 +13,22 @@ export interface DashboardSummary {
   intelligent: DashboardValue;
   gewu: DashboardValue;
   bigData: DashboardValue;
+  wangwu: DashboardValue;
 }
 export interface Dashboard {
   from: string;
   to: string;
   current: DashboardSummary;
   stages: { stageCode: string; summary: DashboardSummary }[];
-  provinces: { id: string; name: string; summary: DashboardSummary }[];
-  trend: { month: string; summary: DashboardSummary }[];
+  provinces: DashboardRegion[];
+  trend: { month: string; summary: DashboardSummary; stages: Dashboard['stages'] }[];
+}
+export interface DashboardRegion {
+  id: string;
+  name: string;
+  adcode: string | null;
+  summary: DashboardSummary;
+  cities: DashboardRegion[];
 }
 export interface DashboardFilter {
   from: string;
@@ -61,14 +69,14 @@ export const dashboardApi = {
 };
 export const dashboardCategories = [
   { key: 'network', label: '网络化', product: '5G工业专网' },
-  { key: 'digital', label: '数字化', product: '格物、大数据' },
-  { key: 'intelligent', label: '智能化', product: '万悟工业智能体平台' },
+  { key: 'digital', label: '数字化', product: '格物工业互联网平台' },
+  { key: 'intelligent', label: '智能化', product: '工业大数据平台、万悟工业智能体平台' },
 ] as const;
 export const dashboardProducts = [
   { code: 'NETWORK', key: 'network', label: '5G工业专网' },
   { code: 'GEWU', key: 'gewu', label: '格物工业互联网平台' },
   { code: 'BIG_DATA', key: 'bigData', label: '工业大数据平台' },
-  { code: 'WANGWU', key: 'intelligent', label: '万悟工业智能体平台' },
+  { code: 'WANGWU', key: 'wangwu', label: '万悟工业智能体平台' },
 ] as const;
 export const percent = (value: number, total: number) =>
   total ? `${((value / total) * 100).toFixed(1)}%` : '0.0%';

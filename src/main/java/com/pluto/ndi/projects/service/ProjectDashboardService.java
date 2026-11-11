@@ -3,6 +3,7 @@ package com.pluto.ndi.projects.service;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
+import com.pluto.ndi.organization.service.RegionAdcodeCatalog;
 import com.pluto.ndi.projects.domain.ProjectDashboardActivity;
 import com.pluto.ndi.projects.domain.ProjectDashboardFilter;
 import com.pluto.ndi.projects.domain.ProjectDashboardPart;
@@ -29,18 +30,20 @@ public class ProjectDashboardService {
     private final ProjectDashboardRepository repository;
     private final ProjectDashboardActivityRepository activities;
     private final ProjectResponsiblePersonStore people;
+    private final RegionAdcodeCatalog adcodes;
 
     public ProjectDashboardService(
             IdentityDirectory identities,
             OrganizationDirectory organizations,
             ProjectDashboardRepository repository,
             ProjectDashboardActivityRepository activities,
-            ProjectResponsiblePersonStore people) {
+            ProjectResponsiblePersonStore people, RegionAdcodeCatalog adcodes) {
         this.identities = identities;
         this.organizations = organizations;
         this.repository = repository;
         this.activities = activities;
         this.people = people;
+        this.adcodes = adcodes;
     }
 
     @Transactional(readOnly = true)
@@ -123,6 +126,8 @@ public class ProjectDashboardService {
                         ? organizations.findProvinceNames(
                                 rows.stream().map(Bucket::provinceId).distinct().toList())
                         : Map.<UUID, String>of();
+        var cityNames = names.isEmpty() ? Map.<UUID, String>of()
+                : organizations.findCityNames(rows.stream().map(Bucket::cityId).distinct().toList());
         var provinces =
                 part == ProjectDashboardPart.ALL || part == ProjectDashboardPart.REGIONS
                         ? rows.stream()
@@ -131,10 +136,8 @@ public class ProjectDashboardService {
                                 .stream()
                                 .map(
                                         entry ->
-                                                new ProjectDashboard.Region(
-                                                        entry.getKey(),
-                                                        names.getOrDefault(entry.getKey(), "未知省分"),
-                                                        summarize(entry.getValue())))
+                                                region(entry.getKey(), names.getOrDefault(entry.getKey(), "未知省分"),
+                                                        entry.getValue(), cityNames))
                                 .sorted(
                                         Comparator.comparing(
                                                         (ProjectDashboard.Region region) ->
@@ -149,16 +152,24 @@ public class ProjectDashboardService {
                         && !month.isAfter(filter.to());
                 month = month.plusMonths(1)) {
             var selected = month;
-            trend.add(
-                    new ProjectDashboard.Month(
-                            month,
-                            summarize(
-                                    rows.stream()
-                                            .filter(row -> row.month().equals(selected))
-                                            .toList())));
+            var monthlyRows = rows.stream().filter(row -> row.month().equals(selected)).toList();
+            var stageRows = monthlyRows.stream().collect(Collectors.groupingBy(Bucket::stage));
+            var monthlyStages = stageRows.entrySet().stream()
+                    .map(entry -> new ProjectDashboard.Stage(entry.getKey(), summarize(entry.getValue()))).toList();
+            trend.add(new ProjectDashboard.Month(month, summarize(monthlyRows), monthlyStages));
         }
         return new ProjectDashboard(
                 filter.from(), filter.to(), summarize(rows), stages, provinces, trend);
+    }
+
+    private ProjectDashboard.Region region(UUID id, String name, List<Bucket> rows, Map<UUID, String> cityNames) {
+        var cities = rows.stream().collect(Collectors.groupingBy(Bucket::cityId)).entrySet().stream()
+                .map(entry -> {
+                    var cityName = cityNames.getOrDefault(entry.getKey(), "未知地市");
+                    return new ProjectDashboard.Region(entry.getKey(), cityName, adcodes.city(name, cityName),
+                            summarize(entry.getValue()), List.of());
+                }).toList();
+        return new ProjectDashboard.Region(id, name, adcodes.province(name), summarize(rows), cities);
     }
 
     static ProjectDashboard.Summary summarize(List<Bucket> rows) {
@@ -167,10 +178,11 @@ public class ProjectDashboardService {
                 amount(rows, Bucket::amount),
                 rows.stream().map(Bucket::provinceId).distinct().count(),
                 value(rows, Bucket::networkCount, Bucket::networkAmount),
-                value(rows, Bucket::digitalCount, row -> row.gewuAmount().add(row.bigDataAmount())),
-                value(rows, Bucket::wangwuCount, Bucket::wangwuAmount),
+                value(rows, Bucket::digitalCount, Bucket::gewuAmount),
+                value(rows, Bucket::intelligentCount, row -> row.bigDataAmount().add(row.wangwuAmount())),
                 value(rows, Bucket::gewuCount, Bucket::gewuAmount),
-                value(rows, Bucket::bigDataCount, Bucket::bigDataAmount));
+                value(rows, Bucket::bigDataCount, Bucket::bigDataAmount),
+                value(rows, Bucket::wangwuCount, Bucket::wangwuAmount));
     }
 
     private static long count(List<Bucket> rows, ToLongFunction<Bucket> field) {

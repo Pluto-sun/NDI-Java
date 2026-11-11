@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-11",
+  "timezone": "Asia/Shanghai",
+  "backend": {
+    "unitAndArchitecturePassed": 93,
+    "integrationPassed": 108
+  },
+  "frontend": {
+    "build": "passed",
+    "format": "passed",
+    "viewports": ["1440x1000", "375x812"],
+    "browserRegressionPassed": 64,
+    "productionImportCasesPassedOnRetest": 2,
+    "sessionCasesPassed": 8,
+    "mapAndLayoutCasesPassed": 12
+  }
+}

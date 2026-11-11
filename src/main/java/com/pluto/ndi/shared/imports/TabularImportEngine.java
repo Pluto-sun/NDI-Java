@@ -317,7 +317,7 @@ public abstract class TabularImportEngine<C> {
             try {
                 var command = validate(actor, cells(row));
                 var key = duplicateKey(command);
-                if (!seen.add(key)) errors.add("与文件内前序记录重复：业务唯一键相同");
+                if (key != null && !seen.add(key)) errors.add("与文件内前序记录重复：业务唯一键相同");
                 if (duplicate(command)) errors.add("系统内已存在相同业务唯一键的记录");
             } catch (BusinessException e) {
                 errors.add(e.getMessage());

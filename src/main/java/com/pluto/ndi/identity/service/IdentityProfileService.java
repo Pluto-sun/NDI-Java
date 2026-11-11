@@ -55,6 +55,30 @@ public class IdentityProfileService {
         return view(user);
     }
 
+    public void changeLoginName(UUID id, String currentPassword, String newLoginName) {
+        var user = requireLocked(id);
+        if (currentPassword == null || user.passwordHash() == null
+                || !passwords.matches(currentPassword, user.passwordHash())) {
+            throw new BusinessException(IdentityErrorCode.CURRENT_PASSWORD_INVALID);
+        }
+        String name = Objects.toString(newLoginName, "").strip();
+        if (!name.matches("1[0-9]{10}") || name.equals(user.loginName())) {
+            throw new BusinessException(IdentityErrorCode.LOGIN_NAME_INVALID);
+        }
+        if (accounts.existsByLoginNameAndIdNot(name, id)) {
+            throw new BusinessException(IdentityErrorCode.ACCOUNT_CONFLICT);
+        }
+        var before = user.loginName();
+        user.changeLoginName(name);
+        try { accounts.flush(); }
+        catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(IdentityErrorCode.ACCOUNT_CONFLICT);
+        }
+        sessions.revokeAll(id, Instant.now(clock));
+        audit.record(id, "IDENTITY_ACCOUNT", id, "IDENTITY_LOGIN_NAME_CHANGED",
+                Map.of("before", before, "after", name));
+    }
+
     public void changePassword(UUID id, String currentPassword, String newPassword) {
         var user = requireLocked(id);
         if (currentPassword == null || user.passwordHash() == null || !passwords.matches(currentPassword, user.passwordHash())) {

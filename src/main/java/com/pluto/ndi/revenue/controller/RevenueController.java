@@ -32,13 +32,14 @@ public class RevenueController {
             @RequestParam(required = false) String month,
             @RequestParam(required = false) String province,
             @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "") String organization,
             @RequestParam(defaultValue = "") String state,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
                 service.list(
                         actor(auth),
-                        new RevenueMapper.Filter(month, province, search, state, page, size)));
+                        new RevenueMapper.Filter(month, province, search, state, page, size, organization)));
     }
 
     @GetMapping("/reference-data")

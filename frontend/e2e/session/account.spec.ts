@@ -85,6 +85,25 @@ test('正式登录、资料保存、重新加载、退出及修改密码撤销�
     await expect(skipLink).toBeInViewport();
     await skipLink.evaluate((element) => (element as HTMLElement).blur());
     await page.screenshot({ path: testInfo.outputPath('account-settings.png'), fullPage: true });
+    await page.getByRole('button', { name: '修改登录账号', exact: true }).click();
+    const loginDialog = page.getByRole('dialog', { name: '修改登录账号', exact: true });
+    const newLogin = testInfo.project.name === 'desktop' ? '13990001101' : '13990001102';
+    await loginDialog.getByLabel('新登录账号', { exact: true }).fill(newLogin);
+    await loginDialog.getByLabel('当前密码', { exact: true }).fill('incorrect-password');
+    await loginDialog.getByRole('button', { name: '保存并重新登录', exact: true }).click();
+    await expect(loginDialog.getByRole('alert')).toContainText('当前密码不正确');
+    await loginDialog.getByLabel('当前密码', { exact: true }).fill('changed-e2e-password');
+    await loginDialog.getByRole('button', { name: '保存并重新登录', exact: true }).click();
+    await expect(page.getByText('登录账号已修改，请用新账号登录。', { exact: true })).toBeVisible();
+    await page.getByLabel('账号', { exact: true }).fill(loginName);
+    await page.getByLabel('密码', { exact: true }).fill('changed-e2e-password');
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('账号或密码错误');
+    await page.getByLabel('账号', { exact: true }).fill(newLogin);
+    await page.getByLabel('密码', { exact: true }).fill('changed-e2e-password');
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '个人设置', exact: true })).toBeVisible();
+    await expect(page.getByText(`登录账号 ${newLogin}`, { exact: true })).toBeVisible();
   } finally {
     await secondDevice.close();
   }

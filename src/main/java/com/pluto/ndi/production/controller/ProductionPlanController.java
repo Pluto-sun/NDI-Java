@@ -80,7 +80,7 @@ public class ProductionPlanController extends com.pluto.ndi.shared.imports.Impor
 
     protected byte[] templateBytes(UUID actor) throws java.io.IOException {
         plans.reference(actor);
-        return ExcelWorkbook.template(ProductionImport.fields());
+        return ExcelWorkbook.template(ProductionImport.templateFields());
     }
 
     protected UUID actor(Authentication auth) {

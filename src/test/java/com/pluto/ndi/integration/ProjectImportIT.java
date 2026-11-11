@@ -473,6 +473,7 @@ class ProjectImportIT {
                         new com.fasterxml.jackson.core.type.TypeReference<
                                 java.util.Map<String, String>>() {});
         cells.put("三化类别", "无效旧类别");
+        cells.remove(com.pluto.ndi.projects.util.ProjectImportAmounts.HEADERS.get("NETWORK"));
         cells.put("网络化预计金额（万）", "0");
         cells.put("项目名称", "已修正的旧任务项目");
         jdbc.update(
@@ -501,8 +502,11 @@ class ProjectImportIT {
                 var output = new ByteArrayOutputStream()) {
             var sheet = book.getSheet("导入数据");
             assertThat(sheet.getDataValidations()).hasSize(5);
+            int industryColumn = java.util.stream.StreamSupport.stream(sheet.getRow(0).spliterator(), false)
+                    .filter(cell -> cell.getStringCellValue().equals("客户所属行业"))
+                    .findFirst().orElseThrow().getColumnIndex();
             var industryValidation = sheet.getDataValidations().stream()
-                    .filter(value -> value.getRegions().getCellRangeAddresses()[0].getFirstColumn() == 3)
+                    .filter(value -> value.getRegions().getCellRangeAddresses()[0].getFirstColumn() == industryColumn)
                     .findFirst().orElseThrow();
             var industryRange = new org.apache.poi.ss.util.AreaReference(
                     book.getName(industryValidation.getValidationConstraint().getFormula1()).getRefersToFormula(),
@@ -521,7 +525,7 @@ class ProjectImportIT {
                     Map.entry("客户所属行业", "计算机、通信和其他电子设备制造业"),
                     Map.entry("项目名称", fixture.name()), Map.entry("项目负责人", "外部负责人"),
                     Map.entry("客户需求", "下拉模板建设需求"), Map.entry("项目阶段", "方案交流"),
-                    Map.entry("项目总金额（万）", "0"), Map.entry("网络化预计金额（万）", "0"),
+                    Map.entry("项目总金额（万）", "0"), Map.entry(com.pluto.ndi.projects.util.ProjectImportAmounts.HEADERS.get("NETWORK"), "0"),
                     Map.entry("首条项目进展", "下拉模板首次交流"), Map.entry("下一步动作", "准备交流方案"),
                     Map.entry("签约主体", "省分签约"));
             var row = sheet.createRow(1);

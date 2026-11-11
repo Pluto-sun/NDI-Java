@@ -2,6 +2,7 @@ package com.pluto.ndi.revenue.service;
 
 import com.pluto.ndi.identity.service.*;
 import com.pluto.ndi.organization.service.*;
+import java.math.BigDecimal;
 import com.pluto.ndi.revenue.domain.*;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.mapper.RevenueMapper;
@@ -69,7 +70,8 @@ public class RevenueService {
                 || f.page() > 100000
                 || f.size() < 1
                 || f.size() > 100
-                || f.search() != null && f.search().length() > 300) throw invalid("查询条件无效");
+                || f.search() != null && f.search().length() > 300
+                || f.organization() != null && f.organization().length() > 300) throw invalid("查询条件无效");
         if (f.month() != null && !f.month().isBlank()) RevenueFields.month(f.month());
         if (f.state() != null
                 && !Set.of("", "UNRECOGNIZED", "PENDING", "RECOGNIZED", "CHANGE_PENDING")
@@ -112,6 +114,47 @@ public class RevenueService {
 
     public Entry create(UUID actor, Map<String, String> values) {
         var source = validate(actor, values);
+        return create(actor, source, null);
+    }
+
+    @Transactional(readOnly = true, noRollbackFor = BusinessException.class)
+    public RevenueFields.Source validateImportSource(UUID actor, Map<String, String> values) {
+        var source = new LinkedHashMap<>(values);
+        source.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.PROVINCE));
+        return validate(actor, source);
+    }
+
+    public Entry importEntry(UUID actor, Map<String, String> values) {
+        var source = validateImportSource(actor, values);
+        return create(actor, source, importRecognition(values, source.clauseAmount()));
+    }
+
+    Recognition importRecognition(Map<String, String> values, BigDecimal limit) {
+        String amountText = importValue(values, RevenueImport.AMOUNT);
+        String name = importValue(values, RevenueImport.PROJECT);
+        String province = importValue(values, RevenueImport.PROVINCE);
+        if (amountText.isEmpty() || name.isEmpty() || province.isEmpty()) return null;
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(amountText.replace(",", ""));
+        } catch (NumberFormatException failure) {
+            return null;
+        }
+        if (amount.signum() <= 0) return null;
+        if (amount.compareTo(limit) > 0) throw invalid("认定金额不能超过条款金额");
+        if (amount.stripTrailingZeros().scale() > 2) throw invalid("认定金额最多两位小数");
+        var provinceId = organizations.findEnabledProvinces().stream()
+                .filter(item -> item.name().equals(province) || item.id().toString().equals(province))
+                .findFirst().orElseThrow(() -> invalid("对应省分（集成）未匹配启用的省份")).id();
+        return fields.recognition(new Recognition(amount, name, "", provinceId), limit);
+    }
+
+    private static String importValue(Map<String, String> values, String field) {
+        String value = Objects.toString(values.get(field), "").strip();
+        return value.equals("--") ? "" : value;
+    }
+
+    private Entry create(UUID actor, RevenueFields.Source source, Recognition recognition) {
         if (duplicate(source)) throw conflict();
         UUID id = UUID.randomUUID();
         try {
@@ -125,6 +168,10 @@ public class RevenueService {
                 id,
                 "REVENUE_CREATED",
                 Map.of("month", source.month(), "source", source.fields()));
+        var entry = require(actor, id, false);
+        if (recognition == null) return entry;
+        apply(actor, entry, recognition, null, Instant.now(clock));
+        mapper.bump(id, Instant.now(clock));
         return require(actor, id, false);
     }
 

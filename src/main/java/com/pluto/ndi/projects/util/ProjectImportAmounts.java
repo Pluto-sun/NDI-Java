@@ -10,13 +10,13 @@ public final class ProjectImportAmounts {
     public static final Map<String, String> HEADERS =
             Map.of(
                     "NETWORK",
-                    "网络化预计金额（万）",
+                    "5G工业专网预计金额（万）",
                     "GEWU",
-                    "格物预计金额（万）",
+                    "格物工业互联网平台预计金额（万）",
                     "BIG_DATA",
-                    "大数据预计金额（万）",
+                    "工业大数据平台预计金额（万）",
                     "WANGWU",
-                    "万悟预计金额（万）");
+                    "万悟工业智能体平台预计金额（万）");
 
     private ProjectImportAmounts() {}
 

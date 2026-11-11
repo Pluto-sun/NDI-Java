@@ -43,14 +43,25 @@ const normalized = (value: string) =>
     .replace(/[\s\p{P}\p{S}]/gu, '')
     .replace(/万元|万/g, '');
 const aliases: Record<string, string[]> = {
+  '万悟平台排产（万元）': ['万悟工业智能体平台排产（万元）'],
+  '工业大数据排产（万元）': ['工业大数据平台排产（万元）'],
+  '格物平台排产（万元）': ['格物工业互联网平台排产（万元）'],
+  '工业专网排产（万元）': ['5G工业专网排产（万元）'],
+  '万悟工业智能体平台预计金额（万）': ['万悟预计金额（万）'],
+  '工业大数据平台预计金额（万）': ['大数据预计金额（万）'],
+  '格物工业互联网平台预计金额（万）': ['格物预计金额（万）'],
+  '5G工业专网预计金额（万）': ['网络化预计金额（万）'],
   排产月份: ['月份', '排产月'],
   接口人: ['接口人姓名', '排产接口人'],
+  省份: ['省分', '归属省分'],
+  备注: ['备注（公有云账户key等）'],
   省分: ['省份', '所属省份', '归属省分', '省公司'],
   地市: ['城市', '所属地市', '地市名称', '归属地市'],
   客户名称: ['客户', '客户单位', '客户公司'],
   客户所属行业: ['所属行业', '行业', '行业名称'],
   项目名称: ['项目名', '商机名称', '商机'],
   客户需求: ['项目建设内容', '建设内容', '项目内容', '项目需求', '需求'],
+  签约主体: ['是否数科总投总签'],
   拟招标月份: ['拟招标日期', '预计招标月份'],
   首条项目进展: ['项目进展', '首次项目进展', '初始进展', '最新项目进展'],
   下一步动作: ['下一步计划', '下步动作', '下步计划'],
@@ -70,6 +81,44 @@ export function allowedMappingSource(field: string, header: string) {
     )
   );
 }
+/** 与项目名称比对一样，综合 Jaro-Winkler 与编辑距离。 */
+function headerSimilarity(a: string, b: string) {
+  if (!a || !b) return 0;
+  const range = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1);
+  const left: string[] = [];
+  const right = new Set<number>();
+  for (let i = 0; i < a.length; i++) {
+    for (let j = Math.max(0, i - range); j < Math.min(b.length, i + range + 1); j++) {
+      if (a[i] === b[j] && !right.has(j)) {
+        left.push(a[i]);
+        right.add(j);
+        break;
+      }
+    }
+  }
+  const matches = left.length;
+  if (!matches) return 0;
+  const ordered = [...right].sort((x, y) => x - y);
+  const transposed = ordered.filter((j, i) => b[j] !== left[i]).length / 2;
+  const jaro = (matches / a.length + matches / b.length + (matches - transposed) / matches) / 3;
+  let prefix = 0;
+  while (prefix < Math.min(4, a.length, b.length) && a[prefix] === b[prefix]) prefix++;
+  const winkler = jaro > 0.7 ? jaro + prefix * 0.1 * (1 - jaro) : jaro;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(
+        next[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + Number(a[i - 1] !== b[j - 1]),
+      );
+    }
+    previous = next;
+  }
+  return (winkler + 1 - previous[b.length] / Math.max(a.length, b.length)) / 2;
+}
+
 /** 先占用精确表头，再用别名和包含关系推断，避免同一源列被重复映射。 */
 export function suggestMapping(fields: string[], headers: string[]) {
   const result: Record<string, string> = Object.fromEntries(fields.map((field) => [field, '']));
@@ -95,23 +144,28 @@ export function suggestMapping(fields: string[], headers: string[]) {
         used.add(header);
         continue;
       }
-      const candidate = headers.find(
-        (header) =>
-          allowedMappingSource(field, header) &&
-          !used.has(header) &&
-          !fields.some((other) => normalized(other) === normalized(header)) &&
-          variants.some(
-            (v) =>
-              v.length >= 3 &&
-              normalized(header).length >= 3 &&
-              (v.includes(normalized(header)) || normalized(header).includes(v)),
-          ),
-      );
-      if (candidate) {
-        result[field] = candidate;
-        used.add(candidate);
+    }
+  if (fields.includes('项目负责人')) {
+    const candidates = fields
+      .filter((field) => !result[field])
+      .flatMap((field) =>
+        headers
+          .filter((header) => !used.has(header) && allowedMappingSource(field, header))
+          .map((header) => ({
+            field,
+            header,
+            score: headerSimilarity(normalized(field), normalized(header)),
+          })),
+      )
+      .filter(({ score }) => score >= 0.5)
+      .sort((a, b) => b.score - a.score);
+    for (const { field, header } of candidates) {
+      if (!result[field] && !used.has(header)) {
+        result[field] = header;
+        used.add(header);
       }
     }
+  }
   if (
     fields.includes('三化类别') &&
     !result['三化类别'] &&

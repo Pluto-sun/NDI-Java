@@ -218,7 +218,7 @@ export function ProductionListPage() {
                   <th>三化类别</th>
                   {categories.map((c) => (
                     <th key={c.code} className="numeric">
-                      {c.field}
+                      {c.label}
                       <small>万元</small>
                     </th>
                   ))}
@@ -389,6 +389,13 @@ export function NewProductionPage() {
     </>
   );
 }
+const productionAmountFields = [
+  '工业专网排产（万元）',
+  '格物平台排产（万元）',
+  '工业大数据排产（万元）',
+  '万悟平台排产（万元）',
+];
+
 export function ImportProductionPage() {
   return (
     <ImportWizardPage
@@ -396,12 +403,11 @@ export function ImportProductionPage() {
         api: productionImportApi,
         title: '排产',
         backTo: '/scheduling/new',
-        amountFields: [
-          '工业专网排产（万元）',
-          '格物平台排产（万元）',
-          '工业大数据排产（万元）',
-          '万悟平台排产（万元）',
-        ],
+        amountFields: productionAmountFields,
+        fieldLabel: (field) => {
+          const product = categories[productionAmountFields.indexOf(field)];
+          return product ? `${product.label}排产（万元）` : field;
+        },
         noDuplicateMessage: '未发现重复排产',
         uploadHint: '三化类别可用分号分隔；至少填写一项排产金额。',
         previewHint: '同月份、同省市、同项目与客户只允许一条排产记录。',

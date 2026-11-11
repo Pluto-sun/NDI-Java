@@ -181,7 +181,9 @@ class IdentityPermissionService implements IdentityDirectory {
                 provinceId.equals(actor.provinceId())
                         && cityId.equals(actor.cityId())
                         && roleCodes.contains(CITY_PROJECT_CREATOR_ROLE);
-        return provinceCreator || cityCreator;
+        return provinceCreator || cityCreator
+                || roleCodes.contains(INTERFACE_PROJECT_READER_ROLE)
+                        && reviewers.provinces(actor.id()).contains(provinceId);
     }
 
     @Override
@@ -190,7 +192,8 @@ class IdentityPermissionService implements IdentityDirectory {
         var roles = roleCodes(actor.id());
         if (roles.contains(SYSTEM_ADMIN_ROLE)) return false;
         return roles.contains(CITY_PROJECT_CREATOR_ROLE)
-                || roles.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains);
+                || roles.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains)
+                || roles.contains(INTERFACE_PROJECT_READER_ROLE) && !reviewers.provinces(actor.id()).isEmpty();
     }
 
     @Override

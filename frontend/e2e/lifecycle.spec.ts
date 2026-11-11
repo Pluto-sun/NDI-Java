@@ -36,7 +36,7 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
   await page
     .getByRole('textbox', { name: '项目负责人', exact: true })
     .fill('闭环验收经理；演示省分负责人');
-  await page.getByRole('checkbox', { name: '网络化', exact: true }).check();
+  await page.getByRole('checkbox', { name: '5G工业专网', exact: true }).check();
   await page.getByRole('spinbutton', { name: '预计金额（万元）', exact: true }).fill('50');
   await page.getByRole('textbox', { name: '项目进展', exact: true }).fill('客户需求已明确');
   await page.getByRole('textbox', { name: '下一步动作', exact: true }).fill('提交客户交流方案');

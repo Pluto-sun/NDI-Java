@@ -25,7 +25,10 @@ test('七个模块、多级菜单、占位页及个人中心可用', async ({ pa
     ['能力指标驾驶舱', '能力指标驾驶舱'],
     ['计收列表', '计收列表'],
     ['排产计划', '排产计划'],
-    ['能力指标', '能力指标管理'],
+    ['已部署格物项目清单', '已部署格物项目清单'],
+    ['万悟部署情况', '万悟部署情况'],
+    ['已上线智能体指标追踪', '已上线智能体指标追踪'],
+    ['开发中智能体指标追踪', '开发中智能体指标追踪'],
   ]) {
     await nav.getByRole('link', { name: link, exact: true }).click();
     await expect(page.getByRole('heading', { name: title, exact: true, level: 1 })).toBeVisible();
@@ -70,7 +73,7 @@ test('七个模块、多级菜单、占位页及个人中心可用', async ({ pa
   await page.getByRole('button', { name: '关闭创建账号', exact: true }).click();
   await nav.getByRole('link', { name: '项目管理驾驶舱', exact: true }).click();
   await expect(page.getByRole('button', { name: '刷新驾驶舱', exact: true })).toBeEnabled();
-  await expect(page.locator('.dashboard-kpi')).toHaveCount(5);
+  await expect(page.locator('.dashboard-kpi')).toHaveCount(4);
   await expect(page.locator('.dev-banner')).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

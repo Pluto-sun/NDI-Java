@@ -99,13 +99,13 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
         for (var name : c.getOrDefault("三化类别", "").split("[;；,，、]")) {
             var code =
                     switch (name.strip()) {
-                        case "网络化", "工业专网", "NETWORK" -> "NETWORK";
-                        case "格物", "数字化（格物）", "GEWU" -> "GEWU";
-                        case "大数据", "工业大数据", "BIG_DATA" -> "BIG_DATA";
-                        case "万悟", "智能化", "WANGWU" -> "WANGWU";
+                        case "网络化", "工业专网", "5G工业专网", "NETWORK" -> "NETWORK";
+                        case "格物", "数字化（格物）", "格物工业互联网平台", "GEWU" -> "GEWU";
+                        case "大数据", "工业大数据", "工业大数据平台", "BIG_DATA" -> "BIG_DATA";
+                        case "万悟", "智能化", "万悟工业智能体平台", "WANGWU" -> "WANGWU";
                         default -> "";
                     };
-            if (code.isEmpty()) throw invalid("三化类别须为网络化、格物、大数据或万悟");
+            if (code.isEmpty()) throw invalid("三化类别须为5G工业专网、格物工业互联网平台、工业大数据平台或万悟工业智能体平台");
             codes.add(code);
         }
         String month =
@@ -138,7 +138,7 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
         try {
             return new BigDecimal(value.replace(",", ""));
         } catch (NumberFormatException e) {
-            throw invalid(ProductionImport.AMOUNTS.get(index) + "须为数字");
+            throw invalid(ProductionImport.fieldLabel(ProductionImport.AMOUNTS.get(index)) + "须为数字");
         }
     }
 }

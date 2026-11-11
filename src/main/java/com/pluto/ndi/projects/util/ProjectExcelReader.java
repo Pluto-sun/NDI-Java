@@ -30,12 +30,17 @@ public class ProjectExcelReader {
     private static final String SHEET = "导入数据";
     private static final List<String> REQUIRED =
             List.of(
-                    "省分", "地市", "客户名称", "客户所属行业", "项目名称", "项目负责人",
+                    "省分", "地市", "项目名称", "项目负责人",
                     "客户需求", "项目阶段", "项目总金额（万）");
     private static final List<String> OPTIONAL =
-            List.of("签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
+            List.of("客户名称", "客户所属行业", "签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
     private static final Map<String, String> FIELD_ALIASES =
-            Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份", "项目进展", "首条项目进展");
+            Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份",
+                    "项目进展", "首条项目进展", "是否数科总投总签", "签约主体",
+                    "网络化预计金额（万）", ProjectImportAmounts.HEADERS.get("NETWORK"),
+                    "格物预计金额（万）", ProjectImportAmounts.HEADERS.get("GEWU"),
+                    "大数据预计金额（万）", ProjectImportAmounts.HEADERS.get("BIG_DATA"),
+                    "万悟预计金额（万）", ProjectImportAmounts.HEADERS.get("WANGWU"));
     public static final Set<String> RETIRED_FIELDS =
             Set.of("三化类别", "省分负责人", "地市客户经理", "产品单位支撑专家", "产品推广内容", "重要度", "支撑行业专家");
     private static final Pattern PROGRESS_DATE =
@@ -135,11 +140,12 @@ public class ProjectExcelReader {
             }
             if (fieldMapping.isEmpty()
                     && ProjectImportAmounts.fields().stream()
-                            .noneMatch(sourceHeaders::containsKey)) {
+                            .noneMatch(field -> sourceHeaders.containsKey(defaultSource(field, sourceHeaders)))) {
                 throw new IllegalArgumentException("导入模板至少需要一项三化预计金额列");
             }
             var headers = new LinkedHashMap<String, Integer>();
             var usedColumns = new HashSet<Integer>();
+            boolean signingFlag = false;
             for (var required : mappableHeaders()) {
                 var source =
                         fieldMapping.getOrDefault(required, defaultSource(required, sourceHeaders));
@@ -147,6 +153,7 @@ public class ProjectExcelReader {
                         && !sourceHeaders.containsKey(source)) {
                     throw new IllegalArgumentException("映射来源列不存在：" + source);
                 }
+                if (required.equals("签约主体")) signingFlag = source.equals("是否数科总投总签");
                 int column = source.isBlank() ? -1 : sourceHeaders.getOrDefault(source, -1);
                 if (column >= 0 && !usedColumns.add(column)) {
                     throw new IllegalArgumentException("同一 Excel 列不能映射到多个业务字段");
@@ -169,6 +176,13 @@ public class ProjectExcelReader {
                             entry.getValue() < 0
                                     ? ""
                                     : value(row.getCell(entry.getValue()), formatter, entry.getKey()));
+                }
+                if (signingFlag) {
+                    cells.computeIfPresent("签约主体", (field, value) -> switch (value) {
+                        case "是" -> "数科";
+                        case "否" -> "省分";
+                        default -> value;
+                    });
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
                 if (result.size() == 1000) throw new IllegalArgumentException("单批次最多导入 1000 行");

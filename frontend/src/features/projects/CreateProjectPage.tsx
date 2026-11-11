@@ -52,7 +52,9 @@ export function CreateProjectPage({
   const [confirmNew, setConfirmNew] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState('');
   const checkRevision = useRef(0);
-  const provinceId = me.provinceId;
+  const isReviewer = me.roleCodes.includes('INTERFACE_REVIEWER');
+  const [reviewerProvince, setReviewerProvince] = useState(me.reviewerProvinceIds[0] ?? '');
+  const provinceId = isReviewer ? reviewerProvince : me.provinceId;
   const isCity =
     me.roleCodes.includes('CITY_REPORTER') &&
     !me.roleCodes.some((role) => role.startsWith('PROVINCE_'));
@@ -140,6 +142,10 @@ export function CreateProjectPage({
     const data = draft.data;
     setDraftId(draft.id);
     setCityId(data.cityId ?? '');
+    if (isReviewer)
+      setReviewerProvince(
+        reference.cities.find((city) => city.id === data.cityId)?.provinceId ?? '',
+      );
     const legacyLeaders =
       !data.responsiblePersonNames && data.leaderId && provinceId
         ? await projectsApi.provinceLeaders(provinceId).catch(() => [])
@@ -364,10 +370,34 @@ export function CreateProjectPage({
         <div className="form-grid">
           <label>
             归属省分
-            <input
-              value={reference.provinces.find((item) => item.id === provinceId)?.name ?? '未设置'}
-              disabled
-            />
+            {isReviewer ? (
+              <Select
+                required
+                value={provinceId ?? ''}
+                onChange={(event) => {
+                  setReviewerProvince(event.target.value);
+                  setCityId('');
+                  setCandidate(null);
+                  setConfirmNew(false);
+                  setChecking(false);
+                  checkRevision.current += 1;
+                }}
+              >
+                <option value="">请选择</option>
+                {reference.provinces
+                  .filter((item) => me.reviewerProvinceIds.includes(item.id))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+              </Select>
+            ) : (
+              <input
+                value={reference.provinces.find((item) => item.id === provinceId)?.name ?? '未设置'}
+                disabled
+              />
+            )}
           </label>
           <label>
             归属地市
@@ -475,7 +505,6 @@ export function CreateProjectPage({
           <label>
             客户名称
             <input
-              required
               maxLength={200}
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
@@ -483,11 +512,7 @@ export function CreateProjectPage({
           </label>
           <label>
             客户所属行业
-            <Select
-              required
-              value={industryCode}
-              onChange={(event) => setIndustryCode(event.target.value)}
-            >
+            <Select value={industryCode} onChange={(event) => setIndustryCode(event.target.value)}>
               <option value="">请选择</option>
               {reference.industries.map((item) => (
                 <option key={item.code} value={item.code}>

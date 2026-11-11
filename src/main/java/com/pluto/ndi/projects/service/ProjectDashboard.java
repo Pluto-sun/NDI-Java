@@ -10,8 +10,8 @@ public record ProjectDashboard(YearMonth from, YearMonth to, Summary current,
         List<Stage> stages, List<Region> provinces, List<Month> trend) {
     public record Value(long count, BigDecimal amount) { }
     public record Summary(long projectCount, BigDecimal totalAmount, long provinceCount,
-            Value network, Value digital, Value intelligent, Value gewu, Value bigData) { }
+            Value network, Value digital, Value intelligent, Value gewu, Value bigData, Value wangwu) { }
     public record Stage(String stageCode, Summary summary) { }
-    public record Region(UUID id, String name, Summary summary) { }
-    public record Month(YearMonth month, Summary summary) { }
+    public record Region(UUID id, String name, String adcode, Summary summary, List<Region> cities) { }
+    public record Month(YearMonth month, Summary summary, List<Stage> stages) { }
 }

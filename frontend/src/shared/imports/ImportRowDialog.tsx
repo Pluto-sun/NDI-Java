@@ -126,7 +126,7 @@ export function ImportRowDialog({
             <div className="form-grid import-row-fields">
               {Object.entries(cells).map(([field, value]) => (
                 <label key={field}>
-                  {field}
+                  {config.fieldLabel?.(field) ?? field}
                   {config.fieldOptions?.(field, cells) ? (
                     <Select
                       value={value}
@@ -151,7 +151,7 @@ export function ImportRowDialog({
                     </Select>
                   ) : (
                     <textarea
-                      aria-label={field}
+                      aria-label={config.fieldLabel?.(field) ?? field}
                       placeholder={config.emptyValueLabel}
                       rows={
                         field.includes('内容') || field.includes('进展') || field === '下一步动作'

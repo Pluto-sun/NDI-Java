@@ -39,7 +39,7 @@ test('所属月份区间统计与月末快照分开，支持阶段、金额、�
     .getByRole('combobox', { name: '所属月份趋势指标', exact: true })
     .selectOption('network');
   await expect(
-    panel.getByRole('table', { name: '按项目所属月份的阶段指标明细：网络化金额', exact: true }),
+    panel.getByRole('table', { name: '按项目所属月份的阶段指标明细：5G工业专网金额', exact: true }),
   ).toBeVisible();
   await panel.getByLabel('所属月份起始', { exact: true }).fill('1999-01');
   await panel.getByLabel('所属月份结束', { exact: true }).fill('1999-02');

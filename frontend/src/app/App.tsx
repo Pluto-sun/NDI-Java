@@ -18,6 +18,16 @@ import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 import { ModuleNavigation } from './ModuleNavigation';
 import { ModulePlaceholder } from '../shared/ui/ModulePlaceholder';
 
+const GewuDeploymentsPage = lazy(() =>
+  import('../features/capabilities/GewuDeployments').then((module) => ({
+    default: module.GewuDeploymentsPage,
+  })),
+);
+const ImportGewuDeploymentsPage = lazy(() =>
+  import('../features/capabilities/GewuDeployments').then((module) => ({
+    default: module.ImportGewuDeploymentsPage,
+  })),
+);
 const ProductionListPage = lazy(() =>
   import('../features/production/ProductionPages').then((module) => ({
     default: module.ProductionListPage,
@@ -223,6 +233,7 @@ export function App() {
     me.roleCodes.some((role) =>
       [
         'CITY_REPORTER',
+        'INTERFACE_REVIEWER',
         'PROVINCE_REPORTER',
         'PROVINCE_DIGITAL_LEADER',
         'PROVINCE_INTELLIGENT_LEADER',
@@ -339,6 +350,7 @@ export function App() {
                         setProfile(user);
                       }}
                       onPasswordChanged={() => clearAccount('密码已修改，请重新登录。')}
+                      onLoginNameChanged={() => clearAccount('登录账号已修改，请用新账号登录。')}
                     />
                   }
                 />
@@ -361,7 +373,21 @@ export function App() {
               <Route path="/scheduling" element={<ProductionListPage />} />
               <Route path="/scheduling/new" element={<NewProductionPage />} />
               <Route path="/scheduling/import" element={<ImportProductionPage />} />
-              <Route path="/capability" element={<ModulePlaceholder title="能力指标管理" />} />
+              <Route path="/capability" element={<Navigate replace to="/capability/gewu" />} />
+              <Route path="/capability/gewu" element={<GewuDeploymentsPage />} />
+              <Route path="/capability/gewu/import" element={<ImportGewuDeploymentsPage />} />
+              <Route
+                path="/capability/wangwu"
+                element={<ModulePlaceholder title="万悟部署情况" />}
+              />
+              <Route
+                path="/capability/agents-live"
+                element={<ModulePlaceholder title="已上线智能体指标追踪" />}
+              />
+              <Route
+                path="/capability/agents-development"
+                element={<ModulePlaceholder title="开发中智能体指标追踪" />}
+              />
               <Route
                 path="/projects"
                 element={

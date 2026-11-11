@@ -166,7 +166,7 @@ class ProjectAttributionIT {
     }
 
     @Test
-    void dashboardCountsZeroAmountMembershipDeduplicatesDigitalAndFiltersAllSections() throws Exception {
+    void dashboardCountsZeroAmountMembershipDeduplicatesIntelligentAndFiltersAllSections() throws Exception {
         var province = UUID.randomUUID(); var city = UUID.randomUUID(); var otherCity = UUID.randomUUID();
         var reporter = UUID.randomUUID(); var other = UUID.randomUUID(); var leader = UUID.randomUUID();
         jdbc.update("INSERT INTO organization_province VALUES(UUID_TO_BIN(?),?,'广东省',true)", province.toString(), province.toString().replace("-", ""));
@@ -177,12 +177,17 @@ class ProjectAttributionIT {
         var first = create(province, city, leader, reporter);
         create(province, otherCity, leader, other);
         jdbc.update("INSERT INTO project_category_amount VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),'BIG_DATA',0)", UUID.randomUUID().toString(), first.toString());
+        jdbc.update("INSERT INTO project_category_amount VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),'WANGWU',0)", UUID.randomUUID().toString(), first.toString());
         var filter = new com.pluto.ndi.projects.domain.ProjectDashboardFilter(YearMonth.of(2026, 10), YearMonth.of(2026, 10), null, "", "", false);
         var result = dashboard.view(reporter, filter);
         assertThat(result.current().projectCount()).isEqualTo(1);
         assertThat(result.current().digital().count()).isEqualTo(1);
         assertThat(result.current().gewu().count()).isEqualTo(1);
         assertThat(result.current().bigData().count()).isEqualTo(1);
+        assertThat(result.current().intelligent().count()).isEqualTo(1);
+        assertThat(result.current().wangwu().count()).isEqualTo(1);
+        assertThat(result.provinces().getFirst().cities()).hasSize(1);
+        assertThat(result.trend().getFirst().stages().getFirst().summary()).isEqualTo(result.current());
         assertThat(result.current().bigData().amount()).isEqualByComparingTo("0");
         assertThat(result.current().totalAmount()).isEqualByComparingTo("100");
         assertThat(result.provinces()).hasSize(1);
@@ -193,7 +198,7 @@ class ProjectAttributionIT {
             assertThat(activity.beforeAmount()).isNull();
             assertThat(activity.afterAmount()).isEqualByComparingTo("100");
         });
-        assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), null, "DIGITAL", "BIG_DATA", false)).current().projectCount()).isEqualTo(1);
+        assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), null, "INTELLIGENT", "BIG_DATA", false)).current().projectCount()).isEqualTo(1);
         assertThat(dashboard.view(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), ProjectStage.BIDDING, "", "", false)).current().projectCount()).isZero();
         assertThat(dashboard.activities(reporter, new com.pluto.ndi.projects.domain.ProjectDashboardFilter(filter.from(), filter.to(), ProjectStage.BIDDING, "", "", false))).isEmpty();
         mvc.perform(get("/api/v1/projects/workbench/dashboard").header("X-NDI-Actor-Id", reporter.toString()).param("from", "2026-10").param("to", "2026-10"))

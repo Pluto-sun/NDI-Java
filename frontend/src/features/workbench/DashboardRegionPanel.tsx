@@ -5,7 +5,7 @@ import { amount } from '../../shared/ui/format';
 import { mapShapes } from './mapGeometry';
 import type { Dashboard } from './dashboardApi';
 import { DashboardShare } from './DashboardShare';
-import { compactMapRegions, mapLabels } from './mapLabels';
+import { mapLabels } from './mapLabels';
 
 const canonical = (name: string) =>
   name.replace(/(特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|省|市)$/, '');
@@ -18,6 +18,16 @@ export function DashboardRegionPanel({
   metric: 'amount' | 'count';
   stageLabel: string;
 }) {
+  const [provinceId, setProvinceId] = useState<string | null>(null);
+  const province = data.provinces.find((region) => region.id === provinceId);
+  const boundaryCode = province ? province.adcode : '100000';
+  const rankLabel = province ? '地市排名' : '省分排名';
+  const openProvince = (id: string | null) => {
+    setProvinceId(id);
+    setActiveCode(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
   const [geoJson, setGeoJson] = useState<unknown>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -28,8 +38,10 @@ export function DashboardRegionPanel({
   useEffect(() => {
     let active = true;
     setError('');
+    setGeoJson(null);
+    if (!boundaryCode) return;
     projectsApi
-      .mapBoundary('100000')
+      .mapBoundary(boundaryCode)
       .then(async (boundary) => {
         const parsed: unknown = JSON.parse(await boundary.text());
         if (active) setGeoJson(parsed);
@@ -40,19 +52,29 @@ export function DashboardRegionPanel({
     return () => {
       active = false;
     };
-  }, [retry]);
-  const shapes = useMemo(() => mapShapes(geoJson), [geoJson]);
+  }, [retry, boundaryCode]);
+  const shapes = useMemo(() => mapShapes(geoJson, !province), [geoJson, province]);
   const labels = useMemo(() => mapLabels(shapes), [shapes]);
   const value = (region: Dashboard['provinces'][number]) =>
     metric === 'amount' ? region.summary.totalAmount : region.summary.projectCount;
-  const rows = [...data.provinces].sort(
-    (a, b) => value(b) - value(a) || a.name.localeCompare(b.name),
-  );
-  const total = metric === 'amount' ? data.current.totalAmount : data.current.projectCount;
+  const rows = (
+    province?.cities ??
+    data.provinces.filter(
+      (item) =>
+        !['710000', '810000', '820000'].includes(item.adcode ?? '') &&
+        !['台湾', '香港', '澳门'].includes(canonical(item.name)),
+    )
+  )
+    .slice()
+    .sort((a, b) => value(b) - value(a) || a.name.localeCompare(b.name));
+  const total = rows.reduce((sum, row) => sum + value(row), 0);
   const maximum = Math.max(1, ...rows.map(value));
   const byName = new Map(rows.map((row) => [canonical(row.name), row]));
+  const byCode = new Map(rows.map((row) => [row.adcode, row]));
+  const rowFor = (shape: (typeof shapes)[number]) =>
+    byCode.get(shape.adcode) ?? byName.get(canonical(shape.name));
   const activeShape = shapes.find((shape) => shape.adcode === activeCode);
-  const activeRow = activeShape ? byName.get(canonical(activeShape.name)) : undefined;
+  const activeRow = activeShape ? rowFor(activeShape) : undefined;
   const activeValue = activeRow
     ? `${amount(value(activeRow))} ${metric === 'amount' ? '万元' : '个'}`
     : '无数据或不在授权范围';
@@ -60,10 +82,15 @@ export function DashboardRegionPanel({
     <div className="dashboard-region-grid">
       <section className="panel dashboard-map" aria-label={`驾驶舱项目区域分布${stageLabel}`}>
         <div className="dashboard-map-heading">
-          <h2>项目区域分布{stageLabel}</h2>
+          <h2>项目区域分布{province ? `（${province.name}）` : stageLabel}</h2>
           <span>{metric === 'amount' ? '项目金额（万元）' : '项目数（个）'}</span>
         </div>
         <div className="action-row" aria-label="驾驶舱地图操作">
+          {province && (
+            <button type="button" className="secondary-button" onClick={() => openProvince(null)}>
+              返回全国
+            </button>
+          )}
           <button
             type="button"
             className="text-button"
@@ -109,7 +136,7 @@ export function DashboardRegionPanel({
                 <span>{activeValue}</span>
               </>
             ) : (
-              <span>选择省份查看数据</span>
+              <span>{province ? '选择地市查看数据' : '选择省份查看地市分布'}</span>
             )}
           </div>
           <div
@@ -124,8 +151,8 @@ export function DashboardRegionPanel({
                 cursor: zoom > 1 ? 'grab' : 'default',
               }}
               viewBox={`${340 - 340 / zoom + pan.x} ${220 - 220 / zoom + pan.y} ${680 / zoom} ${440 / zoom}`}
-              role="img"
-              aria-label="省分项目分布地图，具体数据见省分排名表"
+              role="group"
+              aria-label={province ? '地市项目分布地图' : '省分项目分布地图'}
               tabIndex={0}
               onKeyDown={(event) => {
                 const step = 25 / zoom;
@@ -162,7 +189,7 @@ export function DashboardRegionPanel({
               }}
             >
               {shapes.map((shape) => {
-                const row = byName.get(canonical(shape.name));
+                const row = rowFor(shape);
                 const ratio = row ? value(row) / maximum : 0;
                 return (
                   <g
@@ -171,7 +198,20 @@ export function DashboardRegionPanel({
                     onPointerEnter={() => {
                       if (!drag.current) setActiveCode(shape.adcode);
                     }}
-                    onClick={() => setActiveCode(shape.adcode)}
+                    role={!province && row ? 'button' : undefined}
+                    tabIndex={!province && row ? 0 : undefined}
+                    aria-label={!province && row ? `${row.name}地市分布` : undefined}
+                    onClick={() =>
+                      !province && row && zoom === 1
+                        ? openProvince(row.id)
+                        : setActiveCode(shape.adcode)
+                    }
+                    onKeyDown={(event) => {
+                      if (!province && row && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        openProvince(row.id);
+                      }
+                    }}
                   >
                     <path
                       d={shape.path}
@@ -201,6 +241,15 @@ export function DashboardRegionPanel({
               <g className="dashboard-map-labels" aria-hidden="true">
                 {labels.map((label) => (
                   <g key={label.adcode}>
+                    {label.origin && (
+                      <line
+                        x1={label.origin[0]}
+                        y1={label.origin[1]}
+                        x2={label.x}
+                        y2={label.y}
+                        className="dashboard-map-callout"
+                      />
+                    )}
                     <text
                       x={label.x}
                       y={label.y}
@@ -216,24 +265,6 @@ export function DashboardRegionPanel({
             </svg>
           </div>
         </div>
-        {shapes.some((shape) => compactMapRegions.has(shape.adcode)) && (
-          <div className="dashboard-map-compact" role="group" aria-label="小面积区域快捷查看">
-            {shapes
-              .filter((shape) => compactMapRegions.has(shape.adcode))
-              .map((shape) => (
-                <button
-                  key={shape.adcode}
-                  type="button"
-                  aria-pressed={activeCode === shape.adcode}
-                  onPointerEnter={() => setActiveCode(shape.adcode)}
-                  onFocus={() => setActiveCode(shape.adcode)}
-                  onClick={() => setActiveCode(shape.adcode)}
-                >
-                  {canonical(shape.name)}
-                </button>
-              ))}
-          </div>
-        )}
         <div className="dashboard-map-scale" aria-label="地图颜色图例">
           <span>
             <i className="map-no-data" />
@@ -246,12 +277,14 @@ export function DashboardRegionPanel({
           </span>
         </div>
         <p className="subtle">
-          {metric === 'amount' ? '项目金额（万元）' : '项目数（个）'} ·
-          颜色越深数值越高。北京、天津、上海及港澳通过图下标签查看，全部数值见省分排名。
+          {metric === 'amount' ? '项目金额（万元）' : '项目数（个）'} · 颜色越深数值越高。
         </p>
       </section>
-      <section className="panel dashboard-ranking" aria-label={`省分排名${stageLabel}`}>
-        <h2>省分排名{stageLabel}</h2>
+      <section className="panel dashboard-ranking" aria-label={`${rankLabel}${stageLabel}`}>
+        <h2>
+          {rankLabel}
+          {stageLabel}
+        </h2>
         <div className="table-scroll">
           <table>
             <colgroup>
@@ -262,7 +295,7 @@ export function DashboardRegionPanel({
             <thead>
               <tr>
                 <th>排名</th>
-                <th>省份</th>
+                <th>{province ? '地市' : '省份'}</th>
                 <th>项目数（个）</th>
                 <th>项目金额（万元）</th>
                 <th>{metric === 'amount' ? '金额' : '数量'}占比</th>
@@ -274,7 +307,19 @@ export function DashboardRegionPanel({
                   <td>
                     <span className={`rank-badge rank-${index + 1}`}>{index + 1}</span>
                   </td>
-                  <th>{row.name}</th>
+                  <th scope="row">
+                    {province ? (
+                      row.name
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => openProvince(row.id)}
+                      >
+                        {row.name}
+                      </button>
+                    )}
+                  </th>
                   <td>{row.summary.projectCount}</td>
                   <td>{amount(row.summary.totalAmount)}</td>
                   <td>

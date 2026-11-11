@@ -130,17 +130,19 @@ export function ImportPreviewTable({
                         )
                         .join(' / ')}
                     </small>
-                    <small>
-                      {config.amountFields
-                        .map((field) =>
-                          config.emptyValueLabel
-                            ? cells[field]?.trim() || config.emptyValueLabel
-                            : cells[field],
-                        )
-                        .filter((value) => value?.trim())
-                        .join(' / ') || '未填金额'}{' '}
-                      {config.amountUnit ?? '万元'}
-                    </small>
+                    {config.amountFields.length > 0 && (
+                      <small>
+                        {config.amountFields
+                          .map((field) =>
+                            config.emptyValueLabel
+                              ? cells[field]?.trim() || config.emptyValueLabel
+                              : cells[field],
+                          )
+                          .filter((value) => value?.trim())
+                          .join(' / ') || '未填金额'}{' '}
+                        {config.amountUnit ?? '万元'}
+                      </small>
+                    )}
                   </td>
                   <td>
                     <span

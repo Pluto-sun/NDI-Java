@@ -53,7 +53,9 @@ public class RevenueImportService extends TabularImportEngine<RevenueFields.Sour
     }
 
     protected RevenueFields.Source validate(UUID actor, Map<String, String> values) {
-        return entries.validate(actor, values);
+        var source = entries.validateImportSource(actor, values);
+        entries.importRecognition(values, source.clauseAmount());
+        return source;
     }
 
     protected Object duplicateKey(RevenueFields.Source s) {
@@ -71,7 +73,7 @@ public class RevenueImportService extends TabularImportEngine<RevenueFields.Sour
     }
 
     protected UUID create(UUID actor, Map<String, String> values) {
-        return entries.create(actor, values).id();
+        return entries.importEntry(actor, values).id();
     }
 
     protected List<com.pluto.ndi.shared.excel.ExcelWorkbook.Line> read(

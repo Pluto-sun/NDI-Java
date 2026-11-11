@@ -8,6 +8,7 @@ public enum IdentityErrorCode implements ErrorCode {
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "账号或密码错误"),
     SESSION_INVALID(HttpStatus.UNAUTHORIZED, "登录已失效，请重新登录"),
     CURRENT_PASSWORD_INVALID(HttpStatus.BAD_REQUEST, "当前密码不正确"),
+    LOGIN_NAME_INVALID(HttpStatus.BAD_REQUEST, "新登录账号须为不同的 11 位手机号"),
     PASSWORD_INVALID(HttpStatus.BAD_REQUEST, "新密码须为 6 至 128 个字符，且不能与当前密码相同"),
     PROFILE_INVALID(HttpStatus.BAD_REQUEST, "姓名或邮箱格式不正确"),
     EMAIL_CONFLICT(HttpStatus.CONFLICT, "该邮箱已被其他账号使用"),

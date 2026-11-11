@@ -165,7 +165,7 @@ export function PlanForm({
         <div className="form-grid">
           {categories.map((c) => (
             <label key={c.code}>
-              {c.field}（万元）
+              {c.label}排产（万元）
               <input
                 type="number"
                 min="0"

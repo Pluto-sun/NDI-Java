@@ -613,8 +613,8 @@ class RevenueIT {
                 new XSSFWorkbook(
                         new ByteArrayInputStream(
                                 RevenueExcel.template(service.reference(admin))))) {
-            assertThat(book.getSheetAt(0).getRow(0).getLastCellNum()).isEqualTo((short) 33);
-            assertThat(book.getSheetAt(0).getDataValidations()).hasSize(2);
+            assertThat(book.getSheetAt(0).getRow(0).getLastCellNum()).isEqualTo((short) 36);
+            assertThat(book.getSheetAt(0).getDataValidations()).hasSize(3);
             assertThat(book.getSheetAt(0).getRow(0).getCell(12).getStringCellValue())
                     .isEqualTo("条款编号");
         }

@@ -981,7 +981,7 @@ class ProjectApprovalIT {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/projects/workbench/map/boundaries/100000")
                         .header("X-NDI-Actor-Id", cityUserId.toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/projects/workbench/map/boundaries/not-a-code")
                         .header("X-NDI-Actor-Id", groupUserId.toString()))
                 .andExpect(status().isBadRequest());
@@ -1632,7 +1632,7 @@ class ProjectApprovalIT {
         var csv = ArgumentCaptor.forClass(byte[].class);
         verify(exportFileDirectory).storeCsv(eq(task), csv.capture());
         assertThat(new String(csv.getValue(), StandardCharsets.UTF_8)).startsWith("\uFEFF产品单位支撑专家,项目名称,省分,地市,省分负责人,签约主体,项目阶段,地市客户经理,客户所属行业,三化类别,最近更新时间\r\n")
-                .contains("专家乙、专家甲", "PROVINCE_SIGN", "方案交流", "客户经理", "网络化", "2030-01-01T00:00:00Z");
+                .contains("专家乙、专家甲", "PROVINCE_SIGN", "方案交流", "客户经理", "5G工业专网", "2030-01-01T00:00:00Z");
         assertThat(exportService.find(cityUserId, task).rowCount()).isEqualTo(1);
         mockMvc.perform(get("/api/v1/projects/exports/fields").header("X-NDI-Actor-Id", cityUserId.toString()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(23));

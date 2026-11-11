@@ -29,8 +29,8 @@ public class ProjectDashboardRepository {
                         List.of(), List.of()), parameters);
         restriction += switch (filter.category()) {
             case "NETWORK" -> " AND category.network_present = 1";
-            case "DIGITAL" -> " AND (category.gewu_present = 1 OR category.big_data_present = 1)";
-            case "INTELLIGENT" -> " AND category.wangwu_present = 1";
+            case "DIGITAL" -> " AND (category.gewu_present = 1)";
+            case "INTELLIGENT" -> " AND (category.big_data_present = 1 OR category.wangwu_present = 1)";
             default -> "";
         };
         restriction += switch (filter.product()) {
@@ -41,29 +41,30 @@ public class ProjectDashboardRepository {
             default -> "";
         };
         var sql = "SELECT " + month + " metric_month, project.current_stage_code stage, "
-                + "BIN_TO_UUID(project.province_id) province, COUNT(*) project_count, "
+                + "BIN_TO_UUID(project.province_id) province, BIN_TO_UUID(project.city_id) city, COUNT(*) project_count, "
                 + "SUM(project.total_amount) total_amount, "
                 + "COALESCE(SUM(category.network_present),0) network_count, "
                 + "COALESCE(SUM(category.gewu_present),0) gewu_count, "
                 + "COALESCE(SUM(category.big_data_present),0) big_data_count, "
                 + "COALESCE(SUM(category.wangwu_present),0) wangwu_count, "
-                + "COALESCE(SUM(category.gewu_present = 1 OR category.big_data_present = 1),0) digital_count, "
+                + "COALESCE(SUM(category.gewu_present = 1),0) digital_count, "
+                + "COALESCE(SUM(category.big_data_present = 1 OR category.wangwu_present = 1),0) intelligent_count, "
                 + "COALESCE(SUM(category.network_amount),0) network_amount, "
                 + "COALESCE(SUM(category.gewu_amount),0) gewu_amount, "
                 + "COALESCE(SUM(category.big_data_amount),0) big_data_amount, "
                 + "COALESCE(SUM(category.wangwu_amount),0) wangwu_amount "
                 + ProjectCurrentMetricSql.FROM + restriction
-                + " GROUP BY " + month + ", project.current_stage_code, project.province_id";
+                + " GROUP BY " + month + ", project.current_stage_code, project.province_id, project.city_id";
         return jdbc.query(sql, parameters, (rs, index) -> new Bucket(
                 YearMonth.from(rs.getDate("metric_month").toLocalDate()), rs.getString("stage"),
-                UUID.fromString(rs.getString("province")), rs.getLong("project_count"), rs.getBigDecimal("total_amount"),
-                rs.getLong("network_count"), rs.getLong("digital_count"), rs.getLong("gewu_count"),
+                UUID.fromString(rs.getString("province")), UUID.fromString(rs.getString("city")), rs.getLong("project_count"), rs.getBigDecimal("total_amount"),
+                rs.getLong("network_count"), rs.getLong("digital_count"), rs.getLong("intelligent_count"), rs.getLong("gewu_count"),
                 rs.getLong("big_data_count"), rs.getLong("wangwu_count"),
                 rs.getBigDecimal("network_amount"), rs.getBigDecimal("gewu_amount"),
                 rs.getBigDecimal("big_data_amount"), rs.getBigDecimal("wangwu_amount")));
     }
 
-    public record Bucket(YearMonth month, String stage, UUID provinceId, long count, BigDecimal amount,
-            long networkCount, long digitalCount, long gewuCount, long bigDataCount, long wangwuCount,
+    public record Bucket(YearMonth month, String stage, UUID provinceId, UUID cityId, long count, BigDecimal amount,
+            long networkCount, long digitalCount, long intelligentCount, long gewuCount, long bigDataCount, long wangwuCount,
             BigDecimal networkAmount, BigDecimal gewuAmount, BigDecimal bigDataAmount, BigDecimal wangwuAmount) { }
 }

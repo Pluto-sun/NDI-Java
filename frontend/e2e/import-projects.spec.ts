@@ -333,13 +333,19 @@ test('分类按金额自动识别，零金额计入且不再映射类别，唯�
   await upload(page, [row]);
   await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
   await expect(page.getByRole('combobox', { name: '映射：三化类别', exact: true })).toHaveCount(0);
-  const network = page.getByRole('combobox', { name: '映射：网络化预计金额（万）', exact: true });
-  const gewu = page.getByRole('combobox', { name: '映射：格物预计金额（万）', exact: true });
+  const network = page.getByRole('combobox', {
+    name: '映射：5G工业专网预计金额（万）',
+    exact: true,
+  });
+  const gewu = page.getByRole('combobox', {
+    name: '映射：格物工业互联网平台预计金额（万）',
+    exact: true,
+  });
   for (const field of [
-    '网络化预计金额（万）',
-    '格物预计金额（万）',
-    '大数据预计金额（万）',
-    '万悟预计金额（万）',
+    '5G工业专网预计金额（万）',
+    '格物工业互联网平台预计金额（万）',
+    '工业大数据平台预计金额（万）',
+    '万悟工业智能体平台预计金额（万）',
   ])
     await page.getByRole('combobox', { name: `映射：${field}`, exact: true }).selectOption('');
   await expect(page.getByRole('button', { name: '下一步：开始预检', exact: true })).toBeDisabled();

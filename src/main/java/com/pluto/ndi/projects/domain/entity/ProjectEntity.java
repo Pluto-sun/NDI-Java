@@ -42,7 +42,7 @@ public class ProjectEntity {
     @Column(name = "customer_name", nullable = false)
     private String customerName;
 
-    @Column(name = "industry_code", nullable = false)
+    @Column(name = "industry_code")
     private String industryCode;
 
     @Column(name = "customer_need", nullable = false)

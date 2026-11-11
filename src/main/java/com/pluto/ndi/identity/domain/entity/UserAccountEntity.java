@@ -51,6 +51,7 @@ public class UserAccountEntity {
     public String passwordHash() { return passwordHash; }
     public long credentialVersion() { return credentialVersion; }
     public void updateProfile(String displayName, String email) { this.displayName = displayName; this.email = email; }
+    public void changeLoginName(String name) { loginName = name; revokeCredentials(); }
     public void changePassword(String encoded) { passwordHash = encoded; credentialVersion++; }
     public long managementVersion() { return managementVersion; }
     public void updateAdministration(String loginName, String displayName, String email, UUID provinceId, UUID cityId) {

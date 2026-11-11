@@ -20,8 +20,8 @@ export function DashboardFilters({
     (item) =>
       !value.category ||
       (value.category === 'NETWORK' && item.code === 'NETWORK') ||
-      (value.category === 'DIGITAL' && ['GEWU', 'BIG_DATA'].includes(item.code)) ||
-      (value.category === 'INTELLIGENT' && item.code === 'WANGWU'),
+      (value.category === 'DIGITAL' && item.code === 'GEWU') ||
+      (value.category === 'INTELLIGENT' && ['BIG_DATA', 'WANGWU'].includes(item.code)),
   );
   return (
     <div className="dashboard-inline-filters dashboard-classification-filters">

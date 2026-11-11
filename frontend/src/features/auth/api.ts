@@ -24,6 +24,13 @@ export const authApi = {
   },
   update: (displayName: string, email: string) =>
     requestAt<AccountProfile>(root, '/me', { method: 'PUT', ...jsonBody({ displayName, email }) }),
+  async changeLoginName(currentPassword: string, newLoginName: string) {
+    await requestAt(root, '/login-name', {
+      method: 'POST',
+      ...jsonBody({ currentPassword, newLoginName }),
+    });
+    clearCsrfToken();
+  },
   async changePassword(currentPassword: string, newPassword: string) {
     await requestAt(root, '/password', {
       method: 'POST',

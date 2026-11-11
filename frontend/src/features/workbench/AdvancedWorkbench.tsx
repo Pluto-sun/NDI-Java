@@ -74,10 +74,10 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
   const trendMetrics: { value: StageTrendMetric; label: string }[] = [
     { value: 'projectCount', label: '项目数量' },
     { value: 'totalExpectedAmount', label: '项目总金额' },
-    { value: 'network', label: '网络化金额' },
-    { value: 'gewu', label: '格物金额' },
-    { value: 'bigData', label: '大数据金额' },
-    { value: 'wangwu', label: '万悟金额' },
+    { value: 'network', label: '5G工业专网金额' },
+    { value: 'gewu', label: '格物工业互联网平台金额' },
+    { value: 'bigData', label: '工业大数据平台金额' },
+    { value: 'wangwu', label: '万悟工业智能体平台金额' },
   ];
   const categoryAmounts = history
     ? [
@@ -85,6 +85,13 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
         { code: 'GEWU', value: history.categoryTotals.gewu },
         { code: 'BIG_DATA', value: history.categoryTotals.bigData },
         { code: 'WANGWU', value: history.categoryTotals.wangwu },
+      ]
+    : [];
+  const historyGroups = history
+    ? [
+        { label: '网络化', value: history.categoryTotals.network },
+        { label: '数字化', value: history.categoryTotals.gewu },
+        { label: '智能化', value: history.categoryTotals.bigData + history.categoryTotals.wangwu },
       ]
     : [];
   const largestCategory = Math.max(1, ...categoryAmounts.map((item) => item.value));
@@ -283,7 +290,17 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
                 </div>
                 <div className="category-summary">
                   <h3>当月三化分类预计金额</h3>
-                  <p className="subtle">分类金额合计不超过项目总金额，未归类金额不在下列四项中。</p>
+                  <p className="subtle">
+                    历史月份沿用当前三化分类，数字化包含格物工业互联网平台，智能化包含工业大数据平台和万悟工业智能体平台。
+                  </p>
+                  <dl className="dashboard-history-group-totals">
+                    {historyGroups.map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{amount(item.value)} 万元</dd>
+                      </div>
+                    ))}
+                  </dl>
                   <ol className="category-amount-bars">
                     {categoryAmounts.map((item) => (
                       <li key={item.code}>

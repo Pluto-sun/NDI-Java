@@ -182,7 +182,7 @@ class ReviewerProvinceScopeIT {
     }
 
     @Test
-    void authorizesApprovalsImportAndCollaborationButNotProjectCreationOrMajorChangeInitiation() {
+    void authorizesScopedCreationApprovalsImportAndCollaborationButNotMajorChangeInitiation() {
         var actor = identities.findProjectActor(reviewer.id()).orElseThrow();
         for (var region : List.of(a, b)) {
             assertThat(identities.canImportProject(actor, region.province(), region.city()))
@@ -190,7 +190,7 @@ class ReviewerProvinceScopeIT {
             assertThat(identities.canUploadProjectDocument(actor, region.province(), region.city()))
                     .isTrue();
             assertThat(identities.canCreateProject(actor, region.province(), region.city()))
-                    .isFalse();
+                    .isTrue();
             assertThat(
                             identities.canInitiateMajorChange(
                                     actor,
@@ -204,6 +204,7 @@ class ReviewerProvinceScopeIT {
                     .extracting(ProjectUser::id)
                     .contains(reviewer.id());
         }
+        assertThat(identities.canCreateProject(actor, c.province(), c.city())).isFalse();
         assertThat(identities.canImportProject(actor, c.province(), c.city())).isFalse();
         assertThat(identities.canUploadProjectDocument(actor, c.province(), c.city())).isFalse();
         progresses.append(

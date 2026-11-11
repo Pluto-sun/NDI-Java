@@ -1,5 +1,6 @@
 import { allowedMappingSource } from './importWizard';
 import { Select } from '../ui/Select';
+import { useImportWizard } from './context';
 import type { ImportConfiguration, ImportTask } from './types';
 
 export function ImportFieldMapping({
@@ -13,6 +14,7 @@ export function ImportFieldMapping({
   onChange: (value: ImportConfiguration) => void;
   disabled: boolean;
 }) {
+  const { fieldLabel = (field: string) => field } = useImportWizard();
   const headers =
     task.inspection.sheets
       .find((sheet) => sheet.name === configuration.sheetName)
@@ -40,7 +42,7 @@ export function ImportFieldMapping({
           <tbody>
             {task.fieldRules.map((rule) => (
               <tr key={rule.name}>
-                <th>{rule.name}</th>
+                <th>{fieldLabel(rule.name)}</th>
                 <td>
                   <span
                     className={`import-requirement requirement-${rule.requirement.toLowerCase()}`}
@@ -54,7 +56,7 @@ export function ImportFieldMapping({
                 </td>
                 <td>
                   <label className="sr-only" htmlFor={`map-${rule.name}`}>
-                    映射：{rule.name}
+                    映射：{fieldLabel(rule.name)}
                   </label>
                   <Select
                     id={`map-${rule.name}`}

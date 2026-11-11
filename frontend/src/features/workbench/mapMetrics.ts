@@ -8,10 +8,10 @@ export type MapMetric =
 export const MAP_METRICS: { value: MapMetric; label: string }[] = [
   { value: 'expectedAmount', label: '项目总金额' },
   { value: 'projectCount', label: '项目数量' },
-  { value: 'network', label: '网络化金额' },
-  { value: 'gewu', label: '格物金额' },
-  { value: 'bigData', label: '大数据金额' },
-  { value: 'wangwu', label: '万悟金额' },
+  { value: 'network', label: '5G工业专网金额' },
+  { value: 'gewu', label: '格物工业互联网平台金额' },
+  { value: 'bigData', label: '工业大数据平台金额' },
+  { value: 'wangwu', label: '万悟工业智能体平台金额' },
 ];
 
 export function metricValue(region: MapRegion, metric: MapMetric) {

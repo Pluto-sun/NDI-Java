@@ -1,11 +1,10 @@
-import { jsonBody, requestAt, requestBlobAt, type Page } from '../../shared/api/http';
-import type { ImportWizardApi } from '../../shared/imports/context';
-import type { ImportTask, ImportBatch } from '../../shared/imports/types';
+import { jsonBody, requestAt, type Page } from '../../shared/api/http';
+import { tabularImportApi } from '../../shared/imports/tabularImportApi';
 export const categories = [
-  { code: 'NETWORK', label: '网络化', amount: 'networkAmount', field: '工业专网排产' },
-  { code: 'GEWU', label: '格物', amount: 'gewuAmount', field: '格物平台排产' },
-  { code: 'BIG_DATA', label: '大数据', amount: 'bigDataAmount', field: '工业大数据排产' },
-  { code: 'WANGWU', label: '万悟', amount: 'wangwuAmount', field: '万悟平台排产' },
+  { code: 'NETWORK', label: '5G工业专网', amount: 'networkAmount' },
+  { code: 'GEWU', label: '格物工业互联网平台', amount: 'gewuAmount' },
+  { code: 'BIG_DATA', label: '工业大数据平台', amount: 'bigDataAmount' },
+  { code: 'WANGWU', label: '万悟工业智能体平台', amount: 'wangwuAmount' },
 ] as const;
 export interface PlanValues {
   reviewerName: string;
@@ -49,36 +48,4 @@ export const productionApi = {
   delete: (plan: Plan) =>
     request<void>(`/${plan.id}?version=${plan.version}`, { method: 'DELETE' }),
 };
-export const productionImportApi: ImportWizardApi = {
-  importTask: () => request<ImportTask | null>('/imports/task'),
-  uploadImportTask: (file, expectedVersion, expectedTaskId) => {
-    const body = new FormData();
-    body.append('file', file);
-    if (expectedVersion !== undefined) body.append('expectedVersion', String(expectedVersion));
-    if (expectedTaskId) body.append('expectedTaskId', expectedTaskId);
-    return request<ImportTask>('/imports/task', { method: 'POST', body });
-  },
-  saveImportTask: (expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers) =>
-    request<ImportTask>('/imports/task', {
-      method: 'PUT',
-      keepalive: true,
-      ...jsonBody({ expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers }),
-    }),
-  discardImportTask: (expectedVersion, expectedTaskId) =>
-    request<void>(
-      `/imports/task?expectedVersion=${expectedVersion}&expectedTaskId=${expectedTaskId}`,
-      { method: 'DELETE' },
-    ),
-  importBatch: (id) => request<ImportBatch>(`/imports/${id}`),
-  reviseImportRow: (id, row, expectedRevision, changes) =>
-    request<ImportBatch>(`/imports/${id}/rows/${row}`, {
-      method: 'PUT',
-      ...jsonBody({ expectedRevision, changes }),
-    }),
-  confirmImport: (id, selectedRowNumbers) =>
-    request<ImportBatch>(`/imports/${id}/confirm`, {
-      method: 'POST',
-      ...jsonBody({ selectedRowNumbers }),
-    }),
-  importTemplate: () => requestBlobAt(root, '/imports/template'),
-};
+export const productionImportApi = tabularImportApi(root);

@@ -102,7 +102,7 @@ export function DashboardActivities({
                   products.map((item) =>
                     item.code === 'NETWORK'
                       ? '网络化'
-                      : item.code === 'WANGWU'
+                      : ['BIG_DATA', 'WANGWU'].includes(item.code)
                         ? '智能化'
                         : '数字化',
                   ),

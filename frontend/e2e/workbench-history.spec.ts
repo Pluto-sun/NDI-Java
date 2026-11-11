@@ -31,10 +31,10 @@ test('历史月报六指标、阶段组合、终止口径及冻结属地和行�
   const metrics = [
     ['projectCount', '项目数量', ['1 个', '1 个']],
     ['totalExpectedAmount', '项目总金额', ['100 万元', '200 万元']],
-    ['network', '网络化金额', ['20 万元', '40 万元']],
-    ['gewu', '格物金额', ['10 万元', '20 万元']],
-    ['bigData', '大数据金额', ['5 万元', '10 万元']],
-    ['wangwu', '万悟金额', ['1 万元', '2 万元']],
+    ['network', '5G工业专网金额', ['20 万元', '40 万元']],
+    ['gewu', '格物工业互联网平台金额', ['10 万元', '20 万元']],
+    ['bigData', '工业大数据平台金额', ['5 万元', '10 万元']],
+    ['wangwu', '万悟工业智能体平台金额', ['1 万元', '2 万元']],
   ] as const;
   for (const [code, label, values] of metrics) {
     await metric.selectOption(code);

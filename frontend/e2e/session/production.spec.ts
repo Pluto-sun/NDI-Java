@@ -14,8 +14,8 @@ test('会话排产维护走CSRF，集团角色仅可查看', async ({ page, brow
   await page.getByLabel('接口人 *', { exact: true }).fill('会话接口人');
   await page.getByLabel('项目名称 *', { exact: true }).fill('会话排产-' + randomUUID());
   await page.getByLabel('客户名称 *', { exact: true }).fill('会话客户');
-  await page.getByRole('checkbox', { name: '网络化', exact: true }).check();
-  await page.getByLabel('工业专网排产（万元）', { exact: true }).fill('10');
+  await page.getByRole('checkbox', { name: '5G工业专网', exact: true }).check();
+  await page.getByLabel('5G工业专网排产（万元）', { exact: true }).fill('10');
   await page.getByRole('button', { name: '保存排产', exact: true }).click();
   await expect(page.getByRole('heading', { name: '排产计划', exact: true })).toBeVisible();
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:15173' });

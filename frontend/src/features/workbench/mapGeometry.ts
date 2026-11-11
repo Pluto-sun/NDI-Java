@@ -36,20 +36,40 @@ function rings(geometry: { type?: string; coordinates?: unknown } | undefined): 
 }
 
 /** 只计算 SVG 投影，区域数值仍来自受权限约束的业务接口。 */
-export function mapShapes(geoJson: unknown): MapShape[] {
+export function mapShapes(geoJson: unknown, mainland = false): MapShape[] {
   if (!geoJson || typeof geoJson !== 'object' || !('features' in geoJson)) return [];
   const raw = (geoJson as { features?: unknown }).features;
   if (!Array.isArray(raw)) return [];
-  const features = raw.map((feature) => {
-    const properties = feature?.properties as
-      { adcode?: string | number; name?: string; center?: Point; centroid?: Point } | undefined;
-    return {
-      adcode: String(properties?.adcode ?? ''),
-      name: String(properties?.name ?? ''),
-      center: properties?.centroid ?? properties?.center,
-      rings: rings(feature?.geometry),
-    };
-  });
+  const ringArea = (ring: Ring) =>
+    Math.abs(
+      ring.reduce((total, [x, y], i) => {
+        const [nextX, nextY] = ring[(i + 1) % ring.length];
+        return total + x * nextY - y * nextX;
+      }, 0),
+    );
+  const features = raw
+    .map((feature) => {
+      const properties = feature?.properties as
+        { adcode?: string | number; name?: string; center?: Point; centroid?: Point } | undefined;
+      return {
+        adcode: String(properties?.adcode ?? ''),
+        name: String(properties?.name ?? ''),
+        center: properties?.centroid ?? properties?.center,
+        rings: rings(feature?.geometry),
+      };
+    })
+    .filter(
+      (feature) =>
+        !mainland ||
+        (/^\d{6}$/.test(feature.adcode) &&
+          !['710000', '810000', '820000'].includes(feature.adcode) &&
+          !feature.name.includes('南海诸岛')),
+    )
+    .map((feature) =>
+      mainland && feature.adcode === '460000' && feature.rings.length
+        ? { ...feature, rings: [[...feature.rings].sort((a, b) => ringArea(b) - ringArea(a))[0]] }
+        : feature,
+    );
   const points = features.flatMap((feature) => feature.rings.flat());
   if (!points.length) return [];
   let minX = Infinity;

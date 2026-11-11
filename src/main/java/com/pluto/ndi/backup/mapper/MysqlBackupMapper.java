@@ -117,7 +117,8 @@ WHERE status IN ('AVAILABLE', 'DELETED') ORDER BY id
                                     + " project_import_task UNION ALL SELECT"
                                     + " bucket_name,object_key,byte_size,sha256_hex FROM"
                                     + " production_import_task UNION ALL SELECT"
-                                    + " bucket_name,object_key,byte_size,sha256_hex FROM revenue_import_task")) {
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM revenue_import_task UNION ALL SELECT"
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM capability_import_task")) {
             while (rows.next()) {
                 result.add(
                         new ObjectRef(
