@@ -120,6 +120,10 @@ public class ProjectService {
         var actor = requireEnabledActor(actorId);
         verifyLocation(normalized);
         verifyCreationScope(actor, normalized);
+        if (normalized.collaborationProvinceId() != null && organizationDirectory.findEnabledProvinces()
+                .stream().noneMatch(province -> province.id().equals(normalized.collaborationProvinceId()))) {
+            throw new BusinessException(ProjectErrorCode.INVALID_COLLABORATION_PROVINCE);
+        }
         verifyProvinceLeader(normalized);
         verifyIndustry(normalized.industryCode());
         if (!List.of("PROVINCE_SIGN", "DS_SIGN").contains(normalized.signingSubjectCode())) {
@@ -158,6 +162,7 @@ public class ProjectService {
                 occurredAt,
                 normalized.importanceCode()
         );
+        project.initializeCollaborationProvince(normalized.collaborationProvinceId());
         project.replaceProductSupportExperts(normalized.productSupportExpertNames());
         project.replacePlanningAttributes(ProjectPlanningFields.parseBidMonth(normalized.plannedBidMonth()),
                 normalized.applicationScenarioCodes());
@@ -432,7 +437,8 @@ public class ProjectService {
                 command.signingSubjectCode() == null || command.signingSubjectCode().isBlank()
                         ? "PROVINCE_SIGN" : command.signingSubjectCode().trim(),
                 command.responsiblePersonNames()!=null ? List.of() : expertNames, bidMonth, scenarios, narrative, importance, initialOwner,
-                command.responsiblePersonNames()==null ? null : ProjectResponsiblePersonStore.normalizeNames(command.responsiblePersonNames())
+                command.responsiblePersonNames()==null ? null : ProjectResponsiblePersonStore.normalizeNames(command.responsiblePersonNames()),
+                command.collaborationProvinceId()
         );
     }
 

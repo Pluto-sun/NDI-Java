@@ -71,6 +71,7 @@ public enum ProjectErrorCode implements ErrorCode {
             "确认另建项目时必须填写原因"),
     INVALID_ORGANIZATION(
             HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ORGANIZATION", "项目属地无效", "省分与地市不存在、未启用或不匹配"),
+    INVALID_COLLABORATION_PROVINCE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_COLLABORATION_PROVINCE", "协作省份无效", "请选择已启用的协作省份"),
     INVALID_PROVINCE_LEADER(
             HttpStatus.BAD_REQUEST,
             "PROJECT_INVALID_PROVINCE_LEADER",

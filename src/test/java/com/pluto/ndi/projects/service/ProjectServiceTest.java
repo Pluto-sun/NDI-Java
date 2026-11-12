@@ -75,7 +75,7 @@ class ProjectServiceTest {
                 mock(ProjectCityWriteLock.class),
                 changeEventRepository,
                 new ProjectNumberGenerator(clock),
-                new com.pluto.ndi.projects.mapper.ProjectMapper(),
+                new com.pluto.ndi.projects.mapper.ProjectMapper(organizationDirectory),
                 mock(ProjectAccessService.class),
                 mock(ProjectMonthlySnapshotService.class),
                 new ObjectMapper(),

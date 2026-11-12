@@ -501,7 +501,7 @@ class ProjectImportIT {
         try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.template(fixture.actor())));
                 var output = new ByteArrayOutputStream()) {
             var sheet = book.getSheet("导入数据");
-            assertThat(sheet.getDataValidations()).hasSize(5);
+            assertThat(sheet.getDataValidations()).hasSize(6);
             int industryColumn = java.util.stream.StreamSupport.stream(sheet.getRow(0).spliterator(), false)
                     .filter(cell -> cell.getStringCellValue().equals("客户所属行业"))
                     .findFirst().orElseThrow().getColumnIndex();

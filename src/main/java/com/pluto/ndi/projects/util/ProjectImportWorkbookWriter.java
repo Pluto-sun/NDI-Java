@@ -41,6 +41,7 @@ public class ProjectImportWorkbookWriter {
                         .map(city -> city.name()).toList());
             }
             dropdowns.dependent("省分", "地市", regions);
+            dropdowns.list("协作省份", List.copyOf(regions.keySet()));
             dropdowns.list("客户所属行业", reference.industries().stream()
                     .map(ProjectReferenceData.CodeLabel::label).toList());
             dropdowns.list("项目阶段", reference.stages().stream()
@@ -63,7 +64,7 @@ public class ProjectImportWorkbookWriter {
                             "负责人不必为系统账号，职责和账号绑定不授予项目权限；重复项目仅保留同地市同名的第一条。",
                             "拟招标月份选填；日期单元格按实际日期识别，文本支持 YYYY-MM、YYYY-MM-DD 及相应斜杠格式，系统按月份保存；应用场景可选填多个，用逗号分隔。",
                             "备注选填；项目负责人必须使用统一字段，不再接受旧人员列。",
-                            "省分、地市、客户所属行业、项目阶段、签约主体提供下拉，覆盖第2至1001行；地市按同一行省分联动，修改省分后须重新选择地市。",
+                            "省分、地市、协作省份、客户所属行业、项目阶段、签约主体提供下拉，覆盖第2至1001行；地市按同一行省分联动，修改省分后须重新选择地市。",
                             "选项来自下载时系统启用的字典，字典更新后请重新下载模板；粘贴可能绕过Excel校验，最终以系统预检结果为准。",
                             "应用场景仍支持多选，按系统场景名称用逗号分隔；拟招标月份可填写日期单元格或合法日期文本，不作为固定字典下拉。");
             for (int index = 0; index < notes.size(); index++) {

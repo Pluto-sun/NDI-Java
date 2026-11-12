@@ -27,6 +27,7 @@ export function CreateProjectPage({
   const [cityId, setCityId] = useState(me.cityId ?? '');
   const [responsibleText, setResponsibleText] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [collaborationProvinceId, setCollaborationProvinceId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [industryCode, setIndustryCode] = useState('');
   const [customerNeed, setCustomerNeed] = useState('');
@@ -80,6 +81,7 @@ export function CreateProjectPage({
   function formData(): ProjectDraftData {
     return {
       cityId,
+      collaborationProvinceId,
       leaderId: '',
       responsiblePersonNames: responsibleText
         .split(/[;；\n]+/)
@@ -142,6 +144,7 @@ export function CreateProjectPage({
     const data = draft.data;
     setDraftId(draft.id);
     setCityId(data.cityId ?? '');
+    setCollaborationProvinceId(data.collaborationProvinceId ?? '');
     if (isReviewer)
       setReviewerProvince(
         reference.cities.find((city) => city.id === data.cityId)?.provinceId ?? '',
@@ -258,6 +261,7 @@ export function CreateProjectPage({
       const created = await projectsApi.create({
         provinceId,
         cityId,
+        collaborationProvinceId: collaborationProvinceId || null,
         projectName,
         customerName,
         industryCode,
@@ -417,6 +421,20 @@ export function CreateProjectPage({
               {cities.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
+            协作省份
+            <Select
+              value={collaborationProvinceId}
+              onChange={(event) => setCollaborationProvinceId(event.target.value)}
+            >
+              <option value="">未填写</option>
+              {reference.provinces.map((province) => (
+                <option key={province.id} value={province.id}>
+                  {province.name}
                 </option>
               ))}
             </Select>

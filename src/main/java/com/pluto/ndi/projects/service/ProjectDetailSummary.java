@@ -38,7 +38,9 @@ public record ProjectDetailSummary(
         LocalDate attributionMonth,
         String provinceLeaderName,
         String supportIndustryExpert,
-        List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> responsiblePersons
+        List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> responsiblePersons,
+        UUID collaborationProvinceId,
+        String collaborationProvinceName
 ) {
     public ProjectDetailSummary {
         categoryAmounts = List.copyOf(categoryAmounts);

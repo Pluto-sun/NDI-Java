@@ -40,7 +40,7 @@ class ProjectImportWorkbookWriterTest {
     void writesNativeDropdownsAcrossAllThousandRowsWithLongDictionaryOptions() throws Exception {
         try (var book = new XSSFWorkbook(new ByteArrayInputStream(template()))) {
             var sheet = book.getSheet("导入数据");
-            assertThat(sheet.getDataValidations()).hasSize(5);
+            assertThat(sheet.getDataValidations()).hasSize(6);
             assertThat(book.isSheetHidden(book.getSheetIndex("导入选项"))).isTrue();
             for (var validation : sheet.getDataValidations()) {
                 assertThat(validation.getValidationConstraint().getValidationType())

@@ -208,7 +208,7 @@ class ProjectImportWizardIT {
                         null,
                         null,
                         null,
-                        List.of("负责人")));
+                        List.of("负责人"), null));
     }
 
     @Test

@@ -33,6 +33,9 @@ public class ProjectEntity {
     @Column(name = "province_id", nullable = false)
     private UUID provinceId;
 
+    @Column(name = "collaboration_province_id")
+    private UUID collaborationProvinceId;
+
     @Column(name = "city_id", nullable = false)
     private UUID cityId;
 
@@ -221,6 +224,11 @@ public class ProjectEntity {
     public String projectName() {
         return projectName;
     }
+
+    public UUID collaborationProvinceId() { return collaborationProvinceId; }
+
+    /** 创建及导入时记录协作标记，独立于项目归属。 */
+    public void initializeCollaborationProvince(UUID provinceId) { this.collaborationProvinceId = provinceId; }
 
     public String customerName() {
         return customerName;

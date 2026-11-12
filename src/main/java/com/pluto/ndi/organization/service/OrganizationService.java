@@ -79,6 +79,16 @@ class OrganizationService implements OrganizationDirectory {
                 .toList();
     }
 
+    @Override
+    public Optional<ProvinceOption> findEnabledProvinceByName(String name) {
+        var provinces = findEnabledProvinces();
+        var exact = provinces.stream().filter(province -> province.name().equals(name)).findFirst();
+        if (exact.isPresent()) return exact;
+        var matching = provinces.stream().filter(province -> stripAdministrativeSuffix(province.name())
+                .equals(stripAdministrativeSuffix(name))).toList();
+        return matching.size() == 1 ? Optional.of(matching.getFirst()) : Optional.empty();
+    }
+
     private String stripAdministrativeSuffix(String name) {
         if (name == null) return "";
         name = name.strip();

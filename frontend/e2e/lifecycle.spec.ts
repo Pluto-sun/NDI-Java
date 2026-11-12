@@ -42,6 +42,9 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
   await page.getByRole('textbox', { name: '下一步动作', exact: true }).fill('提交客户交流方案');
   await page.getByRole('button', { name: '创建项目', exact: true }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('协作省份', { exact: true }).locator('..').locator('dd')).toHaveText(
+    '—',
+  );
   const projectId = page.url().split('/').at(-1)!;
   const detail = () =>
     get<{ currentStageCode: string; contractNo: string | null; signedAmount: number | null }>(

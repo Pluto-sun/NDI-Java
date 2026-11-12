@@ -59,6 +59,7 @@ export interface CategoryAmount {
   expectedAmount: number;
 }
 export interface CreateProjectInput {
+  collaborationProvinceId?: string | null;
   importanceCode?: string;
   initialProgressOwnerName?: string;
   provinceId: string;
@@ -90,6 +91,7 @@ export interface ProjectDuplicateCheck {
   candidates: { projectId: string; projectCode: string; projectName: string; similarity: number }[];
 }
 export interface ProjectDraftData {
+  collaborationProvinceId?: string;
   responsiblePersonNames?: string[];
   cityId: string;
   leaderId: string;
@@ -148,6 +150,8 @@ export interface ProjectResponsiblePerson {
   accountEnabled: boolean;
 }
 export interface ProjectDetail extends ProjectSummary {
+  collaborationProvinceId: string | null;
+  collaborationProvinceName: string | null;
   supportIndustryExpert: string | null;
   customerNeed: string;
   constructionContentRaw: string;

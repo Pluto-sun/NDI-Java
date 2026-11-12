@@ -30,7 +30,8 @@ public record CreateProjectCommand(
         ProjectNarrative narrative,
         String importanceCode,
         String initialProgressOwnerName,
-        List<String> responsiblePersonNames
+        List<String> responsiblePersonNames,
+        UUID collaborationProvinceId
 ) {
 
     public CreateProjectCommand {
@@ -48,7 +49,7 @@ public record CreateProjectCommand(
         this(provinceId,cityId,projectName,customerName,industryCode,customerNeed,totalAmount,
             provinceLeaderUserId,cityAccountManagerName,categoryAmounts,initialProgress,nextAction,
             draftId,confirmNew,duplicateReason,signingSubjectCode,productSupportExpertNames,
-            plannedBidMonth,applicationScenarioCodes,narrative,importanceCode,initialProgressOwnerName,null);
+            plannedBidMonth,applicationScenarioCodes,narrative,importanceCode,initialProgressOwnerName,null,null);
     }
 
     public CreateProjectCommand(UUID provinceId, UUID cityId, String projectName,

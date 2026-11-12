@@ -613,6 +613,13 @@ public class ProjectImportService {
         }
         var industry = industries.findByIndustryNameAndEnabledTrue(row.get("客户所属行业"));
         if (!row.get("客户所属行业").isBlank() && industry.isEmpty()) errors.add("行业名称未匹配有效代码");
+        UUID collaborationProvinceId = null;
+        String collaborationName = row.get("协作省份");
+        if (!collaborationName.isBlank()) {
+            collaborationProvinceId = organizations.findEnabledProvinceByName(collaborationName)
+                    .map(com.pluto.ndi.organization.service.ProvinceOption::id).orElse(null);
+            if (collaborationProvinceId == null) errors.add("协作省份未匹配已启用的省份：" + collaborationName);
+        }
         var stage = STAGE_LABELS.get(row.get("项目阶段"));
         if (stage == null) errors.add("项目阶段未识别");
         var signingSubject =
@@ -720,7 +727,7 @@ public class ProjectImportService {
                 signedAmount,
                 importAttributes,
                 responsibleNames,
-                null);
+                null, collaborationProvinceId);
     }
 
     private void required(ProjectExcelReader.ExcelRow row, List<String> errors, String... headers) {

@@ -19,5 +19,7 @@ public interface OrganizationDirectory {
 
     List<ProvinceOption> findEnabledProvinces();
 
+    Optional<ProvinceOption> findEnabledProvinceByName(String name);
+
     List<CityOption> findEnabledCities();
 }

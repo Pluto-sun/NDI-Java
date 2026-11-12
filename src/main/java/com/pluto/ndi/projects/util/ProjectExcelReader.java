@@ -33,7 +33,7 @@ public class ProjectExcelReader {
                     "省分", "地市", "项目名称", "项目负责人",
                     "客户需求", "项目阶段", "项目总金额（万）");
     private static final List<String> OPTIONAL =
-            List.of("客户名称", "客户所属行业", "签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
+            List.of("客户名称", "客户所属行业", "协作省份", "签约主体", "拟招标月份", "应用场景", "备注", "合同编号", "签约金额（万）");
     private static final Map<String, String> FIELD_ALIASES =
             Map.of("项目建设内容", "客户需求", "拟招标日期", "拟招标月份",
                     "项目进展", "首条项目进展", "是否数科总投总签", "签约主体",

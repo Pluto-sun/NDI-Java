@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
+import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.shared.web.BusinessException;
 import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.domain.entity.ProjectCategoryAmountEntity;
 import com.pluto.ndi.projects.domain.entity.ProjectChangeEventEntity;
@@ -169,6 +171,12 @@ public class ProjectImportWriter {
                                     : candidate.signingSubjectCode(),
                             actorId,
                             candidate.occurredAt());
+            var collaboration = candidate.collaborationProvinceId();
+            if (collaboration != null && organizations.findEnabledProvinces().stream()
+                    .noneMatch(province -> province.id().equals(collaboration))) {
+                throw new BusinessException(ProjectErrorCode.INVALID_COLLABORATION_PROVINCE);
+            }
+            project.initializeCollaborationProvince(collaboration);
             project.recordOpportunityDate(now);
             project.initializeImportAttributes(
                     candidate.importAttributes() == null

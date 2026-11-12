@@ -173,6 +173,10 @@ export function ProjectDetailPage({
                   <dd>{reference.cities.find((item) => item.id === detail.cityId)?.name ?? '—'}</dd>
                 </div>
                 <div>
+                  <dt>协作省份</dt>
+                  <dd>{detail.collaborationProvinceName ?? '—'}</dd>
+                </div>
+                <div>
                   <dt>项目总金额</dt>
                   <dd>{amount(detail.totalAmount)} 万元</dd>
                 </div>

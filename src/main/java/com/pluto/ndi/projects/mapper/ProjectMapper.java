@@ -10,6 +10,12 @@ import org.springframework.stereotype.Component;
 /** 负责项目领域对象与接口摘要之间的转换。 */
 @Component
 public class ProjectMapper {
+    private final com.pluto.ndi.organization.service.OrganizationDirectory organizations;
+
+    public ProjectMapper(com.pluto.ndi.organization.service.OrganizationDirectory organizations) {
+        this.organizations = organizations;
+    }
+
 
     public ProjectSummary toSummary(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
             String provinceLeaderName) {
@@ -38,6 +44,7 @@ public class ProjectMapper {
     }
     public ProjectDetailSummary toDetail(ProjectEntity project, List<ProjectSummary.CategoryAmount> categories,
             String provinceLeaderName,List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> people) {
+        var collaboration = project.collaborationProvinceId();
         return new ProjectDetailSummary(
                 project.id(), project.projectCode(), project.provinceId(), project.cityId(),
                 project.projectName(), project.customerName(), project.industryCode(), project.customerNeed(),
@@ -48,7 +55,8 @@ public class ProjectMapper {
                 project.plannedBidMonth(), project.applicationScenarioCodes(),
                 project.versionNo(), categories,
                 project.createdAt(), project.updatedAt(), project.opportunityDate(), project.importanceCode(),
-                project.attributionMonth(), provinceLeaderName, project.supportIndustryExpert(),people
+                project.attributionMonth(), provinceLeaderName, project.supportIndustryExpert(), people, collaboration,
+                collaboration == null ? null : organizations.findProvinceNames(List.of(collaboration)).get(collaboration)
         );
     }
 }

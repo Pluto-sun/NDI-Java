@@ -124,7 +124,7 @@ class ProjectResponsiblePersonIT {
                         null,
                         null,
                         null,
-                        List.of("张三", "李四")));
+                        List.of("张三", "李四"), null));
     }
 
     private ProjectResponsiblePerson person(

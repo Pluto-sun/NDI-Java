@@ -55,6 +55,7 @@ const aliases: Record<string, string[]> = {
   接口人: ['接口人姓名', '排产接口人'],
   省份: ['省分', '归属省分'],
   备注: ['备注（公有云账户key等）'],
+  协作省份: ['协作省分'],
   省分: ['省份', '所属省份', '归属省分', '省公司'],
   地市: ['城市', '所属地市', '地市名称', '归属地市'],
   客户名称: ['客户', '客户单位', '客户公司'],
@@ -147,7 +148,7 @@ export function suggestMapping(fields: string[], headers: string[]) {
     }
   if (fields.includes('项目负责人')) {
     const candidates = fields
-      .filter((field) => !result[field])
+      .filter((field) => !result[field] && field !== '协作省份')
       .flatMap((field) =>
         headers
           .filter((header) => !used.has(header) && allowedMappingSource(field, header))
