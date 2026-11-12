@@ -13,5 +13,11 @@ public record ProjectDashboard(YearMonth from, YearMonth to, Summary current,
             Value network, Value digital, Value intelligent, Value gewu, Value bigData, Value wangwu) { }
     public record Stage(String stageCode, Summary summary) { }
     public record Region(UUID id, String name, String adcode, Summary summary, List<Region> cities) { }
-    public record Month(YearMonth month, Summary summary, List<Stage> stages) { }
+    public record ProductStage(String stageCode, long count, BigDecimal amount) { }
+    public record Month(YearMonth month, Summary summary, List<Stage> stages,
+            String source, List<ProductStage> productStages) {
+        public Month(YearMonth month, Summary summary, List<Stage> stages) {
+            this(month, summary, stages, null, List.of());
+        }
+    }
 }

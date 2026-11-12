@@ -48,6 +48,52 @@ public class ProjectMonthlySnapshotRepository {
         return value == null ? Optional.empty() : Optional.of(YearMonth.from(value.toLocalDate()));
     }
 
+    public boolean isComplete(YearMonth month) {
+        return (!month.isBefore(activationMonth())
+                        && lastCompletedMonth().filter(last -> !month.isAfter(last)).isPresent())
+                || Boolean.TRUE.equals(jdbc.queryForObject(
+                        "SELECT EXISTS(SELECT 1 FROM project_snapshot_import_complete WHERE month_start=?)",
+                        Boolean.class, date(month)));
+    }
+
+    public boolean hasSnapshots(YearMonth month) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM project_monthly_snapshot WHERE month_start=?)",
+                Boolean.class, date(month)));
+    }
+
+    public void markImportedComplete(YearMonth month) {
+        jdbc.update("INSERT IGNORE INTO project_snapshot_import_complete(month_start) VALUES (?)", date(month));
+    }
+
+    public List<com.pluto.ndi.projects.service.ProjectDashboard.ProductStage> productTrend(
+            YearMonth month, boolean live, ProjectDataScope scope,
+            com.pluto.ndi.projects.domain.ProjectDashboardFilter filter) {
+        var column = switch (filter.product()) {
+            case "NETWORK" -> "network_amount";
+            case "BIG_DATA" -> "big_data_amount";
+            case "WANGWU" -> "wangwu_amount";
+            default -> "gewu_amount";
+        };
+        var alias = live ? "project" : "snapshot";
+        var stage = alias + (live ? ".current_stage_code" : ".stage_code");
+        var amount = (live ? "category." : "snapshot.") + column;
+        var from = live ? com.pluto.ndi.projects.mapper.ProjectCurrentMetricSql.FROM
+                : " FROM project_monthly_snapshot snapshot WHERE month_start = :month ";
+        var args = new MapSqlParameterSource("month", date(month));
+        var restriction = com.pluto.ndi.projects.mapper.ProjectScopeSql.named(
+                scope, alias + ".province_id", alias + ".city_id", args);
+        if (filter.stage() != null) {
+            restriction += " AND " + stage + " = :stage";
+            args.addValue("stage", filter.stage().name());
+        }
+        if (!filter.includeTerminated()) restriction += " AND " + stage + " <> 'TERMINATED'";
+        return namedJdbc.query("SELECT " + stage + ", COUNT(*), SUM(" + amount + ")" + from
+                        + restriction + " AND " + amount + " > 0 GROUP BY " + stage,
+                args, (row, index) -> new com.pluto.ndi.projects.service.ProjectDashboard.ProductStage(
+                        row.getString(1), row.getLong(2), row.getBigDecimal(3)));
+    }
+
     public void lockControl() {
         jdbc.queryForObject("SELECT id FROM project_monthly_snapshot_control WHERE id = 1 FOR UPDATE", Integer.class);
     }

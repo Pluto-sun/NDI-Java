@@ -100,12 +100,21 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
   const trendStages = stage
     ? [stage]
     : PROJECT_STAGE_TABS.filter((item) => item.code).map((item) => item.code);
-  const productKey = dashboardProducts.find((item) => item.code === trendProduct)!.key;
+  const monthSources = Object.fromEntries(
+    (trend.data?.trend ?? []).map((month) => [
+      month.month,
+      month.source === 'LIVE'
+        ? '当月实时'
+        : month.source === 'PARTIAL'
+          ? '缺快照（部分补录）'
+          : month.source === 'MISSING'
+            ? '缺快照'
+            : '',
+    ]),
+  );
   const trendPoints = trend.data?.trend.flatMap((month) =>
     trendStages.map((stageCode) => {
-      const product = month.stages.find((item) => item.stageCode === stageCode)?.summary[
-        productKey
-      ];
+      const product = month.productStages?.find((item) => item.stageCode === stageCode);
       return {
         month: month.month,
         stageCode,
@@ -334,7 +343,8 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
             stageName={stageName}
             metric={trendMetric === 'amount' ? 'totalExpectedAmount' : 'projectCount'}
             metricLabel={trendMetric === 'amount' ? '项目金额（万元）' : '项目数量（个）'}
-            caption="按项目所属月份统计"
+            caption="月末快照趋势"
+            monthSources={monthSources}
             interactive
           />
         )}

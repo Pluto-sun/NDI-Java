@@ -79,6 +79,7 @@ export function ModuleNavigation({
             <NavLink to="/admin/reviewer-provinces">接口人范围</NavLink>
             <NavLink to="/admin/inactivity">督办管理</NavLink>
             <NavLink to="/admin/backups">备份管理</NavLink>
+            <NavLink to="/admin/historical-snapshots">历史快照导入</NavLink>
           </>
         )}
       </MenuGroup>

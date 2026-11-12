@@ -200,7 +200,7 @@ public class ProjectApprovalService {
                 entityManager.lock(project, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
             }
             eventRepository.save(approvedEvent(project, request, before, actorId, at));
-            monthlySnapshots.recordApproved(project, request);
+            monthlySnapshots.recordApproved(project, request, at);
             inactivity.resolveAfterActivity(project, actorId, at);
         }
         var status = approved ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED;

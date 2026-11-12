@@ -1,3 +1,7 @@
+import {
+  HistoricalSnapshotsPage,
+  HistoricalSnapshotWizard,
+} from '../features/admin/HistoricalSnapshotsPage';
 import { BrandLogo } from '../shared/ui/BrandLogo';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
@@ -289,6 +293,15 @@ export function App() {
           {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
             <Routes>
+              {me.roleCodes.includes('SYSTEM_ADMIN') && (
+                <>
+                  <Route path="/admin/historical-snapshots" element={<HistoricalSnapshotsPage />} />
+                  <Route
+                    path="/admin/historical-snapshots/import"
+                    element={<HistoricalSnapshotWizard />}
+                  />
+                </>
+              )}
               <Route
                 path="/admin/backups"
                 element={

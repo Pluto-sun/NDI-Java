@@ -19,6 +19,7 @@ export function StageTrendChart({
   metric,
   metricLabel,
   interactive = false,
+  monthSources = {},
   caption = '各月月末项目阶段指标明细',
 }: {
   points: StageTrendPoint[];
@@ -28,6 +29,7 @@ export function StageTrendChart({
   metricLabel: string;
   caption?: string;
   interactive?: boolean;
+  monthSources?: Record<string, string>;
 }) {
   const [hidden, setHidden] = useState<string[]>([]);
   if (!points.length || !stages.length) return <div className="empty-state">暂无趋势数据</div>;
@@ -37,11 +39,12 @@ export function StageTrendChart({
     const point = indexed.get(`${month}/${stage}`);
     return point ? value(point, metric) : 0;
   };
+  const missing = (month: string) => monthSources[month]?.startsWith('缺快照');
   const visible = stages.filter((stage) => !interactive || !hidden.includes(stage));
   const observedMaximum = Math.max(
     1,
     ...points
-      .filter((point) => visible.includes(point.stageCode))
+      .filter((point) => visible.includes(point.stageCode) && !missing(point.month))
       .map((point) => value(point, metric)),
   );
   const maximum =
@@ -76,9 +79,13 @@ export function StageTrendChart({
         <tbody>
           {months.map((month) => (
             <tr key={month}>
-              <th scope="row">{month}</th>
+              <th scope="row">
+                {month} {monthSources[month]}
+              </th>
               {stages.map((stage) => {
-                return <td key={stage}>{formatted(metricAt(month, stage))}</td>;
+                return (
+                  <td key={stage}>{missing(month) ? '—' : formatted(metricAt(month, stage))}</td>
+                );
               })}
             </tr>
           ))}
@@ -143,29 +150,47 @@ export function StageTrendChart({
           </text>
           {visible.map((stage) => (
             <g key={stage} className={`stage-trend-line stage-trend-${stage.toLowerCase()}`}>
-              <polyline
-                points={months
-                  .map((month, index) => `${x(index)},${y(metricAt(month, stage))}`)
+              <path
+                d={months
+                  .map((month, index) =>
+                    missing(month)
+                      ? ''
+                      : `${index === 0 || missing(months[index - 1]) ? 'M' : 'L'}${x(index)},${y(metricAt(month, stage))}`,
+                  )
                   .join(' ')}
               />
               {(interactive || months.length === 1) &&
-                months.map((month, index) => (
-                  <circle
-                    key={month}
-                    cx={x(index)}
-                    cy={y(metricAt(month, stage))}
-                    r="3"
-                    fill="currentColor"
-                  >
-                    <title>
-                      {month} {stageName(stage)} {formatted(metricAt(month, stage))}
-                    </title>
-                  </circle>
-                ))}
+                months.map(
+                  (month, index) =>
+                    !missing(month) && (
+                      <circle
+                        key={month}
+                        cx={x(index)}
+                        cy={y(metricAt(month, stage))}
+                        r="3"
+                        fill="currentColor"
+                      >
+                        <title>
+                          {month} {stageName(stage)} {formatted(metricAt(month, stage))}
+                        </title>
+                      </circle>
+                    ),
+                )}
             </g>
           ))}
         </svg>
       </div>
+      {Object.entries(monthSources).some(([, source]) => source) && (
+        <ul className="stage-trend-legend">
+          {Object.entries(monthSources)
+            .filter(([, source]) => source)
+            .map(([month, source]) => (
+              <li key={month}>
+                {month} {source}
+              </li>
+            ))}
+        </ul>
+      )}
       {interactive ? (
         <details className="stage-trend-data">
           <summary>查看趋势明细</summary>

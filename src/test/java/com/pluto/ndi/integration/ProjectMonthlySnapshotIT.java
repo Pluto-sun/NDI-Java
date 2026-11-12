@@ -90,7 +90,7 @@ class ProjectMonthlySnapshotIT {
     @Autowired private MockMvc mvc;
 
     @Test
-    void revisesOnlyApprovedProjectAndKeepsIndustryAtItsOwnMonth() throws Exception {
+    void appliesApprovalsInDecisionMonthAndKeepsHistoricalIndustry() throws Exception {
         var provinceId = UUID.randomUUID();
         var cityId = UUID.randomUUID();
         var reporterId = UUID.randomUUID();
@@ -140,12 +140,12 @@ class ProjectMonthlySnapshotIT {
         clock.moveTo(2026, 7, 3);
         approvals.decide(leaderId, pending.id(), true, null);
         var june = snapshots.workbench(leaderId, YearMonth.of(2026, 6), false);
-        assertThat(june.totalExpectedAmount()).isEqualByComparingTo("220.00");
+        assertThat(june.totalExpectedAmount()).isEqualByComparingTo("200.00");
         assertThat(june.categoryTotals().gewu()).isEqualByComparingTo("60.00");
         assertThat(maps.view(leaderId, null, YearMonth.of(2026, 6), false, null).regions())
                 .filteredOn(region -> region.id().equals(cityId))
                 .singleElement().satisfies(region ->
-                        assertThat(region.expectedAmount()).isEqualByComparingTo("220.00"));
+                        assertThat(region.expectedAmount()).isEqualByComparingTo("200.00"));
         mvc.perform(get("/api/v1/projects/workbench/map")
                         .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
@@ -157,20 +157,17 @@ class ProjectMonthlySnapshotIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stageCodes.length()").value(2))
                 .andExpect(jsonPath("$.data.regions[0].projectCount").value(2))
-                .andExpect(jsonPath("$.data.regions[0].expectedAmount").value(220.00));
+                .andExpect(jsonPath("$.data.regions[0].expectedAmount").value(200.00));
         assertThat(june.industries()).extracting("industryCode").containsExactly("C25");
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
-                Integer.class, projectId.toString())).isEqualTo(1);
+                Integer.class, projectId.toString())).isZero();
         assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE month_start = '2026-06-01' AND project_id = UUID_TO_BIN(?)",
                 Integer.class, otherId.toString())).isZero();
-        assertThat(jdbc.queryForObject("SELECT reason FROM project_monthly_snapshot_revision WHERE source_id = UUID_TO_BIN(?)",
-                String.class, pending.id().toString())).isEqualTo("6 月预算核准");
-        assertThat(snapshots.revisions(leaderId, projectId, YearMonth.of(2026, 6)))
-                .extracting("reason").containsExactly("6 月预算核准");
+        assertThat(snapshots.revisions(leaderId, projectId, YearMonth.of(2026, 6))).isEmpty();
 
         approvals.decide(leaderId, rejected.id(), false, "不同意");
         assertThat(snapshots.workbench(leaderId, YearMonth.of(2026, 6), false).totalExpectedAmount())
-                .isEqualByComparingTo("220.00");
+                .isEqualByComparingTo("200.00");
 
         clock.moveTo(2026, 7, 28);
         var late = approvals.submitMajorChange(reporterId, otherId, new MajorChangeCommand(
@@ -198,25 +195,25 @@ class ProjectMonthlySnapshotIT {
                 .categoryTotals().gewu()).isEqualByComparingTo("60.00");
         assertThat(snapshots.trend(leaderId, YearMonth.of(2026, 6), YearMonth.of(2026, 8), false))
                 .hasSize(3).extracting("totalExpectedAmount")
-                .containsExactly(new BigDecimal("220.00"), new BigDecimal("250.00"), new BigDecimal("250.00"));
+                .containsExactly(new BigDecimal("200.00"), new BigDecimal("220.00"), new BigDecimal("220.00"));
         var stageTrend = snapshots.stageTrend(leaderId, YearMonth.of(2026, 6),
                 YearMonth.of(2026, 8), false,
                 List.of(ProjectStage.SOLUTION_EXCHANGE, ProjectStage.BIDDING));
         assertThat(stageTrend).hasSize(6);
         assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("SOLUTION_EXCHANGE"))
                 .extracting("totalExpectedAmount")
-                .containsExactly(new BigDecimal("220.00"), new BigDecimal("250.00"),
-                        new BigDecimal("250.00"));
+                .containsExactly(new BigDecimal("200.00"), new BigDecimal("220.00"),
+                        new BigDecimal("220.00"));
         assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("BIDDING"))
                 .allSatisfy(item -> assertThat(item.projectCount()).isZero());
         assertThat(stageTrend).filteredOn(item -> item.stageCode().equals("SOLUTION_EXCHANGE"))
                 .allSatisfy(item -> assertThat(item.categoryTotals().gewu()).isEqualByComparingTo("60.00"));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_monthly_snapshot_revision WHERE source_id = UUID_TO_BIN(?)",
-                Long.class, late.id().toString())).isEqualTo(2);
+                Long.class, late.id().toString())).isZero();
         mvc.perform(get("/api/v1/projects/workbench/history")
                         .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalExpectedAmount").value(220.00))
+                .andExpect(jsonPath("$.data.totalExpectedAmount").value(200.00))
                 .andExpect(jsonPath("$.data.categoryTotals.gewu").value(60.00));
         mvc.perform(get("/api/v1/projects/workbench/trend")
                         .param("from", "2026-06").param("to", "2026-08")
@@ -238,7 +235,7 @@ class ProjectMonthlySnapshotIT {
         mvc.perform(get("/api/v1/projects/workbench/history/{projectId}/revisions", projectId)
                         .param("month", "2026-06").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].reason").value("6 月预算核准"));
+                .andExpect(jsonPath("$.data.length()").value(0));
         mvc.perform(get("/api/v1/projects/workbench/history")
                         .param("month", "2026-09").header("X-NDI-Actor-Id", leaderId.toString()))
                 .andExpect(status().isNotFound());

@@ -21,7 +21,13 @@ export interface Dashboard {
   current: DashboardSummary;
   stages: { stageCode: string; summary: DashboardSummary }[];
   provinces: DashboardRegion[];
-  trend: { month: string; summary: DashboardSummary; stages: Dashboard['stages'] }[];
+  trend: {
+    month: string;
+    summary: DashboardSummary;
+    stages: Dashboard['stages'];
+    source?: 'LIVE' | 'SNAPSHOT' | 'MISSING' | 'PARTIAL';
+    productStages?: { stageCode: string; count: number; amount: number }[];
+  }[];
 }
 export interface DashboardRegion {
   id: string;

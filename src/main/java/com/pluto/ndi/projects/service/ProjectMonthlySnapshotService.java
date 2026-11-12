@@ -119,7 +119,7 @@ public class ProjectMonthlySnapshotService {
                 "客户所属行业维护", false, null, null, project.industryCode(), null, null, null));
     }
 
-    public void recordApproved(ProjectEntity project, ProjectApprovalRequestEntity request) {
+    public void recordApproved(ProjectEntity project, ProjectApprovalRequestEntity request, Instant approvedAt) {
         var changedFields = request.fieldChanges().stream().map(item -> item.fieldCode()).toList();
         var stage = "STAGE_ADVANCEMENT".equals(request.requestType())
                 || request.changeType() == MajorChangeType.STAGE_ROLLBACK
@@ -130,13 +130,11 @@ public class ProjectMonthlySnapshotService {
         var categoryTotals = changedFields.stream().anyMatch(field -> field.categoryCode() != null)
                 ? ProjectCategoryTotals.from(categories.findByProjectIdIn(List.of(project.id()))) : null;
         if (stage == null && amount == null && categoryTotals == null) return;
-        var submittedMonth = monthOf(request.submittedAt());
-        var effectiveMonth = submittedMonth.isBefore(snapshots.activationMonth())
-                ? snapshots.activationMonth() : submittedMonth;
+        var effectiveMonth = monthOf(approvedAt);
         var reason = request.changeReason() == null
                 ? "阶段推进审批通过：" + request.fromStageCode() + "→" + request.targetStageCode()
                 : request.changeReason();
-        var change = new Event(project.id(), effectiveMonth, Instant.now(clock), "APPROVAL", request.id(),
+        var change = new Event(project.id(), effectiveMonth, approvedAt, "APPROVAL", request.id(),
                 reason, false, null, null, null, stage, amount, categoryTotals);
         snapshots.insertEvent(change);
         reviseExisting(project.id(), effectiveMonth, change);
@@ -333,8 +331,7 @@ public class ProjectMonthlySnapshotService {
 
     /** 供工作台月报和历史地图复用的已生成月份校验。 */
     public void requireCompleted(YearMonth month) {
-        if (month == null || month.isBefore(snapshots.activationMonth())
-                || snapshots.lastCompletedMonth().filter(last -> !month.isAfter(last)).isEmpty()) {
+        if (month == null || !snapshots.isComplete(month)) {
             throw new BusinessException(ProjectErrorCode.SNAPSHOT_NOT_READY);
         }
     }

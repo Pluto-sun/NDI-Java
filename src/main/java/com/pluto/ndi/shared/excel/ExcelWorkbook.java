@@ -102,11 +102,18 @@ public final class ExcelWorkbook {
     }
 
     public static byte[] template(List<String> fields) throws IOException {
+        return template(fields, Set.of());
+    }
+
+    public static byte[] template(List<String> fields, Set<String> textFields) throws IOException {
         try (var wb = new XSSFWorkbook();
                 var out = new ByteArrayOutputStream()) {
             var sheet = wb.createSheet("导入数据");
             var row = sheet.createRow(0);
+            var textStyle = wb.createCellStyle();
+            textStyle.setDataFormat(wb.createDataFormat().getFormat("@"));
             for (int i = 0; i < fields.size(); i++) {
+                if (textFields.contains(fields.get(i))) sheet.setDefaultColumnStyle(i, textStyle);
                 row.createCell(i).setCellValue(fields.get(i));
                 sheet.setColumnWidth(i, 24 * 256);
             }

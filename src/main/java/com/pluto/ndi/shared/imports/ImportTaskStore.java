@@ -14,7 +14,7 @@ public class ImportTaskStore {
     private final String module;
 
     public ImportTaskStore(NamedParameterJdbcTemplate jdbc, ObjectMapper json, String module) {
-        if (!Set.of("production", "revenue", "capability").contains(module))
+        if (!Set.of("production", "revenue", "capability", "snapshot").contains(module))
             throw new IllegalArgumentException("导入模块无效");
         this.module = module;
         this.jdbc = jdbc;

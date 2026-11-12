@@ -31,19 +31,24 @@ public class ProjectDashboardService {
     private final ProjectDashboardActivityRepository activities;
     private final ProjectResponsiblePersonStore people;
     private final RegionAdcodeCatalog adcodes;
+    private final com.pluto.ndi.projects.repository.ProjectMonthlySnapshotRepository snapshots;
+    private final java.time.Clock clock;
 
     public ProjectDashboardService(
             IdentityDirectory identities,
             OrganizationDirectory organizations,
             ProjectDashboardRepository repository,
             ProjectDashboardActivityRepository activities,
-            ProjectResponsiblePersonStore people, RegionAdcodeCatalog adcodes) {
+            ProjectResponsiblePersonStore people, RegionAdcodeCatalog adcodes,
+            com.pluto.ndi.projects.repository.ProjectMonthlySnapshotRepository snapshots, java.time.Clock clock) {
         this.identities = identities;
         this.organizations = organizations;
         this.repository = repository;
         this.activities = activities;
         this.people = people;
         this.adcodes = adcodes;
+        this.snapshots = snapshots;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -98,6 +103,18 @@ public class ProjectDashboardService {
                         .findReadableProjectScope(actor)
                         .orElseThrow(
                                 () -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        if (part == ProjectDashboardPart.TREND) {
+            var currentMonth = java.time.YearMonth.now(clock.withZone(java.time.ZoneId.of("Asia/Shanghai")));
+            var trend = new ArrayList<ProjectDashboard.Month>();
+            for (var month = filter.from(); !month.isAfter(filter.to()); month = month.plusMonths(1)) {
+                boolean complete = month.isBefore(currentMonth) && snapshots.isComplete(month);
+                boolean live = month.equals(currentMonth);
+                String source = complete ? "SNAPSHOT" : live ? "LIVE" : snapshots.hasSnapshots(month) ? "PARTIAL" : "MISSING";
+                trend.add(new ProjectDashboard.Month(month, summarize(List.of()), List.of(), source,
+                        complete || live ? snapshots.productTrend(month, live, scope, filter) : List.of()));
+            }
+            return new ProjectDashboard(filter.from(), filter.to(), summarize(List.of()), List.of(), List.of(), trend);
+        }
         var rows = repository.summarize(scope, filter);
         var stages =
                 part == ProjectDashboardPart.ALL || part == ProjectDashboardPart.OVERVIEW

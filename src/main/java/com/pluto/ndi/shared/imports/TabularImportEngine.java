@@ -51,6 +51,7 @@ public abstract class TabularImportEngine<C> {
 
     protected abstract boolean duplicate(C value);
 
+    /** 返回空值表示目标已存在且内容相同，无需写入。 */
     protected abstract UUID create(UUID actor, Map<String, String> cells);
 
     protected abstract BusinessException invalid(String message);
@@ -256,7 +257,7 @@ public abstract class TabularImportEngine<C> {
                 result.add(
                         new Row(
                                 row.rowNumber(),
-                                "IMPORTED",
+                                recordId == null ? "SKIPPED" : "IMPORTED",
                                 "[]",
                                 recordId,
                                 row.sourceCellsJson(),
@@ -273,6 +274,7 @@ public abstract class TabularImportEngine<C> {
                                 row.revisionNo(),
                                 null));
         }
+        int imported = (int) result.stream().filter(row -> "IMPORTED".equals(row.status())).count();
         var completed =
                 new Batch(
                         batch,
@@ -280,8 +282,8 @@ public abstract class TabularImportEngine<C> {
                         result.size(),
                         fresh.validRows(),
                         fresh.failedRows(),
-                        result.size() - selection.size(),
-                        selection.size(),
+                        result.size() - imported,
+                        imported,
                         Instant.now(clock),
                         result);
         tasks.delete(actor);
@@ -293,9 +295,9 @@ public abstract class TabularImportEngine<C> {
                 module.toUpperCase(Locale.ROOT) + "_IMPORT_COMPLETED",
                 Map.of(
                         "importedRows",
-                        selection.size(),
+                        imported,
                         "discardedRows",
-                        result.size() - selection.size(),
+                        result.size() - imported,
                         "sourceFile",
                         old.fileName(),
                         "sourceHash",
