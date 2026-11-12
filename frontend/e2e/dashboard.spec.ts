@@ -51,6 +51,8 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     'true',
   );
   await expect(page.locator('.dashboard-kpi')).toHaveCount(4);
+  await expect(page.locator('.dashboard-stage-distribution table')).toHaveCount(4);
+  await expect(page.locator('.dashboard-distribution-grid')).toHaveCount(0);
   await expect(
     page.getByRole('heading', { name: '阶段分布概览（项目数／金额）', exact: true }),
   ).toBeVisible();
@@ -130,12 +132,13 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     );
     await tabs.getByRole('button', { name: label, exact: true }).click();
     expect((await loaded).ok()).toBeTruthy();
-    await expect(
-      page.getByRole('heading', {
-        name: `阶段分布概览（项目数／金额）（${label}阶段）`,
-        exact: true,
-      }),
-    ).toBeVisible();
+    for (const heading of ['项目分布概览', '产品分布概览']) {
+      await expect(
+        page.getByRole('heading', { name: `${heading}（${label}阶段）`, exact: true }),
+      ).toBeVisible();
+    }
+    await expect(page.locator('.dashboard-stage-distribution')).toHaveCount(0);
+    await expect(page.locator('.dashboard-distribution-grid .dashboard-donut')).toHaveCount(3);
     await expect(
       page.getByRole('heading', { name: `趋势分析（${label}阶段）`, exact: true }),
     ).toBeVisible();

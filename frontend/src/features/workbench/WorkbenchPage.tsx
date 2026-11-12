@@ -18,6 +18,7 @@ import { DashboardFilters, type ClassificationFilter } from './DashboardFilters'
 import { DashboardRegionPanel } from './DashboardRegionPanel';
 import { DashboardActivities } from './DashboardActivities';
 import { DashboardShare } from './DashboardShare';
+import { StageDistributionOverview } from './StageDistributionOverview';
 import './dashboard.css';
 
 const AdvancedWorkbench = lazy(() =>
@@ -218,27 +219,28 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                 </article>
               ))}
             </div>
-            <section className="panel dashboard-stage-distribution">
-              <h2>阶段分布概览（项目数／金额）{stageLabel}</h2>
-              <div className="dashboard-category-stages">
-                {dashboardProducts.map((item) => (
-                  <article key={item.code}>
-                    <header>
-                      <h3>{item.label}</h3>
-                    </header>
-                    <table aria-label={`${item.label}阶段分布`}>
-                      <thead>
-                        <tr>
-                          <th>阶段</th>
-                          <th>项目数</th>
-                          <th>金额（万元）</th>
-                          <th>金额占比</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.stages
-                          .filter((point) => !stage || point.stageCode === stage)
-                          .map((point) => (
+            {stage ? (
+              <StageDistributionOverview summary={data.current} stageLabel={stageLabel} />
+            ) : (
+              <section className="panel dashboard-stage-distribution">
+                <h2>阶段分布概览（项目数／金额）</h2>
+                <div className="dashboard-category-stages">
+                  {dashboardProducts.map((item) => (
+                    <article key={item.code}>
+                      <header>
+                        <h3>{item.label}</h3>
+                      </header>
+                      <table aria-label={`${item.label}阶段分布`}>
+                        <thead>
+                          <tr>
+                            <th>阶段</th>
+                            <th>项目数</th>
+                            <th>金额（万元）</th>
+                            <th>金额占比</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.stages.map((point) => (
                             <tr key={point.stageCode}>
                               <th scope="row">
                                 <span
@@ -257,12 +259,13 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
                               </td>
                             </tr>
                           ))}
-                      </tbody>
-                    </table>
-                  </article>
-                ))}
-              </div>
-            </section>
+                        </tbody>
+                      </table>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </section>
