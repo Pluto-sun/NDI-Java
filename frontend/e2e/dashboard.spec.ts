@@ -109,9 +109,9 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await expect(lineToggle).toHaveAttribute('aria-pressed', 'false');
   await expect(trend.locator('.stage-trend-line')).toHaveCount(3);
   await lineToggle.click();
-  const rank = page.getByRole('region', { name: '省分排名', exact: true });
+  const rank = page.getByRole('region', { name: '省分分布', exact: true });
   await rank.getByRole('button').first().click();
-  await expect(page.getByRole('heading', { name: '地市排名', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '地市分布', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '返回全国', exact: true }).click();
   await expect(rank).toBeVisible();
   await page.evaluate(() => {

@@ -16,8 +16,18 @@ test('全国地图标签不重叠且位于省界上层，99.4%占比使用完整
     const body = await response.json();
     body.data.current.totalAmount = 1000;
     body.data.provinces = [
-      { id: 'guangdong', name: '广东省', summary: { ...body.data.current, totalAmount: 994 } },
-      { id: 'zhejiang', name: '浙江省', summary: { ...body.data.current, totalAmount: 6 } },
+      {
+        id: 'guangdong',
+        name: '广东省',
+        cities: [],
+        summary: { ...body.data.current, totalAmount: 994 },
+      },
+      {
+        id: 'zhejiang',
+        name: '浙江省',
+        cities: [],
+        summary: { ...body.data.current, totalAmount: 6 },
+      },
     ];
     await route.fulfill({ json: body });
   });
@@ -70,6 +80,11 @@ test('全国地图标签不重叠且位于省界上层，99.4%占比使用完整
         track.getBoundingClientRect().width,
     );
   expect(ratio).toBeCloseTo(0.994, 2);
+  await map.getByRole('button', { name: '放大地图', exact: true }).click();
+  await map.getByText('广东', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: '地市分布', exact: true })).toBeVisible();
+  await map.getByRole('button', { name: '返回全国', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '省分分布', exact: true })).toBeVisible();
   await page
     .locator('.dashboard-region-grid')
     .screenshot({ path: testInfo.outputPath('region-layout.png') });

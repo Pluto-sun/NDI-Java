@@ -21,7 +21,7 @@ export function DashboardRegionPanel({
   const [provinceId, setProvinceId] = useState<string | null>(null);
   const province = data.provinces.find((region) => region.id === provinceId);
   const boundaryCode = province ? province.adcode : '100000';
-  const rankLabel = province ? '地市排名' : '省分排名';
+  const distributionLabel = province ? '地市分布' : '省分分布';
   const openProvince = (id: string | null) => {
     setProvinceId(id);
     setActiveCode(null);
@@ -35,6 +35,7 @@ export function DashboardRegionPanel({
   const [activeCode, setActiveCode] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const dragged = useRef(false);
   useEffect(() => {
     let active = true;
     setError('');
@@ -122,7 +123,7 @@ export function DashboardRegionPanel({
         </div>
         {error && (
           <Feedback>
-            图形暂不可用：{error}。右侧排名仍可使用。
+            图形暂不可用：{error}。右侧分布列表仍可使用。
             <button className="text-button" onClick={() => setRetry((current) => current + 1)}>
               重试地图
             </button>
@@ -169,12 +170,20 @@ export function DashboardRegionPanel({
                 }
               }}
               onPointerDown={(event) => {
-                if (zoom <= 1) return;
+                dragged.current = false;
+                if (zoom <= 1 || event.button !== 0) return;
                 drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
-                event.currentTarget.setPointerCapture(event.pointerId);
               }}
               onPointerMove={(event) => {
                 if (!drag.current) return;
+                if (!dragged.current) {
+                  if (
+                    Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) < 5
+                  )
+                    return;
+                  dragged.current = true;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }
                 const scale = 680 / event.currentTarget.getBoundingClientRect().width / zoom;
                 setPan({
                   x: drag.current.panX - (event.clientX - drag.current.x) * scale,
@@ -201,11 +210,11 @@ export function DashboardRegionPanel({
                     role={!province && row ? 'button' : undefined}
                     tabIndex={!province && row ? 0 : undefined}
                     aria-label={!province && row ? `${row.name}地市分布` : undefined}
-                    onClick={() =>
-                      !province && row && zoom === 1
-                        ? openProvince(row.id)
-                        : setActiveCode(shape.adcode)
-                    }
+                    onClick={() => {
+                      if (dragged.current) return;
+                      if (!province && row) openProvince(row.id);
+                      else setActiveCode(shape.adcode);
+                    }}
                     onKeyDown={(event) => {
                       if (!province && row && (event.key === 'Enter' || event.key === ' ')) {
                         event.preventDefault();
@@ -239,28 +248,40 @@ export function DashboardRegionPanel({
                 );
               })}
               <g className="dashboard-map-labels" aria-hidden="true">
-                {labels.map((label) => (
-                  <g key={label.adcode}>
-                    {label.origin && (
-                      <line
-                        x1={label.origin[0]}
-                        y1={label.origin[1]}
-                        x2={label.x}
-                        y2={label.y}
-                        className="dashboard-map-callout"
-                      />
-                    )}
-                    <text
-                      x={label.x}
-                      y={label.y}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      className={`dashboard-map-label ${activeCode === label.adcode ? 'is-active' : ''}`}
-                    >
-                      {label.name}
-                    </text>
-                  </g>
-                ))}
+                {labels.map((label) => {
+                  const shape = shapes.find((item) => item.adcode === label.adcode);
+                  const row = !province && shape ? rowFor(shape) : undefined;
+                  return (
+                    <g key={label.adcode}>
+                      {label.origin && (
+                        <line
+                          x1={label.origin[0]}
+                          y1={label.origin[1]}
+                          x2={label.x}
+                          y2={label.y}
+                          className="dashboard-map-callout"
+                        />
+                      )}
+                      <text
+                        onClick={
+                          row
+                            ? () => {
+                                if (!dragged.current) openProvince(row.id);
+                              }
+                            : undefined
+                        }
+                        style={row ? { pointerEvents: 'auto', cursor: 'pointer' } : undefined}
+                        x={label.x}
+                        y={label.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        className={`dashboard-map-label ${activeCode === label.adcode ? 'is-active' : ''}`}
+                      >
+                        {label.name}
+                      </text>
+                    </g>
+                  );
+                })}
               </g>
             </svg>
           </div>
@@ -280,21 +301,20 @@ export function DashboardRegionPanel({
           {metric === 'amount' ? '项目金额（万元）' : '项目数（个）'} · 颜色越深数值越高。
         </p>
       </section>
-      <section className="panel dashboard-ranking" aria-label={`${rankLabel}${stageLabel}`}>
+      <section className="panel dashboard-ranking" aria-label={`${distributionLabel}${stageLabel}`}>
         <h2>
-          {rankLabel}
+          {distributionLabel}
           {stageLabel}
         </h2>
         <div className="table-scroll">
           <table>
             <colgroup>
-              {[10, 15, 16, 25, 34].map((width, index) => (
+              {[25, 16, 25, 34].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
             <thead>
               <tr>
-                <th>排名</th>
                 <th>{province ? '地市' : '省份'}</th>
                 <th>项目数（个）</th>
                 <th>项目金额（万元）</th>
@@ -302,11 +322,8 @@ export function DashboardRegionPanel({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {rows.map((row) => (
                 <tr key={row.id}>
-                  <td>
-                    <span className={`rank-badge rank-${index + 1}`}>{index + 1}</span>
-                  </td>
                   <th scope="row">
                     {province ? (
                       row.name
