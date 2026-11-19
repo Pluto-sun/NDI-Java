@@ -90,5 +90,5 @@ archive="$repo_dir/dist/releases/ndi-release-$release_id.tar.gz"
 tar -C "$workspace" -czf "$archive" "ndi-release-$release_id"
 build_complete=true
 echo "打包完成：$archive"
-echo "后端测试模式：$test_mode；浏览器测试未在本脚本执行，见 release.txt。"
+echo "后端测试模式：${test_mode}；浏览器测试未在本脚本执行，见 release.txt。"
 echo '上传后先执行 sudo bash deploy.sh --init-config，填写服务器配置，再执行 --check 与 --deploy。'

@@ -37,5 +37,6 @@ public class CityEntity {
 
     public UUID id() { return id; }
     public UUID provinceId() { return provinceId; }
+    public String cityCode() { return cityCode; }
     public String cityName() { return cityName; }
 }

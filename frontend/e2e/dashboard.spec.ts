@@ -34,7 +34,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await expect(tabs.getByRole('button')).toHaveCount(5);
   const heading = page.getByRole('heading', { name: '项目管理驾驶舱', exact: true });
   await expect(
-    heading.locator('..').getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
+    page.getByRole('banner').getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
   ).toBeVisible();
   const buttonBox = await tabs.getByRole('button').first().boundingBox();
   expect(buttonBox!.height).toBeLessThanOrEqual(36);
@@ -174,10 +174,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await expect(page.getByRole('heading', { name: '项目列表', exact: true })).toBeVisible();
   const listTabs = page.getByRole('group', { name: '项目阶段快捷筛选', exact: true });
   await expect(
-    page
-      .getByRole('heading', { name: '项目列表', exact: true })
-      .locator('..')
-      .getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
+    page.getByRole('banner').getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
   ).toBeVisible();
   await expect(listTabs.getByRole('button', { name: '方案交流', exact: true })).toHaveAttribute(
     'aria-pressed',

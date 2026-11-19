@@ -28,16 +28,22 @@ export interface ImportWizardApi {
     reason: string,
     fingerprint: string,
   ) => Promise<ImportBatch>;
+  originalFailedImportRows?: (id: string) => Promise<Blob>;
   failedImportRows?: (id: string) => Promise<Blob>;
 }
 export interface ImportWizardConfig {
   api: ImportWizardApi;
   title: string;
   backTo: string;
+  entryHint?: string;
+  hiddenRowFields?: string[];
+  formatAmount?: (value: string) => string;
   amountFields: string[];
+  requireAmountMapping?: boolean;
   amountUnit?: string;
   emptyValueLabel?: string;
   fieldLabel?: (field: string) => string;
+  multipleFieldOptions?: (field: string) => { code: string; label: string }[] | undefined;
   fieldOptions?: (field: string, values: Record<string, string>) => string[] | undefined;
   changeRowField?: (
     values: Record<string, string>,

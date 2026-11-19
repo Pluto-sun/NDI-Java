@@ -314,6 +314,27 @@ a {
 .table-scroll {
   overflow-x: auto;
 }
+.sticky-actions-scroll {
+  max-width: 100%;
+  min-width: 0;
+  isolation: isolate;
+}
+.sticky-actions-scroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.sticky-actions-scroll .sticky-list-action {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: -1px 0 var(--line);
+  text-align: center;
+}
+.sticky-actions-scroll th.sticky-list-action {
+  z-index: 2;
+  background: #fdfafb;
+}
 .project-list-table {
   table-layout: fixed;
   width: 1452px;

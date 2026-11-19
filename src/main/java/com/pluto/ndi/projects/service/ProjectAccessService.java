@@ -40,10 +40,21 @@ public class ProjectAccessService {
     }
 
     public ProjectEntity requireAppendable(UUID actorId, UUID projectId) {
+        return requireWritable(actorId, projectId, identityDirectory::canAppendProjectProgress);
+    }
+
+    public ProjectEntity requireProfileEditable(UUID actorId, UUID projectId) {
+        return requireWritable(actorId, projectId, identityDirectory::canUpdateProjectProfile);
+    }
+
+    public ProjectEntity requirePeopleEditable(UUID actorId, UUID projectId) {
+        return requireWritable(actorId, projectId, identityDirectory::canConfigureProjectPeople);
+    }
+
+    private ProjectEntity requireWritable(UUID actorId, UUID projectId, EditPermission permission) {
         var project = projectRepository.findLockedById(projectId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
-        var actor = requireActor(actorId);
-        if (!identityDirectory.canAppendProjectProgress(actor, project.provinceId(), project.cityId())) {
+        if (!permission.allows(requireActor(actorId), project.provinceId(), project.cityId())) {
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         }
         if (ProjectStage.TERMINATED.name().equals(project.currentStageCode())) {
@@ -52,17 +63,9 @@ public class ProjectAccessService {
         return project;
     }
 
-    public ProjectEntity requireProfileEditable(UUID actorId, UUID projectId) {
-        var project = projectRepository.findLockedById(projectId)
-                .orElseThrow(() -> new BusinessException(ProjectErrorCode.NOT_FOUND));
-        var actor = requireActor(actorId);
-        if (!identityDirectory.canUpdateProjectProfile(actor, project.provinceId(), project.cityId())) {
-            throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
-        }
-        if (ProjectStage.TERMINATED.name().equals(project.currentStageCode())) {
-            throw new BusinessException(ProjectErrorCode.TERMINATED_READ_ONLY);
-        }
-        return project;
+    @FunctionalInterface
+    private interface EditPermission {
+        boolean allows(ProjectActor actor, UUID provinceId, UUID cityId);
     }
 
     private ProjectEntity requireProject(UUID projectId) {

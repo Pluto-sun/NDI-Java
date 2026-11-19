@@ -1,7 +1,10 @@
 import { crc32 } from 'node:zlib';
 
 /** 仅生成隔离验收所需的字符串单元格，不承担生产 Excel 读写。 */
-export function importWorkbook(rows: Record<string, string>[]): Buffer {
+export function importWorkbook(
+  rows: Record<string, string>[],
+  sourceTitles: Record<string, string> = {},
+): Buffer {
   const headers = Object.keys(rows[0]);
   const escape = (value: string) =>
     value
@@ -11,7 +14,7 @@ export function importWorkbook(rows: Record<string, string>[]): Buffer {
       .replaceAll('"', '&quot;');
   const data = [
     ['隔离导入验收'],
-    headers,
+    headers.map((header) => sourceTitles[header] ?? header),
     ...rows.map((row) => headers.map((header) => row[header] ?? '')),
   ];
   const sheet = data

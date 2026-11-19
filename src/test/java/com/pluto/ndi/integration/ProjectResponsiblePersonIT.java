@@ -250,6 +250,39 @@ class ProjectResponsiblePersonIT {
     }
 
     @Test
+    void reviewerCanConfigureOnlyAssignedProvinceAndBindEligibleAccounts() {
+        var f = fixture();
+        var foreign = fixture();
+        var created = create(f);
+        var detail = projects.findDetail(f.reviewer(), created.id());
+        var listed = people.accountOptions(f.reviewer(), created.id(), "人员账号", false);
+        assertThat(listed).extracting(user -> user.id())
+                .containsExactlyInAnyOrder(f.reporter(), f.leaderA(), f.leaderB(), f.reviewer());
+        assertThatThrownBy(() -> people.accountOptions(foreign.reviewer(), created.id(), "", false))
+                .isInstanceOf(BusinessException.class);
+
+        var a = detail.responsiblePersons().getFirst();
+        for (var account : List.of(foreign.leaderA(), foreign.reviewer(), f.admin())) {
+            assertThatThrownBy(() -> people.configure(f.reviewer(), created.id(),
+                    detail.versionNo(), List.of(person(a, "SUPPORT_EXPERT", account))))
+                    .isInstanceOf(BusinessException.class);
+        }
+        assertThatThrownBy(() -> people.configure(foreign.reviewer(), created.id(),
+                detail.versionNo(), List.of(a))).isInstanceOf(BusinessException.class);
+        jdbc.update("UPDATE identity_user_account SET enabled=FALSE WHERE id=UUID_TO_BIN(?)",
+                f.leaderA().toString());
+        assertThat(people.accountOptions(f.reviewer(), created.id(), "", false))
+                .noneMatch(user -> user.id().equals(f.leaderA()));
+        assertThatThrownBy(() -> people.configure(f.reviewer(), created.id(), detail.versionNo(),
+                List.of(person(a, "SUPPORT_EXPERT", f.leaderA()))))
+                .isInstanceOf(BusinessException.class);
+        var configured = people.configure(f.reviewer(), created.id(), detail.versionNo(),
+                List.of(person(a, "SUPPORT_EXPERT", f.reviewer())));
+        assertThat(configured.responsiblePersons()).singleElement()
+                .satisfies(owner -> assertThat(owner.userId()).isEqualTo(f.reviewer()));
+    }
+
+    @Test
     void reminderSelectsBoundAccountThenFirstCandidateAndImmediatelyRoutesToReviewer() {
         var f = fixture();
         var created = create(f);

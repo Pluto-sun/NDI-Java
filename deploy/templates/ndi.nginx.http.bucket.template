@@ -1,0 +1,15 @@
+    # 保留原始路径、查询参数和 Host，供 MinIO 校验预签名。
+    location ~ ^/@@MINIO_BUCKET_PATTERN@@(?:/|$) {
+        proxy_pass http://@@MINIO_UPSTREAM@@;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+    }
+
+    location = /minio/health/ready {
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://@@MINIO_UPSTREAM@@;
+    }

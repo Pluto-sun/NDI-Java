@@ -44,6 +44,7 @@ public class ProductionAccessService {
         var writers =
                 Set.of(
                         "SYSTEM_ADMIN",
+                        "GROUP_REVIEWER",
                         "INTERFACE_REVIEWER",
                         "PROVINCE_REPORTER",
                         "PROVINCE_DIGITAL_LEADER",

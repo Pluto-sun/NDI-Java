@@ -1,6 +1,7 @@
+import { verifyStickyAction } from './support/stickyActions';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-import { chooseActor, ids } from './support/projects';
+import { chooseActor, createProject, ids } from './support/projects';
 
 test('排产金额与表头同轴，排产及计收共用右侧分页并可翻页', async ({ page, request }, testInfo) => {
   const prefix = `列表对齐-${randomUUID()}`;
@@ -15,10 +16,10 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
         projectName: `${prefix}-${index}`,
         customerName: '分页验收客户',
         categories: ['NETWORK', 'GEWU', 'BIG_DATA', 'WANGWU'],
-        networkAmount: '11.11',
-        gewuAmount: '222.22',
-        bigDataAmount: '3333.33',
-        wangwuAmount: '44444.44',
+        networkOrderAmount: '11.11',
+        gewuOrderAmount: '222.22',
+        bigDataOrderAmount: '3333.33',
+        wangwuOrderAmount: '44444.44',
         projectStatus: '推进中',
       },
     });
@@ -32,6 +33,7 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
           省份名称: '本地演示省',
           合同编号: `${prefix}-${index}`,
           条款编号: '0001',
+          三化分类: '数字化',
           条款金额: '100.00',
           '产品本月计收不含税额/标品含税收入': '10.00',
           项目名称: prefix,
@@ -45,7 +47,7 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
   const table = page.getByRole('table', { name: '排产计划清单', exact: true });
   await expect(table.locator('tbody tr')).toHaveCount(20);
   const cells = table.locator('tbody tr').first().locator('td.numeric');
-  await expect(cells).toHaveText(['11.11', '222.22', '3,333.33', '44,444.44']);
+  await expect(cells).toHaveText(['11.11', '222.22', '3333.33', '44444.44']);
   const headerGeometry = await table.locator('thead th.numeric').evaluateAll((elements) =>
     elements.map((e) => ({
       x: e.getBoundingClientRect().x,
@@ -65,6 +67,10 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
   expect(headerGeometry).toEqual(cellGeometry);
   expect(headerGeometry.every((c) => c.align === 'right')).toBeTruthy();
   const region = page.getByRole('region', { name: '排产明细横向滚动区域', exact: true });
+  await verifyStickyAction(
+    region,
+    table.getByRole('button', { name: '编辑', exact: true }).first(),
+  );
   const regionBox = await region.boundingBox();
   const edit = await table
     .locator('tbody tr')
@@ -82,6 +88,13 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
     ['revenue', '计收列表'],
   ]) {
     await page.goto(`/${route}?search=${encodeURIComponent(prefix)}`);
+    if (route === 'revenue') {
+      const scroller = page.locator('.revenue-list-scroll');
+      await verifyStickyAction(
+        scroller,
+        scroller.getByRole('link', { name: '详情', exact: true }).first(),
+      );
+    }
     const pager = page.getByRole('navigation', { name: `${label}分页`, exact: true });
     await expect(pager).toContainText('共 21 条');
     await expect(pager).toContainText('第 1 / 2 页');
@@ -100,4 +113,25 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBeTruthy();
   }
+});
+
+test('项目清单分页与计收和排产一致，并保留查询条件', async ({ page, request }) => {
+  const prefix = `项目分页-${randomUUID()}`;
+  for (let index = 0; index < 21; index++) {
+    await createProject(request, `${prefix}-${index}`);
+  }
+
+  await page.goto(`/projects?projectName=${encodeURIComponent(prefix)}`);
+  await chooseActor(page, ids.reporter);
+  const pager = page.getByRole('navigation', { name: '项目列表分页', exact: true });
+  await expect(pager).toContainText('共 21 条');
+  await expect(pager).toContainText('第 1 / 2 页');
+  await expect(pager.getByRole('button', { name: '上一页' })).toBeDisabled();
+  await pager.getByRole('button', { name: '下一页' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(pager).toContainText('第 2 / 2 页');
+  await expect(pager.getByRole('button', { name: '下一页' })).toBeDisabled();
+  expect(new URL(page.url()).searchParams.get('projectName')).toBe(prefix);
+  await pager.getByRole('button', { name: '上一页' }).click();
+  await expect(pager).toContainText('第 1 / 2 页');
 });

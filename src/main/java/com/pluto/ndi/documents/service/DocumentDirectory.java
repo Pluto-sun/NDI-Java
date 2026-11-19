@@ -8,6 +8,8 @@ public interface DocumentDirectory {
 
     UploadIntent beginUpload(String scopeType, UUID scopeId, UUID actorId, UploadCommand command);
 
+    UUID storeImage(String scopeType, UUID scopeId, UUID actorId, String mediaType, byte[] content);
+
     DocumentSummary completeUpload(String scopeType, UUID scopeId, UUID actorId, UUID documentId);
 
     boolean isUsable(String scopeType, UUID scopeId, UUID documentId, String purposeCode);

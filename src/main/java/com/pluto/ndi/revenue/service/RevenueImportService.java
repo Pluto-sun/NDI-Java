@@ -53,9 +53,7 @@ public class RevenueImportService extends TabularImportEngine<RevenueFields.Sour
     }
 
     protected RevenueFields.Source validate(UUID actor, Map<String, String> values) {
-        var source = entries.validateImportSource(actor, values);
-        entries.importRecognition(values, source.clauseAmount());
-        return source;
+        return entries.validateImport(actor, values).source();
     }
 
     protected Object duplicateKey(RevenueFields.Source s) {
@@ -68,12 +66,19 @@ public class RevenueImportService extends TabularImportEngine<RevenueFields.Sour
                 s.fields().getOrDefault("产品编码", ""));
     }
 
-    protected boolean duplicate(RevenueFields.Source s) {
-        return entries.duplicate(s);
+    @Override
+    protected Set<RevenueFields.Source> existingDuplicates(List<RevenueFields.Source> sources) {
+        return entries.existingDuplicates(sources);
     }
 
     protected UUID create(UUID actor, Map<String, String> values) {
         return entries.importEntry(actor, values).id();
+    }
+
+    @Override
+    protected com.pluto.ndi.shared.excel.ExcelWorkbook.Inspection inspect(String fileName, byte[] data)
+            throws java.io.IOException {
+        return RevenueExcel.inspect(fileName, data, fields());
     }
 
     protected List<com.pluto.ndi.shared.excel.ExcelWorkbook.Line> read(

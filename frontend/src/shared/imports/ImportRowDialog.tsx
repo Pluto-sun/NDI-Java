@@ -10,19 +10,37 @@ import { sourceCells, rowErrors, type ImportRow } from './importWizard';
 export function ImportRowDialog({
   batchId,
   row,
+  fieldOrder,
+  hiddenFields = [],
   mode,
   onClose,
   onSaved,
 }: {
   batchId: string;
   row: ImportRow;
+  fieldOrder: string[];
+  hiddenFields?: string[];
   mode: 'edit' | 'name';
   onClose: () => void;
   onSaved: (batch: ImportBatch) => void;
 }) {
   const config = useImportWizard();
   const { api: projectsApi } = config;
-  const [cells, setCells] = useState(() => sourceCells(row.sourceCellsJson));
+  const [cells, setCells] = useState(() => {
+    const values = sourceCells(row.sourceCellsJson);
+    const format = config.formatAmount;
+    if (format)
+      for (const key of config.amountFields)
+        if (Object.hasOwn(values, key)) values[key] = format(values[key]);
+    return values;
+  });
+  const mappedFields = new Set(fieldOrder);
+  const fields = [
+    ...fieldOrder.filter((field) => Object.hasOwn(cells, field)),
+    ...Object.keys(cells)
+      .filter((field) => !mappedFields.has(field))
+      .sort((left, right) => left.localeCompare(right, 'zh-CN', { numeric: true })),
+  ].filter((field) => !hiddenFields.includes(field) && !config.hiddenRowFields?.includes(field));
   const [reason, setReason] = useState(row.nameReview?.reason ?? '');
   const [confirmed, setConfirmed] = useState(row.nameReview?.confirmed ?? false);
   const [busy, setBusy] = useState(false),
@@ -124,55 +142,94 @@ export function ImportRowDialog({
               <Feedback tone="error">{rowErrors(row.errorsJson).join('；')}</Feedback>
             )}
             <div className="form-grid import-row-fields">
-              {Object.entries(cells).map(([field, value]) => (
-                <label key={field}>
-                  {config.fieldLabel?.(field) ?? field}
-                  {config.fieldOptions?.(field, cells) ? (
-                    <Select
-                      value={value}
-                      onChange={(event) =>
-                        setCells(
-                          (current) =>
-                            config.changeRowField?.(current, field, event.target.value) ?? {
-                              ...current,
-                              [field]: event.target.value,
-                            },
-                        )
-                      }
-                    >
-                      {!config.fieldOptions(field, cells)!.includes(value) && (
-                        <option value={value}>{value || config.emptyValueLabel || '请选择'}</option>
-                      )}
-                      {config.fieldOptions(field, cells)!.map((option) => (
-                        <option key={option} value={option}>
-                          {option || config.emptyValueLabel || '未填写'}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <textarea
-                      aria-label={config.fieldLabel?.(field) ?? field}
-                      placeholder={config.emptyValueLabel}
-                      rows={
-                        field.includes('内容') || field.includes('进展') || field === '下一步动作'
-                          ? 3
-                          : 1
-                      }
-                      value={config.emptyValueLabel && !value.trim() ? '' : value}
-                      maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
-                      onChange={(event) =>
-                        setCells(
-                          (current) =>
-                            config.changeRowField?.(current, field, event.target.value) ?? {
-                              ...current,
-                              [field]: event.target.value,
-                            },
-                        )
-                      }
-                    />
-                  )}
-                </label>
-              ))}
+              {fields.map((field) => {
+                const value = cells[field];
+                const multiple = config.multipleFieldOptions?.(field);
+                const selected = multiple
+                  ? value
+                      .split(/[,，、;；\n]+/)
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                      .map((item) => multiple.find(({ label }) => label === item)?.code ?? item)
+                  : [];
+                const options = config.fieldOptions?.(field, cells);
+                return (
+                  <label key={field}>
+                    {config.fieldLabel?.(field) ?? field}
+                    {multiple ? (
+                      <select
+                        multiple
+                        value={selected}
+                        onChange={(event) => {
+                          const value = Array.from(
+                            event.currentTarget.selectedOptions,
+                            (option) => option.value,
+                          ).join('；');
+                          setCells((current) => ({ ...current, [field]: value }));
+                        }}
+                      >
+                        {selected
+                          .filter((item) => !multiple.some(({ code }) => code === item))
+                          .map((item) => (
+                            <option key={item} value={item}>
+                              {item}（原值）
+                            </option>
+                          ))}
+                        {multiple.map(({ code, label }) => (
+                          <option key={code} value={code}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : options ? (
+                      <Select
+                        value={value}
+                        onChange={(event) =>
+                          setCells(
+                            (current) =>
+                              config.changeRowField?.(current, field, event.target.value) ?? {
+                                ...current,
+                                [field]: event.target.value,
+                              },
+                          )
+                        }
+                      >
+                        {!options.includes(value) && (
+                          <option value={value}>
+                            {value || config.emptyValueLabel || '请选择'}
+                          </option>
+                        )}
+                        {options.map((option) => (
+                          <option key={option} value={option}>
+                            {option || config.emptyValueLabel || '未填写'}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <textarea
+                        aria-label={config.fieldLabel?.(field) ?? field}
+                        placeholder={config.emptyValueLabel}
+                        rows={
+                          field.includes('内容') || field.includes('进展') || field === '下一步动作'
+                            ? 3
+                            : 1
+                        }
+                        value={config.emptyValueLabel && !value.trim() ? '' : value}
+                        maxLength={['首条项目进展', '下一步动作'].includes(field) ? 10000 : 4000}
+                        onChange={(event) =>
+                          setCells(
+                            (current) =>
+                              config.changeRowField?.(current, field, event.target.value) ?? {
+                                ...current,
+                                [field]: event.target.value,
+                              },
+                          )
+                        }
+                      />
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </>
         )}

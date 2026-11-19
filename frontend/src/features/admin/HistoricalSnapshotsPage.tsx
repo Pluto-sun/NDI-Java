@@ -40,7 +40,6 @@ export function HistoricalSnapshotsPage() {
     <>
       <div className="page-heading">
         <div>
-          <h1>历史快照导入</h1>
           <p>补录已结束月份的项目月末状态。</p>
         </div>
         <Link className="primary-button" to={route + '/import'}>

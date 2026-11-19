@@ -73,8 +73,10 @@ test('正式管理员会话从创建页导入，上传受 CSRF 保护且完成�
     await reader.getByLabel('账号', { exact: true }).fill('e2e_group');
     await reader.getByLabel('密码', { exact: true }).fill('e2e-session-password');
     await reader.getByRole('button', { name: '登录', exact: true }).click();
-    await expect(reader).toHaveURL(/\/projects$/);
-    expect((await context.request.get('/api/v1/projects/imports/task')).status()).toBe(403);
+    await expect(reader).toHaveURL(/\/projects\/new$/);
+    await expect(reader.getByRole('heading', { name: '新建项目', exact: true })).toBeVisible();
+    await reader.getByRole('link', { name: '项目导入', exact: true }).click();
+    expect((await context.request.get('/api/v1/projects/imports/task')).status()).toBe(200);
   } finally {
     await context.close();
   }

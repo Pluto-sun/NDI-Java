@@ -459,6 +459,8 @@ public class IdentityAdministrationService {
                                     && cityId != null
                                     && organizations
                                             .findEnabledLocation(provinceId, cityId)
+                                            .filter(location -> !location.legacyMunicipalityCity()
+                                                    || existing != null && cityId.equals(existing.cityId()))
                                             .isPresent();
                     case REVIEWER -> cityId == null && provinceId == null;
                     case NATIONAL -> provinceId == null && cityId == null;

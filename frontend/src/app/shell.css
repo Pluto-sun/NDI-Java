@@ -174,6 +174,12 @@
   background: white;
   z-index: 2;
 }
+.modal-heading-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
 .modal-heading strong {
   font-size: 16px;
 }
@@ -258,4 +264,62 @@
   .app-modal::backdrop {
     backdrop-filter: none;
   }
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-block: 10px;
+}
+
+.topbar-main,
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 6px 12px;
+}
+
+.topbar-breadcrumb h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.topbar .account {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar-breadcrumb h1 {
+    font-size: 14px;
+  }
+}
+
+.batch-delete-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+}
+
+.batch-select-cell {
+  text-align: center;
+}
+
+.app-shell .batch-select-cell input {
+  min-height: auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
 }

@@ -4,7 +4,7 @@ import { projectsApi } from './api';
 import type { DocumentPurpose, ProjectDocument } from './types';
 import { Feedback } from '../../shared/ui/Feedback';
 import { dateTime } from '../../shared/ui/format';
-import { openProjectDocument } from './openDocument';
+import { downloadAttachment } from '../../shared/util/downloadAttachment';
 import { sha256Hex } from '../../shared/util/crypto';
 
 const purposes: Record<DocumentPurpose, string> = {
@@ -96,7 +96,8 @@ export function ProjectDocuments({
   async function download(item: ProjectDocument) {
     setError('');
     try {
-      await openProjectDocument(projectId, item.id);
+      const { attachmentUrl } = await projectsApi.downloadUrl(projectId, item.id);
+      downloadAttachment(attachmentUrl);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '下载失败');
     }

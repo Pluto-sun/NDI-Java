@@ -86,7 +86,6 @@ export function AccountsPage({
         <div>
           <span className="eyebrow">ADMINISTRATION</span>
           <div className="title-with-stage">
-            <h1>账号与组织</h1>
             <label className="role-view-picker">
               角色
               <Select

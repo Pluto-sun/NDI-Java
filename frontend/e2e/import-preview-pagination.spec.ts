@@ -6,7 +6,7 @@ import { importWorkbook } from './support/importWorkbook';
 
 for (const module of [
   { title: '项目', path: '/projects/new', root: '/api/v1/projects', actor: ids.reporter },
-  { title: '排产', path: '/scheduling/new', root: '/api/v1/production/plans', actor: ids.reporter },
+  { title: '排产', path: '/scheduling', root: '/api/v1/production/plans', actor: ids.reporter },
   { title: '计收', path: '/revenue/new', root: '/api/v1/revenue/entries', actor: ids.admin },
 ])
   test(`${module.title}导入支持状态筛选、每页10条及跨页保留已选行`, async ({
@@ -49,6 +49,7 @@ for (const module of [
         合同编号: name,
         条款编号: '001',
         自然客户名称: '分页自然客户',
+        三化分类: '数字化',
         条款金额: invalid ? '' : '100',
         '产品本月计收不含税额/标品含税收入': '10',
         审签日期: '--',

@@ -2,7 +2,7 @@ import { jsonBody, requestAt, requestBlobAt } from '../api/http';
 import type { ImportWizardApi } from './context';
 import type { ImportTask, ImportBatch } from './types';
 
-export function tabularImportApi(root: string): ImportWizardApi {
+export function tabularImportApi(root: string, { exportFailedRows = false } = {}): ImportWizardApi {
   const request = <T>(path: string, init?: RequestInit) => requestAt<T>(root, path, init);
   return {
     importTask: () => request<ImportTask | null>('/imports/task'),
@@ -36,5 +36,8 @@ export function tabularImportApi(root: string): ImportWizardApi {
         ...jsonBody({ selectedRowNumbers }),
       }),
     importTemplate: () => requestBlobAt(root, '/imports/template'),
+    originalFailedImportRows: exportFailedRows
+      ? (id) => requestBlobAt(root, `/imports/${id}/failed-rows/original`)
+      : undefined,
   };
 }

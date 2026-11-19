@@ -5,11 +5,13 @@ import { createPortal } from 'react-dom';
 export function Modal({
   title,
   children,
+  renderHeading,
   onClose,
   busy = false,
 }: {
   title: string;
   children: ReactNode;
+  renderHeading?: (busy: boolean) => ReactNode;
   onClose: () => void;
   busy?: boolean;
 }) {
@@ -36,7 +38,9 @@ export function Modal({
       }}
     >
       <header className="modal-heading">
-        <strong>{title}</strong>
+        <div className="modal-heading-title">
+          {renderHeading ? renderHeading(busy) : <strong>{title}</strong>}
+        </div>
         <button
           type="button"
           className="text-button"

@@ -1,5 +1,8 @@
 package com.pluto.ndi.revenue.service;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.revenue.RevenueRecordDeletion;
+
 import com.pluto.ndi.identity.service.*;
 import com.pluto.ndi.organization.service.*;
 import java.math.BigDecimal;
@@ -21,7 +24,7 @@ import java.util.*;
 
 @Service
 @Transactional
-public class RevenueService {
+public class RevenueService implements RevenueRecordDeletion {
     private final RevenueMapper mapper;
     private final RevenueAccessService access;
     private final RevenueFields fields;
@@ -47,17 +50,29 @@ public class RevenueService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
+    public DashboardSummary dashboard(UUID actor, String from, String to) {
+        return mapper.dashboard(access.require(actor), DashboardSummary.MonthRange.parse(from, to));
+    }
+
     public record Reference(
             List<ProvinceOption> provinces,
+            List<CityOption> cities,
             List<String> fields,
             List<String> required,
             boolean canCreate,
-            Map<String, String> fixedOrganizations) {}
+            Map<String, String> fixedOrganizations) {
+        @com.fasterxml.jackson.annotation.JsonProperty
+        public List<String> integratedOrganizations() {
+            return Revenue.INTEGRATED_ORGANIZATIONS;
+        }
+    }
 
     @Transactional(readOnly = true)
     public Reference reference(UUID actor) {
         return new Reference(
                 organizations.findEnabledProvinces(),
+                organizations.findEnabledCities(),
                 RevenueFields.FIELDS,
                 RevenueFields.FIELDS.stream().filter(RevenueFields.REQUIRED::contains).toList(),
                 access.require(actor).creator(),
@@ -108,28 +123,37 @@ public class RevenueService {
         return fields.normalize(values);
     }
 
+    public Set<RevenueFields.Source> existingDuplicates(List<RevenueFields.Source> sources) {
+        return mapper.existingDuplicates(sources);
+    }
+
     public boolean duplicate(RevenueFields.Source source) {
-        return mapper.duplicate(source);
+        return !existingDuplicates(List.of(source)).isEmpty();
     }
 
     public Entry create(UUID actor, Map<String, String> values) {
         var source = validate(actor, values);
+        if (duplicate(source)) throw conflict();
         return create(actor, source, null);
     }
 
+    public record ValidatedImport(RevenueFields.Source source, Recognition recognition) {}
+
+    // 预检会将业务异常记录为行错误，不能让该异常将整批事务标记为回滚。
     @Transactional(readOnly = true, noRollbackFor = BusinessException.class)
-    public RevenueFields.Source validateImportSource(UUID actor, Map<String, String> values) {
-        var source = new LinkedHashMap<>(values);
-        source.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.PROVINCE));
-        return validate(actor, source);
+    public ValidatedImport validateImport(UUID actor, Map<String, String> values) {
+        var sourceValues = new LinkedHashMap<>(values);
+        sourceValues.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE));
+        var source = validate(actor, sourceValues);
+        return new ValidatedImport(source, importRecognition(values, source.clauseAmount()));
     }
 
     public Entry importEntry(UUID actor, Map<String, String> values) {
-        var source = validateImportSource(actor, values);
-        return create(actor, source, importRecognition(values, source.clauseAmount()));
+        var validated = validateImport(actor, values);
+        return create(actor, validated.source(), validated.recognition());
     }
 
-    Recognition importRecognition(Map<String, String> values, BigDecimal limit) {
+    private Recognition importRecognition(Map<String, String> values, BigDecimal limit) {
         String amountText = importValue(values, RevenueImport.AMOUNT);
         String name = importValue(values, RevenueImport.PROJECT);
         String province = importValue(values, RevenueImport.PROVINCE);
@@ -143,10 +167,14 @@ public class RevenueService {
         if (amount.signum() <= 0) return null;
         if (amount.compareTo(limit) > 0) throw invalid("认定金额不能超过条款金额");
         if (amount.stripTrailingZeros().scale() > 2) throw invalid("认定金额最多两位小数");
-        var provinceId = organizations.findEnabledProvinces().stream()
-                .filter(item -> item.name().equals(province) || item.id().toString().equals(province))
-                .findFirst().orElseThrow(() -> invalid("对应省分（集成）未匹配启用的省份")).id();
-        return fields.recognition(new Recognition(amount, name, "", provinceId), limit);
+        String status = importValue(values, RevenueImport.STATUS);
+        if (Revenue.INTEGRATED_ORGANIZATIONS.contains(province))
+            return fields.recognition(new Recognition(amount, name, status, null, province), limit);
+        var integratedProvince = organizations.findEnabledProvinceByName(province)
+                .or(() -> organizations.findEnabledProvinces().stream()
+                        .filter(item -> item.id().toString().equals(province)).findFirst())
+                .orElseThrow(() -> invalid("对应省分（集成）未匹配启用的省份、数科或数智"));
+        return fields.recognition(new Recognition(amount, name, status, integratedProvince.id()), limit);
     }
 
     private static String importValue(Map<String, String> values, String field) {
@@ -155,7 +183,6 @@ public class RevenueService {
     }
 
     private Entry create(UUID actor, RevenueFields.Source source, Recognition recognition) {
-        if (duplicate(source)) throw conflict();
         UUID id = UUID.randomUUID();
         try {
             mapper.insert(id, actor, source, Instant.now(clock));
@@ -173,6 +200,17 @@ public class RevenueService {
         apply(actor, entry, recognition, null, Instant.now(clock));
         mapper.bump(id, Instant.now(clock));
         return require(actor, id, false);
+    }
+
+    @Override
+    public void delete(UUID actor, UUID id, long version) {
+        var entry = require(actor, id, true);
+        if (entry.version() != version) throw conflict();
+        if (entry.pendingRequestId() != null)
+            throw new BusinessException(new RevenueError(org.springframework.http.HttpStatus.CONFLICT,
+                    "REVENUE_DELETE_PENDING", "存在待审批的计收记录，请先处理审批"));
+        mapper.delete(id, Instant.now(clock));
+        audit.record(actor, "REVENUE_ENTRY", id, "REVENUE_ENTRY_DELETED", Map.of("version", version));
     }
 
     public Entry recognize(UUID actor, UUID id, long version, Recognition input) {

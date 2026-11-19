@@ -14,6 +14,11 @@ import java.util.*;
 public final class RevenueExcel {
     private RevenueExcel() {}
 
+    public static ExcelWorkbook.Inspection inspect(String fileName, byte[] bytes, List<String> fields)
+            throws IOException {
+        return ExcelWorkbook.inspect(fileName, bytes, fields, ExcelWorkbook.INCLUDE_ALL_HEADERS, true);
+    }
+
     public static List<ExcelWorkbook.Line> read(
             byte[] bytes,
             String sheetName,
@@ -21,41 +26,21 @@ public final class RevenueExcel {
             Map<String, String> mapping,
             List<String> fields)
             throws IOException {
-        // 共用读取器先验证文件、列映射、公式和行数，计收再处理日期及金额原值。
-        var lines = ExcelWorkbook.read(bytes, sheetName, rowNo, mapping, fields);
-        try (var book = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-            var sheet = book.getSheet(sheetName);
-            var header = sheet.getRow(rowNo - 1);
-            var columns = new HashMap<String, Integer>();
-            var format = new DataFormatter(Locale.CHINA);
-            for (var cell : header)
-                columns.put(format.formatCellValue(cell).strip(), cell.getColumnIndex());
-            var result = new ArrayList<ExcelWorkbook.Line>();
-            for (var line : lines) {
-                var cells = new LinkedHashMap<>(line.cells());
-                var row = sheet.getRow(line.number() - 1);
-                for (var field : fields) {
-                    var column = columns.get(mapping.getOrDefault(field, ""));
-                    if (column == null) continue;
-                    var cell = row.getCell(column);
-                    if (cell == null || cell.getCellType() != CellType.NUMERIC) continue;
-                    if (field.equals("审签日期") && DateUtil.isCellDateFormatted(cell))
-                        cells.put(field, cell.getLocalDateTimeCellValue().toLocalDate().toString());
-                    else if (field.equals("条款编号")) {
-                        var number =
-                                BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros();
-                        if (number.signum() >= 0 && number.scale() <= 0)
-                            cells.put(field, number.toPlainString());
-                    } else if (Set.of("条款金额", RevenueFields.SOURCE_AMOUNT, "认定金额").contains(field))
-                        cells.put(
-                                field,
-                                BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString());
-                }
-                if (cells.values().stream().allMatch(String::isBlank)) continue;
-                result.add(new ExcelWorkbook.Line(line.number(), cells));
-            }
-            return result;
+        return ExcelWorkbook.read(bytes, sheetName, rowNo, mapping, fields, RevenueExcel::formatNumericCell, true);
+    }
+
+    private static String formatNumericCell(String field, Cell cell) {
+        if (field.equals("审签日期") && DateUtil.isCellDateFormatted(cell))
+            return cell.getLocalDateTimeCellValue().toLocalDate().toString();
+        if (field.equals("条款编号")) {
+            var number = BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros();
+            if (number.signum() >= 0 && number.scale() <= 0) return number.toPlainString();
         }
+        return switch (field) {
+            case "条款金额", RevenueFields.SOURCE_AMOUNT, "认定金额" ->
+                    BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+            default -> null;
+        };
     }
 
     public static byte[] template(Reference reference) throws IOException {
@@ -93,18 +78,21 @@ public final class RevenueExcel {
                             (province, organization) ->
                                     dropdowns.conditionalList(
                                             "省份名称", province, "地市/组织名称", List.of(organization)));
-            dropdowns.list("对应省分（集成）", reference.provinces().stream().map(p -> p.name()).toList());
+            dropdowns.list(com.pluto.ndi.revenue.domain.RevenueImport.STATUS, com.pluto.ndi.revenue.domain.Revenue.PROJECT_STATUSES);
+            var integratedOptions = new ArrayList<>(reference.provinces().stream().map(p -> p.name()).toList());
+            integratedOptions.addAll(reference.integratedOrganizations());
+            dropdowns.list("对应省分（集成）", integratedOptions);
             var notes = book.createSheet("填写说明");
             var lines =
                     List.of(
                             "来源金额单位：元，最多两位小数；不能把空值或--自动当作0。",
-                            "必填：月账期、条款金额、产品本月计收不含税额/标品含税收入。",
+                            "必填：月账期、三化分类、条款金额、产品本月计收不含税额/标品含税收入。",
                             "月账期、费用账期支持YYYYMM或YYYY-MM；审签日期选填，支持Excel日期、横线或斜线日期、日期时间以及--（无日期）。",
                             "合同编号、条款编号选填；留空或--统一为空，仅纯数字条款编号去除前导零（002与2均保存为2），混合编号保留。",
                             "月账期＋合同编号＋条款编号＋业务号码/项目编号＋自然客户名称＋产品编码全局唯一；其中仅月账期必填，其余五项未填或--统一按空字符串参与判重。",
                             "省份名称选填，留空为未归属；选择具体组织时必须填写组织名称全称；标准省份下地市仍为文本。",
                             "省份名称选择数科时，组织名称仅允许联通数字科技有限公司本部；未填时系统自动补齐。",
-                            "认定金额、通报项目名称、对应省分（集成）三项齐全且金额大于零时，导入为已认定；其他情况忽略认定数据。",
+                            "认定金额、通报项目名称、对应省分（集成）三项齐全且金额大于零时，导入为已认定，项目状态选填；其他情况忽略认定数据。",
                             "合同编号和业务号码等请用文本保存以保留前导零；纯数字条款编号按整数归一；单次最多1000行。");
             for (int i = 0; i < lines.size(); i++)
                 notes.createRow(i).createCell(0).setCellValue(lines.get(i));

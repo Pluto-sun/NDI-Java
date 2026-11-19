@@ -91,7 +91,8 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
     nextAction: '配置人员',
   });
   await page.goto(`/projects/${project.id}`);
-  await chooseActor(page, ids.reporter);
+  const reviewer = '55555555-5555-4555-8555-555555555555';
+  await chooseActor(page, reviewer);
   await expect(
     page.locator('.project-person-list').getByText('负责人甲', { exact: true }),
   ).toBeVisible();
@@ -114,6 +115,10 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
   await second
     .getByRole('combobox', { name: '项目职责', exact: true })
     .selectOption('CITY_MANAGER');
+  const secondAccount = second.getByRole('combobox', { name: '关联系统账号', exact: true });
+  await expect(secondAccount.locator(`option[value="${reviewer}"]`)).toBeAttached();
+  await expect(secondAccount.locator(`option[value="${ids.admin}"]`)).toHaveCount(0);
+  await secondAccount.selectOption(reviewer);
   await modal.getByRole('button', { name: '添加负责人', exact: true }).click();
   const third = modal.getByRole('group', { name: '负责人 3', exact: true });
   await third.getByRole('textbox', { name: '姓名', exact: true }).fill('负责人丙');
@@ -130,6 +135,7 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
     configured.responsiblePersons.filter((person) => person.responsibility === 'CITY_MANAGER'),
   ).toHaveLength(2);
   expect(configured.responsiblePersons[0].userId).toBe(ids.leader);
+  expect(configured.responsiblePersons[1].userId).toBe(reviewer);
   expect(configured.versionNo).toBeGreaterThan(initial.versionNo);
   await page.getByRole('button', { name: '配置人员', exact: true }).click();
   await modal

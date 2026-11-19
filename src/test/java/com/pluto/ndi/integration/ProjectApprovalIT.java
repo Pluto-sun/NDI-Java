@@ -1238,7 +1238,7 @@ class ProjectApprovalIT {
                 "application/pdf", 3, "0".repeat(64), DocumentStatus.AVAILABLE, Instant.now());
         when(documentDirectory.listAvailable("PROJECT", projectId)).thenReturn(List.of(available));
         when(documentDirectory.download("PROJECT", projectId, available.id()))
-                .thenReturn(new DownloadIntent("https://storage.example/download", Instant.now().plusSeconds(300)));
+                .thenReturn(new DownloadIntent("https://storage.example/download", "https://storage.example/attachment", Instant.now().plusSeconds(300)));
         assertThat(projectDocumentService.listAvailable(interfaceUserId, projectId)).containsExactly(available);
         assertThat(projectDocumentService.download(interfaceUserId, projectId, available.id()).downloadUrl())
                 .isEqualTo("https://storage.example/download");

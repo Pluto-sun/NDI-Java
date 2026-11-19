@@ -12,11 +12,13 @@ export interface CodeLabel {
 export interface ProvinceOption {
   id: string;
   name: string;
+  municipality?: boolean;
 }
 export interface CityOption {
   id: string;
   provinceId: string;
   name: string;
+  legacyMunicipalityCity?: boolean;
 }
 export interface ProjectUser {
   id: string;

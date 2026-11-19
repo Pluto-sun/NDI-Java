@@ -32,6 +32,7 @@ class RevenueSourceOptionsTest {
                                 "100",
                                 RevenueFields.SOURCE_AMOUNT,
                                 "10"));
+        result.put("三化分类", "数字化");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -71,6 +72,7 @@ class RevenueSourceOptionsTest {
         var reference =
                 new RevenueService.Reference(
                         List.of(),
+                        List.of(),
                         RevenueFields.FIELDS,
                         RevenueFields.REQUIRED.stream().toList(),
                         true,
@@ -79,7 +81,7 @@ class RevenueSourceOptionsTest {
         try (var book = new XSSFWorkbook(new ByteArrayInputStream(template))) {
             var sheet = book.getSheetAt(0);
             var validations = sheet.getDataValidations();
-            assertThat(validations).hasSize(3);
+            assertThat(validations).hasSize(4);
             var province = validations.getFirst().getValidationConstraint().getFormula1();
             var range =
                     new org.apache.poi.ss.util.AreaReference(

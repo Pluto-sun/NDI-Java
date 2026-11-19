@@ -86,6 +86,8 @@ APP_HOST='' FILES_HOST='' APP_CERT='' APP_KEY='' FILES_CERT='' FILES_KEY=''
 JAVA_BIN=/usr/bin/java APP_PORT=8080 MINIO_UPSTREAM=127.0.0.1:9000 START_TIMEOUT=180
 DATABASE_BACKUP_CONFIRMED=no
 DEPLOY_MODE=https PUBLIC_IP='' WEB_PORT=8088 FILES_PORT=9002
+shared_http_port=false
+MINIO_WEB_ROUTE='' MINIO_FILE_SERVER='' MINIO_BUCKET_PATTERN=''
 source "$config_file"
 if [[ "$mode" == --deploy && "$DATABASE_BACKUP_CONFIRMED" != yes ]]; then
   fail '请先备份数据库或确认目标为空库，再设置 DATABASE_BACKUP_CONFIRMED=yes。'
@@ -100,9 +102,12 @@ if [[ "$DEPLOY_MODE" == http ]]; then
     value=${!key}
     [[ "$value" =~ ^[1-9][0-9]{3,4}$ ]] && (( value >= 1024 && value <= 65535 )) || fail "$key 必须为 1024 至 65535。"
   done
-  [[ "$WEB_PORT" != "$FILES_PORT" && "$WEB_PORT" != "$APP_PORT" && "$FILES_PORT" != "$APP_PORT" && "$WEB_PORT" != "${MINIO_UPSTREAM##*:}" && "$FILES_PORT" != "${MINIO_UPSTREAM##*:}" ]] || fail '应用、对象代理、Java 和 MinIO 端口不能冲突。'
+  [[ "$WEB_PORT" != "$APP_PORT" && "$FILES_PORT" != "$APP_PORT" && "$WEB_PORT" != "${MINIO_UPSTREAM##*:}" && "$FILES_PORT" != "${MINIO_UPSTREAM##*:}" ]] || fail '应用、对象代理、Java 和 MinIO 端口不能冲突。'
+  http_ports=("$WEB_PORT")
+  [[ "$WEB_PORT" == "$FILES_PORT" ]] || http_ports+=("$FILES_PORT")
   app_origin="http://$PUBLIC_IP:$WEB_PORT"
   files_origin="http://$PUBLIC_IP:$FILES_PORT"
+  [[ "$WEB_PORT" != "$FILES_PORT" ]] || shared_http_port=true
   secure_cookie=false
 else
 for key in APP_HOST FILES_HOST; do
@@ -151,6 +156,13 @@ done
 [[ "$(env_value SPRING_PROFILES_ACTIVE)" == prod && "$(env_value NDI_AUTH_MODE)" == SESSION && "$(env_value NDI_SECURE_COOKIE)" == "$secure_cookie" ]] || fail '必须使用 prod、SESSION；HTTP 的 NDI_SECURE_COOKIE=false，HTTPS 则为 true。'
 [[ "$(env_value NDI_MINIO_ENDPOINT)" == "http://$MINIO_UPSTREAM" ]] || fail '应用内网 MinIO 地址需与代理上游一致。'
 [[ "$(env_value NDI_MINIO_PUBLIC_ENDPOINT)" == "$files_origin" ]] || fail 'MinIO 公共地址必须匹配对象代理入口，且不附加路径。'
+if [[ "$shared_http_port" == true ]]; then
+  signing_region="$(env_value NDI_MINIO_SIGNING_REGION)"
+  [[ "$signing_region" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || fail 'HTTP 同端口模式须设置 NDI_MINIO_SIGNING_REGION 为桶的实际 Region。'
+  bucket="$(env_value NDI_MINIO_BUCKET)"
+  [[ "$bucket" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ && "$bucket" != *..* ]] || fail 'HTTP 同端口模式需要有效的 MinIO 桶名。'
+  MINIO_BUCKET_PATTERN=${bucket//./[.]}
+fi
 [[ "$(env_value NDI_DATASOURCE_URL)" == jdbc:mysql://* ]] || fail '数据库 URL 必须使用 jdbc:mysql://。'
 if [[ -n "$(env_value NDI_BOOTSTRAP_ADMIN_LOGIN)" || -n "$(env_value NDI_BOOTSTRAP_ADMIN_PASSWORD)" ]]; then
   [[ -n "$(env_value NDI_BOOTSTRAP_ADMIN_LOGIN)" && -n "$(env_value NDI_BOOTSTRAP_ADMIN_PASSWORD)" ]] || fail '首次管理员账号与密码必须同时填写。'
@@ -172,7 +184,7 @@ if command -v getenforce >/dev/null && [[ "$(getenforce)" == Enforcing ]]; then
   getsebool httpd_can_network_connect | grep -q -- '--> on' || fail 'SELinux 未允许 Nginx 代理连接，请管理员配置 httpd_can_network_connect。'
   if [[ "$DEPLOY_MODE" == http ]]; then
     command -v semanage >/dev/null || fail 'SELinux 端口检查缺少 semanage。'
-    for port in "$WEB_PORT" "$FILES_PORT"; do
+    for port in "${http_ports[@]}"; do
       semanage port -l | awk -v p="$port" '$1=="http_port_t" && $2=="tcp" {for(i=3;i<=NF;i++){gsub(/,/,"",$i);n=split($i,r,"-");if((n==1 && p==r[1]) || (n==2 && p>=r[1] && p<=r[2]))ok=1}} END{exit !ok}' || fail 'SELinux 未将对外端口标记为 http_port_t；请管理员核对端口策略。'
     done
   fi
@@ -192,7 +204,15 @@ while IFS= read -r file; do
 done < <(find "$bundle_dir" -type f)
 release_id="$(awk -F= '$1=="RELEASE_ID" {print $2}' "$bundle_dir/release.txt")"
 [[ "$release_id" =~ ^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,40}$ ]] || fail '发布版本号无效。'
-for file in backend/app.jar frontend/index.html templates/ndi.service.template templates/ndi.nginx.conf.template deploy.sh release.txt; do
+required_files=(backend/app.jar frontend/index.html templates/ndi.service.template deploy.sh release.txt)
+if [[ "$DEPLOY_MODE" == https ]]; then
+  required_files+=(templates/ndi.nginx.conf.template)
+elif [[ "$shared_http_port" == true ]]; then
+  required_files+=(templates/ndi.nginx.http.conf.template templates/ndi.nginx.http.bucket.template)
+else
+  required_files+=(templates/ndi.nginx.http.conf.template templates/ndi.nginx.http.files.template)
+fi
+for file in "${required_files[@]}"; do
   [[ -s "$bundle_dir/$file" ]] || fail "交付包缺少：$file"
   awk -v expected="./$file" '$2==expected {found=1} END {exit !found}' "$bundle_dir/SHA256SUMS" || fail "关键文件未列入校验：$file"
 done
@@ -221,7 +241,7 @@ if [[ -n "$listeners" ]]; then
   done <<< "$listeners"
 fi
 if [[ "$DEPLOY_MODE" == http ]]; then
-  for port in "$WEB_PORT" "$FILES_PORT"; do
+  for port in "${http_ports[@]}"; do
     external_listeners="$(ss -lntp | awk -v suffix=":$port" 'index($4,suffix)>0 && index($4,suffix)==length($4)-length(suffix)+1 {print}')"
     while IFS= read -r line; do
       [[ -z "$line" || "$line" == *'("nginx",pid='* ]] || fail '对外端口被非 Nginx 进程占用。'
@@ -236,7 +256,7 @@ touch "$stage_dir/.ndi-owned"
 render() {
   local content key
   content="$(< "$1")"
-  for key in APP_HOST FILES_HOST APP_CERT APP_KEY FILES_CERT FILES_KEY JAVA_BIN APP_PORT MINIO_UPSTREAM PUBLIC_IP WEB_PORT FILES_PORT; do
+  for key in MINIO_WEB_ROUTE MINIO_FILE_SERVER APP_HOST FILES_HOST APP_CERT APP_KEY FILES_CERT FILES_KEY JAVA_BIN APP_PORT MINIO_UPSTREAM PUBLIC_IP WEB_PORT FILES_PORT MINIO_BUCKET_PATTERN; do
     content=${content//@@$key@@/${!key}}
   done
   [[ "$content" != *'@@'* ]] || fail '存在未替换的模板变量。'
@@ -244,7 +264,14 @@ render() {
 }
 render "$bundle_dir/templates/ndi.service.template" "$stage_dir/ndi.service"
 nginx_template=ndi.nginx.conf.template
-if [[ "$DEPLOY_MODE" == http ]]; then nginx_template=ndi.nginx.http.conf.template; fi
+if [[ "$DEPLOY_MODE" == http ]]; then
+  nginx_template=ndi.nginx.http.conf.template
+  if [[ "$shared_http_port" == true ]]; then
+    MINIO_WEB_ROUTE="$(< "$bundle_dir/templates/ndi.nginx.http.bucket.template")"
+  else
+    MINIO_FILE_SERVER="$(< "$bundle_dir/templates/ndi.nginx.http.files.template")"
+  fi
+fi
 render "$bundle_dir/templates/$nginx_template" "$stage_dir/ndi.conf"
 printf 'events {}\nhttp { include /etc/nginx/mime.types; include %s; }\n' "$stage_dir/ndi.conf" > "$stage_dir/preflight.conf"
 nginx -t -c "$stage_dir/preflight.conf" || fail '候选站点配置或证书无效。'

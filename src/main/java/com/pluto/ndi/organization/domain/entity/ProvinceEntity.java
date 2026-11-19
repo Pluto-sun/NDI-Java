@@ -37,5 +37,6 @@ public class ProvinceEntity {
 
     public UUID id() { return id; }
     public boolean enabled() { return enabled; }
+    public String provinceCode() { return provinceCode; }
     public String provinceName() { return provinceName; }
 }

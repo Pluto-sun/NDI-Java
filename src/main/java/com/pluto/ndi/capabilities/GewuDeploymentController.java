@@ -2,6 +2,8 @@ package com.pluto.ndi.capabilities;
 
 import static com.pluto.ndi.capabilities.GewuDeploymentService.*;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.organization.service.CityOption;
 import com.pluto.ndi.shared.excel.ExcelWorkbook;
 import com.pluto.ndi.shared.imports.ImportControllerBase;
 import com.pluto.ndi.shared.security.ActorPrincipal;
@@ -12,7 +14,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/capability/gewu-deployments")
@@ -27,6 +33,11 @@ public class GewuDeploymentController extends ImportControllerBase {
         super(imports, responses);
         this.deployments = deployments;
         this.responses = responses;
+    }
+
+    @GetMapping("/dashboard")
+    public ApiResponse<DashboardSummary> dashboard(Authentication auth) {
+        return responses.success(deployments.dashboard(actor(auth)));
     }
 
     @GetMapping
@@ -87,7 +98,17 @@ public class GewuDeploymentController extends ImportControllerBase {
 
     @Override
     protected byte[] templateBytes(UUID actor) throws IOException {
-        deployments.scope(actor);
-        return ExcelWorkbook.template(FIELDS);
+        var reference = deployments.reference(actor);
+        var citiesByProvince = reference.cities().stream()
+                .collect(Collectors.groupingBy(CityOption::provinceId,
+                        Collectors.mapping(CityOption::name, Collectors.toList())));
+        var citiesByProvinceName = new LinkedHashMap<String, List<String>>();
+        for (var province : reference.provinces()) {
+            citiesByProvinceName.put(province.name(), citiesByProvince.get(province.id()));
+        }
+        return ExcelWorkbook.template(FIELDS, Set.of(), dropdowns -> {
+            dropdowns.dependent("省份", "地市", citiesByProvinceName);
+            reference.options().forEach(dropdowns::list);
+        });
     }
 }

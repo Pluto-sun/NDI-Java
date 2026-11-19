@@ -1,5 +1,9 @@
 package com.pluto.ndi.production.mapper;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.production.domain.ProductionPlan;
 import com.pluto.ndi.production.service.ProductionAccessService.Access;
@@ -42,8 +46,7 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
   JOIN organization_province v ON v.id=p.province_id JOIN organization_city c ON c.id=p.city_id
 """;
 
-    public Result list(Access access, Filter filter) {
-        var args = new MapSqlParameterSource();
+    private StringBuilder scopeWhere(Access access, MapSqlParameterSource args) {
         var where = new StringBuilder(" WHERE p.deleted_at IS NULL");
         switch (access.scope().level()) {
             case NATIONAL -> {}
@@ -60,6 +63,53 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
                 args.addValue("scope", access.scope().organizationId().toString());
             }
         }
+        return where;
+    }
+
+    public DashboardSummary dashboard(Access access, DashboardSummary.MonthRange months) {
+        var args = new MapSqlParameterSource();
+        var where = scopeWhere(access, args);
+        if (months.from() != null) {
+            where.append(" AND p.plan_month>=:start");
+            args.addValue("start", months.from());
+        }
+        if (months.to() != null) {
+            where.append(" AND p.plan_month<=:finish");
+            args.addValue("finish", months.to());
+        }
+        var names = List.of("5G工业专网", "格物工业互联网平台", "工业大数据平台", "万悟工业智能体平台");
+        var keys = List.of("network", "gewu", "big_data", "wangwu");
+        var counts = new long[keys.size()];
+        var totals = new BigDecimal[keys.size()];
+        Arrays.fill(totals, BigDecimal.ZERO);
+        var provinces = jdbc.query("""
+                SELECT province_name, COUNT(*) AS total_count,
+                    SUM(network>0) AS network_count, SUM(network) AS network_amount, SUM(gewu>0) AS gewu_count, SUM(gewu) AS gewu_amount, SUM(big_data>0) AS big_data_count, SUM(big_data) AS big_data_amount, SUM(wangwu>0) AS wangwu_count, SUM(wangwu) AS wangwu_amount
+                FROM (
+                    SELECT v.province_name,
+                        COALESCE(p.network_order_amount,0) AS network,
+                        COALESCE(p.gewu_order_amount,0) + COALESCE(p.gewu_revenue_amount,0) AS gewu,
+                        COALESCE(p.big_data_order_amount,0) + COALESCE(p.big_data_revenue_amount,0) AS big_data,
+                        COALESCE(p.wangwu_order_amount,0) + COALESCE(p.wangwu_revenue_amount,0) AS wangwu
+                    FROM production_plan p JOIN organization_province v ON v.id=p.province_id
+                """ + where + ") scoped GROUP BY province_name", args, (rs, row) -> {
+                    BigDecimal provinceAmount = BigDecimal.ZERO;
+                    for (int i = 0; i < keys.size(); i++) {
+                        counts[i] += rs.getLong(keys.get(i) + "_count");
+                        var amount = rs.getBigDecimal(keys.get(i) + "_amount");
+                        totals[i] = totals[i].add(amount);
+                        provinceAmount = provinceAmount.add(amount);
+                    }
+                    return new Metric(rs.getString("province_name"), rs.getLong("total_count"), provinceAmount);
+                });
+        var categories = new ArrayList<Metric>();
+        for (int i = 0; i < keys.size(); i++) categories.add(new Metric(names.get(i), counts[i], totals[i]));
+        return DashboardSummary.amounts(categories, provinces);
+    }
+
+    public Result list(Access access, Filter filter) {
+        var args = new MapSqlParameterSource();
+        var where = scopeWhere(access, args);
         if (filter.month() != null && !filter.month().isBlank()) {
             where.append(" AND p.plan_month=:month");
             args.addValue("month", filter.month() + "-01");
@@ -150,19 +200,24 @@ SELECT COUNT(*) FROM production_plan WHERE deleted_at IS NULL AND plan_month=:mo
                         .addValue("np", ProductionRules.normalize(c.projectName()))
                         .addValue("nc", ProductionRules.normalize(c.customerName()))
                         .addValue("categories", encode(c.categories()))
-                        .addValue("network", c.networkAmount())
-                        .addValue("gewu", c.gewuAmount())
-                        .addValue("bigdata", c.bigDataAmount())
-                        .addValue("wangwu", c.wangwuAmount())
+                        .addValue("networkOrderAmount", c.networkOrderAmount())
+                        .addValue("gewuOrderAmount", c.gewuOrderAmount())
+                        .addValue("gewuRevenueAmount", c.gewuRevenueAmount())
+                        .addValue("bigDataOrderAmount", c.bigDataOrderAmount())
+                        .addValue("bigDataRevenueAmount", c.bigDataRevenueAmount())
+                        .addValue("wangwuOrderAmount", c.wangwuOrderAmount())
+                        .addValue("wangwuRevenueAmount", c.wangwuRevenueAmount())
                         .addValue("status", c.projectStatus())
+                        .addValue("remark", c.remark())
+                        .addValue("introduction", c.productIntroduction())
                         .addValue("now", java.sql.Timestamp.from(now));
         if (create)
             jdbc.update(
                     """
 INSERT INTO production_plan(id,reviewer_name,plan_month,province_id,city_id,project_name,customer_name,normalized_project,normalized_customer,categories,
- network_amount,gewu_amount,big_data_amount,wangwu_amount,project_status,created_by,created_at,updated_at)
+ network_order_amount,gewu_order_amount,gewu_revenue_amount,big_data_order_amount,big_data_revenue_amount,wangwu_order_amount,wangwu_revenue_amount,project_status,remark,product_introduction,created_by,created_at,updated_at)
 VALUES(UUID_TO_BIN(:id),:reviewer,:month,UUID_TO_BIN(:province),UUID_TO_BIN(:city),:project,:customer,:np,:nc,CAST(:categories AS JSON),
- :network,:gewu,:bigdata,:wangwu,:status,UUID_TO_BIN(:actor),:now,:now)
+ :networkOrderAmount,:gewuOrderAmount,:gewuRevenueAmount,:bigDataOrderAmount,:bigDataRevenueAmount,:wangwuOrderAmount,:wangwuRevenueAmount,:status,:remark,:introduction,UUID_TO_BIN(:actor),:now,:now)
 """,
                     args);
         else
@@ -170,7 +225,7 @@ VALUES(UUID_TO_BIN(:id),:reviewer,:month,UUID_TO_BIN(:province),UUID_TO_BIN(:cit
                     """
 UPDATE production_plan SET version_no=version_no+1,reviewer_name=:reviewer,plan_month=:month,province_id=UUID_TO_BIN(:province),city_id=UUID_TO_BIN(:city),
  project_name=:project,customer_name=:customer,normalized_project=:np,normalized_customer=:nc,categories=CAST(:categories AS JSON),
- network_amount=:network,gewu_amount=:gewu,big_data_amount=:bigdata,wangwu_amount=:wangwu,project_status=:status,updated_at=:now WHERE id=UUID_TO_BIN(:id)
+ network_order_amount=:networkOrderAmount,gewu_order_amount=:gewuOrderAmount,gewu_revenue_amount=:gewuRevenueAmount,big_data_order_amount=:bigDataOrderAmount,big_data_revenue_amount=:bigDataRevenueAmount,wangwu_order_amount=:wangwuOrderAmount,wangwu_revenue_amount=:wangwuRevenueAmount,project_status=:status,remark=:remark,product_introduction=:introduction,updated_at=:now WHERE id=UUID_TO_BIN(:id)
 """,
                     args);
     }
@@ -205,14 +260,27 @@ UPDATE production_plan SET version_no=version_no+1,reviewer_name=:reviewer,plan_
                 rs.getString("project_name"),
                 rs.getString("customer_name"),
                 categories,
-                rs.getBigDecimal("network_amount"),
-                rs.getBigDecimal("gewu_amount"),
-                rs.getBigDecimal("big_data_amount"),
-                rs.getBigDecimal("wangwu_amount"),
+                amount(rs, "network_order_amount"),
+                amount(rs, "gewu_order_amount"),
+                amount(rs, "gewu_revenue_amount"),
+                amount(rs, "big_data_order_amount"),
+                amount(rs, "big_data_revenue_amount"),
+                amount(rs, "wangwu_order_amount"),
+                amount(rs, "wangwu_revenue_amount"),
                 rs.getString("project_status"),
+                rs.getString("remark"),
+                rs.getString("product_introduction"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant(),
                 writable);
+    }
+
+    private static java.math.BigDecimal amount(ResultSet row, String column) throws SQLException {
+        var value = row.getBigDecimal(column);
+        if (value == null) return null;
+        // 兼容原有的两位小数表示，同时保留新增的有效小数位。
+        var decimal = value.stripTrailingZeros();
+        return decimal.setScale(Math.max(2, decimal.scale()));
     }
 
     private String encode(Object value) {

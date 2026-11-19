@@ -106,19 +106,19 @@ export function ProjectDetailPage({
   const label = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
   const canCollaborate =
+    !!detail &&
     !me.roleCodes.includes('SYSTEM_ADMIN') &&
-    (me.roleCodes.includes('INTERFACE_REVIEWER')
-      ? !!detail && me.reviewerProvinceIds.includes(detail.provinceId)
-      : me.provinceId === detail?.provinceId) &&
-    (me.roleCodes.some((role) =>
-      [
-        'PROVINCE_REPORTER',
-        'PROVINCE_DIGITAL_LEADER',
-        'PROVINCE_INTELLIGENT_LEADER',
-        'INTERFACE_REVIEWER',
-      ].includes(role),
-    ) ||
-      (me.roleCodes.includes('CITY_REPORTER') && me.cityId === detail?.cityId));
+    ((me.roleCodes.includes('INTERFACE_REVIEWER') &&
+      me.reviewerProvinceIds.includes(detail.provinceId)) ||
+      (me.provinceId === detail.provinceId &&
+        (me.roleCodes.some((role) =>
+          ['PROVINCE_REPORTER', 'PROVINCE_DIGITAL_LEADER', 'PROVINCE_INTELLIGENT_LEADER'].includes(
+            role,
+          ),
+        ) ||
+          (me.roleCodes.includes('CITY_REPORTER') && me.cityId === detail.cityId))));
+  const assignedProvince = reference.provinces.find((item) => item.id === detail?.provinceId);
+  const assignedCity = reference.cities.find((item) => item.id === detail?.cityId);
   const canProgress = canCollaborate && detail?.currentStageCode !== 'TERMINATED';
   return (
     <section className="project-detail-page">
@@ -127,7 +127,7 @@ export function ProjectDetailPage({
           <Link className="back-link" to={returnTo}>
             ← 返回项目列表
           </Link>
-          <h1>{detail?.projectName ?? '项目详情'}</h1>
+          <h2>{detail?.projectName}</h2>
           <p>{detail?.projectCode ?? '主档、进展和里程碑'}</p>
         </div>
         {detail && (
@@ -169,8 +169,12 @@ export function ProjectDetailPage({
                   </dd>
                 </div>
                 <div>
-                  <dt>归属地市</dt>
-                  <dd>{reference.cities.find((item) => item.id === detail.cityId)?.name ?? '—'}</dd>
+                  <dt>{assignedProvince?.municipality ? '归属区县' : '归属地市'}</dt>
+                  <dd>
+                    {assignedCity?.legacyMunicipalityCity
+                      ? '未细分区县'
+                      : (assignedCity?.name ?? '—')}
+                  </dd>
                 </div>
                 <div>
                   <dt>协作省份</dt>

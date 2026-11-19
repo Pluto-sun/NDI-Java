@@ -150,6 +150,18 @@ expect_failure --check 'COOKIE'
 sed -i 's/NDI_SECURE_COOKIE=true/NDI_SECURE_COOKIE=false/' /etc/ndi/application.env
 echo '通过：HTTP 双端口无证书部署，以及 Cookie 协议不匹配拦截。'
 
+sed -i 's/FILES_PORT=9002/FILES_PORT=8088/' /etc/ndi/deploy.conf
+sed -i 's@192.0.2.10:9002@192.0.2.10:8088@' /etc/ndi/application.env
+expect_failure --check 'NDI_MINIO_SIGNING_REGION'
+printf '%s\n' 'NDI_MINIO_SIGNING_REGION=us-east-1' >> /etc/ndi/application.env
+run_deploy --check
+run_deploy --deploy
+[[ "$(grep -c 'listen 8088;' /etc/nginx/conf.d/ndi.conf)" == 1 ]]
+! grep -q 'listen 9002;' /etc/nginx/conf.d/ndi.conf
+grep -Fq 'location ~ ^/ndi-documents(?:/|$)' /etc/nginx/conf.d/ndi.conf
+grep -Fq 'proxy_set_header Host $http_host;' /etc/nginx/conf.d/ndi.conf
+echo '通过：HTTP 同端口部署、MinIO 路由、签名 Region 必填。'
+
 if [[ -f /check-env.sh ]]; then
   make_mock timeout 'shift; if [[ "$1" == bash ]]; then exit 0; fi; exec "$@"'
   make_mock mysql 'echo 8.4.0'

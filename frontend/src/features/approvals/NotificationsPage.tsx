@@ -82,7 +82,6 @@ export function NotificationsPage() {
     <section className="message-center">
       <div className="page-heading">
         <div>
-          <h1>消息通知</h1>
           <p>按业务查看申请动态与项目督办，及时处理需要关注的事项。</p>
         </div>
       </div>

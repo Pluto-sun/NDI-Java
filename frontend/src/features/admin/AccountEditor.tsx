@@ -51,6 +51,9 @@ export function AccountEditor({
     .map((role) => role.scope);
   const hasProvince = scopes.some((scope) => ['PROVINCE', 'CITY'].includes(scope));
   const hasCity = scopes.includes('CITY');
+  const municipality = configuration.provinces.find(
+    (province) => province.id === values.provinceId,
+  )?.municipality;
   function changeRole(code: string, checked: boolean) {
     const role = configuration.roles.find((item) => item.code === code);
     const existingProvinceRoles = values.roleCodes.filter(
@@ -187,18 +190,22 @@ export function AccountEditor({
           </label>
           {hasCity && (
             <label>
-              所属地市
+              {municipality ? '所属区县' : '所属地市'}
               <Select
                 required
                 value={values.cityId ?? ''}
                 onChange={(event) => setValues({ ...values, cityId: event.target.value || null })}
               >
-                <option value="">请选择地市</option>
+                <option value="">{municipality ? '请选择区县' : '请选择地市'}</option>
                 {configuration.cities
-                  .filter((city) => city.provinceId === values.provinceId)
+                  .filter(
+                    (city) =>
+                      city.provinceId === values.provinceId &&
+                      (!city.legacyMunicipalityCity || city.id === user?.cityId),
+                  )
                   .map((city) => (
                     <option key={city.id} value={city.id}>
-                      {city.name}
+                      {city.legacyMunicipalityCity ? '未细分区县（原归属）' : city.name}
                     </option>
                   ))}
               </Select>

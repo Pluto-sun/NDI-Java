@@ -42,6 +42,7 @@ export interface ProjectQuery {
   stage?: string;
   projectCode?: string;
   industryCode?: string;
+  provinceId?: string;
   cityId?: string;
   includeTerminated?: boolean;
   signingSubjectCode?: string;
@@ -247,6 +248,7 @@ export const projectsApi = {
       ...jsonBody({ expectedRevision, confirmed: true, reason, fingerprint }),
     }),
   importTemplate: () => requestBlob('/imports/template'),
+  originalFailedImportRows: (id: string) => requestBlob(`/imports/${id}/failed-rows/original`),
   failedImportRows: (id: string) => requestBlob(`/imports/${id}/failed-rows/export`),
   importBatch: (id: string) => request<ImportBatch>(`/imports/${id}`),
   reviseImportRow: (
@@ -287,7 +289,9 @@ export const projectsApi = {
   completeUpload: (id: string, documentId: string) =>
     request<ProjectDocument>(`/${id}/documents/${documentId}/complete`, { method: 'POST' }),
   downloadUrl: (id: string, documentId: string) =>
-    request<{ downloadUrl: string }>(`/${id}/documents/${documentId}/download-url`),
+    request<{ downloadUrl: string; attachmentUrl: string }>(
+      `/${id}/documents/${documentId}/download-url`,
+    ),
   deleteDocument: (id: string, documentId: string) =>
     request<void>(`/${id}/documents/${documentId}`, { method: 'DELETE' }),
   submitStage: (

@@ -69,6 +69,8 @@ public enum ProjectErrorCode implements ErrorCode {
             "PROJECT_DUPLICATE_CONFIRMATION_REQUIRED",
             "发现相似项目",
             "确认另建项目时必须填写原因"),
+    MUNICIPALITY_DISTRICT_REQUIRED(
+            HttpStatus.BAD_REQUEST, "PROJECT_MUNICIPALITY_DISTRICT_REQUIRED", "请选择直辖市区县", "直辖市的地市字段须填写实际区县"),
     INVALID_ORGANIZATION(
             HttpStatus.BAD_REQUEST, "PROJECT_INVALID_ORGANIZATION", "项目属地无效", "省分与地市不存在、未启用或不匹配"),
     INVALID_COLLABORATION_PROVINCE(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_COLLABORATION_PROVINCE", "协作省份无效", "请选择已启用的协作省份"),
@@ -164,6 +166,9 @@ public enum ProjectErrorCode implements ErrorCode {
     EXPORT_NOT_READY(HttpStatus.CONFLICT, "PROJECT_EXPORT_NOT_READY", "导出文件尚未就绪", "请在任务完成后下载导出文件"),
     IMPORT_INVALID_FILE(
             HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_INVALID_FILE", "导入文件无效", "请检查模板、文件大小和工作表内容"),
+    IMPORT_ORIGINAL_EXPORT_UNAVAILABLE(
+            HttpStatus.CONFLICT, "PROJECT_IMPORT_ORIGINAL_EXPORT_UNAVAILABLE",
+            "原始文件不可用", "请通过导入向导上传原始 Excel 并重新预检"),
     IMPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_IMPORT_NOT_FOUND", "导入批次不存在", "批次不存在或不属于当前账号"),
     IMPORT_ALREADY_CONFIRMED(
             HttpStatus.CONFLICT, "PROJECT_IMPORT_ALREADY_CONFIRMED", "导入批次已确认", "同一批次只能确认一次"),

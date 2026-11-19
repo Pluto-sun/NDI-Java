@@ -119,7 +119,10 @@ WHERE status IN ('AVAILABLE', 'DELETED') ORDER BY id
                                     + " production_import_task UNION ALL SELECT"
                                     + " bucket_name,object_key,byte_size,sha256_hex FROM revenue_import_task UNION ALL SELECT"
                                     + " bucket_name,object_key,byte_size,sha256_hex FROM capability_import_task UNION ALL SELECT"
-                                    + " bucket_name,object_key,byte_size,sha256_hex FROM snapshot_import_task")) {
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM snapshot_import_task UNION ALL SELECT"
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM wangwu_import_task UNION ALL SELECT"
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM agents_live_import_task UNION ALL SELECT"
+                                    + " bucket_name,object_key,byte_size,sha256_hex FROM agents_development_import_task")) {
             while (rows.next()) {
                 result.add(
                         new ObjectRef(

@@ -3,6 +3,8 @@ package com.pluto.ndi.projects.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pluto.ndi.documents.service.ImportWorkbookDirectory;
+import com.pluto.ndi.projects.mapper.ProjectImportTaskMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
 import com.pluto.ndi.identity.service.ProjectActor;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
@@ -83,6 +85,8 @@ public class ProjectImportService {
     private final ProjectImportNameReviewService nameReviews;
     private final ProjectImportTaskCleanup taskCleanup;
     private final ProjectContextService context;
+    private final ProjectImportTaskMapper tasks;
+    private final ImportWorkbookDirectory workbooks;
 
     public ProjectImportService(
             ProjectExcelReader reader,
@@ -100,8 +104,12 @@ public class ProjectImportService {
             Clock clock,
             ProjectImportNameReviewService nameReviews,
             ProjectImportTaskCleanup taskCleanup,
-            ProjectContextService context) {
+            ProjectContextService context,
+            ProjectImportTaskMapper tasks,
+            ImportWorkbookDirectory workbooks) {
         this.context = context;
+        this.tasks = tasks;
+        this.workbooks = workbooks;
         this.nameReviews = nameReviews;
         this.taskCleanup = taskCleanup;
         this.reader = reader;
@@ -279,6 +287,28 @@ public class ProjectImportService {
                 .filter(item -> item.actorId().equals(actorId))
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
         return workbookWriter.failedRows(rows.findByBatchIdOrderByRowNumber(batchId));
+    }
+
+    @Transactional
+    public byte[] originalFailedRows(UUID actorId, UUID batchId) {
+        var batch = batches.findByIdAndActorId(batchId, actorId)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
+        if (!"PREVIEWED".equals(batch.status())) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
+        }
+        var task = tasks.findByBatch(batchId)
+                .filter(item -> item.actorId().equals(actorId))
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_ORIGINAL_EXPORT_UNAVAILABLE));
+        var rowNumbers = rows.findByBatchIdOrderByRowNumber(batchId).stream().filter(row -> {
+            if ("FAILED".equals(row.status())) return true;
+            var review = nameReviews.read(row);
+            return "READY".equals(row.status()) && review != null && !review.accepted();
+        }).map(ProjectImportRowEntity::rowNumber).toList();
+        var bytes = workbooks.read(task.bucket(), task.objectKey());
+        if (!batch.fileSha256().equals(sha256(bytes))) {
+            throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
+        }
+        return workbookWriter.originalRows(bytes, batch.sheetName(), batch.headerRowNumber(), rowNumbers);
     }
 
     @Transactional
@@ -607,7 +637,9 @@ public class ProjectImportService {
                             + " / "
                             + row.get("地市")
                             + "；请按行政区划核对原文件，或在预检中修正该行。无需为该地市单独创建账号");
-        else if (!identity.canImportProject(
+        else if (location.get().legacyMunicipalityCity()) {
+            errors.add("直辖市的地市字段须填写实际区县");
+        } else if (!identity.canImportProject(
                 actor, location.get().provinceId(), location.get().cityId())) {
             errors.add("无此省市项目导入权限");
         }

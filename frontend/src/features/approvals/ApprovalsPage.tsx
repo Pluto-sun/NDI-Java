@@ -97,7 +97,6 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
     <section className="message-center">
       <div className="page-heading">
         <div>
-          <h1>审批待办</h1>
           <p>集中办理项目变更与计收认定，查看申请进展和处理记录。</p>
         </div>
       </div>
@@ -421,7 +420,7 @@ export function ApprovalDetailPage({
           <Link className="back-link" to="/approvals">
             ← 返回审批待办
           </Link>
-          <h1>申请详情</h1>
+
           <p>审批通过前不更改项目正式数据。</p>
         </div>
       </div>

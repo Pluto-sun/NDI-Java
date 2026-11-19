@@ -1,5 +1,9 @@
 package com.pluto.ndi.revenue.mapper;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.service.RevenueAccessService.Access;
@@ -55,10 +59,48 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             int size,
             Summary summary) {}
 
+    public DashboardSummary dashboard(Access access, DashboardSummary.MonthRange months) {
+        var base = where(access, new Filter(null, null, null, null, 0, 1));
+        var sql = new StringBuilder(base.sql());
+        var args = base.args().addValue("digitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+        if (months.from() != null) {
+            sql.append(" AND e.account_month>=:start");
+            args.addValue("start", months.from());
+        }
+        if (months.to() != null) {
+            sql.append(" AND e.account_month<=:finish");
+            args.addValue("finish", months.to());
+        }
+        var provinces = new HashMap<String, Metric>();
+        var categories = new TreeMap<String, Metric>();
+        jdbc.query("""
+                SELECT CASE
+                    WHEN e.specific_organization THEN
+                        IF(JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$."省份名称"'))=:digitalTech,
+                           :digitalTech, '具体组织')
+                    ELSE COALESCE(p.province_name,'未归属') END AS province_label,
+                    COALESCE(NULLIF(NULLIF(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(
+                        e.source_fields,'$."三化分类"'))),''),'--'),'null'),'未分类') AS category_label,
+                    COUNT(*) AS records,
+                    COALESCE(SUM(CASE WHEN e.recognition IS NOT NULL THEN e.recognized_amount END),0) AS amount
+                FROM revenue_entry e LEFT JOIN organization_province p ON p.id=e.province_id
+                """ + sql + " GROUP BY province_label, category_label", args, rs -> {
+                    long count = rs.getLong("records");
+                    var amount = rs.getBigDecimal("amount");
+                    for (var axis : List.of(Map.entry(provinces, "province_label"), Map.entry(categories, "category_label"))) {
+                        String label = rs.getString(axis.getValue());
+                        axis.getKey().merge(label, new Metric(label, count, amount),
+                                (a,b) -> new Metric(label, a.count() + b.count(),
+                                        new BigDecimal(a.amount()).add(new BigDecimal(b.amount()))));
+                    }
+                });
+        return DashboardSummary.amounts(List.copyOf(categories.values()), List.copyOf(provinces.values()));
+    }
+
     private record Where(String sql, MapSqlParameterSource args) {}
 
     private Where where(Access a, Filter f) {
-        var sql = new StringBuilder(" WHERE 1=1");
+        var sql = new StringBuilder(" WHERE e.active_key=1");
         var args = new MapSqlParameterSource();
         if (!a.national()) {
             sql.append(" AND e.province_id=UUID_TO_BIN(:scope) AND e.specific_organization=FALSE");
@@ -168,7 +210,7 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
     public Optional<Entry> find(UUID id, Access access, boolean lock) {
         return jdbc
                 .query(
-                        SELECT + " WHERE e.id=UUID_TO_BIN(:id)" + (lock ? " FOR UPDATE" : ""),
+                        SELECT + " WHERE e.id=UUID_TO_BIN(:id) AND e.active_key=1" + (lock ? " FOR UPDATE" : ""),
                         Map.of("id", str(id)),
                         (r, n) -> entry(r, access))
                 .stream()
@@ -204,28 +246,34 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                 pending == null && a.recognize(province, org));
     }
 
-    public boolean duplicate(Source c) {
-        return jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM revenue_entry WHERE account_month=:month AND"
-                                + " contract_number_key=:contract AND clause_number_key=:clause"
-                                + " AND business_number_hash=UNHEX(SHA2(:business,256))"
-                                + " AND natural_customer_name_hash=UNHEX(SHA2(:customer,256))"
-                                + " AND product_code_hash=UNHEX(SHA2(:product,256))",
-                        Map.of(
-                                "month",
-                                c.month() + "-01",
-                                "contract",
-                                c.contractNo(),
-                                "clause",
-                                c.clauseNo(),
-                                "business",
-                                c.fields().getOrDefault("业务号码/项目编号", ""),
-                                "customer",
-                                c.fields().getOrDefault("自然客户名称", ""),
-                                "product",
-                                c.fields().getOrDefault("产品编码", "")),
-                        Integer.class)
-                > 0;
+    public Set<Source> existingDuplicates(List<Source> sources) {
+        if (sources.isEmpty()) return Set.of();
+        var keys = sources.stream().map(source -> List.of(
+                source.month() + "-01", source.contractNo(), source.clauseNo(),
+                source.fields().getOrDefault("业务号码/项目编号", ""),
+                source.fields().getOrDefault("自然客户名称", ""),
+                source.fields().getOrDefault("产品编码", ""))).toList();
+        var matched = jdbc.queryForList("""
+                SELECT k.row_no
+                FROM JSON_TABLE(:keys, '$[*]' COLUMNS (
+                    row_no FOR ORDINALITY,
+                    account_month DATE PATH '$[0]',
+                    contract_no VARCHAR(200) PATH '$[1]',
+                    clause_no VARCHAR(200) PATH '$[2]',
+                    business_no VARCHAR(2000) PATH '$[3]',
+                    customer_name VARCHAR(2000) PATH '$[4]',
+                    product_code VARCHAR(2000) PATH '$[5]'
+                )) k
+                JOIN revenue_entry e ON e.active_key=1 AND e.account_month=k.account_month
+                    AND e.contract_number_key=CONVERT(k.contract_no USING utf8mb4) COLLATE utf8mb4_bin
+                    AND e.clause_number_key=CONVERT(k.clause_no USING utf8mb4) COLLATE utf8mb4_bin
+                    AND e.business_number_hash=UNHEX(SHA2(CONVERT(k.business_no USING utf8mb4),256))
+                    AND e.natural_customer_name_hash=UNHEX(SHA2(CONVERT(k.customer_name USING utf8mb4),256))
+                    AND e.product_code_hash=UNHEX(SHA2(CONVERT(k.product_code USING utf8mb4),256))
+                """, Map.of("keys", encode(keys)), Integer.class);
+        var duplicates = new HashSet<Source>();
+        matched.forEach(index -> duplicates.add(sources.get(index - 1)));
+        return duplicates;
     }
 
     public void insert(UUID id, UUID actor, Source c, Instant at) {
@@ -245,6 +293,13 @@ VALUES(UUID_TO_BIN(:id),:month,UUID_TO_BIN(:province),:org,:contract,:clause,:am
                         .addValue("source", encode(c.fields()))
                         .addValue("actor", str(actor))
                         .addValue("at", Timestamp.from(at)));
+    }
+
+    public void delete(UUID id, Instant at) {
+        jdbc.update(
+                "UPDATE revenue_entry SET deleted_at=:at,updated_at=:at,version_no=version_no+1"
+                        + " WHERE id=UUID_TO_BIN(:id)",
+                Map.of("id", str(id), "at", Timestamp.from(at)));
     }
 
     public void bump(UUID id, Instant at) {

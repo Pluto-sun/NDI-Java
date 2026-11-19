@@ -65,6 +65,45 @@ class DocumentService implements DocumentDirectory {
 
     @Override
     @Transactional
+    public UUID storeImage(String scopeType, UUID scopeId, UUID actorId, String mediaType, byte[] content) {
+        var png = java.util.HexFormat.of().parseHex("89504e470d0a1a0a");
+        var jpeg = java.util.HexFormat.of().parseHex("ffd8ff");
+        var signature = switch (mediaType) {
+            case "image/png" -> png;
+            case "image/jpeg" -> jpeg;
+            default -> throw new BusinessException(DocumentErrorCode.INVALID_UPLOAD);
+        };
+        if (content.length > MAX_FILE_BYTES || content.length < signature.length
+                || !java.util.Arrays.equals(signature, java.util.Arrays.copyOf(content, signature.length)))
+            throw new BusinessException(DocumentErrorCode.INVALID_UPLOAD);
+        String sha;
+        try {
+            sha = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+        var id = UUID.randomUUID();
+        var key = "objects/" + id;
+        var bucket = properties.bucket();
+        var name = mediaType.equals("image/png") ? "Token.png" : "Token.jpg";
+        var now = Instant.now(clock);
+        var document = DocumentEntity.pending(id, scopeType, scopeId, scopeType, bucket,
+                "staging/" + id, key, name, mediaType, content.length, sha, actorId, now);
+        // 导入事务回滚时清理已写入的对象。
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status == STATUS_ROLLED_BACK) storage.remove(bucket, key);
+                    }
+                });
+        document.markAvailable(storage.store(bucket, key, mediaType, content), now);
+        repository.save(document);
+        return id;
+    }
+
+    @Override
+    @Transactional
     public DocumentSummary completeUpload(String scopeType, UUID scopeId, UUID actorId, UUID documentId) {
         var document = repository.findLockedById(documentId)
                 .orElseThrow(() -> new BusinessException(DocumentErrorCode.NOT_FOUND));
@@ -113,6 +152,7 @@ class DocumentService implements DocumentDirectory {
         }
         return new DownloadIntent(
                 storage.signDownload(document.bucketName(), document.objectKey()),
+                storage.signAttachment(document.bucketName(), document.objectKey(), document.originalName()),
                 Instant.now(clock).plusSeconds(300)
         );
     }

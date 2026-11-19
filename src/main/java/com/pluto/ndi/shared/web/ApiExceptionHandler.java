@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
+import org.apache.catalina.connector.ClientAbortException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -98,8 +102,20 @@ public class ApiExceptionHandler {
         return problem(com.pluto.ndi.shared.security.SecurityErrorCode.FORBIDDEN, request);
     }
 
+    // 声明响应参数，让 Spring 将返回 null 视为已处理。
     @ExceptionHandler(Exception.class)
-    ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
+    ProblemDetail handleUnexpected(
+            Exception exception, HttpServletRequest request, HttpServletResponse response) {
+        for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
+            if (cause instanceof AsyncRequestNotUsableException || cause instanceof ClientAbortException) {
+                // Servlet 响应已不可写，不能再尝试返回错误 JSON。
+                LOGGER.debug("HTTP response unavailable, requestId={}, method={}, route={}, type={}",
+                        RequestCorrelationFilter.currentRequestId().orElse("missing"),
+                        request.getMethod(), request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE),
+                        cause.getClass().getSimpleName());
+                return null;
+            }
+        }
         LOGGER.error("Unhandled exception, requestId={}", RequestCorrelationFilter.currentRequestId().orElse("missing"), exception);
         return problem(CommonErrorCode.INTERNAL_ERROR, request);
     }

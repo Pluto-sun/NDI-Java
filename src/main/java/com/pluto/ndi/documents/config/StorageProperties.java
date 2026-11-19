@@ -13,6 +13,7 @@ public record StorageProperties(
         @NotBlank String accessKey,
         @NotBlank String secretKey,
         @NotBlank String bucket,
-        boolean autoCreateBucket
+        boolean autoCreateBucket,
+        String signingRegion
 ) {
 }

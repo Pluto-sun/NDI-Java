@@ -11,5 +11,11 @@ interface ObjectStorage {
             long expectedSize, String expectedMediaType, String expectedSha256
     );
 
+    String store(String bucket, String key, String mediaType, byte[] content);
+
+    void remove(String bucket, String key);
+
     String signDownload(String bucket, String objectKey);
+
+    String signAttachment(String bucket, String objectKey, String filename);
 }

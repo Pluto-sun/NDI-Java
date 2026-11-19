@@ -31,7 +31,15 @@ test('全国只读角色查看和下载真实资料，但无上传删除及业�
   const signEvent = page.waitForResponse((response) =>
     response.url().endsWith(`/documents/${documentId}/download-url`),
   );
+  const address = page.url();
+  let popups = 0;
+  page.on('popup', () => popups++);
+  const browserDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载', exact: true }).click();
+  expect((await browserDownload).suggestedFilename()).toBe('只读验收.pdf');
+  expect(popups).toBe(0);
+  expect(page.context().pages()).toEqual([page]);
+  await expect(page).toHaveURL(address);
   const signed = await signEvent;
   expect(signed.ok(), await signed.text()).toBeTruthy();
   const download = await request.get((await signed.json()).data.downloadUrl);

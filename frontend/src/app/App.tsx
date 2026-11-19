@@ -1,10 +1,11 @@
+import { IntelligencePages, intelligenceTitles } from '../features/capabilities/IntelligencePages';
 import {
   HistoricalSnapshotsPage,
   HistoricalSnapshotWizard,
 } from '../features/admin/HistoricalSnapshotsPage';
 import { BrandLogo } from '../shared/ui/BrandLogo';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../features/projects/api';
 import type { ProjectUser, ReferenceData } from '../features/projects/types';
 import { ActorPicker } from '../features/local-auth/ActorPicker';
@@ -20,7 +21,17 @@ import { authApi, type AccountProfile, type AuthenticationMode } from '../featur
 import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 import { ModuleNavigation } from './ModuleNavigation';
-import { ModulePlaceholder } from '../shared/ui/ModulePlaceholder';
+import { pageTitle } from './pageTitle';
+import { ProjectStageTabs } from '../shared/ui/ProjectStageTabs';
+import { Modal } from '../shared/ui/Modal';
+import {
+  home,
+  projectEntryPermissions,
+  rememberLogout,
+  resumeDestination,
+  takeLogoutDestination,
+} from './sessionDestination';
+import { DashboardControls, ModuleDashboard } from '../features/module-dashboards/ModuleDashboard';
 
 const GewuDeploymentsPage = lazy(() =>
   import('../features/capabilities/GewuDeployments').then((module) => ({
@@ -116,6 +127,8 @@ const ReviewerProvincesPage = lazy(() =>
 );
 
 export function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [actors, setActors] = useState<ProjectUser[]>([]);
   const [me, setMe] = useState<ProjectUser | null>(null);
   const [reference, setReference] = useState<ReferenceData | null>(null);
@@ -125,6 +138,9 @@ export function App() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [message, setMessage] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
+  const [logoutError, setLogoutError] = useState('');
 
   function clearAccount(notice = '') {
     setActorId(null);
@@ -134,9 +150,10 @@ export function App() {
     setMessage(notice);
   }
 
-  async function loadSession() {
+  async function loadSession(onAuthenticated?: (user: AccountProfile) => Promise<void>) {
     const user = await authApi.me();
     const dictionaries = await projectsApi.referenceData();
+    await onAuthenticated?.(user);
     setProfile(user);
     setMe(user);
     setReference(dictionaries);
@@ -209,6 +226,15 @@ export function App() {
         <Loading />
       </main>
     );
+  if ((!me || !reference) && mode === 'SESSION' && location.pathname !== '/login') {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: location.pathname + location.search + location.hash }}
+      />
+    );
+  }
   if (!me || !reference)
     if (mode !== 'LOCAL_ACTOR')
       return (
@@ -217,7 +243,14 @@ export function App() {
           connectionError={error}
           onLogin={async (login, password) => {
             await authApi.login(login, password);
-            await loadSession();
+            await loadSession(async (user) => {
+              const saved = takeLogoutDestination();
+              if (saved)
+                setLoginTarget(
+                  saved.userId === user.id ? await resumeDestination(user, saved.path) : home,
+                );
+              else setLoginTarget(location.state?.returnTo ?? home);
+            });
             setMessage('');
           }}
         />
@@ -232,19 +265,34 @@ export function App() {
       />
     );
 
-  const canCreate =
-    !me.roleCodes.includes('SYSTEM_ADMIN') &&
-    me.roleCodes.some((role) =>
-      [
-        'CITY_REPORTER',
-        'INTERFACE_REVIEWER',
-        'PROVINCE_REPORTER',
-        'PROVINCE_DIGITAL_LEADER',
-        'PROVINCE_INTELLIGENT_LEADER',
-      ].includes(role),
-    );
-  const canImport =
-    canCreate || me.roleCodes.some((role) => ['INTERFACE_REVIEWER', 'SYSTEM_ADMIN'].includes(role));
+  const { canCreate, canImport } = projectEntryPermissions(me);
+  async function logout() {
+    if (!me || loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError('');
+    try {
+      await authApi.logout();
+      rememberLogout(me.id, location.pathname + location.search + location.hash);
+      setConfirmLogout(false);
+      setLoginTarget(null);
+      clearAccount('已退出登录。');
+      navigate('/login', { replace: true, state: null });
+    } catch (cause) {
+      setLogoutError(cause instanceof Error ? cause.message : '退出失败，请重试');
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+  const title = pageTitle(location.pathname);
+  const dashboardModule = [
+    '/workbench/scheduling',
+    '/workbench/revenue',
+    '/workbench/capability',
+  ].includes(location.pathname)
+    ? (location.pathname.split('/')[2] as 'scheduling' | 'revenue' | 'capability')
+    : null;
+  const hasStages = ['/projects', '/workbench'].includes(location.pathname);
+  const stage = new URLSearchParams(location.search).get('stage') ?? '';
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -260,28 +308,42 @@ export function App() {
         />
       </aside>
       <div className="main-shell">
-        <header className="topbar">
-          <span className="topbar-title">工业三化运营管理平台</span>
+        <header className={dashboardModule ? 'topbar module-dashboard-topbar' : 'topbar'}>
+          <div className="topbar-main">
+            <div className="topbar-breadcrumb">
+              <span className="topbar-title">工业三化运营管理平台</span>
+              {title && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <h1>{title}</h1>
+                </>
+              )}
+            </div>
+            {dashboardModule && <DashboardControls module={dashboardModule} />}
+            {hasStages && (
+              <ProjectStageTabs
+                value={stage}
+                onChange={(value) => {
+                  const params = new URLSearchParams(location.search);
+                  if (value) params.set('stage', value);
+                  else params.delete('stage');
+                  params.delete('page');
+                  navigate({ pathname: location.pathname, search: params.toString() });
+                }}
+              />
+            )}
+          </div>
           <div className="account">
             <span>{me.displayName}</span>
             <button
               type="button"
               className="text-button"
               disabled={loggingOut}
-              onClick={async () => {
-                if (mode === 'LOCAL_ACTOR') {
-                  clearAccount();
-                  return;
-                }
-                setLoggingOut(true);
-                setError('');
-                try {
-                  await authApi.logout();
-                  clearAccount('已退出登录。');
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : '退出失败，请重试');
-                } finally {
-                  setLoggingOut(false);
+              onClick={() => {
+                if (mode === 'LOCAL_ACTOR') clearAccount();
+                else {
+                  setLogoutError('');
+                  setConfirmLogout(true);
                 }
               }}
             >
@@ -289,6 +351,28 @@ export function App() {
             </button>
           </div>
         </header>
+        {confirmLogout && (
+          <Modal title="确认退出登录" busy={loggingOut} onClose={() => setConfirmLogout(false)}>
+            <h2 tabIndex={-1}>退出当前账号？</h2>
+            {logoutError && <Feedback tone="error">{logoutError}</Feedback>}
+            <div className="form-actions">
+              <button
+                className="secondary-button"
+                disabled={loggingOut}
+                onClick={() => setConfirmLogout(false)}
+              >
+                取消
+              </button>
+              <button
+                className="primary-button"
+                disabled={loggingOut}
+                onClick={() => void logout()}
+              >
+                {loggingOut ? '正在退出…' : '确认退出'}
+              </button>
+            </div>
+          </Modal>
+        )}
         <main className="content" id="main-content">
           {error && <Feedback tone="error">{error}</Feedback>}
           <Suspense fallback={<Loading />}>
@@ -370,37 +454,63 @@ export function App() {
               )}
               <Route path="/" element={<Navigate to="/workbench" replace />} />
               <Route path="/workbench" element={<WorkbenchPage reference={reference} />} />
-              <Route path="/workbench/revenue" element={<ModulePlaceholder title="计收驾驶舱" />} />
+              <Route
+                path="/workbench/revenue"
+                element={<ModuleDashboard key="revenue" module="revenue" />}
+              />
               <Route
                 path="/workbench/scheduling"
-                element={<ModulePlaceholder title="排产驾驶舱" />}
+                element={<ModuleDashboard key="scheduling" module="scheduling" />}
               />
               <Route
                 path="/workbench/capability"
-                element={<ModulePlaceholder title="能力指标驾驶舱" />}
+                element={<ModuleDashboard key="capability" module="capability" />}
               />
-              <Route path="/revenue" element={<RevenueListPage />} />
+              <Route
+                path="/revenue"
+                element={<RevenueListPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+              />
               <Route path="/revenue/new" element={<NewRevenuePage />} />
               <Route path="/revenue/import" element={<ImportRevenuePage />} />
               <Route path="/revenue/:id" element={<RevenueDetailPage me={me} />} />
-              <Route path="/scheduling" element={<ProductionListPage />} />
+              <Route
+                path="/scheduling"
+                element={<ProductionListPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+              />
               <Route path="/scheduling/new" element={<NewProductionPage />} />
               <Route path="/scheduling/import" element={<ImportProductionPage />} />
               <Route path="/capability" element={<Navigate replace to="/capability/gewu" />} />
-              <Route path="/capability/gewu" element={<GewuDeploymentsPage />} />
+              <Route
+                path="/capability/gewu"
+                element={<GewuDeploymentsPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+              />
               <Route path="/capability/gewu/import" element={<ImportGewuDeploymentsPage />} />
-              <Route
-                path="/capability/wangwu"
-                element={<ModulePlaceholder title="万悟部署情况" />}
-              />
-              <Route
-                path="/capability/agents-live"
-                element={<ModulePlaceholder title="已上线智能体指标追踪" />}
-              />
-              <Route
-                path="/capability/agents-development"
-                element={<ModulePlaceholder title="开发中智能体指标追踪" />}
-              />
+              {(Object.keys(intelligenceTitles) as (keyof typeof intelligenceTitles)[]).flatMap(
+                (kind) => [
+                  <Route
+                    key={kind}
+                    path={`/capability/${kind}`}
+                    element={
+                      <IntelligencePages
+                        key={kind}
+                        kind={kind}
+                        mode="list"
+                        admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+                      />
+                    }
+                  />,
+                  <Route
+                    key={kind + '-import'}
+                    path={`/capability/${kind}/import`}
+                    element={<IntelligencePages key={kind + '-import'} kind={kind} mode="import" />}
+                  />,
+                  <Route
+                    key={kind + '-detail'}
+                    path={`/capability/${kind}/:id`}
+                    element={<IntelligencePages key={kind + '-detail'} kind={kind} mode="detail" />}
+                  />,
+                ],
+              )}
               <Route
                 path="/projects"
                 element={
@@ -416,11 +526,13 @@ export function App() {
                     <section>
                       <div className="page-heading">
                         <div>
-                          <h1>项目创建</h1>
                           <p>通过 Excel 批量导入项目。</p>
                         </div>
                         <Link className="primary-button" to="/projects/import">
                           项目导入
+                        </Link>
+                        <Link className="secondary-button" to="/projects">
+                          返回项目列表
                         </Link>
                       </div>
                     </section>
@@ -431,11 +543,21 @@ export function App() {
               />
               <Route
                 path="/projects/import"
-                element={canImport ? <ImportProjectsPage /> : <Navigate to="/projects" replace />}
+                element={
+                  canImport ? (
+                    <ImportProjectsPage reference={reference} />
+                  ) : (
+                    <Navigate to="/projects" replace />
+                  )
+                }
               />
               <Route
                 path="/projects/:id"
                 element={<ProjectDetailPage reference={reference} me={me} />}
+              />
+              <Route
+                path="/login"
+                element={<Navigate to={loginTarget ?? location.state?.returnTo ?? home} replace />}
               />
               <Route path="/approvals" element={<ApprovalsPage reference={reference} />} />
               <Route path="/notifications" element={<NotificationsPage />} />

@@ -90,7 +90,6 @@ export function InactivityAdministrationPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">REMINDER ADMINISTRATION</span>
-          <h1>督办管理</h1>
           <p>管理员手动演练超时提醒。该操作会发送真实站内通知，但不修改项目实际最近变动时间。</p>
         </div>
       </div>

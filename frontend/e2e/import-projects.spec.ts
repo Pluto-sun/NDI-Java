@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { test, expect, type Page as BrowserPage, type APIRequestContext } from '@playwright/test';
 import { ids, chooseActor, get, post, createProject } from './support/projects';
 import { importWorkbook } from './support/importWorkbook';
@@ -32,9 +32,9 @@ async function sourceRow(request: APIRequestContext, name: string) {
     '签约金额（万）': '',
   };
 }
-async function enter(page: BrowserPage) {
+async function enter(page: BrowserPage, actor: string = ids.reporter) {
   await page.goto('/projects/new');
-  await chooseActor(page, ids.reporter);
+  await chooseActor(page, actor);
   await expect(
     page.getByRole('navigation').getByRole('link', { name: '项目导入', exact: true }),
   ).toHaveCount(0);
@@ -108,6 +108,56 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
     page.getByRole('heading', { name: '存在未完成的导入任务', exact: true }),
   ).toHaveCount(0);
   await expect(page.getByText('我的导入计划', { exact: true })).toHaveCount(0);
+});
+
+test('预检修正使用字典选项并联动省市', async ({ page, request }) => {
+  const ref = await get<ReferenceData>(request, ids.reporter, '/reference-data');
+  const row = await sourceRow(request, `修正枚举-${randomUUID()}`);
+  const scenario = ref.applicationScenarios[0];
+  await enter(page);
+  await upload(page, [
+    {
+      ...row,
+      省分: '无效省分',
+      协作省份: '无效省份',
+      客户所属行业: '无效行业',
+      项目阶段: '无效阶段',
+      签约主体: '无效主体',
+      应用场景: '无效场景',
+      '项目进展（2026年10月1日）': '十月进展',
+      '项目进展（2026年2月1日）': '二月进展',
+    },
+  ]);
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  const mappingFields = page.getByRole('region', { name: '字段映射设置' }).locator('tbody th');
+  await expect(mappingFields.first()).toBeVisible();
+  const mappingOrder = await mappingFields.allTextContents();
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await page.getByRole('button', { name: '查看／修正第 3 行', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '修正第 3 行', exact: true });
+  const labels = editor.locator('.import-row-fields > label');
+  await expect(labels.first()).toBeVisible();
+  const fieldLabels = await labels.evaluateAll((items) =>
+    items.map((label) => label.firstChild?.textContent?.trim()),
+  );
+  expect(mappingOrder.length).toBeGreaterThan(5);
+  expect(fieldLabels).toEqual([
+    ...mappingOrder,
+    '项目进展（2026年2月1日）',
+    '项目进展（2026年10月1日）',
+  ]);
+  const field = (name: string) => editor.getByRole('combobox', { name, exact: true });
+  await field('省分').selectOption(row.省分);
+  await expect(field('地市')).toHaveValue('');
+  await field('地市').selectOption(row.地市);
+  await field('协作省份').selectOption('');
+  await field('客户所属行业').selectOption('');
+  await field('项目阶段').selectOption('方案交流');
+  await field('签约主体').selectOption('数科签约');
+  await editor.getByRole('listbox', { name: '应用场景', exact: true }).selectOption(scenario.code);
+  await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  const result = await finish(page, 1);
+  expect(result.importedRows).toBe(1);
 });
 
 test('首条进展和下一步动作均可不映射，导入后不生成空进展', async ({ page, request }) => {
@@ -435,4 +485,110 @@ test('导入字段与模板统一，项目创建和维护只保留备注', async
   await modal.getByRole('button', { name: '保存普通信息', exact: true }).click();
   await expect(modal).toHaveCount(0);
   await expect(page.getByText('保留备注的验证', { exact: true })).toBeVisible();
+});
+
+test('直辖市地市须填写实际区县，预检修正可选择区县', async ({ page, request }, testInfo) => {
+  const reference = await get<ReferenceData>(request, ids.admin, '/reference-data');
+  const municipalities = reference.provinces.filter((province) => province.municipality);
+  expect(municipalities.map((province) => province.name)).toEqual(
+    expect.arrayContaining(['北京市', '天津市', '上海市', '重庆市']),
+  );
+  for (const [name, count] of Object.entries({ 北京市: 16, 天津市: 16, 上海市: 16, 重庆市: 37 })) {
+    const province = municipalities.find((item) => item.name === name)!;
+    const cities = reference.cities.filter((city) => city.provinceId === province.id);
+    expect(cities.filter((city) => !city.legacyMunicipalityCity)).toHaveLength(count);
+    expect(cities.filter((city) => city.legacyMunicipalityCity)).toHaveLength(1);
+  }
+
+  const adminHeaders = { 'X-NDI-Actor-Id': ids.admin };
+  const adminUrl = 'http://127.0.0.1:18080/api/v1/admin/users';
+  const account = await request.post(adminUrl, {
+    headers: adminHeaders,
+    data: {
+      account: {
+        loginName: `137${randomInt(10000000, 100000000)}`,
+        displayName: '直辖市验收接口人',
+        roleCodes: ['INTERFACE_REVIEWER'],
+      },
+      password: 'District-E2e-2026!',
+    },
+  });
+  expect(account.ok(), await account.text()).toBeTruthy();
+  const reviewer = (await account.json()).data as { id: string; version: number };
+  const [municipalityName, districtName] =
+    testInfo.project.name === 'small-screen' ? ['上海市', '浦东'] : ['北京市', '昌平'];
+  const municipality = municipalities.find((province) => province.name === municipalityName)!;
+  const assignment = await request.put(`${adminUrl}/${reviewer.id}/reviewer-provinces`, {
+    headers: adminHeaders,
+    data: { version: reviewer.version, provinceIds: [municipality.id] },
+  });
+  expect(assignment.ok(), await assignment.text()).toBeTruthy();
+  const legacy = reference.cities.find(
+    (city) => city.provinceId === municipality.id && city.legacyMunicipalityCity,
+  )!;
+  const rejected = await request.post('http://127.0.0.1:18080/api/v1/projects', {
+    headers: { 'X-NDI-Actor-Id': reviewer.id },
+    data: {
+      provinceId: municipality.id,
+      cityId: legacy.id,
+      projectName: `直辖市创建校验-${randomUUID()}`,
+      customerNeed: '验证实际区县',
+      responsiblePersonNames: ['验收负责人'],
+      totalAmount: '100',
+      categoryAmounts: [{ categoryCode: 'NETWORK', expectedAmount: '50' }],
+      initialProgress: '已交流',
+      nextAction: '跟进',
+    },
+  });
+  expect(rejected.status()).toBe(400);
+  expect((await rejected.json()).code).toBe('PROJECT_MUNICIPALITY_DISTRICT_REQUIRED');
+
+  const row = await sourceRow(request, `直辖市区县-${randomUUID()}`);
+  await page.goto('/projects/new');
+  await chooseActor(page, reviewer.id);
+  const district = page.getByRole('combobox', { name: '归属区县', exact: true });
+  await expect(district.locator('option')).toHaveCount(17);
+  await expect(district.locator('option', { hasText: municipalityName })).toHaveCount(0);
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await upload(page, [{ ...row, 省分: municipalityName, 地市: municipalityName }]);
+  await preview(page);
+  await expect(page.getByText('直辖市的地市字段须填写实际区县', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '查看／修正第 3 行', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '修正第 3 行', exact: true });
+  const city = editor.getByRole('combobox', { name: '地市', exact: true });
+  await city.selectOption(districtName);
+  await expect(city).toHaveValue(districtName);
+  await expect(city.locator('option', { hasText: municipalityName })).toHaveCount(0);
+  await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  const result = await finish(page, 1);
+  await page.getByRole('button', { name: '返回项目创建', exact: true }).click();
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await upload(page, [
+    {
+      ...row,
+      项目名称: `旧表区县全称-${randomUUID()}`,
+      省分: municipalityName,
+      地市: testInfo.project.name === 'small-screen' ? '浦东新区' : '昌平区',
+    },
+  ]);
+  await preview(page);
+  expect((await finish(page, 1)).importedRows).toBe(1);
+  const detail = await get<ProjectDetail>(request, reviewer.id, `/${result.rows[0].projectId}`);
+  expect(detail.provinceId).toBe(municipality.id);
+  expect(reference.cities.find((item) => item.id === detail.cityId)?.name).toBe(districtName);
+});
+
+test('预检失败原始数据可在确认导入前下载', async ({ page, request }) => {
+  const row = await sourceRow(request, `原始数据导出-${randomUUID()}`);
+  await enter(page);
+  await upload(page, [
+    { ...row, 项目阶段: '未知阶段', 自定义编号: '000007' },
+    { ...row, 项目名称: `通过项目-${randomUUID()}`, 自定义编号: '000009' },
+  ]);
+  await preview(page);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出预检失败原始数据', exact: true }).click();
+  expect((await download).suggestedFilename()).toBe('项目导入预检失败原始数据.xlsx');
+  await expect(page.getByRole('heading', { name: '第三步：预检与导入' })).toBeVisible();
+  expect((await finish(page, 1)).importedRows).toBe(1);
 });

@@ -21,15 +21,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ProjectImportWorkbookWriterTest {
     private final UUID guangdong = UUID.randomUUID();
     private final UUID zhejiang = UUID.randomUUID();
+    private final UUID beijing = UUID.randomUUID();
     private final List<String> industries = IntStream.rangeClosed(1, 41)
             .mapToObj(index -> "系统行业分类第" + index + "项").toList();
 
     private byte[] template() {
         var reference = new ProjectReferenceData(
-                List.of(new ProvinceOption(guangdong, "广东省"), new ProvinceOption(zhejiang, "浙江省")),
+                List.of(new ProvinceOption(guangdong, "广东省"), new ProvinceOption(zhejiang, "浙江省"),
+                        new ProvinceOption(beijing, "北京市", true)),
                 List.of(new CityOption(UUID.randomUUID(), guangdong, "广州市"),
                         new CityOption(UUID.randomUUID(), guangdong, "深圳市"),
-                        new CityOption(UUID.randomUUID(), zhejiang, "杭州市")),
+                        new CityOption(UUID.randomUUID(), zhejiang, "杭州市"),
+                        new CityOption(UUID.randomUUID(), beijing, "北京市", true),
+                        new CityOption(UUID.randomUUID(), beijing, "昌平")),
                 industries.stream().map(name -> new ProjectReferenceData.CodeLabel(name, name)).toList(),
                 List.of(), List.of(new ProjectReferenceData.CodeLabel("SOLUTION_EXCHANGE", "方案交流"),
                         new ProjectReferenceData.CodeLabel("TERMINATED", "已终止")), List.of());
@@ -84,6 +88,10 @@ class ProjectImportWorkbookWriterTest {
             evaluator.clearAllCachedResultValues();
             assertThat(evaluator.evaluate(count).getNumberValue()).isEqualTo(1);
             assertThat(evaluator.evaluate(first).getStringValue()).isEqualTo("杭州市");
+            province.setCellValue("北京市");
+            evaluator.clearAllCachedResultValues();
+            assertThat(evaluator.evaluate(count).getNumberValue()).isEqualTo(1);
+            assertThat(evaluator.evaluate(first).getStringValue()).isEqualTo("昌平");
             province.setCellValue("未启用省份");
             evaluator.clearAllCachedResultValues();
             assertThat(evaluator.evaluate(count).getNumberValue()).isZero();
@@ -101,6 +109,38 @@ class ProjectImportWorkbookWriterTest {
                 .extracting(ProjectExcelReader.SheetInspection::name)
                 .containsExactly("导入数据", "填写说明");
         assertThat(reader.read(bytes)).isEmpty();
+    }
+
+    @Test
+    void exportsOnlySelectedOriginalRowsWithUnmappedValuesAndNumberFormats() throws Exception {
+        try (var source = new XSSFWorkbook(); var bytes = new java.io.ByteArrayOutputStream()) {
+            var sheet = source.createSheet("源表");
+            sheet.createRow(0).createCell(0).setCellValue("表标题");
+            var headers = sheet.createRow(1);
+            headers.createCell(0).setCellValue("自定义项目标题");
+            headers.createCell(2).setCellValue("未映射编号");
+            sheet.createRow(2).createCell(0).setCellValue("通过的项目");
+            var failed = sheet.createRow(4);
+            failed.createCell(0).setCellValue("  原始名称  ");
+            var code = failed.createCell(2);
+            code.setCellValue(7);
+            var format = source.createCellStyle();
+            format.setDataFormat(source.createDataFormat().getFormat("0000"));
+            code.setCellStyle(format);
+            source.write(bytes);
+
+            var exported = new ProjectImportWorkbookWriter(new ObjectMapper())
+                    .originalRows(bytes.toByteArray(), "源表", 2, List.of(5));
+            try (var result = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
+                var output = result.getSheet("源表");
+                assertThat(output.getPhysicalNumberOfRows()).isEqualTo(2);
+                assertThat(output.getRow(0).getCell(0).getStringCellValue()).isEqualTo("自定义项目标题");
+                assertThat(output.getRow(0).getCell(2).getStringCellValue()).isEqualTo("未映射编号");
+                assertThat(output.getRow(1).getCell(0).getStringCellValue()).isEqualTo("  原始名称  ");
+                var formatter = new org.apache.poi.ss.usermodel.DataFormatter();
+                assertThat(formatter.formatCellValue(output.getRow(1).getCell(2))).isEqualTo("0007");
+            }
+        }
     }
 
     private List<String> options(XSSFWorkbook book, String field) {

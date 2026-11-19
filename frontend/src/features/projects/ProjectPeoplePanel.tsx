@@ -201,7 +201,7 @@ export function ProjectPeoplePanel({
                       >
                         <option value="">不关联账号</option>
                         {row.userId && !choices.some((user) => user.id === row.userId) && (
-                          <option value={row.userId}>
+                          <option value={row.userId} disabled>
                             {row.accountName ?? '原关联账号'}（请核对有效性）
                           </option>
                         )}

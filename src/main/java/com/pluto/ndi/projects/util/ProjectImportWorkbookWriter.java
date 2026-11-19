@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.projects.domain.entity.ProjectImportRowEntity;
 import com.pluto.ndi.projects.service.ProjectReferenceData;
 import com.pluto.ndi.shared.excel.ExcelDropdowns;
+import com.pluto.ndi.shared.excel.ExcelWorkbook;
 
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
@@ -37,7 +38,7 @@ public class ProjectImportWorkbookWriter {
             var regions = new java.util.LinkedHashMap<String, List<String>>();
             for (var province : reference.provinces()) {
                 regions.put(province.name(), reference.cities().stream()
-                        .filter(city -> city.provinceId().equals(province.id()))
+                        .filter(city -> city.provinceId().equals(province.id()) && !city.legacyMunicipalityCity())
                         .map(city -> city.name()).toList());
             }
             dropdowns.dependent("省分", "地市", regions);
@@ -64,7 +65,7 @@ public class ProjectImportWorkbookWriter {
                             "负责人不必为系统账号，职责和账号绑定不授予项目权限；重复项目仅保留同地市同名的第一条。",
                             "拟招标月份选填；日期单元格按实际日期识别，文本支持 YYYY-MM、YYYY-MM-DD 及相应斜杠格式，系统按月份保存；应用场景可选填多个，用逗号分隔。",
                             "备注选填；项目负责人必须使用统一字段，不再接受旧人员列。",
-                            "省分、地市、协作省份、客户所属行业、项目阶段、签约主体提供下拉，覆盖第2至1001行；地市按同一行省分联动，修改省分后须重新选择地市。",
+                            "省分、地市、协作省份、客户所属行业、项目阶段、签约主体提供下拉，覆盖第2至1001行；地市按同一行省分联动，修改省分后须重新选择地市。直辖市的省分填写市名，地市选择区县简称，例如北京市、昌平；预检也接受区县全称。",
                             "选项来自下载时系统启用的字典，字典更新后请重新下载模板；粘贴可能绕过Excel校验，最终以系统预检结果为准。",
                             "应用场景仍支持多选，按系统场景名称用逗号分隔；拟招标月份可填写日期单元格或合法日期文本，不作为固定字典下拉。");
             for (int index = 0; index < notes.size(); index++) {
@@ -77,6 +78,15 @@ public class ProjectImportWorkbookWriter {
             return bytes(book);
         } catch (IOException exception) {
             throw new IllegalStateException("生成项目导入模板失败", exception);
+        }
+    }
+
+    /** 从上传文件复制表头和指定行，保留列位置、单元格值和数字格式。 */
+    public byte[] originalRows(byte[] source, String sheetName, int headerRowNumber, List<Integer> rowNumbers) {
+        try {
+            return ExcelWorkbook.originalRows(source, sheetName, headerRowNumber, rowNumbers);
+        } catch (IOException exception) {
+            throw new IllegalStateException("生成原始预检失败行工作簿失败", exception);
         }
     }
 

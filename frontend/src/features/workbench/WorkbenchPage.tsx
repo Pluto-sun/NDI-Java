@@ -4,7 +4,7 @@ import type { ReferenceData } from '../projects/types';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount, businessDate, dateTime } from '../../shared/ui/format';
-import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
+import { PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
 import {
   dashboardApi,
   dashboardCategories,
@@ -26,7 +26,7 @@ const AdvancedWorkbench = lazy(() =>
 );
 
 export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const stage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
     ? searchParams.get('stage')!
     : '';
@@ -128,13 +128,6 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
     <section className="project-dashboard">
       <div className="page-heading dashboard-page-heading project-stage-heading">
         <div>
-          <div className="title-with-stage">
-            <h1>项目管理驾驶舱</h1>
-            <ProjectStageTabs
-              value={stage}
-              onChange={(value) => setSearchParams(value ? { stage: value } : {})}
-            />
-          </div>
           <p>工业互联网三化项目经营驾驶舱 · {stage ? stageName(stage) : '全部阶段'}</p>
         </div>
         <Link className="secondary-button" to={`/projects${stage ? `?stage=${stage}` : ''}`}>

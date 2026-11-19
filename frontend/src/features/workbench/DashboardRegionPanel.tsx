@@ -306,7 +306,12 @@ export function DashboardRegionPanel({
           {distributionLabel}
           {stageLabel}
         </h2>
-        <div className="table-scroll">
+        <div
+          className="table-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label={`${distributionLabel}表格`}
+        >
           <table>
             <colgroup>
               {[25, 16, 25, 34].map((width, index) => (

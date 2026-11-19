@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.identity.service.IdentityDirectory;
@@ -51,6 +53,11 @@ public class GewuDeploymentService {
                                     "备注")
                                     .stream())
                     .toList();
+    private static final Map<String, List<String>> OPTIONS =
+            Map.of(
+                    "上一周期是否已接设备", List.of("是", "否"),
+                    "是否最新工具包", List.of("是", "否", "不涉及"),
+                    "是否可升级工具包", List.of("是", "否", "不涉及"));
     private static final DateTimeFormatter DATE =
             DateTimeFormatter.ofPattern("uuuu-M-d").withResolverStyle(ResolverStyle.STRICT);
     private static final String SELECT =
@@ -68,7 +75,8 @@ public class GewuDeploymentService {
     public record Deployment(
             UUID id, long version, UUID provinceId, UUID cityId, Map<String, String> fields) {}
 
-    public record Reference(List<ProvinceOption> provinces, List<CityOption> cities) {}
+    public record Reference(
+            List<ProvinceOption> provinces, List<CityOption> cities, Map<String, List<String>> options) {}
 
     public record Listing(
             List<Deployment> items, long totalElements, int totalPages, int page, int size) {}
@@ -122,7 +130,37 @@ public class GewuDeploymentService {
                 organizations.findEnabledProvinces().stream()
                         .filter(province -> provinces.contains(province.id()))
                         .toList(),
-                cities);
+                cities,
+                OPTIONS);
+    }
+
+    private StringBuilder restriction(UUID actor, MapSqlParameterSource args) {
+        var scope = scope(actor);
+        var where = new StringBuilder(" WHERE d.deleted_at IS NULL");
+        switch (scope.level()) {
+            case CITY -> {
+                where.append(" AND d.city_id=UUID_TO_BIN(:scopeCity)");
+                args.addValue("scopeCity", scope.organizationId().toString());
+            }
+            case PROVINCE -> {
+                where.append(" AND BIN_TO_UUID(d.province_id) IN (:scopeProvinces)");
+                args.addValue(
+                        "scopeProvinces",
+                        scope.provinceIds().stream().map(UUID::toString).toList());
+            }
+            case NATIONAL -> {}
+        }
+        return where;
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardSummary dashboard(UUID actor) {
+        var args = new MapSqlParameterSource();
+        return DashboardSummary.quantities(jdbc.query("""
+                SELECT p.province_name, COUNT(*) AS records
+                FROM capability_gewu_deployment d JOIN organization_province p ON p.id=d.province_id
+                """ + restriction(actor, args) + " GROUP BY p.province_name ORDER BY records DESC, p.province_name",
+                args, (rs, row) -> new Metric(rs.getString("province_name"), rs.getLong("records"), (String) null)));
     }
 
     @Transactional(readOnly = true)
@@ -142,22 +180,8 @@ public class GewuDeploymentService {
                 || search.length() > 300
                 || version.length() > 100
                 || connected.length() > 10) throw invalid("筛选或分页参数无效");
-        var scope = scope(actor);
         var args = new MapSqlParameterSource();
-        var where = new StringBuilder(" WHERE d.deleted_at IS NULL");
-        switch (scope.level()) {
-            case CITY -> {
-                where.append(" AND d.city_id=UUID_TO_BIN(:scopeCity)");
-                args.addValue("scopeCity", scope.organizationId().toString());
-            }
-            case PROVINCE -> {
-                where.append(" AND BIN_TO_UUID(d.province_id) IN (:scopeProvinces)");
-                args.addValue(
-                        "scopeProvinces",
-                        scope.provinceIds().stream().map(UUID::toString).toList());
-            }
-            case NATIONAL -> {}
-        }
+        var where = restriction(actor, args);
         if (province != null) {
             where.append(" AND d.province_id=UUID_TO_BIN(:province)");
             args.addValue("province", province.toString());
@@ -207,6 +231,8 @@ public class GewuDeploymentService {
         return new Listing(items, count, (int) ((count + size - 1) / size), page, size);
     }
 
+    // 省市匹配失败由导入流程记录为行错误，预检事务仍须保存结果。
+    @Transactional(readOnly = true, noRollbackFor = BusinessException.class)
     Input fromExcel(Map<String, String> fields) {
         var location =
                 organizations
@@ -243,12 +269,10 @@ public class GewuDeploymentService {
                 throw invalid(field + "须为非负整数");
             }
         }
-        for (String field : List.of("上一周期是否已接设备", "是否最新工具包", "是否可升级工具包")) {
-            String value = fields.get(field);
-            if (value != null
-                    && !Set.of("是", "否").contains(value)
-                    && !(value.equals("不涉及") && !field.equals("上一周期是否已接设备")))
-                throw invalid(field + "取值无效");
+        for (var option : OPTIONS.entrySet()) {
+            String value = fields.get(option.getKey());
+            if (value != null && !option.getValue().contains(value))
+                throw invalid(option.getKey() + "取值无效");
         }
         if (fields.containsKey("设备接入日期")) {
             try {
@@ -262,15 +286,19 @@ public class GewuDeploymentService {
         return new Input(input.provinceId(), input.cityId(), fields);
     }
 
+    boolean duplicate(Input input, UUID exceptId) {
+        return CapabilityBusinessKey.exists(jdbc, null, CapabilityBusinessKey.gewu(input), exceptId);
+    }
+
     public Deployment create(UUID actor, Input input) {
         var value = validate(actor, input);
         var id = UUID.randomUUID();
-        jdbc.update(
+        CapabilityBusinessKey.save(duplicate(value, null), () -> jdbc.update(
                 """
 INSERT INTO capability_gewu_deployment(id,province_id,city_id,details,updated_at)
 VALUES(UUID_TO_BIN(:id),UUID_TO_BIN(:province),UUID_TO_BIN(:city),CAST(:fields AS JSON),:at)
 """,
-                parameters(id, value));
+                parameters(id, value)));
         audit.record(actor, "GEWU_DEPLOYMENT", id, "GEWU_DEPLOYMENT_CREATED", Map.of());
         return get(id, false);
     }
@@ -278,13 +306,13 @@ VALUES(UUID_TO_BIN(:id),UUID_TO_BIN(:province),UUID_TO_BIN(:city),CAST(:fields A
     public Deployment update(UUID actor, UUID id, long version, Input input) {
         lock(actor, id, version);
         var value = validate(actor, input);
-        jdbc.update(
+        CapabilityBusinessKey.save(duplicate(value, id), () -> jdbc.update(
                 """
                 UPDATE capability_gewu_deployment SET province_id=UUID_TO_BIN(:province),
                     city_id=UUID_TO_BIN(:city),details=CAST(:fields AS JSON),
                     version_no=version_no+1,updated_at=:at WHERE id=UUID_TO_BIN(:id)
                 """,
-                parameters(id, value));
+                parameters(id, value)));
         audit.record(
                 actor,
                 "GEWU_DEPLOYMENT",
@@ -295,6 +323,9 @@ VALUES(UUID_TO_BIN(:id),UUID_TO_BIN(:province),UUID_TO_BIN(:city),CAST(:fields A
     }
 
     public void delete(UUID actor, UUID id, long version) {
+        if (identities.findProjectUser(actor)
+                .filter(user -> user.roleCodes().contains("SYSTEM_ADMIN")).isEmpty())
+            throw failure(HttpStatus.FORBIDDEN, "仅系统管理员可删除部署记录");
         lock(actor, id, version);
         jdbc.update(
                 "UPDATE capability_gewu_deployment SET deleted_at=:at WHERE id=UUID_TO_BIN(:id)",

@@ -91,12 +91,28 @@ class IdentityPermissionService implements IdentityDirectory {
                                         .replace("%", "!%")
                                         .replace("_", "!_"))
                         + "%";
-        var page =
-                org.springframework.data.domain.PageRequest.of(
-                        0, 100, org.springframework.data.domain.Sort.by("displayName", "id"));
-        return toProjectUsers(
-                userAccountRepository.findProjectBindingAccounts(
-                        pattern, provinceId, provinceOnly, PROVINCE_LEADER_ROLES, page));
+        var reviewerIds = provinceOnly ? List.<UUID>of() : reviewers.reviewers(provinceId);
+        return toProjectUsers(userAccountRepository.findProjectBindingAccounts(pattern, provinceId, reviewerIds)).stream()
+                .filter(user -> isProjectBindingCandidate(user, provinceId, provinceOnly))
+                .limit(100)
+                .toList();
+    }
+
+    @Override
+    public boolean canBindProjectAccount(UUID userId, UUID provinceId, boolean provinceOnly) {
+        return findProjectUser(userId)
+                .filter(user -> isProjectBindingCandidate(user, provinceId, provinceOnly))
+                .isPresent();
+    }
+
+    private boolean isProjectBindingCandidate(ProjectUser user, UUID provinceId, boolean provinceOnly) {
+        var roles = user.roleCodes();
+        boolean sameProvince = provinceId.equals(user.provinceId());
+        boolean provinceRole = roles.stream().anyMatch(PROVINCE_LEADER_ROLES::contains);
+        if (provinceOnly) return sameProvince && provinceRole && !roles.contains(SYSTEM_ADMIN_ROLE);
+        return sameProvince && (provinceRole || roles.contains(CITY_PROJECT_CREATOR_ROLE))
+                || roles.contains(INTERFACE_PROJECT_READER_ROLE)
+                        && user.reviewerProvinceIds().contains(provinceId);
     }
 
     @Override
@@ -181,7 +197,7 @@ class IdentityPermissionService implements IdentityDirectory {
                 provinceId.equals(actor.provinceId())
                         && cityId.equals(actor.cityId())
                         && roleCodes.contains(CITY_PROJECT_CREATOR_ROLE);
-        return provinceCreator || cityCreator
+        return roleCodes.contains("GROUP_REVIEWER") || provinceCreator || cityCreator
                 || roleCodes.contains(INTERFACE_PROJECT_READER_ROLE)
                         && reviewers.provinces(actor.id()).contains(provinceId);
     }
@@ -191,7 +207,7 @@ class IdentityPermissionService implements IdentityDirectory {
         if (!actor.enabled()) return false;
         var roles = roleCodes(actor.id());
         if (roles.contains(SYSTEM_ADMIN_ROLE)) return false;
-        return roles.contains(CITY_PROJECT_CREATOR_ROLE)
+        return roles.contains("GROUP_REVIEWER") || roles.contains(CITY_PROJECT_CREATOR_ROLE)
                 || roles.stream().anyMatch(PROVINCE_PROJECT_CREATOR_ROLES::contains)
                 || roles.contains(INTERFACE_PROJECT_READER_ROLE) && !reviewers.provinces(actor.id()).isEmpty();
     }
@@ -274,7 +290,7 @@ class IdentityPermissionService implements IdentityDirectory {
         var actor = findProjectActor(actorId).filter(ProjectActor::enabled).orElse(null);
         if (actor == null) return false;
         var roles = roleCodes(actorId);
-        return roles.contains(SYSTEM_ADMIN_ROLE)
+        return roles.contains(SYSTEM_ADMIN_ROLE) || roles.contains("GROUP_REVIEWER")
                 || roles.contains(INTERFACE_PROJECT_READER_ROLE)
                         && !reviewers.provinces(actorId).isEmpty()
                 || actor.provinceId() != null
@@ -289,7 +305,7 @@ class IdentityPermissionService implements IdentityDirectory {
             return false;
         }
         var roles = roleCodes(actor.id());
-        if (roles.contains(SYSTEM_ADMIN_ROLE)) {
+        if (roles.contains(SYSTEM_ADMIN_ROLE) || roles.contains("GROUP_REVIEWER")) {
             return true;
         }
         if (roles.contains(INTERFACE_PROJECT_READER_ROLE)
@@ -361,6 +377,11 @@ class IdentityPermissionService implements IdentityDirectory {
 
     @Override
     public boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId) {
+        return hasProjectCollaborationScope(actor, provinceId, cityId);
+    }
+
+    @Override
+    public boolean canConfigureProjectPeople(ProjectActor actor, UUID provinceId, UUID cityId) {
         return hasProjectCollaborationScope(actor, provinceId, cityId);
     }
 

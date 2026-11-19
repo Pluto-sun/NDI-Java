@@ -5,6 +5,7 @@ export interface Recognition {
   reportedProjectName: string;
   projectStatus: string;
   integratedProvinceId: string | null;
+  integratedOrganization?: string | null;
 }
 export interface Entry {
   id: string;
@@ -24,8 +25,10 @@ export interface Entry {
   recognizedAt: string | null;
 }
 export interface Reference {
+  integratedOrganizations: string[];
   fixedOrganizations: Record<string, string>;
   provinces: { id: string; name: string }[];
+  cities: { id: string; provinceId: string; name: string; legacyMunicipalityCity?: boolean }[];
   fields: string[];
   required: string[];
   canCreate: boolean;
@@ -114,4 +117,4 @@ export const statusLabels: Record<string, string> = {
   WITHDRAWN: '已撤销',
 };
 export { money } from './format';
-export const revenueImportApi = tabularImportApi(root);
+export const revenueImportApi = tabularImportApi(root, { exportFailedRows: true });

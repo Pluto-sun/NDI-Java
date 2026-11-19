@@ -1,5 +1,6 @@
 package com.pluto.ndi.revenue.domain;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
@@ -11,11 +12,19 @@ import java.util.*;
 public final class Revenue {
     private Revenue() {}
 
+    public static final List<String> PROJECT_STATUSES = List.of("实施中", "已交付", "已上线");
+    public static final List<String> INTEGRATED_ORGANIZATIONS = List.of("数科", "数智");
+
     public record Recognition(
             @JsonSerialize(using = ToStringSerializer.class) BigDecimal amount,
             String reportedProjectName,
             String projectStatus,
-            UUID integratedProvinceId) {}
+            UUID integratedProvinceId,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String integratedOrganization) {
+        public Recognition(BigDecimal amount, String reportedProjectName, String projectStatus, UUID integratedProvinceId) {
+            this(amount, reportedProjectName, projectStatus, integratedProvinceId, null);
+        }
+    }
 
     public record Entry(
             UUID id,

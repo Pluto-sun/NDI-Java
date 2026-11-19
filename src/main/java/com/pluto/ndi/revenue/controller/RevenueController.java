@@ -1,5 +1,6 @@
 package com.pluto.ndi.revenue.controller;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.revenue.domain.*;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.mapper.RevenueMapper;
@@ -24,6 +25,12 @@ public class RevenueController {
     public RevenueController(RevenueService service, ApiResponseFactory responses) {
         this.service = service;
         this.responses = responses;
+    }
+
+    @GetMapping("/dashboard")
+    public ApiResponse<DashboardSummary> dashboard(Authentication auth,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+        return responses.success(service.dashboard(actor(auth), from, to));
     }
 
     @GetMapping

@@ -113,6 +113,13 @@ public class ProjectImportController {
         return workbook("项目导入模板.xlsx", service.template(actorId(authentication)));
     }
 
+    @GetMapping("/{batchId}/failed-rows/original")
+    public ResponseEntity<byte[]> originalFailedRows(
+            Authentication authentication, @PathVariable UUID batchId) {
+        return workbook("项目导入预检失败原始数据.xlsx",
+                service.originalFailedRows(actorId(authentication), batchId));
+    }
+
     @GetMapping("/{batchId}/failed-rows/export")
     public ResponseEntity<byte[]> failedRows(
             Authentication authentication, @PathVariable UUID batchId) {

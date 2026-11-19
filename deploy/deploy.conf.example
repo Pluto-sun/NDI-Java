@@ -3,6 +3,7 @@
 DEPLOY_MODE=http
 PUBLIC_IP=CHANGE_ME
 WEB_PORT=8088
+# 需要共用入口时，将 FILES_PORT 设为 WEB_PORT，并配置 MinIO 签名 Region。
 FILES_PORT=9002
 # 以下域名和证书只在 DEPLOY_MODE=https 时使用。
 APP_HOST=CHANGE_ME

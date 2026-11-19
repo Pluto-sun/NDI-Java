@@ -29,7 +29,7 @@ class DocumentServiceTest {
     private final ObjectStorage storage = mock(ObjectStorage.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-19T06:00:00Z"), ZoneOffset.UTC);
     private final DocumentService service = new DocumentService(repository, storage,
-            new StorageProperties("http://localhost:9000", "http://localhost:9000", "key", "secret", "ndi-documents", true),
+            new StorageProperties("http://localhost:9000", "http://localhost:9000", "key", "secret", "ndi-documents", true, null),
             clock);
 
     @Test

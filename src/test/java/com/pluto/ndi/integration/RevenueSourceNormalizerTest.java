@@ -74,7 +74,7 @@ class RevenueSourceNormalizerTest {
                         "条款金额",
                         com.pluto.ndi.revenue.util.RevenueFields.SOURCE_AMOUNT,
                         "审签日期",
-                        "业务号码/项目编号");
+                        "业务号码/项目编号", "三化分类");
         try (var book = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
                 var out = new java.io.ByteArrayOutputStream()) {
             var sheet = book.createSheet("来源数据");
@@ -82,7 +82,7 @@ class RevenueSourceNormalizerTest {
             for (int col = 0; col < headers.size(); col++)
                 header.createCell(col).setCellValue(headers.get(col));
             var row = sheet.createRow(1);
-            String[] values = {"202607", "数科", "000001", "", "100", "10", "", ""};
+            String[] values = {"202607", "数科", "000001", "", "100", "10", "", "", "数字化"};
             for (int col = 0; col < values.length; col++)
                 row.createCell(col).setCellValue(values[col]);
             row.getCell(3).setCellValue(2);

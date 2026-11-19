@@ -51,7 +51,7 @@ public class ProjectPeopleService {
     @Transactional
     public ProjectDetailSummary configure(
             UUID actor, UUID id, long version, List<ProjectResponsiblePerson> input) {
-        var project = access.requireProfileEditable(actor, id);
+        var project = access.requirePeopleEditable(actor, id);
         if (version < 0 || version != project.versionNo())
             throw new BusinessException(ProjectErrorCode.VERSION_CONFLICT);
         var before = people.find(id);
@@ -105,7 +105,7 @@ public class ProjectPeopleService {
                         .filter(ProjectActor::enabled)
                         .orElseThrow(
                                 () -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
-        if (!identity.canUpdateProjectProfile(account, project.provinceId(), project.cityId())
+        if (!identity.canConfigureProjectPeople(account, project.provinceId(), project.cityId())
                 || "TERMINATED".equals(project.currentStageCode()))
             throw new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN);
         return identity.searchProjectBindingAccounts(keyword, project.provinceId(), provinceOnly);

@@ -172,14 +172,6 @@
   background: #fff8f8;
   font-weight: 600;
 }
-.revenue-list-table th:last-child,
-.revenue-list-table td:last-child {
-  position: sticky;
-  right: 0;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  text-align: center;
-}
 .revenue-list-table th:last-child {
   background: #fdfafb;
 }

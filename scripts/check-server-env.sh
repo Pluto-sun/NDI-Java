@@ -70,8 +70,24 @@ public_ip=${public_ip:-$(read_value "$deploy_conf" PUBLIC_IP)}
 [[ -n "$public_ip" && "$public_ip" != CHANGE_ME ]] && report PASS '已指定客户端访问 IP（不代表公网已连通）。' || report UNKNOWN '尚未指定 PUBLIC_IP。'
 web_port=$(read_value "$deploy_conf" WEB_PORT); web_port=${web_port:-8088}
 files_port=$(read_value "$deploy_conf" FILES_PORT); files_port=${files_port:-9002}
+shared_http_port=false
+if [[ "$deploy_mode" == http && "$web_port" == "$files_port" ]]; then
+  shared_http_port=true
+  if [[ -n "$public_ip" && "$(read_value "$app_env" NDI_MINIO_PUBLIC_ENDPOINT)" == "http://$public_ip:$web_port" ]]; then
+    report PASS 'MinIO 公共地址与 HTTP 应用入口一致。'
+  else
+    report FAIL 'HTTP 同端口模式的 MinIO 公共地址必须与应用入口一致。'
+  fi
+  if [[ "$(read_value "$app_env" NDI_MINIO_SIGNING_REGION)" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
+    report PASS '已配置 MinIO 签名 Region（需与桶实际区域一致）。'
+  else
+    report FAIL 'HTTP 同端口模式需配置 NDI_MINIO_SIGNING_REGION。'
+  fi
+fi
 backend_port=$(read_value "$deploy_conf" APP_PORT); backend_port=${backend_port:-8080}
-for port in "$web_port" "$files_port" "$backend_port"; do
+ports=("$web_port" "$backend_port")
+[[ "$shared_http_port" == true ]] || ports+=("$files_port")
+for port in "${ports[@]}"; do
   if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || (( port > 65535 )); then report FAIL '配置中存在无效端口。'; continue; fi
   if command -v ss >/dev/null; then
     listener=$(ss -lntp 2>/dev/null | awk -v p=":$port" 'index($4,p)>0 && index($4,p)==length($4)-length(p)+1 {print}')
@@ -97,7 +113,8 @@ if [[ -n "$minio_alias" && "$minio_alias" =~ ^[a-zA-Z0-9_-]+$ && "$bucket" =~ ^[
   if policy=$(timeout 10 mc anonymous get "$minio_alias/$bucket" 2>/dev/null) && [[ "$policy" =~ (^|[^[:alnum:]_])private[^[:alnum:]_]*$ ]]; then report PASS 'Bucket 匿名策略为私有。'; else report UNKNOWN '未确认 Bucket 匿名策略为私有，请人工核对。'; fi
   expected_origin="http://$public_ip:$web_port"
   if [[ "$deploy_mode" == https ]]; then expected_origin="https://$(read_value "$deploy_conf" APP_HOST)"; fi
-  if cors=$(timeout 10 mc cors get "$minio_alias/$bucket" 2>/dev/null) && [[ "$cors" == *"<AllowedOrigin>$expected_origin</AllowedOrigin>"* ]]; then report PASS 'CORS 包含应用精确 Origin（完整规则及浏览器上传仍需验收）。'; else report UNKNOWN 'CORS 未确认包含应用精确 Origin，需人工核对。'; fi
+  if [[ "$shared_http_port" == true ]]; then report PASS '应用与附件同源。'
+  elif cors=$(timeout 10 mc cors get "$minio_alias/$bucket" 2>/dev/null) && [[ "$cors" == *"<AllowedOrigin>$expected_origin</AllowedOrigin>"* ]]; then report PASS 'CORS 包含应用精确 Origin（完整规则及浏览器上传仍需验收）。'; else report UNKNOWN 'CORS 未确认包含应用精确 Origin，需人工核对。'; fi
 else report UNKNOWN '未验证 Bucket、私有策略及 CORS；可提供已有 --minio-alias。'; fi
 if command -v getenforce >/dev/null && [[ "$(getenforce)" == Enforcing ]]; then
   if getsebool httpd_can_network_connect 2>/dev/null | grep -q -- '--> on'; then report PASS 'SELinux 允许 Nginx 连接上游。'; else report FAIL 'SELinux 未授权 Nginx 上游连接。'; fi

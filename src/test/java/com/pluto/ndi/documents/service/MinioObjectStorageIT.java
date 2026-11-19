@@ -38,7 +38,7 @@ class MinioObjectStorageIT {
     void sealsVerifiedObjectAndIgnoresLaterStagingOverwrite() throws Exception {
         var endpoint = "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000);
         var storage = new MinioObjectStorage(new StorageProperties(
-                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-documents", true));
+                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-documents", true, "us-east-1"));
         var http = HttpClient.newHttpClient();
         var key = UUID.randomUUID().toString();
         var stagingKey = "staging/" + key;
@@ -59,6 +59,17 @@ class MinioObjectStorageIT {
         assertThat(http.send(HttpRequest.newBuilder(URI.create(downloadUrl)).GET().build(),
                 HttpResponse.BodyHandlers.ofByteArray()).body()).isEqualTo(original);
 
+        var filename = "原始材料 01.pdf";
+        var attachment = http.send(HttpRequest.newBuilder(URI.create(
+                storage.signAttachment("ndi-it-documents", objectKey, filename))).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(attachment.statusCode()).isEqualTo(200);
+        assertThat(attachment.body()).isEqualTo(original);
+        var disposition = org.springframework.http.ContentDisposition.parse(
+                attachment.headers().firstValue("Content-Disposition").orElseThrow());
+        assertThat(disposition.isAttachment()).isTrue();
+        assertThat(disposition.getFilename()).isEqualTo(filename);
+
         var overwritten = HttpRequest.newBuilder(URI.create(uploadUrl))
                 .header("Content-Type", "application/pdf")
                 .PUT(HttpRequest.BodyPublishers.ofString("替换内容")).build();
@@ -78,7 +89,7 @@ class MinioObjectStorageIT {
     void storesServerGeneratedCsvAndSignsDownload() throws Exception {
         var endpoint = "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000);
         var storage = new MinioObjectStorage(new StorageProperties(
-                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-exports", true));
+                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-exports", true, null));
         var exportId = UUID.randomUUID();
         var content = "\uFEFF项目编号\r\nNDI-1\r\n".getBytes(StandardCharsets.UTF_8);
 

@@ -1,5 +1,6 @@
 package com.pluto.ndi.production.controller;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.production.mapper.ProductionPlanMapper;
 import com.pluto.ndi.production.service.*;
@@ -32,6 +33,12 @@ public class ProductionPlanController extends com.pluto.ndi.shared.imports.Impor
         this.plans = plans;
         this.imports = imports;
         this.responses = responses;
+    }
+
+    @GetMapping("/dashboard")
+    public ApiResponse<DashboardSummary> dashboard(Authentication auth,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+        return responses.success(plans.dashboard(actor(auth), from, to));
     }
 
     @GetMapping

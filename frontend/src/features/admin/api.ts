@@ -1,4 +1,5 @@
 import { jsonBody, requestAt, type Page } from '../../shared/api/http';
+import type { CityOption, ProvinceOption } from '../projects/types';
 
 export interface AdminAccount {
   id: string;
@@ -23,8 +24,8 @@ export interface AccountValues {
 }
 export interface AdminConfiguration {
   roles: { code: string; label: string; scope: string }[];
-  provinces: { id: string; name: string }[];
-  cities: { id: string; provinceId: string; name: string }[];
+  provinces: ProvinceOption[];
+  cities: CityOption[];
 }
 const root = '/api/v1/admin';
 export const adminApi = {

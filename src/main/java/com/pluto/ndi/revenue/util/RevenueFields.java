@@ -50,7 +50,7 @@ public class RevenueFields {
                     "税率",
                     "产品本月计收不含税额/标品含税收入");
     public static final String SOURCE_AMOUNT = "产品本月计收不含税额/标品含税收入";
-    public static final Set<String> REQUIRED = Set.of("月账期", "条款金额", SOURCE_AMOUNT);
+    public static final Set<String> REQUIRED = Set.of("月账期", "条款金额", SOURCE_AMOUNT, "三化分类");
     private final OrganizationDirectory organizations;
 
     public RevenueFields(OrganizationDirectory organizations) {
@@ -100,16 +100,16 @@ public class RevenueFields {
                 if (values.get("地市/组织名称").isBlank()) throw invalid("具体组织必须填写地市/组织名称全称");
             }
         } else if (!province.isBlank()) {
-            var found =
-                    organizations.findEnabledProvinces().stream()
-                            .filter(
-                                    p ->
-                                            p.name().equals(province)
-                                                    || shortProvince(p.name()).equals(province))
-                            .toList();
-            if (found.size() != 1) throw invalid("省份名称未匹配启用的标准省份");
-            provinceId = found.getFirst().id();
-            values.put("省份名称", found.getFirst().name());
+            var found = organizations.findEnabledProvinceByName(province)
+                    .orElseThrow(() -> invalid("省份名称未匹配启用的标准省份"));
+            provinceId = found.id();
+            values.put("省份名称", found.name());
+            var city = values.get("地市/组织名称");
+            if (!city.isBlank()) {
+                // 来源列也可能是组织名称，只规范化能够唯一匹配的行政地市。
+                organizations.findEnabledCityName(provinceId, city)
+                        .ifPresent(name -> values.put("地市/组织名称", name));
+            }
         }
         for (var field : List.of("合同编号", "条款编号"))
             if (values.get(field).length() > 200) throw invalid(field + "不得超过200字");
@@ -137,13 +137,18 @@ public class RevenueFields {
         String name = Objects.toString(value.reportedProjectName(), "").strip();
         if (name.isEmpty() || name.length() > 300) throw invalid("通报项目名称须为1至300字");
         String status = Objects.toString(value.projectStatus(), "").strip();
-        if (!status.isBlank() && !Set.of("实施中", "已交付").contains(status))
-            throw invalid("项目状态须为实施中或已交付");
+        if (!status.isBlank() && !Revenue.PROJECT_STATUSES.contains(status))
+            throw invalid("项目状态须为实施中、已交付或已上线");
+        String organization = Objects.toString(value.integratedOrganization(), "").strip();
+        if (!organization.isEmpty() && (!Revenue.INTEGRATED_ORGANIZATIONS.contains(organization)
+                || value.integratedProvinceId() != null))
+            throw invalid("对应省分（集成）须选择一个启用的省份、数科或数智");
         if (value.integratedProvinceId() != null
                 && organizations.findEnabledProvinces().stream()
                         .noneMatch(p -> p.id().equals(value.integratedProvinceId())))
             throw invalid("对应省分（集成）未启用");
-        return new Revenue.Recognition(amount, name, status, value.integratedProvinceId());
+        return new Revenue.Recognition(amount, name, status, value.integratedProvinceId(),
+                organization.isEmpty() ? null : organization);
     }
 
     public static String month(String value) {
@@ -155,10 +160,6 @@ public class RevenueFields {
         } catch (DateTimeParseException e) {
             throw invalid("账期须为有效YYYYMM或YYYY-MM月份");
         }
-    }
-
-    private static String shortProvince(String value) {
-        return value.replaceAll("(壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区|省|市)$", "");
     }
 
     public static BigDecimal amount(String raw, String field, boolean nonnegative) {

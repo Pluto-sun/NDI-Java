@@ -72,13 +72,12 @@ public class GewuImportService extends TabularImportEngine<GewuDeploymentService
                 Set.of("设备接入日期"));
     }
 
-    // 同一项目可登记多套部署，不根据项目名称判重。
     protected Object duplicateKey(GewuDeploymentService.Input input) {
-        return null;
+        return CapabilityBusinessKey.gewu(input);
     }
 
     protected boolean duplicate(GewuDeploymentService.Input input) {
-        return false;
+        return deployments.duplicate(input, null);
     }
 
     protected UUID create(UUID actor, Map<String, String> cells) {

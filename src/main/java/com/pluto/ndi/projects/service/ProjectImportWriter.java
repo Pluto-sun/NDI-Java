@@ -112,6 +112,7 @@ public class ProjectImportWriter {
             }
             if (organizations
                             .findEnabledLocation(candidate.provinceId(), candidate.cityId())
+                            .filter(location -> !location.legacyMunicipalityCity())
                             .isEmpty()
                     || candidate.provinceLeaderUserId() != null
                             && !identity.isEligibleProvinceLeader(

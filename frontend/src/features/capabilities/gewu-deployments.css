@@ -50,13 +50,6 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.gewu-scroll th:last-child,
-.gewu-scroll td:last-child {
-  position: sticky;
-  right: 0;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
-}
 .gewu-scroll .gewu-actions {
   flex-wrap: nowrap;
 }
@@ -88,4 +81,21 @@
     font-size: 12px;
     font-weight: 400;
   }
+}
+
+.live-agent-import-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.live-agent-import-tabs button {
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-weight: 700;
+}
+
+.live-agent-import-tabs button[aria-pressed='true'] {
+  color: var(--red-dark);
+  border-bottom-color: var(--red);
 }

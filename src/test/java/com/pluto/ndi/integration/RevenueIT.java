@@ -178,6 +178,7 @@ class RevenueIT {
                                 "同名来源项目",
                                 "业务号码/项目编号",
                                 "000042"));
+        result.put("三化分类", "数字化");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -192,6 +193,37 @@ class RevenueIT {
 
     RevenueMapper.Filter filter(String state) {
         return new RevenueMapper.Filter("2026-10", province.toString(), "", state, 0, 100);
+    }
+
+    @Test
+    void dashboardCountsHistoricalUnclassifiedAndOnlyEffectiveRecognition() {
+        var source = source();
+        source.put("月账期", "2089-06");
+        var legacy = service.create(admin, source);
+        var applied = service.recognize(reviewer, legacy.id(), legacy.version(), value("12.34"));
+        jdbc.update("""
+                UPDATE revenue_entry SET source_fields=JSON_REMOVE(source_fields,'$."三化分类"')
+                WHERE id=UUID_TO_BIN(?)
+                """, legacy.id().toString());
+        service.recognize(cityReporter, legacy.id(), applied.version(), value("99"));
+        var unrecognized = source();
+        unrecognized.put("月账期", "2089-06");
+        unrecognized.put("省份名称", "");
+        service.create(admin, unrecognized);
+        var national = service.dashboard(admin, "2089-06", "2089-06");
+        assertThat(national.count()).isEqualTo(2);
+        assertThat(national.amount()).isEqualTo("12.34");
+        assertThat(national.categories()).anySatisfy(metric -> {
+            assertThat(metric.label()).isEqualTo("未分类");
+            assertThat(metric.count()).isEqualTo(1);
+            assertThat(metric.amount()).isEqualTo("12.34");
+        });
+        assertThat(service.dashboard(cityReporter, "2089-06", "2089-06").count()).isEqualTo(1);
+        assertThat(service.dashboard(admin, "2089-07", "2089-07").count()).isZero();
+
+        var invalid = source();
+        invalid.remove("三化分类");
+        assertThatThrownBy(() -> service.create(admin, invalid)).hasMessageContaining("三化分类必填");
     }
 
     @Test
@@ -238,6 +270,7 @@ class RevenueIT {
                                 "100",
                                 RevenueFields.SOURCE_AMOUNT,
                                 "0"));
+        minimal.put("三化分类", "数字化");
         var saved = service.create(admin, minimal);
         assertThat(saved.provinceId()).isNull();
         assertThat(saved.specificOrganization()).isFalse();
@@ -538,6 +571,81 @@ class RevenueIT {
     }
 
     @Test
+    void importsAdministrativeNamesWithoutTheirSuffixes() {
+        for (var names : List.of(
+                List.of("广东", "广州", "广东省", "广州市"),
+                List.of("上海", "上海", "上海市", "上海市"),
+                List.of("内蒙古", "呼和浩特", "内蒙古自治区", "呼和浩特市"))) {
+            var values = source();
+            values.put("省份名称", names.get(0));
+            values.put("地市/组织名称", names.get(1));
+            values.put(RevenueImport.AMOUNT, "20");
+            values.put(RevenueImport.PROJECT, "通报项目");
+            values.put(RevenueImport.PROVINCE, "内蒙古");
+            var record = service.importEntry(admin, values);
+            assertThat(record.source()).containsEntry("省份名称", names.get(2))
+                    .containsEntry("地市/组织名称", names.get(3));
+            assertThat(record.recognition().integratedProvinceId()).isEqualTo(
+                    jdbc.queryForObject("SELECT BIN_TO_UUID(id) FROM organization_province WHERE province_code='150000'",
+                            (rs, row) -> UUID.fromString(rs.getString(1))));
+            assertThat(record.recognition().projectStatus()).isEmpty();
+        }
+        var organization = source();
+        organization.put("省份名称", "广东");
+        organization.put("地市/组织名称", "测试公司");
+        assertThat(service.importEntry(admin, organization).source())
+                .containsEntry("地市/组织名称", "测试公司");
+    }
+
+    @Test
+    void invalidRecognitionIsReportedPerRowAndCanBeCorrected() throws Exception {
+        var valid = source();
+        var excessive = new LinkedHashMap<>(valid);
+        excessive.put("合同编号", UUID.randomUUID().toString());
+        excessive.put(RevenueImport.AMOUNT, "101");
+        excessive.put(RevenueImport.PROJECT, "待修正项目");
+        excessive.put(RevenueImport.PROVINCE, province.toString());
+        excessive.put(RevenueImport.STATUS, "无效状态");
+        var bytes = workbook(List.of(valid, excessive), false);
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(bytes));
+                var out = new ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            var header = sheet.getRow(0);
+            for (var field : List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE)) {
+                int column = header.getLastCellNum();
+                header.createCell(column).setCellValue(field);
+                sheet.getRow(2).createCell(column).setCellValue(excessive.get(field));
+            }
+            book.write(out);
+            bytes = out.toByteArray();
+        }
+        var task = imports.upload(admin, "预检.xlsx", bytes, null, null);
+        var mapping = new LinkedHashMap<String, String>();
+        RevenueImport.fields().forEach(field -> mapping.put(field, field));
+        var configuration = new Configuration("来源数据", 1, mapping);
+        var mapped = imports.save(admin, task.id(), task.version(), 2, configuration, null);
+        var preview = imports.save(admin, task.id(), mapped.version(), 3, configuration, null);
+        assertThat(preview.batch().validRows()).isEqualTo(1);
+        assertThat(preview.batch().rows().get(1).errorsJson()).contains("认定金额不能超过条款金额");
+        var batch = preview.batch().batchId();
+        assertThat(imports.current(admin).batch().batchId()).isEqualTo(batch);
+        assertThat(imports.revise(admin, batch, 3, 0, Map.of(RevenueImport.PROVINCE, "无效省份",
+                RevenueImport.AMOUNT, "20")).rows().get(1).errorsJson())
+                .contains("对应省分（集成）未匹配启用的省份");
+        assertThat(imports.revise(admin, batch, 3, 1, Map.of(RevenueImport.PROVINCE, province.toString()))
+                .rows().get(1).errorsJson()).contains("项目状态须为实施中、已交付或已上线");
+        assertThat(imports.revise(admin, batch, 3, 2, Map.of(RevenueImport.STATUS, "已上线", RevenueImport.PROVINCE, "数智"))
+                .validRows()).isEqualTo(2);
+        var completed = imports.confirm(admin, batch, List.of(2, 3));
+        assertThat(completed.importedRows()).isEqualTo(2);
+        var recognition = service.detail(admin, completed.rows().get(1).recordId()).recognition();
+        assertThat(recognition.amount()).isEqualByComparingTo("20");
+        assertThat(recognition.projectStatus()).isEqualTo("已上线");
+        assertThat(recognition.integratedOrganization()).isEqualTo("数智");
+        assertThat(recognition.integratedProvinceId()).isNull();
+    }
+
+    @Test
     void importWizardUsesAll33SourceFieldsRejectsDuplicatesAndPreservesExcelTypes()
             throws Exception {
         var s = source();
@@ -613,8 +721,8 @@ class RevenueIT {
                 new XSSFWorkbook(
                         new ByteArrayInputStream(
                                 RevenueExcel.template(service.reference(admin))))) {
-            assertThat(book.getSheetAt(0).getRow(0).getLastCellNum()).isEqualTo((short) 36);
-            assertThat(book.getSheetAt(0).getDataValidations()).hasSize(3);
+            assertThat(book.getSheetAt(0).getRow(0).getLastCellNum()).isEqualTo((short) 37);
+            assertThat(book.getSheetAt(0).getDataValidations()).hasSize(4);
             assertThat(book.getSheetAt(0).getRow(0).getCell(12).getStringCellValue())
                     .isEqualTo("条款编号");
         }

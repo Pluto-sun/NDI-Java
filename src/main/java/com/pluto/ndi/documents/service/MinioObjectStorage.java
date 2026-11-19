@@ -44,10 +44,14 @@ class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
                 .endpoint(properties.endpoint())
                 .credentials(properties.accessKey(), properties.secretKey())
                 .build();
-        this.publicSigner = MinioClient.builder()
+        var signer = MinioClient.builder()
                 .endpoint(properties.publicEndpoint())
-                .credentials(properties.accessKey(), properties.secretKey())
-                .build();
+                .credentials(properties.accessKey(), properties.secretKey());
+        // 已知桶区域时，签名无需通过浏览器入口查询 MinIO。
+        if (properties.signingRegion() != null && !properties.signingRegion().isBlank()) {
+            signer.region(properties.signingRegion().strip());
+        }
+        this.publicSigner = signer.build();
     }
 
     @Override
@@ -116,9 +120,21 @@ class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
 
     @Override
     public String signDownload(String bucket, String objectKey) {
+        return signGet(bucket, objectKey, java.util.Map.of());
+    }
+
+    @Override
+    public String signAttachment(String bucket, String objectKey, String filename) {
+        var disposition = org.springframework.http.ContentDisposition.attachment()
+                .filename(filename, java.nio.charset.StandardCharsets.UTF_8).build().toString();
+        return signGet(bucket, objectKey, java.util.Map.of("response-content-disposition", disposition));
+    }
+
+    private String signGet(String bucket, String objectKey, java.util.Map<String, String> responseHeaders) {
         try {
             return publicSigner.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Http.Method.GET).bucket(bucket).object(objectKey)
+                    .extraQueryParams(responseHeaders)
                     .expiry(5, TimeUnit.MINUTES).build());
         } catch (MinioException exception) {
             throw storageFailure(exception);
@@ -127,13 +143,27 @@ class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
 
     @Override
     public void storeCsv(UUID exportId, byte[] content) {
-        ensureBucket(properties.bucket());
+        store(properties.bucket(), exportKey(exportId), "text/csv; charset=utf-8", content);
+    }
+
+    @Override
+    public String store(String bucket, String key, String mediaType, byte[] content) {
+        ensureBucket(bucket);
         try (var stream = new ByteArrayInputStream(content)) {
-            internalClient.putObject(PutObjectArgs.builder()
-                    .bucket(properties.bucket()).object(exportKey(exportId))
+            return internalClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucket).object(key)
                     .stream(stream, (long) content.length, -1L)
-                    .contentType("text/csv; charset=utf-8").build());
+                    .contentType(mediaType).build()).etag();
         } catch (MinioException | IOException exception) {
+            throw storageFailure(exception);
+        }
+    }
+
+    @Override
+    public void remove(String bucket, String key) {
+        try {
+            internalClient.removeObject(io.minio.RemoveObjectArgs.builder().bucket(bucket).object(key).build());
+        } catch (MinioException exception) {
             throw storageFailure(exception);
         }
     }

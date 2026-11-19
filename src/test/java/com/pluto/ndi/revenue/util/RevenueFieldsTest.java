@@ -32,6 +32,7 @@ class RevenueFieldsTest {
                                 "100",
                                 RevenueFields.SOURCE_AMOUNT,
                                 "0"));
+        result.put("三化分类", "数字化");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -44,7 +45,7 @@ class RevenueFieldsTest {
         assertThat(result.clauseNo()).isEmpty();
         assertThat(result.fields()).containsEntry("条款编号", "");
         assertThat(RevenueImport.REQUIRED)
-                .containsExactlyInAnyOrder("月账期", "条款金额", RevenueFields.SOURCE_AMOUNT);
+                .containsExactlyInAnyOrder("月账期", "条款金额", RevenueFields.SOURCE_AMOUNT, "三化分类");
         assertThat(RevenueImport.rules().stream().filter(r -> r.name().equals("条款编号")).findFirst())
                 .isPresent();
         for (String blank : new String[] {"", "   "}) {
@@ -80,6 +81,7 @@ class RevenueFieldsTest {
                                 "10",
                                 RevenueFields.SOURCE_AMOUNT,
                                 "0"));
+        input.put("三化分类", "数字化");
         var normalized = fields.normalize(input);
         assertThat(normalized.provinceId()).isNull();
         assertThat(normalized.organization()).isFalse();
@@ -98,7 +100,7 @@ class RevenueFieldsTest {
     void everyOptionalIdentityFieldTreatsMissingWhitespaceAndPlaceholderAsEmpty() {
         var input =
                 new LinkedHashMap<>(
-                        Map.of("月账期", "202611", "条款金额", "10", RevenueFields.SOURCE_AMOUNT, "0"));
+                        Map.of("月账期", "202611", "条款金额", "10", RevenueFields.SOURCE_AMOUNT, "0", "三化分类", "数字化"));
         for (var value : new String[] {"", "   ", "--", "  --  ", "\t--\n"}) {
             for (var field : new String[] {"合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"})
                 input.put(field, value);

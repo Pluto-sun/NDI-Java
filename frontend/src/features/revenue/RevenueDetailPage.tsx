@@ -1,3 +1,4 @@
+import { integratedAreaName, revenueProjectStatuses } from './sourceOptions';
 import { revenueText } from './format';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -38,7 +39,8 @@ function RecognitionForm({
       amount: String(entry.recognition?.amount ?? ''),
       reportedProjectName: entry.recognition?.reportedProjectName ?? '',
       projectStatus: entry.recognition?.projectStatus ?? '',
-      integratedProvinceId: entry.recognition?.integratedProvinceId ?? '',
+      integratedTarget:
+        entry.recognition?.integratedOrganization ?? entry.recognition?.integratedProvinceId ?? '',
     }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -46,9 +48,12 @@ function RecognitionForm({
     e.preventDefault();
     setBusy(true);
     try {
+      const { integratedTarget, ...recognition } = value;
+      const isOrganization = reference.integratedOrganizations.includes(integratedTarget);
       await revenueApi.recognize(entry, {
-        ...value,
-        integratedProvinceId: value.integratedProvinceId || null,
+        ...recognition,
+        integratedProvinceId: isOrganization ? null : integratedTarget || null,
+        integratedOrganization: isOrganization ? integratedTarget : null,
       });
       refreshNotificationCounts();
       onSaved();
@@ -93,21 +98,25 @@ function RecognitionForm({
               onChange={(e) => setValue({ ...value, projectStatus: e.target.value })}
             >
               <option value="">--</option>
-              <option>实施中</option>
-              <option>已交付</option>
+              {revenueProjectStatuses.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
             </Select>
           </label>
           <label>
             对应省分（集成）
             <Select
-              value={value.integratedProvinceId}
-              onChange={(e) => setValue({ ...value, integratedProvinceId: e.target.value })}
+              value={value.integratedTarget}
+              onChange={(e) => setValue({ ...value, integratedTarget: e.target.value })}
             >
               <option value="">--</option>
               {reference.provinces.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
+              ))}
+              {reference.integratedOrganizations.map((name) => (
+                <option key={name}>{name}</option>
               ))}
             </Select>
           </label>
@@ -147,9 +156,7 @@ function RecognitionValue({
       </div>
       <div>
         <dt>对应省分（集成）</dt>
-        <dd>
-          {revenueText(reference.provinces.find((p) => p.id === value.integratedProvinceId)?.name)}
-        </dd>
+        <dd>{revenueText(integratedAreaName(value, reference))}</dd>
       </div>
     </dl>
   ) : (
@@ -215,7 +222,6 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
   return (
     <>
       <div className="page-heading">
-        <h1>计收详情</h1>
         <div className="inline-actions">
           <Link className="secondary-button" to={back?.startsWith('/revenue?') ? back : '/revenue'}>
             返回计收列表

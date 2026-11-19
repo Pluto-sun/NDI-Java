@@ -1,26 +1,42 @@
 import { jsonBody, requestAt, type Page } from '../../shared/api/http';
 import { tabularImportApi } from '../../shared/imports/tabularImportApi';
 export const categories = [
-  { code: 'NETWORK', label: '5G工业专网', amount: 'networkAmount' },
-  { code: 'GEWU', label: '格物工业互联网平台', amount: 'gewuAmount' },
-  { code: 'BIG_DATA', label: '工业大数据平台', amount: 'bigDataAmount' },
-  { code: 'WANGWU', label: '万悟工业智能体平台', amount: 'wangwuAmount' },
+  { code: 'NETWORK', label: '5G工业专网', amount: 'networkAmount', fields: ['networkOrderAmount'] },
+  {
+    code: 'GEWU',
+    label: '格物工业互联网平台',
+    amount: 'gewuAmount',
+    fields: ['gewuOrderAmount', 'gewuRevenueAmount'],
+  },
+  {
+    code: 'BIG_DATA',
+    label: '工业大数据平台',
+    amount: 'bigDataAmount',
+    fields: ['bigDataOrderAmount', 'bigDataRevenueAmount'],
+  },
+  {
+    code: 'WANGWU',
+    label: '万悟工业智能体平台',
+    amount: 'wangwuAmount',
+    fields: ['wangwuOrderAmount', 'wangwuRevenueAmount'],
+  },
 ] as const;
-export interface PlanValues {
+export type AmountField = (typeof categories)[number]['fields'][number];
+type ProductTotal = (typeof categories)[number]['amount'];
+
+export interface PlanValues extends Record<AmountField, string | null> {
   reviewerName: string;
   planMonth: string;
   provinceId: string;
   cityId: string;
   projectName: string;
   customerName: string;
-  categories: string[];
-  networkAmount: string | number | null;
-  gewuAmount: string | number | null;
-  bigDataAmount: string | number | null;
-  wangwuAmount: string | number | null;
   projectStatus: string | null;
+  remark: string | null;
+  productIntroduction: string | null;
 }
-export interface Plan extends PlanValues {
+export interface Plan extends PlanValues, Record<ProductTotal, string | null> {
+  categories: string[];
   id: string;
   version: number;
   provinceName: string;
@@ -48,4 +64,4 @@ export const productionApi = {
   delete: (plan: Plan) =>
     request<void>(`/${plan.id}?version=${plan.version}`, { method: 'DELETE' }),
 };
-export const productionImportApi = tabularImportApi(root);
+export const productionImportApi = tabularImportApi(root, { exportFailedRows: true });

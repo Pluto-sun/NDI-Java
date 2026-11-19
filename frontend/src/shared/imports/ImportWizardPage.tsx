@@ -1,5 +1,5 @@
 import './importWizard.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
@@ -24,14 +24,22 @@ const emptyConfiguration: ImportConfiguration = {
   headerRowNo: null,
   fieldMapping: {},
 };
-export function ImportWizardPage({ config }: { config: ImportWizardConfig }) {
+type ImportHeading = (busy: boolean) => ReactNode;
+
+export function ImportWizardPage({
+  config,
+  renderHeading,
+}: {
+  config: ImportWizardConfig;
+  renderHeading?: ImportHeading;
+}) {
   return (
     <ImportWizardProvider value={config}>
-      <ImportWizardBody />
+      <ImportWizardBody renderHeading={renderHeading} />
     </ImportWizardProvider>
   );
 }
-function ImportWizardBody() {
+function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) {
   const config = useImportWizard();
   const projectsApi = config.api;
   const navigate = useNavigate();
@@ -219,7 +227,11 @@ function ImportWizardBody() {
   const step = task?.step ?? 1;
   const batch = task?.batch;
   const sheet = task?.inspection.sheets.find((sheet) => sheet.name === configuration.sheetName);
-  const missing = task ? missingMappings(task, configuration) : [];
+  const requiredAmountFields = config.requireAmountMapping ? config.amountFields : [];
+  const missing = task ? missingMappings(task, configuration, requiredAmountFields) : [];
+  const hasPreviewFailures = batch?.rows.some(
+    (row) => row.status !== 'READY' || !nameAccepted(row.nameReview),
+  );
   const canConfirm =
     !!batch &&
     batch.status === 'PREVIEWED' &&
@@ -230,8 +242,13 @@ function ImportWizardBody() {
   return (
     <section className="import-entry">
       <h1>{config.title}导入</h1>
-      <p>从{config.title}新增页面开始导入 Excel。</p>
-      <Modal title={`Excel ${config.title}导入`} busy={busy} onClose={() => void close()}>
+      <p>{config.entryHint ?? `从${config.title}新增页面开始导入 Excel。`}</p>
+      <Modal
+        title={`Excel ${config.title}导入`}
+        busy={busy}
+        renderHeading={renderHeading && (() => renderHeading(busy || saving > 0))}
+        onClose={() => void close()}
+      >
         <div className="import-wizard" ref={wizardBody} aria-busy={busy}>
           {error && (
             <Feedback tone="error">
@@ -471,6 +488,23 @@ function ImportWizardBody() {
                   {batch.status === 'PREVIEWED' ? (
                     <>
                       <div className="action-row">
+                        {hasPreviewFailures && projectsApi.originalFailedImportRows && (
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void action(async () =>
+                                downloadWorkbook(
+                                  await projectsApi.originalFailedImportRows!(batch.batchId),
+                                  `${config.title}导入预检失败原始数据.xlsx`,
+                                ),
+                              )
+                            }
+                          >
+                            导出预检失败原始数据
+                          </button>
+                        )}
                         <button
                           className="text-button"
                           disabled={busy}
@@ -579,11 +613,13 @@ function ImportWizardBody() {
           )}
         </div>
       </Modal>
-      {editor && batch && (
+      {editor && task && batch && (
         <ImportRowDialog
           key={`${editor.row.rowNumber}-${editor.mode}`}
           batchId={batch.batchId}
           row={editor.row}
+          fieldOrder={task.fieldRules.map(({ name }) => name)}
+          hiddenFields={requiredAmountFields.filter((field) => !configuration.fieldMapping[field])}
           mode={editor.mode}
           onClose={() => setEditor(null)}
           onSaved={batchUpdated}

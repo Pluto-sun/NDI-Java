@@ -196,15 +196,13 @@ public class ProjectResponsiblePersonStore {
             UUID id = person.id() == null ? UUID.randomUUID() : person.id();
             if (person.id() != null && !existing.contains(id) || !ids.add(id)) throw invalid();
             if (person.userId() != null) {
-                if (!users.add(person.userId())
-                        || identity.findProjectActor(person.userId())
-                                .filter(actor -> actor.enabled())
-                                .isEmpty()) throw invalid();
-                if ("PROVINCE_LEADER".equals(role)
-                        && (!identity.isEligibleProvinceLeader(
-                                        person.userId(), project.provinceId())
-                                || identity.isSystemAdministrator(person.userId())))
-                    throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
+                if (!users.add(person.userId())) throw invalid();
+                if (!identity.canBindProjectAccount(
+                        person.userId(), project.provinceId(), "PROVINCE_LEADER".equals(role))) {
+                    if ("PROVINCE_LEADER".equals(role))
+                        throw new BusinessException(ProjectErrorCode.INVALID_PROVINCE_LEADER);
+                    throw invalid();
+                }
             }
             people.add(
                     new ProjectResponsiblePerson(

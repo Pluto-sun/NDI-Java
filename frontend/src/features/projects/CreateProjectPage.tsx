@@ -24,7 +24,11 @@ export function CreateProjectPage({
   canImport: boolean;
 }) {
   const navigate = useNavigate();
-  const [cityId, setCityId] = useState(me.cityId ?? '');
+  const [cityId, setCityId] = useState(
+    () =>
+      reference.cities.find((item) => item.id === me.cityId && !item.legacyMunicipalityCity)?.id ??
+      '',
+  );
   const [responsibleText, setResponsibleText] = useState('');
   const [projectName, setProjectName] = useState('');
   const [collaborationProvinceId, setCollaborationProvinceId] = useState('');
@@ -53,15 +57,26 @@ export function CreateProjectPage({
   const [confirmNew, setConfirmNew] = useState(false);
   const [duplicateReason, setDuplicateReason] = useState('');
   const checkRevision = useRef(0);
+  const isGroup = me.roleCodes.includes('GROUP_REVIEWER');
   const isReviewer = me.roleCodes.includes('INTERFACE_REVIEWER');
-  const [reviewerProvince, setReviewerProvince] = useState(me.reviewerProvinceIds[0] ?? '');
-  const provinceId = isReviewer ? reviewerProvince : me.provinceId;
+  const [selectedProvince, setSelectedProvince] = useState(
+    isGroup ? '' : (me.reviewerProvinceIds[0] ?? ''),
+  );
+  const canSelectProvince = isReviewer || isGroup;
+  const provinceId = canSelectProvince ? selectedProvince : me.provinceId;
   const isCity =
+    !canSelectProvince &&
     me.roleCodes.includes('CITY_REPORTER') &&
     !me.roleCodes.some((role) => role.startsWith('PROVINCE_'));
+  const province = reference.provinces.find((item) => item.id === provinceId);
   const cities = reference.cities.filter(
-    (item) => item.provinceId === provinceId && (!isCity || item.id === me.cityId),
+    (item) =>
+      item.provinceId === provinceId &&
+      !item.legacyMunicipalityCity &&
+      (!isCity || item.id === me.cityId),
   );
+  const needsDistrictAssignment =
+    isCity && reference.cities.some((item) => item.id === me.cityId && item.legacyMunicipalityCity);
 
   useEffect(() => {
     let active = true;
@@ -143,12 +158,10 @@ export function CreateProjectPage({
     if (!window.confirm(`载入草稿“${draft.title}”？当前未保存内容会被替换。`)) return;
     const data = draft.data;
     setDraftId(draft.id);
-    setCityId(data.cityId ?? '');
+    const draftCity = reference.cities.find((item) => item.id === data.cityId);
+    setCityId(draftCity?.legacyMunicipalityCity ? '' : (data.cityId ?? ''));
     setCollaborationProvinceId(data.collaborationProvinceId ?? '');
-    if (isReviewer)
-      setReviewerProvince(
-        reference.cities.find((city) => city.id === data.cityId)?.provinceId ?? '',
-      );
+    if (canSelectProvince) setSelectedProvince(draftCity?.provinceId ?? '');
     const legacyLeaders =
       !data.responsiblePersonNames && data.leaderId && provinceId
         ? await projectsApi.provinceLeaders(provinceId).catch(() => [])
@@ -218,8 +231,8 @@ export function CreateProjectPage({
       setError('项目名称至少需要 2 个字符。');
       return;
     }
-    if (!provinceId || !cityId || !responsibleText.trim()) {
-      setError('请选择地市并填写至少一位项目负责人。');
+    if (!provinceId || !cities.some((item) => item.id === cityId) || !responsibleText.trim()) {
+      setError(`请选择${province?.municipality ? '区县' : '地市'}并填写至少一位项目负责人。`);
       return;
     }
     const totalCents = amountToCents(totalAmount);
@@ -294,7 +307,6 @@ export function CreateProjectPage({
       <div className="page-heading">
         <div>
           <span className="eyebrow">NEW PROJECT</span>
-          <h1>新建项目</h1>
           <p>创建后立即进入“方案交流”；项目名称与金额等重大变更需另行申请。</p>
         </div>
         <div className="action-row">
@@ -374,12 +386,12 @@ export function CreateProjectPage({
         <div className="form-grid">
           <label>
             归属省分
-            {isReviewer ? (
+            {canSelectProvince ? (
               <Select
                 required
                 value={provinceId ?? ''}
                 onChange={(event) => {
-                  setReviewerProvince(event.target.value);
+                  setSelectedProvince(event.target.value);
                   setCityId('');
                   setCandidate(null);
                   setConfirmNew(false);
@@ -389,7 +401,7 @@ export function CreateProjectPage({
               >
                 <option value="">请选择</option>
                 {reference.provinces
-                  .filter((item) => me.reviewerProvinceIds.includes(item.id))
+                  .filter((item) => isGroup || me.reviewerProvinceIds.includes(item.id))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -397,14 +409,11 @@ export function CreateProjectPage({
                   ))}
               </Select>
             ) : (
-              <input
-                value={reference.provinces.find((item) => item.id === provinceId)?.name ?? '未设置'}
-                disabled
-              />
+              <input value={province?.name ?? '未设置'} disabled />
             )}
           </label>
           <label>
-            归属地市
+            {province?.municipality ? '归属区县' : '归属地市'}
             <Select
               required
               value={cityId}
@@ -425,6 +434,9 @@ export function CreateProjectPage({
               ))}
             </Select>
           </label>
+          {needsDistrictAssignment && (
+            <p className="subtle">当前账号仍归属直辖市全市，请联系管理员配置实际区县后创建项目。</p>
+          )}
           <label>
             协作省份
             <Select

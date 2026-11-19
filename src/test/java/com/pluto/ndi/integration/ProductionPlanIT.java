@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.documents.service.ImportWorkbookDirectory;
+import com.pluto.ndi.production.controller.ProductionPlanController;
 import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.shared.imports.ImportModels.*;
 import com.pluto.ndi.production.mapper.ProductionPlanMapper;
 import com.pluto.ndi.production.service.*;
+import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.BusinessException;
 
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.*;
 import org.testcontainers.containers.*;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -62,6 +65,7 @@ class ProductionPlanIT {
     }
 
     @Autowired ProductionPlanService plans;
+    @Autowired ProductionPlanController controller;
     @Autowired ProductionImportService imports;
     @Autowired JdbcTemplate jdbc;
     @Autowired ImportWorkbookDirectory files;
@@ -114,14 +118,19 @@ class ProductionPlanIT {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
     @Test
     void enforcesAmountsScopeUniquenessAndVersionedLogicalDelete() {
         String name = "排产" + UUID.randomUUID();
-        var plan = plans.create(actor, command(name, "2026-10", BigDecimal.ZERO));
-        assertThat(plan.networkAmount()).isEqualByComparingTo("0");
+        var plan = plans.create(actor, command(name, "2026-10", BigDecimal.ONE));
+        assertThat(plan.networkAmount()).isEqualByComparingTo("1");
         assertThat(plan.gewuAmount()).isNull();
         assertThatThrownBy(
                         () ->
@@ -130,6 +139,8 @@ class ProductionPlanIT {
                                         command("  " + name + "  ", "2026-10", BigDecimal.ONE)))
                 .isInstanceOf(BusinessException.class);
         assertThat(plans.create(admin, command(name, "2026-11", BigDecimal.ONE)).id()).isNotNull();
+        assertThatThrownBy(() -> plans.create(actor, command(name, "2026-12", BigDecimal.ZERO)))
+                .hasMessageContaining("大于 0");
         assertThatThrownBy(() -> plans.create(actor, command(name, "2026-12", null)))
                 .hasMessageContaining("至少填写一项");
         assertThatThrownBy(
@@ -138,10 +149,9 @@ class ProductionPlanIT {
         assertThatThrownBy(
                         () ->
                                 plans.create(
-                                        actor, command(name, "2026-12", new BigDecimal("0.001"))))
-                .hasMessageContaining("两位小数");
-        assertThatThrownBy(() -> plans.create(reader, command(name, "2026-12", BigDecimal.ONE)))
-                .isInstanceOf(BusinessException.class);
+                                        actor, command(name, "2026-12", new BigDecimal("0.00001"))))
+                .hasMessageContaining("四位小数");
+        assertThat(plans.create(reader, command(name, "2026-12", BigDecimal.ONE)).id()).isNotNull();
         var changed =
                 plans.update(
                         actor,
@@ -170,7 +180,7 @@ class ProductionPlanIT {
         assertThatThrownBy(() -> plans.delete(other, plan.id(), 1))
                 .isInstanceOf(BusinessException.class);
         plans.delete(actor, plan.id(), 1);
-        assertThat(plans.create(actor, command(name, "2026-10", BigDecimal.ZERO)).id())
+        assertThat(plans.create(actor, command(name, "2026-10", BigDecimal.ONE)).id())
                 .isNotEqualTo(plan.id());
         assertThat(
                         plans.list(
@@ -179,7 +189,102 @@ class ProductionPlanIT {
                                                 "2026-11", null, null, name, null, 0, 20))
                                 .items())
                 .hasSize(1)
-                .allMatch(p -> !p.writable());
+                .allMatch(p -> p.writable());
+    }
+
+    @Test
+    void sumsSplitAmountsExactlyAndRevalidatesEveryProduct() {
+        String name = "分项验收" + UUID.randomUUID();
+        var initial = new ProductionPlan.Command("接口", "2026-10", province, city,
+                name, "客户", List.of("NETWORK", "GEWU", "BIG_DATA", "WANGWU"),
+                BigDecimal.ZERO, new BigDecimal("20"), new BigDecimal("8"),
+                null, new BigDecimal("0.01"), new BigDecimal("0.02"), null, null, "含备注", "产品介绍");
+        var created = plans.create(actor, initial);
+        assertThat(created.networkAmount()).isEqualByComparingTo("0");
+        assertThat(created.productIntroduction()).isEqualTo("产品介绍");
+        assertThat(created.remark()).isEqualTo("含备注");
+        assertThat(created.categories()).containsExactly("GEWU", "BIG_DATA", "WANGWU");
+        assertThat(created.gewuAmount()).isEqualByComparingTo("28");
+        assertThat(created.bigDataAmount()).isEqualByComparingTo("0.01");
+        assertThat(created.wangwuAmount()).isEqualByComparingTo("0.02");
+        var edit = new ProductionPlan.Command("接口", "2026-10", province, city,
+                name, "客户", List.of("GEWU"), null, null, new BigDecimal("8.5501"),
+                null, null, null, null, null, "  ", "  ");
+        var updated = plans.update(actor, created.id(), created.version(), edit);
+        assertThat(updated.gewuAmount()).isEqualByComparingTo("8.5501");
+        assertThat(updated.gewuOrderAmount()).isNull();
+        assertThat(updated.remark()).isNull();
+        assertThat(updated.categories()).containsExactly("GEWU");
+        assertThat(updated.networkAmount()).isNull();
+        for (var invalid : List.of(new BigDecimal("-1"), new BigDecimal("0.00001"))) {
+            var badRevenue = new ProductionPlan.Command("接口", "2026-10", province, city,
+                    name, "客户", List.of("WANGWU"), null, null, null, null, null,
+                    null, invalid, null, null, null);
+            assertThatThrownBy(() -> plans.validate(actor, badRevenue)).hasMessageContaining("四位小数");
+        }
+        var legacyCategory = new ProductionPlan.Command("接口", "2026-10", province, city,
+                name, "客户", List.of("NETWORK"), null, null, BigDecimal.ONE, null, null,
+                null, null, null, null, null);
+        assertThat(plans.validate(actor, legacyCategory).categories()).containsExactly("GEWU");
+    }
+
+    @Test
+    void downloadTemplateContainsExactlyTheSevenAmountColumnsInOrder() throws Exception {
+        var auth = new UsernamePasswordAuthenticationToken(new ActorPrincipal(actor), null, List.of());
+        var response = controller.template(auth);
+        try (var workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(response.getBody()))) {
+            var header = workbook.getSheetAt(0).getRow(0);
+            var amountHeaders = new ArrayList<String>();
+            int firstAmount = ProductionImport.REQUIRED.size() + 1; // 客户名称为选填，仍在金额列前。
+            for (int column = firstAmount; column < header.getLastCellNum() - 3; column++)
+                amountHeaders.add(header.getCell(column).getStringCellValue());
+            assertThat(amountHeaders).containsExactly(
+                    "工业专网产品收入排产",
+                    "格物工业互联网平台-政企运营平台预计下单金额",
+                    "格物工业互联网平台-数智业务管理系统预计计收金额",
+                    "工业大数据平台-政企运营平台预计下单金额",
+                    "工业大数据平台-数智业务管理系统预计计收金额",
+                    "万悟工业智能体平台-政企运营平台预计下单金额",
+                    "万悟工业智能体平台-数智业务管理系统预计计收金额");
+            assertThat(header.getCell(header.getLastCellNum() - 2).getStringCellValue()).isEqualTo("产品简介");
+            assertThat(header.getCell(header.getLastCellNum() - 1).getStringCellValue()).isEqualTo("备注");
+        }
+    }
+
+    @Test
+    void previewValidatesRawExcelPrecisionAndOnlyMappedAmountsAreEditable() throws Exception {
+        String name = "原始精度" + UUID.randomUUID();
+        byte[] bytes;
+        try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook(name)));
+                var out = new java.io.ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            var numeric = sheet.getRow(1).getCell(ProductionImport.templateFields().indexOf(ProductionImport.fieldLabel(ProductionImport.AMOUNTS.getFirst())));
+            numeric.setCellValue(0.00001);
+            var style = book.createCellStyle();
+            style.setDataFormat(book.createDataFormat().getFormat("0.00"));
+            numeric.setCellStyle(style);
+            book.write(out);
+            bytes = out.toByteArray();
+        }
+        var uploaded = imports.upload(actor, "排产.xlsx", bytes, null, null);
+        var mapping = new java.util.HashMap<String, String>();
+        ProductionImport.REQUIRED.forEach(field -> mapping.put(field, field));
+        var order = ProductionImport.AMOUNTS.getFirst();
+        mapping.put(order, ProductionImport.fieldLabel(order));
+        var configuration = new Configuration("排产数据", 1, mapping);
+        var mapped = imports.save(actor, uploaded.id(), uploaded.version(), 2, configuration, null);
+        var preview = imports.save(actor, mapped.id(), mapped.version(), 3, configuration, null);
+        assertThat(preview.batch().rows().getFirst().errorsJson()).contains("最多四位小数");
+        var batch = preview.batch().batchId();
+        try (var failed = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.originalFailedRows(actor, batch)))) {
+            assertThat(failed.getSheetAt(0).getPhysicalNumberOfRows()).isGreaterThan(1);
+        }
+        assertThatThrownBy(() -> imports.revise(actor, batch, 2, 0,
+                Map.of("格物工业互联网平台-数智业务管理系统预计计收金额", "9")))
+                .hasMessageContaining("修正字段无效");
+        var corrected = imports.revise(actor, batch, 2, 0, Map.of(order, "1"));
+        assertThat(corrected.rows().getFirst().status()).isEqualTo("READY");
+        assertThat(imports.confirm(actor, batch, List.of(2)).importedRows()).isEqualTo(1);
     }
 
     byte[] workbook(String name) throws Exception {
@@ -187,7 +292,7 @@ class ProductionPlanIT {
                 var out = new ByteArrayOutputStream()) {
             var sheet = wb.createSheet("排产数据");
             var header = sheet.createRow(0);
-            var fields = ProductionImport.fields();
+            var fields = ProductionImport.templateFields();
             for (int i = 0; i < fields.size(); i++)
                 header.createCell(i).setCellValue(fields.get(i));
             for (int i = 0; i < 3; i++) {
@@ -199,12 +304,9 @@ class ProductionPlanIT {
                     "广州市",
                     i == 2 ? name + "需修正" : name,
                     "测试客户",
-                    "网络化",
-                    i == 2 ? "" : "0",
-                    "",
-                    "",
-                    "",
-                    "推进中"
+                    i == 2 ? "" : "1",
+                    "", "", "", "", "", "",
+                    "推进中", ""
                 };
                 for (int j = 0; j < values.length; j++) row.createCell(j).setCellValue(values[j]);
             }
@@ -245,7 +347,7 @@ class ProductionPlanIT {
                         "排产数据",
                         1,
                         ProductionImport.fields().stream()
-                                .collect(java.util.stream.Collectors.toMap(f -> f, f -> f)));
+                                .collect(java.util.stream.Collectors.toMap(f -> f, ProductionImport::fieldLabel)));
         var preview = imports.save(actor, mapped.id(), mapped.version(), 3, full, null);
         assertThat(preview.batch().validRows()).isEqualTo(1);
         assertThat(preview.batch().failedRows()).isEqualTo(2);

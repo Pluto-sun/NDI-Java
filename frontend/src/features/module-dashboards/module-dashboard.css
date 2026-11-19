@@ -1,0 +1,105 @@
+.module-dashboard-months,
+.module-dashboard-views {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+.topbar .module-dashboard-months input {
+  width: 132px;
+  min-height: 32px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.module-dashboard-views button {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+}
+.module-dashboard-views button[aria-pressed='true'] {
+  color: var(--red);
+  border-color: currentColor;
+  background: #fff3f4;
+}
+.module-dashboard .register-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr));
+  gap: 12px;
+}
+.register-metric {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  min-width: 0;
+}
+.register-metric-total {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px clamp(24px, 8vw, 100px);
+  border-inline-start: 3px solid var(--red);
+}
+.register-metric h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.register-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.register-metric strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 23px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.register-metric-total strong {
+  color: var(--red);
+  font-size: clamp(26px, 4vw, 38px);
+}
+.register-metric-values {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 10px;
+}
+.register-region {
+  margin-top: 16px;
+  padding: 14px 0 0;
+  overflow: hidden;
+}
+.register-region h2 {
+  margin: 0 16px 12px;
+  font-size: 16px;
+}
+.register-region table {
+  min-width: 0;
+}
+.register-region :is(th, td) {
+  padding: 9px clamp(5px, 2vw, 16px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.register-region tr > :not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 620px) {
+  .topbar.module-dashboard-topbar {
+    position: sticky;
+    top: 0;
+    padding-block: 7px;
+  }
+  .module-dashboard-topbar .topbar-title,
+  .module-dashboard-topbar .topbar-breadcrumb > span {
+    display: none;
+  }
+}

@@ -13,6 +13,8 @@ public interface IdentityDirectory {
 
     List<ProjectUser> findEnabledProjectUsers();
 
+    boolean canBindProjectAccount(UUID userId, UUID provinceId, boolean provinceOnly);
+
     List<ProjectUser> searchProjectBindingAccounts(
             String keyword, UUID provinceId, boolean provinceOnly);
 
@@ -59,6 +61,8 @@ public interface IdentityDirectory {
     boolean canUploadProjectDocument(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canAppendProjectProgress(ProjectActor actor, UUID provinceId, UUID cityId);
+
+    boolean canConfigureProjectPeople(ProjectActor actor, UUID provinceId, UUID cityId);
 
     boolean canUpdateProjectProfile(ProjectActor actor, UUID provinceId, UUID cityId);
 

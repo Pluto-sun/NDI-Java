@@ -100,6 +100,7 @@ class RevenueBusinessKeyIT {
                                 "10",
                                 "业务号码/项目编号",
                                 "000001"));
+        result.put("三化分类", "数字化");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -348,7 +349,7 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
     void allFiveOptionalIdentifiersShareEmptyPlaceholderAndMissingIdentity() throws Exception {
         var minimal =
                 new LinkedHashMap<>(
-                        Map.of("月账期", "202612", "条款金额", "100", RevenueFields.SOURCE_AMOUNT, "0"));
+                        Map.of("月账期", "202612", "条款金额", "100", RevenueFields.SOURCE_AMOUNT, "0", "三化分类", "数字化"));
         var saved = service.create(admin, minimal);
         var placeholders = new LinkedHashMap<>(minimal);
         for (var field : List.of("合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"))

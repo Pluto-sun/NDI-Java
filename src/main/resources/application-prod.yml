@@ -12,6 +12,7 @@ ndi:
   storage:
     endpoint: ${NDI_MINIO_ENDPOINT}
     public-endpoint: ${NDI_MINIO_PUBLIC_ENDPOINT}
+    signing-region: ${NDI_MINIO_SIGNING_REGION:}
     access-key: ${NDI_MINIO_ACCESS_KEY}
     secret-key: ${NDI_MINIO_SECRET_KEY}
     bucket: ${NDI_MINIO_BUCKET}

@@ -43,10 +43,20 @@ const normalized = (value: string) =>
     .replace(/[\s\p{P}\p{S}]/gu, '')
     .replace(/万元|万/g, '');
 const aliases: Record<string, string[]> = {
-  '万悟平台排产（万元）': ['万悟工业智能体平台排产（万元）'],
-  '工业大数据排产（万元）': ['工业大数据平台排产（万元）'],
-  '格物平台排产（万元）': ['格物工业互联网平台排产（万元）'],
-  '工业专网排产（万元）': ['5G工业专网排产（万元）'],
+  是否在计收表中出现: ['是否在子辉的计收表出现', '是否同步到计收表'],
+  '万悟平台排产（万元）': [
+    '万悟工业智能体平台-政企运营平台预计下单金额',
+    '万悟工业智能体平台排产（万元）',
+  ],
+  '工业大数据排产（万元）': [
+    '工业大数据平台-政企运营平台预计下单金额',
+    '工业大数据平台排产（万元）',
+  ],
+  '格物平台排产（万元）': [
+    '格物工业互联网平台-政企运营平台预计下单金额',
+    '格物工业互联网平台排产（万元）',
+  ],
+  '工业专网排产（万元）': ['工业专网产品收入排产', '5G工业专网排产（万元）'],
   '万悟工业智能体平台预计金额（万）': ['万悟预计金额（万）'],
   '工业大数据平台预计金额（万）': ['大数据预计金额（万）'],
   '格物工业互联网平台预计金额（万）': ['格物预计金额（万）'],
@@ -120,7 +130,9 @@ function headerSimilarity(a: string, b: string) {
   return (winkler + 1 - previous[b.length] / Math.max(a.length, b.length)) / 2;
 }
 
-/** 先占用精确表头，再用别名和包含关系推断，避免同一源列被重复映射。 */
+const sourceTitle = (header: string) => header.replace(/(?:（[A-Z]+列）)+$/, '');
+
+/** 先占用精确表头，再按源列顺序匹配带列号的同名表头和别名。 */
 export function suggestMapping(fields: string[], headers: string[]) {
   const result: Record<string, string> = Object.fromEntries(fields.map((field) => [field, '']));
   const used = new Set<string>();
@@ -138,7 +150,7 @@ export function suggestMapping(fields: string[], headers: string[]) {
         (header) =>
           allowedMappingSource(field, header) &&
           !used.has(header) &&
-          variants.includes(normalized(header)),
+          variants.includes(normalized(sourceTitle(header))),
       );
       if (header) {
         result[field] = header;
@@ -202,7 +214,11 @@ export function downloadWorkbook(blob: Blob, name: string) {
 export type ImportRow = ImportBatch['rows'][number];
 
 /** 固定必填列缺少映射时不允许离开第二步；条件字段由服务端再次核对整份文件。 */
-export function missingMappings(task: ImportTask, configuration: ImportConfiguration): string[] {
+export function missingMappings(
+  task: ImportTask,
+  configuration: ImportConfiguration,
+  requiredAmountFields: string[] = [],
+): string[] {
   const result = task.fieldRules
     .filter((rule) => rule.requirement === 'REQUIRED' && !configuration.fieldMapping[rule.name])
     .map((rule) => rule.name);
@@ -214,10 +230,8 @@ export function missingMappings(task: ImportTask, configuration: ImportConfigura
   )
     result.push('至少一项三化预计金额');
   if (
-    task.fieldRules.some((rule) => rule.name === '排产月份') &&
-    !task.fieldRules
-      .filter((rule) => rule.name.includes('排产（万元）'))
-      .some((rule) => configuration.fieldMapping[rule.name])
+    requiredAmountFields.length &&
+    !requiredAmountFields.some((field) => configuration.fieldMapping[field])
   )
     result.push('至少一项排产金额');
   return result;

@@ -78,11 +78,21 @@ public abstract class ImportControllerBase {
 
     @GetMapping("/imports/template")
     public ResponseEntity<byte[]> template(Authentication auth) throws java.io.IOException {
+        return workbook(templateBytes(actor(auth)));
+    }
+
+    @GetMapping("/imports/{id}/failed-rows/original")
+    public ResponseEntity<byte[]> originalFailedRows(Authentication auth, @PathVariable UUID id)
+            throws java.io.IOException {
+        return workbook(imports.originalFailedRows(actor(auth), id));
+    }
+
+    private ResponseEntity<byte[]> workbook(byte[] content) {
         return ResponseEntity.ok()
                 .contentType(
                         MediaType.parseMediaType(
                                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(templateBytes(actor(auth)));
+                .body(content);
     }
 
     @GetMapping("/imports/{id}")

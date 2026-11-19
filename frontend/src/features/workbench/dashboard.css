@@ -372,8 +372,15 @@
   fill: var(--ink);
   pointer-events: none;
 }
+.dashboard-ranking {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
 .dashboard-ranking .table-scroll {
-  max-height: 355px;
+  /* 分布表按地图高度伸展，表格行数不参与面板定高。 */
+  contain: size;
+  overflow: auto;
 }
 .dashboard-ranking thead {
   position: sticky;
@@ -633,6 +640,7 @@
 @media (max-width: 1300px) {
   .dashboard-region-grid {
     grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
   }
   .dashboard-kpis,
   .dashboard-category-stages {

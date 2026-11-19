@@ -43,6 +43,9 @@ public class ProjectDuplicateService {
                         .findFirst()
                         .orElseThrow(
                                 () -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
+        if (city.legacyMunicipalityCity()) {
+            throw new BusinessException(ProjectErrorCode.MUNICIPALITY_DISTRICT_REQUIRED);
+        }
         if (!identity.canCreateProject(actor, city.provinceId(), cityId)) {
             throw new BusinessException(ProjectErrorCode.CREATION_FORBIDDEN);
         }

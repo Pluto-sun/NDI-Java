@@ -242,8 +242,10 @@ public class ProjectService {
     }
 
     private void verifyLocation(CreateProjectCommand command) {
-        if (organizationDirectory.findEnabledLocation(command.provinceId(), command.cityId()).isEmpty()) {
-            throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
+        var location = organizationDirectory.findEnabledLocation(command.provinceId(), command.cityId())
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION));
+        if (location.legacyMunicipalityCity()) {
+            throw new BusinessException(ProjectErrorCode.MUNICIPALITY_DISTRICT_REQUIRED);
         }
     }
 

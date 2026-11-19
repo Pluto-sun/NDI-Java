@@ -12,6 +12,7 @@ import org.springframework.transaction.support.*;
 
 import java.time.*;
 import java.util.*;
+import java.util.function.Predicate;
 
 @Transactional
 public abstract class TabularImportEngine<C> {
@@ -49,7 +50,16 @@ public abstract class TabularImportEngine<C> {
 
     protected abstract Object duplicateKey(C value);
 
-    protected abstract boolean duplicate(C value);
+    protected boolean duplicate(C value) {
+        return false;
+    }
+
+    protected Set<C> existingDuplicates(List<C> values) {
+        var existing = new HashSet<C>();
+        for (var value : values)
+            if (duplicate(value)) existing.add(value);
+        return existing;
+    }
 
     /** 返回空值表示目标已存在且内容相同，无需写入。 */
     protected abstract UUID create(UUID actor, Map<String, String> cells);
@@ -58,10 +68,18 @@ public abstract class TabularImportEngine<C> {
 
     protected abstract BusinessException conflict();
 
+    protected Predicate<String> sourceHeaders() {
+        return ExcelWorkbook.INCLUDE_ALL_HEADERS;
+    }
+
+    protected ExcelWorkbook.Inspection inspect(String fileName, byte[] data) throws java.io.IOException {
+        return ExcelWorkbook.inspect(fileName, data, fields(), sourceHeaders());
+    }
+
     protected List<ExcelWorkbook.Line> read(byte[] bytes, Configuration config)
             throws java.io.IOException {
         return ExcelWorkbook.read(
-                bytes, config.sheetName(), config.headerRowNo(), config.fieldMapping(), fields());
+                bytes, config.sheetName(), config.headerRowNo(), config.fieldMapping(), fields(), Set.of(), sourceHeaders());
     }
 
     @Transactional
@@ -84,7 +102,7 @@ public abstract class TabularImportEngine<C> {
         if (fileName == null || !fileName.toLowerCase(Locale.ROOT).endsWith(".xlsx"))
             throw invalid("请选择 .xlsx 文件");
         try {
-            var inspection = ExcelWorkbook.inspect(fileName, data, fields());
+            var inspection = inspect(fileName, data);
             var id = UUID.randomUUID();
             var stored = files.storeFor(module, id, data);
             cleanup(stored.bucket(), stored.objectKey(), false);
@@ -131,10 +149,7 @@ public abstract class TabularImportEngine<C> {
             var missing = missing(config.fieldMapping());
             if (!missing.isEmpty()) throw invalid("请先映射必填字段：" + String.join("、", missing));
             try {
-                var data = files.read(stored.bucket(), stored.key());
-                if (data.length != stored.size() || !sha(data).equals(stored.sha()))
-                    throw invalid("源文件完整性校验失败");
-                var lines = read(data, config);
+                var lines = read(readSource(stored), config);
                 batch =
                         validateRows(
                                 actor,
@@ -182,9 +197,34 @@ public abstract class TabularImportEngine<C> {
         cleanup(stored.bucket(), stored.key(), true);
     }
 
+    public byte[] originalFailedRows(UUID actor, UUID batch) throws java.io.IOException {
+        authorize(actor);
+        tasks.lock(actor);
+        var stored = batchTask(actor, batch);
+        var task = stored.task();
+        var rowNumbers = task.batch().rows().stream()
+                .filter(row -> "FAILED".equals(row.status()))
+                .map(Row::rowNumber)
+                .toList();
+        if (rowNumbers.isEmpty()) throw invalid("当前没有预检失败的数据");
+        var config = task.configuration();
+        return ExcelWorkbook.originalRows(readSource(stored), config.sheetName(), config.headerRowNo(), rowNumbers);
+    }
+
+    private byte[] readSource(ImportTaskStore.Stored stored) {
+        var data = files.read(stored.bucket(), stored.key());
+        if (data.length != stored.size() || !sha(data).equals(stored.sha()))
+            throw invalid("源文件完整性校验失败");
+        return data;
+    }
+
     public Batch batch(UUID actor, UUID batch) {
         authorize(actor);
         return batchTask(actor, batch).task().batch();
+    }
+
+    protected boolean canReviseField(Configuration config, String field) {
+        return fields().contains(field);
     }
 
     public Batch revise(
@@ -195,7 +235,7 @@ public abstract class TabularImportEngine<C> {
         var old = stored.task();
         if (changes == null
                 || changes.isEmpty()
-                || !fields().containsAll(changes.keySet())
+                || changes.keySet().stream().anyMatch(field -> !canReviseField(old.configuration(), field))
                 || changes.values().stream().anyMatch(v -> v == null || v.length() > 5000))
             throw invalid("修正字段无效");
         var rows = new ArrayList<Row>();
@@ -250,9 +290,10 @@ public abstract class TabularImportEngine<C> {
                 .anyMatch(
                         n -> !byNumber.containsKey(n) || !"READY".equals(byNumber.get(n).status())))
             throw invalid("所选行已不满足导入条件，请重新预检");
+        var selectedRows = Set.copyOf(selection);
         var result = new ArrayList<Row>();
         for (var row : fresh.rows()) {
-            if (selection.contains(row.rowNumber())) {
+            if (selectedRows.contains(row.rowNumber())) {
                 var recordId = create(actor, cells(row));
                 result.add(
                         new Row(
@@ -313,19 +354,26 @@ public abstract class TabularImportEngine<C> {
     private Batch validateRows(UUID actor, UUID batch, List<Row> source) {
         var result = new ArrayList<Row>();
         var seen = new HashSet<Object>();
-        int valid = 0;
+        var commands = new HashMap<Integer, C>();
+        var validationErrors = new HashMap<Integer, List<String>>();
         for (var row : source) {
             var errors = new ArrayList<String>();
             try {
                 var command = validate(actor, cells(row));
                 var key = duplicateKey(command);
                 if (key != null && !seen.add(key)) errors.add("与文件内前序记录重复：业务唯一键相同");
-                if (duplicate(command)) errors.add("系统内已存在相同业务唯一键的记录");
-            } catch (BusinessException e) {
-                errors.add(e.getMessage());
-            } catch (IllegalArgumentException e) {
+                commands.put(row.rowNumber(), command);
+            } catch (BusinessException | IllegalArgumentException e) {
                 errors.add(e.getMessage());
             }
+            validationErrors.put(row.rowNumber(), errors);
+        }
+        var duplicates = existingDuplicates(List.copyOf(commands.values()));
+        int valid = 0;
+        for (var row : source) {
+            var errors = validationErrors.get(row.rowNumber());
+            if (commands.containsKey(row.rowNumber()) && duplicates.contains(commands.get(row.rowNumber())))
+                errors.add("系统内已存在相同业务唯一键的记录");
             if (errors.isEmpty()) valid++;
             result.add(
                     new Row(

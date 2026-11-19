@@ -21,5 +21,7 @@ public interface OrganizationDirectory {
 
     Optional<ProvinceOption> findEnabledProvinceByName(String name);
 
+    Optional<String> findEnabledCityName(UUID provinceId, String name);
+
     List<CityOption> findEnabledCities();
 }

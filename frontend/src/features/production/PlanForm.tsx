@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { Feedback } from '../../shared/ui/Feedback';
 import { Select } from '../../shared/ui/Select';
 import { categories, type PlanValues, type Reference } from './api';
+import {
+  expandScientificAmount,
+  formatAmountUnits,
+  parseAmountUnits,
+  plainAmount,
+} from './amounts';
 
 const empty: PlanValues = {
   reviewerName: '',
@@ -10,14 +16,18 @@ const empty: PlanValues = {
   cityId: '',
   projectName: '',
   customerName: '',
-  categories: [],
-  networkAmount: null,
-  gewuAmount: null,
-  bigDataAmount: null,
-  wangwuAmount: null,
+  networkOrderAmount: null,
+  gewuOrderAmount: null,
+  gewuRevenueAmount: null,
+  bigDataOrderAmount: null,
+  bigDataRevenueAmount: null,
+  wangwuOrderAmount: null,
+  wangwuRevenueAmount: null,
   projectStatus: '',
+  remark: '',
+  productIntroduction: '',
 };
-/** 手工新增与编辑共用金额和类别交互，清空保留为空而非转换为零。 */
+/** 手工新增与编辑共用金额表单，清空保留为空。 */
 export function PlanForm({
   reference,
   initial,
@@ -31,7 +41,17 @@ export function PlanForm({
 }) {
   const [values, setValues] = useState<PlanValues>(() =>
     initial
-      ? { ...initial }
+      ? {
+          ...initial,
+          ...Object.fromEntries(
+            categories.flatMap((product) =>
+              product.fields.map((key) => [
+                key,
+                initial[key] === null ? null : plainAmount(initial[key]!),
+              ]),
+            ),
+          ),
+        }
       : {
           ...empty,
           provinceId: reference.provinces.length === 1 ? reference.provinces[0].id : '',
@@ -46,14 +66,31 @@ export function PlanForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    const amounts = categories.map((c) => values[c.amount]);
-    if (amounts.every((a) => a === null || a === '')) {
-      setError('四项排产金额至少填写一项，允许填写 0');
+    const amounts = categories
+      .flatMap((product) => product.fields.map((key) => values[key]))
+      .filter((value) => value !== null)
+      .map((value) => parseAmountUnits(expandScientificAmount(value)));
+    if (amounts.some((value) => value === null)) {
+      setError('排产金额须为非负数，最多四位小数，整数部分最多十六位');
+      return;
+    }
+    if (!amounts.some((value) => value !== null && value > 0n)) {
+      setError('至少填写一项大于 0 的排产金额');
       return;
     }
     setBusy(true);
     try {
-      await onSave(values);
+      await onSave({
+        ...values,
+        ...Object.fromEntries(
+          categories.flatMap((product) =>
+            product.fields.map((key) => [
+              key,
+              values[key] === null ? null : expandScientificAmount(values[key]!),
+            ]),
+          ),
+        ),
+      });
     } catch (c) {
       setError(c instanceof Error ? c.message : '保存失败');
     } finally {
@@ -129,60 +166,74 @@ export function PlanForm({
             />
           </label>
           <label>
-            客户名称 *
+            客户名称
             <input
-              required
               maxLength={300}
               value={values.customerName}
               onChange={(e) => field('customerName', e.target.value)}
             />
           </label>
         </div>
-        <div className="production-category-section">
-          <span>三化类别 *（可多选）</span>
-          <div className="production-category-options">
-            {categories.map((c) => (
-              <label className="check-label" key={c.code}>
-                <input
-                  type="checkbox"
-                  checked={values.categories.includes(c.code)}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setValues((old) => ({
-                      ...old,
-                      categories: checked
-                        ? [...old.categories, c.code]
-                        : old.categories.filter((code) => code !== c.code),
-                      [c.amount]: checked ? old[c.amount] : null,
-                    }));
-                  }}
-                />
-                {c.label}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="form-grid">
-          {categories.map((c) => (
-            <label key={c.code}>
-              {c.label}排产（万元）
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="未排产"
-                disabled={!values.categories.includes(c.code)}
-                value={values[c.amount] ?? ''}
-                onChange={(e) => field(c.amount, e.target.value === '' ? null : e.target.value)}
-              />
-            </label>
-          ))}
+        <div className="form-grid production-product-amounts">
+          {categories.map((product) => {
+            const amounts = product.fields
+              .map((key) => values[key])
+              .filter((value) => value !== null);
+            const units = amounts.map((value) => parseAmountUnits(expandScientificAmount(value)));
+            const total =
+              units.length && units.every((value) => value !== null)
+                ? formatAmountUnits(units.reduce<bigint>((sum, value) => sum + (value ?? 0n), 0n))
+                : '—';
+            return (
+              <fieldset key={product.code} className="production-product-amount">
+                <legend>{product.label}</legend>
+                {product.fields.map((key) => (
+                  <label key={key}>
+                    {key.endsWith('OrderAmount')
+                      ? '政企运营平台预计下单金额'
+                      : '数智业务管理系统预计计收金额'}
+                    <input
+                      inputMode="decimal"
+                      maxLength={21}
+                      placeholder="未填写"
+                      value={values[key] ?? ''}
+                      onChange={(e) => field(key, e.target.value.trim() || null)}
+                      onBlur={(e) => field(key, expandScientificAmount(e.target.value) || null)}
+                    />
+                  </label>
+                ))}
+                <div className="production-product-total">
+                  <span>总排产金额</span>
+                  <output aria-label={`${product.label}总排产金额`}>{total}</output>
+                </div>
+              </fieldset>
+            );
+          })}
           <label className="full-width">
             项目状态（选填）
             <input
               maxLength={200}
               value={values.projectStatus ?? ''}
               onChange={(e) => field('projectStatus', e.target.value)}
+            />
+          </label>
+          <label className="full-width">
+            产品简介（选填）
+            <textarea
+              maxLength={2000}
+              rows={3}
+              value={values.productIntroduction ?? ''}
+              onChange={(e) => field('productIntroduction', e.target.value)}
+            />
+          </label>
+          <label className="full-width">
+            备注（选填）
+            <textarea
+              aria-label="备注（选填）"
+              maxLength={2000}
+              rows={3}
+              value={values.remark ?? ''}
+              onChange={(e) => field('remark', e.target.value)}
             />
           </label>
         </div>

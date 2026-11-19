@@ -7,6 +7,7 @@ import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.production.mapper.ProductionImportMapper;
 import com.pluto.ndi.production.util.ProductionRules;
 import com.pluto.ndi.shared.audit.AuditWriter;
+import com.pluto.ndi.shared.excel.ExcelWorkbook;
 import com.pluto.ndi.shared.imports.*;
 import com.pluto.ndi.shared.imports.ImportModels.*;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -61,6 +62,46 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
         return missing;
     }
 
+    @Override
+    public Task current(UUID actor) {
+        return currentFields(super.current(actor));
+    }
+
+    @Override
+    public Task save(UUID actor, UUID id, long version, int step, Configuration config, List<Integer> selected) {
+        return currentFields(super.save(actor, id, version, step, withoutLegacyCategory(config), selected));
+    }
+
+    private Task currentFields(Task task) {
+        if (task == null || task.inspection().fields().equals(fields())) return task;
+        var inspection = new ExcelWorkbook.Inspection(
+                task.inspection().fileName(), fields(), task.inspection().sheets());
+        return new Task(task.id(), task.version(), task.step(), task.fileName(), inspection,
+                withoutLegacyCategory(task.configuration()), task.selectedRows(), task.batch(), task.updatedAt(), rules());
+    }
+
+    private Configuration withoutLegacyCategory(Configuration config) {
+        if (config == null || config.fieldMapping() == null || !config.fieldMapping().containsKey("三化类别"))
+            return config;
+        var mapping = new LinkedHashMap<>(config.fieldMapping());
+        mapping.remove("三化类别");
+        return new Configuration(config.sheetName(), config.headerRowNo(), mapping);
+    }
+
+    @Override
+    protected List<ExcelWorkbook.Line> read(byte[] bytes, Configuration config)
+            throws java.io.IOException {
+        return ExcelWorkbook.read(bytes, config.sheetName(), config.headerRowNo(),
+                config.fieldMapping(), fields(), Set.of(), sourceHeaders(), Set.copyOf(ProductionImport.AMOUNTS));
+    }
+
+    @Override
+    protected boolean canReviseField(Configuration config, String field) {
+        return super.canReviseField(config, field)
+                && (!ProductionImport.AMOUNTS.contains(field)
+                        || !config.fieldMapping().getOrDefault(field, "").isBlank());
+    }
+
     protected ProductionPlan.Command validate(UUID actor, Map<String, String> cells) {
         return plans.validate(actor, command(cells));
     }
@@ -95,19 +136,6 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
                 organizations
                         .findEnabledLocationByNames(c.get("省分"), c.get("地市"))
                         .orElseThrow(() -> invalid("省分或地市未在系统启用，或地市与省分不匹配"));
-        var codes = new LinkedHashSet<String>();
-        for (var name : c.getOrDefault("三化类别", "").split("[;；,，、]")) {
-            var code =
-                    switch (name.strip()) {
-                        case "网络化", "工业专网", "5G工业专网", "NETWORK" -> "NETWORK";
-                        case "格物", "数字化（格物）", "格物工业互联网平台", "GEWU" -> "GEWU";
-                        case "大数据", "工业大数据", "工业大数据平台", "BIG_DATA" -> "BIG_DATA";
-                        case "万悟", "智能化", "万悟工业智能体平台", "WANGWU" -> "WANGWU";
-                        default -> "";
-                    };
-            if (code.isEmpty()) throw invalid("三化类别须为5G工业专网、格物工业互联网平台、工业大数据平台或万悟工业智能体平台");
-            codes.add(code);
-        }
         String month =
                 c.getOrDefault("排产月份", "")
                         .strip()
@@ -124,18 +152,25 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
                 location.cityId(),
                 c.get("项目名称"),
                 c.get("客户名称"),
-                List.copyOf(codes),
+                null,
                 amount(c, 0),
                 amount(c, 1),
                 amount(c, 2),
                 amount(c, 3),
-                c.get("项目状态"));
+                amount(c, 4),
+                amount(c, 5),
+                amount(c, 6),
+                c.get("项目状态"),
+                c.get("备注"),
+                c.get("产品简介"));
     }
 
     private BigDecimal amount(Map<String, String> c, int index) {
         var value = c.getOrDefault(ProductionImport.AMOUNTS.get(index), "").strip();
         if (value.isEmpty()) return null;
         try {
+            if (value.contains(",") && !value.matches("-?[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?"))
+                throw new NumberFormatException();
             return new BigDecimal(value.replace(",", ""));
         } catch (NumberFormatException e) {
             throw invalid(ProductionImport.fieldLabel(ProductionImport.AMOUNTS.get(index)) + "须为数字");

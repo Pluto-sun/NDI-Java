@@ -46,13 +46,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccountEntity, 
     List<UserAccountEntity> findByProvinceIdAndEnabledTrueOrderByLoginNameAscIdAsc(UUID provinceId);
 
     @Query("select account from UserAccountEntity account where account.enabled=true "
-        + "and lower(account.displayName) like :pattern escape '!' "
-        + "and exists(select role.id.userId from UserRoleEntity role where role.id.userId=account.id) "
-        + "and (:provinceOnly=false or (account.provinceId=:provinceId "
-        + "and exists(select role.id.userId from UserRoleEntity role where role.id.userId=account.id and role.id.roleCode in :provinceRoles) "
-        + "and not exists(select role.id.userId from UserRoleEntity role where role.id.userId=account.id and role.id.roleCode='SYSTEM_ADMIN'))) ")
-    List<UserAccountEntity> findProjectBindingAccounts(String pattern, UUID provinceId, boolean provinceOnly,
-            java.util.Collection<String> provinceRoles, org.springframework.data.domain.Pageable page);
+            + "and (account.provinceId=:provinceId or account.id in :reviewerIds) "
+            + "and lower(account.displayName) like :pattern escape '!' order by account.displayName, account.id")
+    List<UserAccountEntity> findProjectBindingAccounts(String pattern, UUID provinceId, List<UUID> reviewerIds);
 
     List<UserAccountEntity> findByCityIdAndEnabledTrueOrderByDisplayNameAsc(UUID cityId);
 

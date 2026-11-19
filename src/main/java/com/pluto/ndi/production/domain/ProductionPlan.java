@@ -1,5 +1,8 @@
 package com.pluto.ndi.production.domain;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -18,14 +21,48 @@ public record ProductionPlan(
         String projectName,
         String customerName,
         List<String> categories,
-        BigDecimal networkAmount,
-        BigDecimal gewuAmount,
-        BigDecimal bigDataAmount,
-        BigDecimal wangwuAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal networkOrderAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal gewuOrderAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal gewuRevenueAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal bigDataOrderAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal bigDataRevenueAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal wangwuOrderAmount,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal wangwuRevenueAmount,
         String projectStatus,
+        String remark,
+        String productIntroduction,
         Instant createdAt,
         Instant updatedAt,
         boolean writable) {
+    @JsonProperty
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    public BigDecimal networkAmount() {
+        return networkOrderAmount;
+    }
+
+    @JsonProperty
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    public BigDecimal gewuAmount() {
+        return sum(gewuOrderAmount, gewuRevenueAmount);
+    }
+
+    @JsonProperty
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    public BigDecimal bigDataAmount() {
+        return sum(bigDataOrderAmount, bigDataRevenueAmount);
+    }
+
+    @JsonProperty
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    public BigDecimal wangwuAmount() {
+        return sum(wangwuOrderAmount, wangwuRevenueAmount);
+    }
+
+    private static BigDecimal sum(BigDecimal order, BigDecimal revenue) {
+        if (order == null) return revenue;
+        return revenue == null ? order : order.add(revenue);
+    }
+
     public record Command(
             String reviewerName,
             String planMonth,
@@ -34,9 +71,14 @@ public record ProductionPlan(
             String projectName,
             String customerName,
             List<String> categories,
-            BigDecimal networkAmount,
-            BigDecimal gewuAmount,
-            BigDecimal bigDataAmount,
-            BigDecimal wangwuAmount,
-            String projectStatus) {}
+            BigDecimal networkOrderAmount,
+            BigDecimal gewuOrderAmount,
+            BigDecimal gewuRevenueAmount,
+            BigDecimal bigDataOrderAmount,
+            BigDecimal bigDataRevenueAmount,
+            BigDecimal wangwuOrderAmount,
+            BigDecimal wangwuRevenueAmount,
+            String projectStatus,
+            String remark,
+            String productIntroduction) {}
 }

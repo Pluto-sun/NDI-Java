@@ -13,11 +13,12 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
 
     public static final String AMOUNT = "认定金额";
     public static final String PROJECT = "通报项目名称";
+    public static final String STATUS = "项目状态";
     public static final String PROVINCE = "对应省分（集成）";
 
     public static List<String> fields() {
         var fields = new ArrayList<>(com.pluto.ndi.revenue.util.RevenueFields.FIELDS);
-        fields.addAll(List.of(AMOUNT, PROJECT, PROVINCE));
+        fields.addAll(List.of(AMOUNT, PROJECT, STATUS, PROVINCE));
         return List.copyOf(fields);
     }
 
@@ -35,6 +36,7 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
                                             case "审签日期" -> "选填，支持横线或斜线日期及日期时间；--表示无日期";
                                             case "月账期", "费用账期" -> "YYYYMM或YYYY-MM";
                                             case "条款金额", "产品本月计收不含税额/标品含税收入" -> "元，最多两位小数，不进行税额换算";
+                                            case STATUS -> "选填；实施中、已交付或已上线，随认定结果导入";
                                             case AMOUNT, PROJECT, PROVINCE -> "三项齐全且认定金额大于零才导入认定结果";
                                             default -> "";
                                         }))

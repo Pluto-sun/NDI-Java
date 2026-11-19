@@ -1,3 +1,4 @@
+import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { jsonBody, requestAt, type Page } from '../../shared/api/http';
@@ -49,6 +50,7 @@ interface Deployment extends Input {
 interface Reference {
   provinces: { id: string; name: string }[];
   cities: { id: string; provinceId: string; name: string }[];
+  options: Record<string, string[]>;
 }
 
 function LocationFields({
@@ -103,7 +105,7 @@ function LocationFields({
   );
 }
 
-export function GewuDeploymentsPage() {
+export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
@@ -124,6 +126,10 @@ export function GewuDeploymentsPage() {
   const reference = useLiveQuery(loadReference, '组织目录加载失败');
   const data = listing.data;
   const ref = reference.data;
+  const batch = useBatchDelete(admin, 'GEWU', query, data?.items ?? [], async () => {
+    if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+    else await listing.refresh();
+  });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setParams(
@@ -137,7 +143,6 @@ export function GewuDeploymentsPage() {
     <>
       <div className="page-heading gewu-page-heading">
         <div>
-          <h1>{title}</h1>
           <p>查看各地部署版本、设备接入情况和工具包状态。</p>
         </div>
         <div className="gewu-actions">
@@ -212,14 +217,16 @@ export function GewuDeploymentsPage() {
             </h2>
             <span>左右滚动查看设备和工具包信息</span>
           </div>
+          {batch.toolbar}
           <div
-            className="table-scroll gewu-scroll"
+            className="table-scroll gewu-scroll sticky-actions-scroll"
             role="region"
             aria-label="格物部署明细横向滚动区域"
             tabIndex={0}
           >
             <table aria-label={title}>
               <colgroup>
+                {admin && <col style={{ width: 44 }} />}
                 {columns.map((field) => (
                   <col
                     key={field}
@@ -235,10 +242,11 @@ export function GewuDeploymentsPage() {
                     }}
                   />
                 ))}
-                <col style={{ width: 115 }} />
+                <col style={{ width: admin ? 115 : 72 }} />
               </colgroup>
               <thead>
                 <tr>
+                  {batch.head}
                   {columns.map((field) => (
                     <th
                       scope="col"
@@ -248,12 +256,15 @@ export function GewuDeploymentsPage() {
                       {field}
                     </th>
                   ))}
-                  <th scope="col">操作</th>
+                  <th scope="col" className="sticky-list-action">
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((item) => (
                   <tr key={item.id}>
+                    {batch.cell(item)}
                     {columns.map((field) => (
                       <td
                         key={field}
@@ -267,7 +278,7 @@ export function GewuDeploymentsPage() {
                         )}
                       </td>
                     ))}
-                    <td>
+                    <td className="sticky-list-action">
                       <div className="gewu-actions">
                         <button
                           type="button"
@@ -277,16 +288,18 @@ export function GewuDeploymentsPage() {
                         >
                           编辑
                         </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setError('');
-                            setDeleting(item);
-                          }}
-                        >
-                          删除
-                        </button>
+                        {admin && (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setError('');
+                              setDeleting(item);
+                            }}
+                          >
+                            删除
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -320,7 +333,7 @@ export function GewuDeploymentsPage() {
           }}
         />
       )}
-      {deleting && (
+      {admin && deleting && (
         <Modal title="删除部署记录" busy={busy} onClose={() => setDeleting(null)}>
           <p>删除「{deleting.fields['项目名称']}」的这套部署记录？</p>
           {error && <Feedback tone="error">{error}</Feedback>}
@@ -375,6 +388,7 @@ function DeploymentEditor({
   function fieldInput(field: string) {
     const required = primary.includes(field);
     const value = input.fields[field] ?? '';
+    const options = reference.options[field];
     const change = (value: string) =>
       setInput((current) => ({ ...current, fields: { ...current.fields, [field]: value } }));
     return (
@@ -388,16 +402,16 @@ function DeploymentEditor({
             value={value}
             onChange={(event) => change(event.target.value)}
           />
-        ) : field.startsWith('是否') || field === '上一周期是否已接设备' ? (
+        ) : options ? (
           <Select
             required={required}
             value={value}
             onChange={(event) => change(event.target.value)}
           >
             <option value="">请选择</option>
-            <option>是</option>
-            <option>否</option>
-            {!required && <option>不涉及</option>}
+            {options.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
           </Select>
         ) : (
           <input
@@ -464,8 +478,12 @@ function DeploymentEditor({
   );
 }
 
-const importApi = tabularImportApi(root);
+const importApi = tabularImportApi(root, { exportFailedRows: true });
+const loadImportReference = (signal: AbortSignal) => api<Reference>('/reference-data', { signal });
 export function ImportGewuDeploymentsPage() {
+  const { data: reference, error } = useLiveQuery(loadImportReference, '组织目录加载失败');
+  if (error) return <Feedback tone="error">{error}</Feedback>;
+  if (!reference) return <Loading />;
   return (
     <ImportWizardPage
       config={{
@@ -479,6 +497,24 @@ export function ImportGewuDeploymentsPage() {
         noDuplicateMessage: '同一项目的多套部署可分别登记。',
         uploadHint: '上传 Excel 后确认字段映射，再预检省市归属及必填信息。',
         previewHint: '确认后仅导入选中的通过行。',
+        fieldOptions: (field, values) => {
+          if (field === '省份') return ['', ...reference.provinces.map(({ name }) => name)];
+          if (field === '地市') {
+            const province = reference.provinces.find(({ name }) => name === values['省份']);
+            return [
+              '',
+              ...reference.cities
+                .filter(({ provinceId }) => provinceId === province?.id)
+                .map(({ name }) => name),
+            ];
+          }
+          const options = reference.options[field];
+          return options ? ['', ...options] : undefined;
+        },
+        changeRowField: (values, field, value) =>
+          field === '省份' && value !== values[field]
+            ? { ...values, [field]: value, 地市: '' }
+            : { ...values, [field]: value },
       }}
     />
   );

@@ -1,5 +1,8 @@
 package com.pluto.ndi.production.service;
 
+import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.production.ProductionRecordDeletion;
+
 import com.pluto.ndi.organization.service.*;
 import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.production.mapper.ProductionPlanMapper;
@@ -16,7 +19,7 @@ import java.util.*;
 
 @Service
 @Transactional
-public class ProductionPlanService {
+public class ProductionPlanService implements ProductionRecordDeletion {
     private final ProductionPlanMapper mapper;
     private final ProductionAccessService access;
     private final OrganizationDirectory organizations;
@@ -50,6 +53,11 @@ public class ProductionPlanService {
                 throw new BusinessException(ProductionError.invalid("月份无效"));
             }
         return mapper.list(access.require(actor), filter);
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardSummary dashboard(UUID actor, String from, String to) {
+        return mapper.dashboard(access.require(actor), DashboardSummary.MonthRange.parse(from, to));
     }
 
     public record Reference(
@@ -101,6 +109,7 @@ public class ProductionPlanService {
         return mapper.find(id, false).orElseThrow();
     }
 
+    @Override
     public void delete(UUID actor, UUID id, long version) {
         var old = locked(actor, id, version);
         mapper.delete(id, Instant.now(clock));

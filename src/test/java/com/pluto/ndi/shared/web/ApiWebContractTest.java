@@ -3,20 +3,25 @@ package com.pluto.ndi.shared.web;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.apache.catalina.connector.ClientAbortException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +33,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 class ApiWebContractTest {
 
@@ -101,6 +107,15 @@ class ApiWebContractTest {
                 .andExpect(jsonPath("$.requestId", is("unexpected-123")));
     }
 
+    @Test
+    void stopsWritingWhenTheServletResponseBecomesUnusable() throws Exception {
+        for (var endpoint : List.of("/disconnected", "/disconnected-during-json")) {
+            mockMvc.perform(get("/contracts" + endpoint).header("X-Request-Id", "disconnect-123"))
+                    .andExpect(header().string("X-Request-Id", "disconnect-123"))
+                    .andExpect(content().string(""));
+        }
+    }
+
     @RestController
     @RequestMapping("/contracts")
     static class ContractController {
@@ -129,6 +144,18 @@ class ApiWebContractTest {
         @GetMapping("/numbers/{value}")
         ApiResponse<Integer> number(@PathVariable Integer value) {
             return responseFactory.success(value);
+        }
+
+        @GetMapping("/disconnected")
+        void disconnected() throws IOException {
+            throw new AsyncRequestNotUsableException("无法写入响应",
+                    new ClientAbortException(new IOException("Broken pipe")));
+        }
+
+        @GetMapping("/disconnected-during-json")
+        void disconnectedDuringJson() {
+            throw new HttpMessageNotWritableException("无法写入 JSON",
+                    new ClientAbortException(new IOException("Broken pipe")));
         }
 
         @GetMapping("/unexpected")

@@ -1,5 +1,5 @@
 import { Select } from '../../shared/ui/Select';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
@@ -8,7 +8,8 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 import { Modal } from '../../shared/ui/Modal';
-import { ProjectStageTabs, PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
+import { ListPagination } from '../../shared/ui/ListPagination';
+import { PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
 
 const emptyAdvanced = {
   signingSubjectCode: '',
@@ -49,13 +50,17 @@ export function ProjectsPage({
       stage: searchParams.get('stage') ?? '',
       projectCode: searchParams.get('projectCode') ?? '',
       industryCode: searchParams.get('industryCode') ?? '',
+      provinceId:
+        searchParams.get('provinceId') ??
+        reference.cities.find((item) => item.id === searchParams.get('cityId'))?.provinceId ??
+        '',
       cityId: searchParams.get('cityId') ?? '',
       includeTerminated: searchParams.get('includeTerminated') !== 'false',
       ...(Object.fromEntries(
         Object.keys(emptyAdvanced).map((key) => [key, searchParams.get(key) ?? '']),
       ) as typeof emptyAdvanced),
     }),
-    [searchParams],
+    [searchParams, reference.cities],
   );
   function setQuery(value: typeof query | ((current: typeof query) => typeof query)) {
     const next = typeof value === 'function' ? value(query) : value;
@@ -65,7 +70,6 @@ export function ProjectsPage({
     });
     setSearchParams(params);
   }
-  const initialCityId = searchParams.get('cityId') ?? '';
   const [name, setName] = useState(draftString('projectName', query.projectName));
   const initialStage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
     ? searchParams.get('stage')!
@@ -73,7 +77,15 @@ export function ProjectsPage({
   const [stage, setStage] = useState(draftString('stage', initialStage));
   const [projectCode, setProjectCode] = useState(draftString('projectCode', query.projectCode));
   const [industryCode, setIndustryCode] = useState(draftString('industryCode', query.industryCode));
-  const [cityId, setCityId] = useState(draftString('cityId', initialCityId));
+  const [cityId, setCityId] = useState(draftString('cityId', query.cityId));
+  const [provinceId, setProvinceId] = useState(
+    draftString(
+      'provinceId',
+      reference.cities.find((item) => item.id === cityId)?.provinceId ?? query.provinceId,
+    ),
+  );
+  const cities = reference.cities.filter((item) => item.provinceId === provinceId);
+  const selectedCityId = cities.some((item) => item.id === cityId) ? cityId : '';
   const [includeTerminated, setIncludeTerminated] = useState(
     typeof savedDraft?.includeTerminated === 'boolean'
       ? savedDraft.includeTerminated
@@ -90,19 +102,20 @@ export function ProjectsPage({
   });
   const lastAppliedQuery = useRef(query);
   const [advancedOpen, setAdvancedOpen] = useState(
-    savedDraft?.advancedOpen === true || Object.values(advanced).some(Boolean),
+    savedDraft?.advancedOpen === true || !!projectCode || Object.values(advanced).some(Boolean),
   );
   const invalidDateRange =
     !!advanced.opportunityDateStart &&
     !!advanced.opportunityDateEnd &&
     advanced.opportunityDateStart > advanced.opportunityDateEnd;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (lastAppliedQuery.current === query) return;
     lastAppliedQuery.current = query;
     setName(query.projectName);
     setProjectCode(query.projectCode);
     setStage(query.stage);
     setIndustryCode(query.industryCode);
+    setProvinceId(query.provinceId);
     setCityId(query.cityId);
     setIncludeTerminated(query.includeTerminated);
     setAdvanced({
@@ -125,16 +138,13 @@ export function ProjectsPage({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const returnTo = `/projects${location.search}`;
-  useEffect(() => {
-    if (!busy && data) {
-      const frame = requestAnimationFrame(() =>
-        window.scrollTo(
-          0,
-          Number(sessionStorage.getItem(`ndi.project-list-scroll:${returnTo}`)) || 0,
-        ),
-      );
-      return () => cancelAnimationFrame(frame);
-    }
+  useLayoutEffect(() => {
+    if (busy || !data) return;
+    const scrollKey = `ndi.project-list-scroll:${returnTo}`;
+    const savedScroll = sessionStorage.getItem(scrollKey);
+    if (savedScroll === null) return;
+    sessionStorage.removeItem(scrollKey);
+    window.scrollTo(0, Number(savedScroll) || 0);
   }, [busy, data, returnTo]);
 
   useEffect(() => {
@@ -230,17 +240,7 @@ export function ProjectsPage({
       <div className="page-heading project-stage-heading">
         <div>
           <span className="eyebrow">PROJECTS</span>
-          <div className="title-with-stage">
-            <h1>项目列表</h1>
-            <ProjectStageTabs
-              value={query.stage}
-              onChange={(next) => {
-                setStage(next);
-                setQuery((current) => ({ ...current, page: 0, stage: next }));
-              }}
-            />
-          </div>
-          <p>查看权限范围内的项目主档，按编号、名称、行业、地市和阶段定位。</p>
+          <p>查看权限范围内的项目主档，按编号、名称、行业、归属和阶段定位。</p>
         </div>
         {canCreate && (
           <Link className="primary-button" to="/projects/new">
@@ -264,7 +264,8 @@ export function ProjectsPage({
             stage,
             projectCode,
             industryCode,
-            cityId,
+            provinceId,
+            cityId: selectedCityId,
             includeTerminated,
             ...advanced,
           });
@@ -276,14 +277,6 @@ export function ProjectsPage({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="输入项目名称"
-          />
-        </label>
-        <label>
-          项目编号
-          <input
-            value={projectCode}
-            onChange={(event) => setProjectCode(event.target.value)}
-            placeholder="输入项目编号"
           />
         </label>
         <label>
@@ -309,12 +302,35 @@ export function ProjectsPage({
           </Select>
         </label>
         <label>
-          归属地市
-          <Select value={cityId} onChange={(event) => setCityId(event.target.value)}>
-            <option value="">全部地市</option>
-            {reference.cities.map((item) => (
+          归属省分
+          <Select
+            aria-label="归属省分"
+            value={provinceId}
+            onChange={(event) => {
+              setProvinceId(event.target.value);
+              setCityId('');
+            }}
+          >
+            <option value="">全部省分</option>
+            {reference.provinces.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label>
+          归属地市／区县
+          <Select
+            aria-label="归属地市／区县"
+            value={selectedCityId}
+            disabled={!provinceId}
+            onChange={(event) => setCityId(event.target.value)}
+          >
+            <option value="">{provinceId ? '全部地市／区县' : '请先选择省分'}</option>
+            {cities.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.legacyMunicipalityCity ? `${item.name}（未细分区县）` : item.name}
               </option>
             ))}
           </Select>
@@ -334,6 +350,14 @@ export function ProjectsPage({
         >
           <summary>更多筛选条件</summary>
           <div className="form-grid">
+            <label>
+              项目编号
+              <input
+                value={projectCode}
+                onChange={(event) => setProjectCode(event.target.value)}
+                placeholder="输入项目编号"
+              />
+            </label>
             <label>
               项目日期起
               <input
@@ -418,6 +442,7 @@ export function ProjectsPage({
             setProjectCode('');
             setStage('');
             setIndustryCode('');
+            setProvinceId('');
             setCityId('');
             setIncludeTerminated(true);
             setAdvanced(emptyAdvanced);
@@ -427,6 +452,7 @@ export function ProjectsPage({
               stage: '',
               projectCode: '',
               industryCode: '',
+              provinceId: '',
               cityId: '',
               includeTerminated: true,
               ...emptyAdvanced,
@@ -547,7 +573,8 @@ export function ProjectsPage({
                               stage,
                               projectCode,
                               industryCode,
-                              cityId,
+                              provinceId,
+                              cityId: selectedCityId,
                               includeTerminated,
                               ...advanced,
                               advancedOpen,
@@ -602,29 +629,13 @@ export function ProjectsPage({
             </table>
           </div>
           {data?.items.length === 0 && <div className="empty-state">暂无符合条件的项目</div>}
-          <div className="pager">
-            <span>
-              第 {(data?.page ?? 0) + 1} / {Math.max(data?.totalPages ?? 0, 1)} 页
-            </span>
-            <div>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={!data || data.page === 0}
-                onClick={() => setQuery((current) => ({ ...current, page: current.page - 1 }))}
-              >
-                上一页
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={!data || data.page + 1 >= data.totalPages}
-                onClick={() => setQuery((current) => ({ ...current, page: current.page + 1 }))}
-              >
-                下一页
-              </button>
-            </div>
-          </div>
+          <ListPagination
+            label="项目列表"
+            page={data?.page ?? 0}
+            totalPages={data?.totalPages ?? 0}
+            totalElements={data?.totalElements ?? 0}
+            onPageChange={(page) => setQuery((current) => ({ ...current, page }))}
+          />
         </div>
       )}
     </section>

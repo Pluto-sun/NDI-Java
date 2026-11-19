@@ -139,6 +139,7 @@ export function ImportPreviewTable({
                               : cells[field],
                           )
                           .filter((value) => value?.trim())
+                          .map((value) => config.formatAmount?.(value) ?? value)
                           .join(' / ') || '未填金额'}{' '}
                         {config.amountUnit ?? '万元'}
                       </small>

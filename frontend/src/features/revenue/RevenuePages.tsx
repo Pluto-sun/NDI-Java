@@ -1,5 +1,11 @@
+import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { revenueText } from './format';
-import { changeSourceField, sourceFieldOptions } from './sourceOptions';
+import {
+  changeSourceField,
+  integratedAreaName,
+  revenueProjectStatuses,
+  sourceFieldOptions,
+} from './sourceOptions';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -37,7 +43,7 @@ const revenueListColumns: { label: string; width: number; numeric?: boolean }[] 
   { label: '操作', width: 70 },
 ];
 
-export function RevenueListPage() {
+export function RevenueListPage({ admin }: { admin: boolean }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
@@ -45,6 +51,11 @@ export function RevenueListPage() {
     [data, setData] = useState<Listing | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  const batch = useBatchDelete(admin, 'REVENUE', query, data?.items ?? [], () => {
+    if (data?.page && data.items.length) setParams({ ...Object.fromEntries(params), page: '0' });
+    else setReload((value) => value + 1);
+  });
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -66,13 +77,12 @@ export function RevenueListPage() {
     return () => {
       active = false;
     };
-  }, [query]);
+  }, [query, reload]);
   const change = (field: string, value: string) => setDraft((old) => ({ ...old, [field]: value }));
   return (
     <>
       <div className="page-heading revenue-list-heading">
         <div>
-          <h1>计收列表</h1>
           <p>按账期查看来源明细与认定结果，金额单位：元。</p>
         </div>
         {reference?.canCreate && (
@@ -203,8 +213,9 @@ export function RevenueListPage() {
                 {loading ? '正在更新…' : '左右滚动查看全部字段（金额单位：元）'}
               </span>
             </div>
+            {batch.toolbar}
             <div
-              className="table-scroll revenue-list-scroll"
+              className="table-scroll revenue-list-scroll sticky-actions-scroll"
               role="region"
               aria-label="计收明细横向滚动区域"
               tabIndex={0}
@@ -213,21 +224,32 @@ export function RevenueListPage() {
                 className="revenue-list-table"
                 aria-label="计收明细清单"
                 style={{
-                  minWidth: revenueListColumns.reduce((total, column) => total + column.width, 0),
+                  minWidth: revenueListColumns.reduce(
+                    (total, column) => total + column.width,
+                    admin ? 44 : 0,
+                  ),
                 }}
               >
                 <colgroup>
+                  {admin && <col style={{ width: 44 }} />}
                   {revenueListColumns.map((column) => (
                     <col key={column.label} style={{ width: column.width }} />
                   ))}
                 </colgroup>
                 <thead>
                   <tr>
+                    {batch.head}
                     {revenueListColumns.map((column) => (
                       <th
                         key={column.label}
                         scope="col"
-                        className={column.numeric ? 'revenue-numeric' : undefined}
+                        className={
+                          column.label === '操作'
+                            ? 'sticky-list-action'
+                            : column.numeric
+                              ? 'revenue-numeric'
+                              : undefined
+                        }
                       >
                         {column.label}
                       </th>
@@ -237,6 +259,7 @@ export function RevenueListPage() {
                 <tbody>
                   {data.items.map((e) => (
                     <tr key={e.id}>
+                      {batch.cell(e)}
                       <td>{e.month}</td>
                       <td title={!e.source['省份名称'] ? '未归属' : undefined}>
                         {revenueText(e.source['省份名称'])}
@@ -252,13 +275,7 @@ export function RevenueListPage() {
                         {money(e.recognition?.amount)}
                       </td>
                       <td>{revenueText(e.recognition?.reportedProjectName)}</td>
-                      <td>
-                        {revenueText(
-                          reference?.provinces.find(
-                            (item) => item.id === e.recognition?.integratedProvinceId,
-                          )?.name,
-                        )}
-                      </td>
+                      <td>{revenueText(integratedAreaName(e.recognition, reference))}</td>
                       <td>
                         <span
                           className={`status-badge revenue-state revenue-state-${e.state.toLowerCase()}`}
@@ -266,7 +283,7 @@ export function RevenueListPage() {
                           {stateLabels[e.state]}
                         </span>
                       </td>
-                      <td>
+                      <td className="sticky-list-action">
                         <Link
                           title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.month}`}
                           to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
@@ -344,7 +361,6 @@ export function NewRevenuePage() {
   return (
     <>
       <div className="page-heading">
-        <h1>新增计收</h1>
         <div className="inline-actions">
           <Link className="secondary-button" to="/revenue">
             返回计收列表
@@ -423,8 +439,14 @@ export function ImportRevenuePage() {
         backTo: '/revenue/new',
         fieldOptions: (field, values) =>
           field === '对应省分（集成）'
-            ? ['', ...reference.provinces.map((province) => province.name)]
-            : sourceFieldOptions(field, values, reference),
+            ? [
+                '',
+                ...reference.provinces.map((province) => province.name),
+                ...reference.integratedOrganizations,
+              ]
+            : field === '项目状态'
+              ? ['', ...revenueProjectStatuses]
+              : sourceFieldOptions(field, values, reference),
         changeRowField: (values, field, value) =>
           changeSourceField(values, field, value, reference),
         amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入'],

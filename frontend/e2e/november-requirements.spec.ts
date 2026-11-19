@@ -1,3 +1,4 @@
+import { verifyStickyAction } from './support/stickyActions';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
 import { chooseActor, get, ids, post } from './support/projects';
@@ -105,6 +106,53 @@ test('接口人按省份创建商机，项目导入客户可空并转换负责�
   ]);
 });
 
+test('集团可在不同省份新增和导入项目', async ({ page, request }) => {
+  const reference = await get<ReferenceData>(request, group, '/reference-data');
+  const outside = reference.cities.find(
+    (city) => city.provinceId !== ids.province && !city.legacyMunicipalityCity,
+  )!;
+  const selectedProvince = reference.provinces.find((item) => item.id === outside.provinceId)!;
+  const name = '集团商机-' + randomUUID();
+  const result = await post<{ id: string }>(request, group, '', {
+    provinceId: outside.provinceId,
+    cityId: outside.id,
+    projectName: name,
+    customerNeed: '集团新增需求',
+    responsiblePersonNames: ['项目负责人'],
+    totalAmount: '5',
+    categoryAmounts: [{ categoryCode: 'GEWU', expectedAmount: '5' }],
+    initialProgress: '已调研',
+    nextAction: '准备材料',
+  });
+  expect(result.id).toBeTruthy();
+  await page.goto('/projects/new');
+  await chooseActor(page, group);
+  const provinceSelect = page.getByRole('combobox', { name: '归属省分', exact: true });
+  await provinceSelect.selectOption(outside.provinceId);
+  await provinceSelect.selectOption(ids.province);
+  await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  const excel = (province: string, city: string) => ({
+    省分: province,
+    地市: city,
+    项目名称: '集团导入-' + randomUUID(),
+    项目负责人: '负责人',
+    首条项目进展: '已交流',
+    下一步动作: '继续跟进',
+    项目建设内容: '集团导入需求',
+    项目阶段: '方案交流',
+    '项目总金额（万）': '5',
+    '格物预计金额（万）': '5',
+  });
+  await upload(page, [
+    excel(selectedProvince.name, outside.name),
+    excel(
+      reference.provinces.find((p) => p.id === ids.province)!.name,
+      reference.cities.find((c) => c.id === ids.city)!.name,
+    ),
+  ]);
+  await confirm(page, 2);
+});
+
 test('计收只保留完整正金额认定，独立按地市或组织筛选', async ({ page }, testInfo) => {
   await page.goto('/revenue/import');
   await chooseActor(page, group);
@@ -115,6 +163,7 @@ test('计收只保留完整正金额认定，独立按地市或组织筛选', as
     '地市/组织名称': organization,
     合同编号: `CN-${randomUUID()}`,
     项目名称: '来源计收验收',
+    三化分类: '数字化',
     条款金额: '100',
     '产品本月计收不含税额/标品含税收入': '20',
     认定金额: '50',
@@ -145,7 +194,7 @@ test('计收只保留完整正金额认定，独立按地市或组织筛选', as
   });
 });
 
-test('集团新增和批量登记同一格物项目的多套部署，地市禁止维护辖区外', async ({
+test('集团新增和批量登记格物项目，重名失败且地市禁止维护辖区外', async ({
   page,
   request,
 }, testInfo) => {
@@ -193,14 +242,49 @@ test('集团新增和批量登记同一格物项目的多套部署，地市禁�
     接入设备总数量: '1125',
     是否最新工具包: '不涉及',
   };
-  await upload(page, [excel, { ...excel, 部署版本: '矿山版' }]);
-  await confirm(page, 2);
+  const importedName = name + '-导入';
+  await upload(page, [
+    excel,
+    { ...excel, 项目名称: importedName },
+    { ...excel, 项目名称: importedName },
+  ]);
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByText(/系统内已存在相同业务唯一键/)).toBeVisible();
+  await expect(page.getByText(/与文件内前序记录重复/)).toBeVisible();
+  await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   await page.goto(`/capability/gewu?search=${encodeURIComponent(name)}`);
   const table = page.getByRole('table', { name: '已部署格物项目清单', exact: true });
-  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await expect(table.locator('tbody tr')).toHaveCount(2);
+  await verifyStickyAction(
+    page.locator('.gewu-scroll'),
+    table.getByRole('button', { name: '编辑', exact: true }).first(),
+  );
   await expect(table.locator('tbody tr').filter({ hasText: '公有云' })).toContainText('2026-02-10');
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
   await page.screenshot({ path: testInfo.outputPath('gewu-deployment-list.png'), fullPage: true });
+  await expect(table.getByRole('button', { name: '删除', exact: true })).toHaveCount(0);
+  const deployments = await request.get(
+    `${server}/capability/gewu-deployments?search=${encodeURIComponent(name)}`,
+    {
+      headers: { 'X-NDI-Actor-Id': group },
+    },
+  );
+  const [record] = (await deployments.json()).data.items;
+  const endpoint = `${server}/capability/gewu-deployments/${record.id}?version=${record.version}`;
+  expect((await request.delete(endpoint, { headers: { 'X-NDI-Actor-Id': group } })).status()).toBe(
+    403,
+  );
+
+  await page.getByRole('button', { name: '切换测试账号', exact: true }).click();
+  await chooseActor(page, ids.admin);
+  await expect(table.getByRole('button', { name: '删除', exact: true })).toHaveCount(2);
+  await table.getByRole('button', { name: '删除', exact: true }).first().click();
+  await page
+    .getByRole('dialog', { name: '删除部署记录' })
+    .getByRole('button', { name: '删除部署', exact: true })
+    .click();
+  await expect(table.locator('tbody tr')).toHaveCount(1);
 });
