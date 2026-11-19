@@ -30,7 +30,7 @@ test('导出字段按选择顺序持久化，真实 CSV 仅包含所选列并防
   await chooseActor(page, ids.reporter);
   await page.getByRole('textbox', { name: '项目名称', exact: true }).fill(name);
   await page.getByRole('button', { name: '查询', exact: true }).click();
-  await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: `详情：${name}`, exact: true })).toBeVisible();
   await expect(page.locator('.export-field-picker')).toHaveCount(0);
   await page.getByRole('button', { name: '按当前条件导出 CSV', exact: true }).click();
   const group = page.getByRole('group', { name: '导出字段选择', exact: true });

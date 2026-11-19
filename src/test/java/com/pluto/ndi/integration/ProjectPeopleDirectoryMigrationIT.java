@@ -103,7 +103,7 @@ VALUES(UUID_TO_BIN(?),?,UUID_TO_BIN(?),UUID_TO_BIN(?),'迁移人员项目','客�
                                 Integer.class))
                 .isEqualTo(34);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM organization_city", Integer.class))
-                .isEqualTo(372);
+                .isEqualTo(457);
         upgraded.migrate();
         assertThat(
                         jdbc.queryForObject(

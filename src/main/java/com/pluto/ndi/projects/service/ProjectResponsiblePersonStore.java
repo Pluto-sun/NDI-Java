@@ -139,7 +139,10 @@ public class ProjectResponsiblePersonStore {
     @Transactional(propagation = Propagation.MANDATORY)
     public void synchronizeLegacy(ProjectEntity project) {
         var existing = find(project.id());
-        var retained = existing.stream().filter(person -> person.responsibility() == null).toList();
+        // 旧客户端提交的三个职责字段无法表达解决方案支撑，保留这部分配置。
+        var retained = existing.stream()
+                .filter(person -> person.responsibility() == null || "SOLUTION_SUPPORT".equals(person.responsibility()))
+                .toList();
         var legacy =
                 legacyPeople(project, null).stream()
                         .map(
@@ -190,7 +193,7 @@ public class ProjectResponsiblePersonStore {
                 throw invalid();
             String role = person.responsibility();
             if (role != null
-                    && !Set.of("PROVINCE_LEADER", "CITY_MANAGER", "SUPPORT_EXPERT").contains(role))
+                    && !Set.of("PROVINCE_LEADER", "CITY_MANAGER", "SUPPORT_EXPERT", "SOLUTION_SUPPORT").contains(role))
                 throw invalid();
             if ("PROVINCE_LEADER".equals(role) && ++province > 1) throw invalid();
             UUID id = person.id() == null ? UUID.randomUUID() : person.id();

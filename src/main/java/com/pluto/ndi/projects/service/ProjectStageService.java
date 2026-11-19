@@ -82,12 +82,14 @@ public class ProjectStageService {
                 approvalRepository.existsByProjectIdAndStatus(projectId, ApprovalStatus.PENDING),
                 () -> new BusinessException(ProjectErrorCode.PENDING_APPROVAL_EXISTS));
         validateStage(project, command);
+        var plannedBidMonth = command.targetStage() == ProjectStage.BIDDING
+                ? bidMonth(project, command.plannedBidMonth()) : null;
         var at = Instant.now(clock);
         var stageOccurredAt = command.stageOccurredOn().atStartOfDay(BUSINESS_ZONE).toInstant();
         var request = ProjectApprovalRequestEntity.stageAdvancement(
                 project, command.initiatorLevel(), actorId, command.approverId(), command.targetStage().name(),
                 command.evidenceDocumentId(), stageOccurredAt, normalized(command.contractNo()),
-                command.signedAmount(), normalized(command.progressContent()), normalized(command.nextAction()), at
+                command.signedAmount(), normalized(command.progressContent()), normalized(command.nextAction()), plannedBidMonth, at
         );
         approvalRepository.save(request);
         actionRepository.save(ProjectApprovalActionEntity.create(request.id(), "SUBMITTED", actorId, at, null));
@@ -100,10 +102,12 @@ public class ProjectStageService {
             return true;
         }
         var purpose = evidencePurpose(ProjectStage.valueOf(request.targetStageCode()));
-        if (purpose != null && !documentDirectory.isUsable(
+        if (purpose == ProjectDocumentPurpose.AWARD_NOTICE && !documentDirectory.isUsable(
                 "PROJECT", project.id(), request.evidenceDocumentId(), purpose.name())) {
             return true;
         }
+        if (ProjectStage.BIDDING.name().equals(request.targetStageCode())
+                && !validMonth(effectiveBidMonth(project, request))) return true;
         return request.proposedContractNo() != null
                 && projectRepository.existsByContractNoAndIdNot(request.proposedContractNo(), project.id());
     }
@@ -111,6 +115,10 @@ public class ProjectStageService {
     public void applyApproved(ProjectEntity project, ProjectApprovalRequestEntity request, UUID actorId, Instant approvedAt) {
         var target = ProjectStage.valueOf(request.targetStageCode());
         project.advanceStage(target, request.proposedContractNo(), request.proposedSignedAmount(), actorId, approvedAt);
+        if (target == ProjectStage.BIDDING) {
+            project.replacePlanningAttributes(effectiveBidMonth(project, request),
+                    project.applicationScenarioCodes());
+        }
         project.recordAttributionMonth(request.stageOccurredAt());
         milestoneRepository.save(ProjectStageMilestoneEntity.approvedAdvance(
                 project.id(), target, actorId, request.stageOccurredAt()));
@@ -140,7 +148,8 @@ public class ProjectStageService {
         }
         var purpose = evidencePurpose(command.targetStage());
         if (purpose != null) {
-            if (!documentDirectory.isUsable("PROJECT", project.id(), command.evidenceDocumentId(), purpose.name())) {
+            if ((purpose == ProjectDocumentPurpose.AWARD_NOTICE || command.evidenceDocumentId() != null)
+                    && !documentDirectory.isUsable("PROJECT", project.id(), command.evidenceDocumentId(), purpose.name())) {
                 throw new BusinessException(ProjectErrorCode.STAGE_EVIDENCE_REQUIRED);
             }
             if (command.contractNo() != null || command.signedAmount() != null) {
@@ -158,6 +167,29 @@ public class ProjectStageService {
         if (projectRepository.existsByContractNoAndIdNot(contractNo, project.id())) {
             throw new BusinessException(ProjectErrorCode.CONTRACT_NO_CONFLICT);
         }
+    }
+
+    private LocalDate bidMonth(ProjectEntity project, String raw) {
+        LocalDate month = project.plannedBidMonth();
+        if (raw != null) {
+            try {
+                month = raw.matches("[0-9]{4}-[0-9]{2}")
+                        ? java.time.YearMonth.parse(raw).atDay(1) : null;
+            } catch (java.time.DateTimeException exception) {
+                month = null;
+            }
+        }
+        if (!validMonth(month)) throw new BusinessException(ProjectErrorCode.BID_MONTH_REQUIRED);
+        return month;
+    }
+
+    private static boolean validMonth(LocalDate month) {
+        return month != null && month.getYear() >= 1000 && month.getYear() <= 9999
+                && month.getDayOfMonth() == 1;
+    }
+
+    private static LocalDate effectiveBidMonth(ProjectEntity project, ProjectApprovalRequestEntity request) {
+        return request.proposedPlannedBidMonth() == null ? project.plannedBidMonth() : request.proposedPlannedBidMonth();
     }
 
     private ProjectDocumentPurpose evidencePurpose(ProjectStage target) {

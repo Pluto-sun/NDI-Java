@@ -93,11 +93,8 @@ test('全国地图标签不重叠且位于省界上层，99.4%占比使用完整
   ).toBeTruthy();
 });
 
-test('项目清单固定列宽完整换行，详情金额摘要紧凑且主档使用完整宽度', async ({
-  page,
-  request,
-}, testInfo) => {
-  const name = `完整显示-${randomUUID()}-超长项目名称用于验证完整换行而不是省略号`;
+test('项目清单省略长文本、固定详情入口并保留详情标题', async ({ page, request }, testInfo) => {
+  const name = `完整显示-${randomUUID()}-超长项目名称用于验证横向滚动与省略号超长项目名称用于验证横向滚动与省略号超长项目名称用于验证横向滚动与省略号`;
   await createProject(request, name);
   await page.goto('/projects');
   await chooseActor(page, ids.reporter);
@@ -109,28 +106,30 @@ test('项目清单固定列宽完整换行，详情金额摘要紧凑且主档�
   await page.getByRole('button', { name: '查询', exact: true }).click();
   expect((await queried).ok()).toBeTruthy();
   const table = page.getByRole('table', { name: '项目清单', exact: true });
-  await expect(table.getByRole('link', { name, exact: true })).toBeVisible();
-  await expect(table.getByRole('columnheader', { name: '创建时间', exact: true })).toHaveCount(0);
-  await expect(table.getByRole('columnheader', { name: '项目日期', exact: true })).toHaveCount(0);
-  await expect(table.locator('tbody tr').filter({ hasText: name }).locator('td')).toHaveCount(9);
-  const cells = await table
-    .locator('tbody tr')
-    .first()
-    .locator('td')
-    .evaluateAll((elements) =>
-      elements.map((e) => ({
-        width: e.getBoundingClientRect().width,
-        fits: e.scrollWidth <= e.clientWidth,
-        whiteSpace: getComputedStyle(e).whiteSpace,
-      })),
-    );
-  expect(cells).toHaveLength(9);
-  expect(cells.map((cell) => Math.round(cell.width))).toEqual([
-    320, 120, 180, 180, 110, 130, 112, 180, 120,
-  ]);
-  expect(cells.every((c) => c.fits && c.whiteSpace === 'normal')).toBeTruthy();
-  await table.screenshot({ path: testInfo.outputPath('project-table.png') });
-  await table.getByRole('link', { name, exact: true }).click();
+  const row = table.locator('tbody tr').filter({ hasText: name });
+  const action = row.getByRole('link', { name: `详情：${name}`, exact: true });
+  await expect(action).toBeVisible();
+  await expect(row.getByRole('link', { name, exact: true })).toHaveCount(0);
+  await expect(table.getByRole('columnheader', { name: '项目名称', exact: true })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: '行业', exact: true })).toBeVisible();
+  const projectName = row.getByText(name, { exact: true });
+  await projectName.focus();
+  await expect(page.locator('.cell-tooltip')).toHaveText(name);
+  await projectName.press('Escape');
+  const scroll = table.locator('..');
+  const originalX = (await action.boundingBox())!.x;
+  await scroll.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  expect((await action.boundingBox())!.x).toBeCloseTo(originalX, 0);
+  await scroll.screenshot({ path: testInfo.outputPath('project-table.png') });
+  await action.click();
+  const title = page.getByRole('heading', { name, exact: true });
+  await expect(title).toBeVisible();
+  await expect(page.locator('#project-detail-title')).toContainText('方案交流');
+  await page.getByRole('heading', { name: '项目主档', exact: true }).scrollIntoViewIfNeeded();
+  await expect(title).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('project-header.png') });
   const overview = page.locator('.project-detail-overview');
   await expect(overview.getByRole('heading', { name: '项目主档', exact: true })).toBeVisible();
   const summary = page.getByRole('region', { name: '三化分类金额', exact: true });
@@ -142,4 +141,24 @@ test('项目清单固定列宽完整换行，详情金额摘要紧凑且主档�
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
+});
+
+test('近期变动固定单行并可聚焦查看完整项目名称', async ({ page, request }, testInfo) => {
+  const name = `动态表验收-${randomUUID()}-${'较长项目名称'.repeat(14)}`;
+  const project = await createProject(request, name);
+  await page.goto('/workbench');
+  await chooseActor(page, ids.admin);
+  const table = page.getByRole('table', { name: '近期项目变动', exact: true });
+  const link = table.getByRole('link', { name, exact: true });
+  await expect(link).toBeVisible();
+  const dimensions = await table
+    .locator('tbody tr')
+    .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  expect(new Set(dimensions).size).toBe(1);
+  await link.focus();
+  await expect(page.locator('.cell-tooltip')).toHaveText(name);
+  await link.press('Escape');
+  await table.locator('..').screenshot({ path: testInfo.outputPath('dashboard-activity.png') });
+  await link.click();
+  await expect(page).toHaveURL(new RegExp('/projects/' + project.id + '$'));
 });

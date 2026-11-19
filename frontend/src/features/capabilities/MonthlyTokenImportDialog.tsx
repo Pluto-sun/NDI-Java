@@ -1,3 +1,4 @@
+import { MAX_EXCEL_ROWS, validateExcelUpload } from '../../shared/imports/limits';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestAt } from '../../shared/api/http';
@@ -57,6 +58,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
     form.append('year', year);
     if (sheet) form.append('sheet', sheet);
     try {
+      validateExcelUpload(file);
       if (confirm) {
         form.append(
           'selection',
@@ -79,7 +81,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         setSelected(
           result.rows
             .filter((row) => row.status === 'READY')
-            .slice(0, 1000)
+            .slice(0, MAX_EXCEL_ROWS)
             .map((row) => row.key),
         );
         setFilter('ALL');
@@ -92,6 +94,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
     }
   }
 
+  const ready = preview?.rows.filter((row) => row.status === 'READY') ?? [];
   const rows = preview?.rows.filter((row) => filter === 'ALL' || filter === row.status) ?? [];
   return (
     <Modal
@@ -104,7 +107,8 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
     >
       <div className="import-wizard" aria-busy={busy}>
         <p className="subtle">
-          上传原有横表，填写统计年份。按省分、智能体名称和应用项目名称匹配已有记录，也可在 Excel
+          上传原有横表，文件最大 20 MB，最多 2000
+          行数据。填写统计年份。按省分、智能体名称和应用项目名称匹配已有记录，也可在 Excel
           中填写「系统ID」。
         </p>
         {error && <Feedback tone="error">{error}</Feedback>}
@@ -174,6 +178,11 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         </form>
         {preview && (
           <>
+            {ready.length > MAX_EXCEL_ROWS && (
+              <p className="subtle">
+                一次最多确认 {MAX_EXCEL_ROWS} 条月度记录，已默认勾选前 {MAX_EXCEL_ROWS} 条通过项。
+              </p>
+            )}
             <div className="action-row" role="group" aria-label="月度 Token 预检状态">
               {Object.entries({ ALL: '全部', ...labels }).map(([key, label]) => (
                 <button
@@ -214,7 +223,11 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
                         <input
                           type="checkbox"
                           aria-label={`第 ${row.sourceRow} 行 ${row.month}`}
-                          disabled={busy || row.status !== 'READY'}
+                          disabled={
+                            busy ||
+                            row.status !== 'READY' ||
+                            (!selected.includes(row.key) && selected.length >= MAX_EXCEL_ROWS)
+                          }
                           checked={selected.includes(row.key)}
                           onChange={(event) =>
                             setSelected(
@@ -251,7 +264,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
               <button
                 type="button"
                 className="primary-button"
-                disabled={busy || selected.length === 0 || selected.length > 1000}
+                disabled={busy || selected.length === 0 || selected.length > MAX_EXCEL_ROWS}
                 onClick={() => void submit(true)}
               >
                 确认导入 {selected.length} 条

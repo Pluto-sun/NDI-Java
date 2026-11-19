@@ -17,6 +17,13 @@ public record StageAdvanceCommand(
         String contractNo,
         BigDecimal signedAmount,
         String progressContent,
-        String nextAction
+        String nextAction,
+        String plannedBidMonth
 ) {
+    public StageAdvanceCommand(ProjectInitiatorLevel initiatorLevel, ProjectStage targetStage, UUID approverId,
+            LocalDate stageOccurredOn, UUID evidenceDocumentId, String contractNo,
+            BigDecimal signedAmount, String progressContent, String nextAction) {
+        this(initiatorLevel, targetStage, approverId, stageOccurredOn, evidenceDocumentId,
+                contractNo, signedAmount, progressContent, nextAction, null);
+    }
 }

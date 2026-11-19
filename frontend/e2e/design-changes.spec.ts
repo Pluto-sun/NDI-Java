@@ -73,7 +73,7 @@ test('四区月份独立，阶段切换保留时间，地图支持缩放和键�
   });
 });
 
-test('负责人自由名单在详情弹窗配置职责与账号，省分负责人唯一且允许多人客户经理', async ({
+test('负责人自由名单在详情弹窗配置职责与账号，省分负责人唯一且允许多人解决方案支撑', async ({
   page,
   request,
 }, testInfo) => {
@@ -114,7 +114,7 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
   await expect(second.locator('option[value="PROVINCE_LEADER"]')).toHaveAttribute('disabled', '');
   await second
     .getByRole('combobox', { name: '项目职责', exact: true })
-    .selectOption('CITY_MANAGER');
+    .selectOption('SOLUTION_SUPPORT');
   const secondAccount = second.getByRole('combobox', { name: '关联系统账号', exact: true });
   await expect(secondAccount.locator(`option[value="${reviewer}"]`)).toBeAttached();
   await expect(secondAccount.locator(`option[value="${ids.admin}"]`)).toHaveCount(0);
@@ -122,7 +122,9 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
   await modal.getByRole('button', { name: '添加负责人', exact: true }).click();
   const third = modal.getByRole('group', { name: '负责人 3', exact: true });
   await third.getByRole('textbox', { name: '姓名', exact: true }).fill('负责人丙');
-  await third.getByRole('combobox', { name: '项目职责', exact: true }).selectOption('CITY_MANAGER');
+  await third
+    .getByRole('combobox', { name: '项目职责', exact: true })
+    .selectOption('SOLUTION_SUPPORT');
   await page.screenshot({
     path: testInfo.outputPath('people-configuration-modal.png'),
     fullPage: false,
@@ -132,7 +134,7 @@ test('负责人自由名单在详情弹窗配置职责与账号，省分负责�
   const configured = await get<ProjectDetail>(request, ids.reporter, `/${project.id}`);
   expect(configured.responsiblePersons).toHaveLength(3);
   expect(
-    configured.responsiblePersons.filter((person) => person.responsibility === 'CITY_MANAGER'),
+    configured.responsiblePersons.filter((person) => person.responsibility === 'SOLUTION_SUPPORT'),
   ).toHaveLength(2);
   expect(configured.responsiblePersons[0].userId).toBe(ids.leader);
   expect(configured.responsiblePersons[1].userId).toBe(reviewer);

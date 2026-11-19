@@ -22,12 +22,13 @@ public record StageAdvanceRequest(
         @Size(max = 100) String contractNo,
         @DecimalMin("0") @Digits(integer = 16, fraction = 2) BigDecimal signedAmount,
         String progressContent,
-        String nextAction
+        String nextAction,
+        String plannedBidMonth
 ) {
     StageAdvanceCommand toCommand() {
         return new StageAdvanceCommand(
                 initiatorLevel, targetStage, approverId, stageOccurredOn, evidenceDocumentId,
-                contractNo, signedAmount, progressContent, nextAction
+                contractNo, signedAmount, progressContent, nextAction, plannedBidMonth
         );
     }
 }

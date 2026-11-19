@@ -1,3 +1,4 @@
+import { MAX_EXCEL_ROWS, validateExcelUpload } from './limits';
 import './importWizard.css';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -151,6 +152,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
   }
   async function upload(file: File) {
     await action(async () => {
+      validateExcelUpload(file);
       const result = await projectsApi.uploadImportTask(
         file,
         current.current?.version,
@@ -236,6 +238,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     !!batch &&
     batch.status === 'PREVIEWED' &&
     selected.size > 0 &&
+    selected.size <= MAX_EXCEL_ROWS &&
     batch.rows
       .filter((row) => selected.has(row.rowNumber))
       .every((row) => row.status === 'READY' && nameAccepted(row.nameReview));
@@ -407,7 +410,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
                     </button>
                   </div>
                   <p className="subtle">
-                    支持 .xlsx，文件最大 10 MB，每次最多 1000 行。{config.uploadHint}
+                    支持 .xlsx，文件最大 20 MB，每次最多 {MAX_EXCEL_ROWS} 行。{config.uploadHint}
                   </p>
                   {task && (
                     <>

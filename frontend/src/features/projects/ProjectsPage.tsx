@@ -1,3 +1,5 @@
+import { MultiSelect } from '../../shared/ui/MultiSelect';
+import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -10,6 +12,13 @@ import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 import { Modal } from '../../shared/ui/Modal';
 import { ListPagination } from '../../shared/ui/ListPagination';
 import { PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
+
+const productShortNames: Record<string, string> = {
+  NETWORK: '5G',
+  GEWU: '格物',
+  WANGWU: '万悟',
+  BIG_DATA: '大数据',
+};
 
 const emptyAdvanced = {
   signingSubjectCode: '',
@@ -43,30 +52,40 @@ export function ProjectsPage({
   });
   const draftString = (key: string, fallback: string) =>
     typeof savedDraft?.[key] === 'string' ? String(savedDraft[key]) : fallback;
-  const query = useMemo(
-    () => ({
+  const query = useMemo(() => {
+    const selected = (field: string, legacy: string) => [
+      ...new Set(
+        [...searchParams.getAll(field), ...searchParams.getAll(legacy)]
+          .flatMap((value) => value.split(','))
+          .filter(Boolean),
+      ),
+    ];
+    const provinceIds = selected('provinceIds', 'provinceId');
+    const cityIds = selected('cityIds', 'cityId');
+    if (!provinceIds.length && searchParams.has('cityId')) {
+      const legacyProvince = reference.cities.find((city) => city.id === cityIds[0])?.provinceId;
+      if (legacyProvince) provinceIds.push(legacyProvince);
+    }
+    return {
       page: Math.max(0, Math.min(100000, Number(searchParams.get('page')) || 0)),
       projectName: searchParams.get('projectName') ?? '',
       stage: searchParams.get('stage') ?? '',
       projectCode: searchParams.get('projectCode') ?? '',
       industryCode: searchParams.get('industryCode') ?? '',
-      provinceId:
-        searchParams.get('provinceId') ??
-        reference.cities.find((item) => item.id === searchParams.get('cityId'))?.provinceId ??
-        '',
-      cityId: searchParams.get('cityId') ?? '',
+      provinceIds,
+      cityIds,
       includeTerminated: searchParams.get('includeTerminated') !== 'false',
       ...(Object.fromEntries(
         Object.keys(emptyAdvanced).map((key) => [key, searchParams.get(key) ?? '']),
       ) as typeof emptyAdvanced),
-    }),
-    [searchParams, reference.cities],
-  );
+    };
+  }, [searchParams, reference.cities]);
   function setQuery(value: typeof query | ((current: typeof query) => typeof query)) {
     const next = typeof value === 'function' ? value(query) : value;
     const params = new URLSearchParams();
     Object.entries(next).forEach(([key, value]) => {
-      if (value !== '' && !(key === 'page' && value === 0)) params.set(key, String(value));
+      if (Array.isArray(value)) value.forEach((id) => params.append(key, id));
+      else if (value !== '' && !(key === 'page' && value === 0)) params.set(key, String(value));
     });
     setSearchParams(params);
   }
@@ -77,15 +96,23 @@ export function ProjectsPage({
   const [stage, setStage] = useState(draftString('stage', initialStage));
   const [projectCode, setProjectCode] = useState(draftString('projectCode', query.projectCode));
   const [industryCode, setIndustryCode] = useState(draftString('industryCode', query.industryCode));
-  const [cityId, setCityId] = useState(draftString('cityId', query.cityId));
-  const [provinceId, setProvinceId] = useState(
-    draftString(
-      'provinceId',
-      reference.cities.find((item) => item.id === cityId)?.provinceId ?? query.provinceId,
-    ),
+  const draftLocations = (key: string, fallback: string[]) => {
+    const value = savedDraft?.[key];
+    return Array.isArray(value) && value.every((id) => typeof id === 'string') ? value : fallback;
+  };
+  const [provinceIds, setProvinceIds] = useState(draftLocations('provinceIds', query.provinceIds));
+  const [cityIds, setCityIds] = useState(draftLocations('cityIds', query.cityIds));
+  const provinces = reference.provinces.filter((item) =>
+    reference.readableProvinceIds.includes(item.id),
   );
-  const cities = reference.cities.filter((item) => item.provinceId === provinceId);
-  const selectedCityId = cities.some((item) => item.id === cityId) ? cityId : '';
+  const cities =
+    provinceIds.length === 1
+      ? reference.cities.filter(
+          (item) =>
+            item.provinceId === provinceIds[0] && reference.readableCityIds.includes(item.id),
+        )
+      : [];
+  const selectedCityIds = cityIds.filter((id) => cities.some((item) => item.id === id));
   const [includeTerminated, setIncludeTerminated] = useState(
     typeof savedDraft?.includeTerminated === 'boolean'
       ? savedDraft.includeTerminated
@@ -102,7 +129,10 @@ export function ProjectsPage({
   });
   const lastAppliedQuery = useRef(query);
   const [advancedOpen, setAdvancedOpen] = useState(
-    savedDraft?.advancedOpen === true || !!projectCode || Object.values(advanced).some(Boolean),
+    savedDraft?.advancedOpen === true ||
+      !!projectCode ||
+      !!industryCode ||
+      Object.entries(advanced).some(([key, value]) => key !== 'signingSubjectCode' && value),
   );
   const invalidDateRange =
     !!advanced.opportunityDateStart &&
@@ -115,8 +145,8 @@ export function ProjectsPage({
     setProjectCode(query.projectCode);
     setStage(query.stage);
     setIndustryCode(query.industryCode);
-    setProvinceId(query.provinceId);
-    setCityId(query.cityId);
+    setProvinceIds(query.provinceIds);
+    setCityIds(query.cityIds);
     setIncludeTerminated(query.includeTerminated);
     setAdvanced({
       ...emptyAdvanced,
@@ -264,8 +294,8 @@ export function ProjectsPage({
             stage,
             projectCode,
             industryCode,
-            provinceId,
-            cityId: selectedCityId,
+            provinceIds,
+            cityIds: selectedCityIds,
             includeTerminated,
             ...advanced,
           });
@@ -291,50 +321,43 @@ export function ProjectsPage({
           </Select>
         </label>
         <label>
-          所属行业
-          <Select value={industryCode} onChange={(event) => setIndustryCode(event.target.value)}>
-            <option value="">全部行业</option>
-            {reference.industries.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label>
-          归属省分
+          签约主体
           <Select
-            aria-label="归属省分"
-            value={provinceId}
-            onChange={(event) => {
-              setProvinceId(event.target.value);
-              setCityId('');
-            }}
+            value={advanced.signingSubjectCode}
+            onChange={(event) =>
+              setAdvanced({ ...advanced, signingSubjectCode: event.target.value })
+            }
           >
-            <option value="">全部省分</option>
-            {reference.provinces.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            <option value="">全部签约主体</option>
+            <option value="PROVINCE_SIGN">省分签约</option>
+            <option value="DS_SIGN">数科签约</option>
           </Select>
         </label>
-        <label>
-          归属地市／区县
-          <Select
-            aria-label="归属地市／区县"
-            value={selectedCityId}
-            disabled={!provinceId}
-            onChange={(event) => setCityId(event.target.value)}
-          >
-            <option value="">{provinceId ? '全部地市／区县' : '请先选择省分'}</option>
-            {cities.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.legacyMunicipalityCity ? `${item.name}（未细分区县）` : item.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <MultiSelect
+          label="归属省分"
+          values={provinceIds}
+          options={provinces.map((item) => ({ value: item.id, label: item.name }))}
+          onChange={(ids) => {
+            setProvinceIds(ids);
+            setCityIds((previous) =>
+              ids.length === 1
+                ? previous.filter((id) =>
+                    reference.cities.some((city) => city.id === id && city.provinceId === ids[0]),
+                  )
+                : [],
+            );
+          }}
+        />
+        <MultiSelect
+          label="归属地市／区县"
+          values={selectedCityIds}
+          disabledReason={provinceIds.length === 1 ? undefined : '请只选择一个省分'}
+          options={cities.map((item) => ({
+            value: item.id,
+            label: item.legacyMunicipalityCity ? item.name + '（未细分区县）' : item.name,
+          }))}
+          onChange={setCityIds}
+        />
         <label className="checkbox-label">
           <input
             type="checkbox"
@@ -405,16 +428,17 @@ export function ProjectsPage({
               />
             </label>
             <label>
-              签约主体
+              所属行业
               <Select
-                value={advanced.signingSubjectCode}
-                onChange={(event) =>
-                  setAdvanced({ ...advanced, signingSubjectCode: event.target.value })
-                }
+                value={industryCode}
+                onChange={(event) => setIndustryCode(event.target.value)}
               >
-                <option value="">全部签约主体</option>
-                <option value="PROVINCE_SIGN">省分签约</option>
-                <option value="DS_SIGN">数科签约</option>
+                <option value="">全部行业</option>
+                {reference.industries.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
               </Select>
             </label>
             <label>
@@ -442,8 +466,8 @@ export function ProjectsPage({
             setProjectCode('');
             setStage('');
             setIndustryCode('');
-            setProvinceId('');
-            setCityId('');
+            setProvinceIds([]);
+            setCityIds([]);
             setIncludeTerminated(true);
             setAdvanced(emptyAdvanced);
             setQuery({
@@ -452,8 +476,8 @@ export function ProjectsPage({
               stage: '',
               projectCode: '',
               industryCode: '',
-              provinceId: '',
-              cityId: '',
+              provinceIds: [],
+              cityIds: [],
               includeTerminated: true,
               ...emptyAdvanced,
             });
@@ -528,37 +552,90 @@ export function ProjectsPage({
             <span>共 {data?.totalElements ?? 0} 个项目</span>
           </div>
           <div
-            className="table-scroll"
+            className="table-scroll sticky-actions-scroll"
             tabIndex={0}
             role="region"
             aria-label="项目清单表格，可横向滚动"
           >
             <table className="project-list-table" aria-label="项目清单">
               <colgroup>
-                {[320, 120, 180, 180, 110, 130, 112, 180, 120].map((width, index) => (
+                {[280, 190, 170, 100, 140, 110, 112, 175, 120, 165, 76].map((width, index) => (
                   <col key={index} style={{ width }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col">项目编号 / 名称</th>
+                  <th scope="col">项目名称</th>
                   <th scope="col">归属</th>
                   <th scope="col">客户</th>
-                  <th scope="col">行业</th>
                   <th scope="col">阶段</th>
-                  <th scope="col">类别与签约主体</th>
+                  <th scope="col">类别</th>
+                  <th scope="col">签约主体</th>
                   <th scope="col">预计总金额</th>
                   <th scope="col">项目负责人</th>
                   <th scope="col">项目所属月份</th>
+                  <th scope="col">行业</th>
+                  <th scope="col" className="sticky-list-action">
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data?.items.map((project) => (
                   <tr key={project.id}>
                     <td>
-                      <span className="subtle">{project.projectCode}</span>
+                      <TruncatedText text={project.projectName} />
+                    </td>
+                    <td>
+                      <TruncatedText
+                        text={`${reference.provinces.find((item) => item.id === project.provinceId)?.name ?? '未匹配省分'} / ${reference.cities.find((item) => item.id === project.cityId)?.name ?? '未匹配地市'}`}
+                      />
+                    </td>
+                    <td>
+                      <TruncatedText text={project.customerName || '未填写'} />
+                    </td>
+                    <td>
+                      <span className={`stage stage-${project.currentStageCode.toLowerCase()}`}>
+                        {label(project.currentStageCode)}
+                      </span>
+                    </td>
+                    <td>
+                      <TruncatedText
+                        text={
+                          project.categoryAmounts
+                            .map(
+                              ({ categoryCode }) => productShortNames[categoryCode] ?? categoryCode,
+                            )
+                            .join('、') || '—'
+                        }
+                      />
+                    </td>
+                    <td>{project.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</td>
+                    <td className="number">
+                      <TruncatedText text={amount(project.totalAmount)} />
+                    </td>
+                    <td>
+                      <TruncatedText
+                        text={
+                          project.responsiblePersons?.map((person) => person.name).join('；') || '—'
+                        }
+                      />
+                    </td>
+                    <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
+                    <td>
+                      <TruncatedText
+                        text={
+                          reference.industries.find((item) => item.code === project.industryCode)
+                            ?.label ??
+                          project.industryCode ??
+                          '未填写'
+                        }
+                      />
+                    </td>
+                    <td className="sticky-list-action">
                       <Link
                         className="table-link"
+                        aria-label={`详情：${project.projectName}`}
                         to={`/projects/${project.id}`}
                         state={{ projectListReturnTo: returnTo }}
                         onClick={() => {
@@ -573,8 +650,8 @@ export function ProjectsPage({
                               stage,
                               projectCode,
                               industryCode,
-                              provinceId,
-                              cityId: selectedCityId,
+                              provinceIds,
+                              cityIds: selectedCityIds,
                               includeTerminated,
                               ...advanced,
                               advancedOpen,
@@ -582,47 +659,9 @@ export function ProjectsPage({
                           );
                         }}
                       >
-                        {project.projectName}
+                        详情
                       </Link>
                     </td>
-                    <td>
-                      {reference.provinces.find((item) => item.id === project.provinceId)?.name ??
-                        '未匹配省分'}
-                      <div className="subtle">
-                        {reference.cities.find((item) => item.id === project.cityId)?.name ??
-                          '未匹配地市'}
-                      </div>
-                    </td>
-                    <td>{project.customerName || '未填写'}</td>
-                    <td>
-                      {reference.industries.find((item) => item.code === project.industryCode)
-                        ?.label ??
-                        project.industryCode ??
-                        '未填写'}
-                    </td>
-                    <td>
-                      <span className={`stage stage-${project.currentStageCode.toLowerCase()}`}>
-                        {label(project.currentStageCode)}
-                      </span>
-                    </td>
-                    <td>
-                      {project.categoryAmounts
-                        .map(
-                          (item) =>
-                            reference.categories.find(
-                              (category) => category.code === item.categoryCode,
-                            )?.label ?? item.categoryCode,
-                        )
-                        .join('、') || '—'}
-                      <div className="subtle">
-                        {project.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}
-                      </div>
-                    </td>
-                    <td className="number">{amount(project.totalAmount)}</td>
-                    <td>
-                      {project.responsiblePersons?.map((person) => person.name).join('；') || '—'}
-                    </td>
-                    <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

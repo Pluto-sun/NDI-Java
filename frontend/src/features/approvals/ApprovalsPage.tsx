@@ -477,6 +477,12 @@ export function ApprovalDetailPage({
                 <dd>{amount(item.proposedSignedAmount)} 万元</dd>
               </div>
             )}
+            {item.proposedPlannedBidMonth && (
+              <div>
+                <dt>拟招标月份</dt>
+                <dd>{item.proposedPlannedBidMonth.slice(0, 7)}</dd>
+              </div>
+            )}
             {item.stageOccurredAt && (
               <div>
                 <dt>阶段发生日期</dt>

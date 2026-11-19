@@ -3,8 +3,8 @@ spring:
     name: ndi
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 11MB
+      max-file-size: 20MB
+      max-request-size: 25MB
   profiles:
     default: local
   jpa:

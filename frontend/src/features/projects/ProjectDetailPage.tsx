@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -120,6 +122,7 @@ export function ProjectDetailPage({
   const assignedProvince = reference.provinces.find((item) => item.id === detail?.provinceId);
   const assignedCity = reference.cities.find((item) => item.id === detail?.cityId);
   const canProgress = canCollaborate && detail?.currentStageCode !== 'TERMINATED';
+  const titleBar = document.getElementById('project-detail-title');
   return (
     <section className="project-detail-page">
       <div className="page-heading">
@@ -127,15 +130,24 @@ export function ProjectDetailPage({
           <Link className="back-link" to={returnTo}>
             ← 返回项目列表
           </Link>
-          <h2>{detail?.projectName}</h2>
           <p>{detail?.projectCode ?? '主档、进展和里程碑'}</p>
         </div>
-        {detail && (
-          <span className={`stage stage-${detail.currentStageCode.toLowerCase()}`}>
-            {label(detail.currentStageCode)}
-          </span>
-        )}
       </div>
+      {detail &&
+        titleBar &&
+        createPortal(
+          <>
+            <h1>
+              <TruncatedText text={detail.projectName} />
+            </h1>
+            <span
+              className={`stage project-detail-stage stage-${detail.currentStageCode.toLowerCase()}`}
+            >
+              <span aria-hidden="true">◆</span> {label(detail.currentStageCode)}
+            </span>
+          </>,
+          titleBar,
+        )}
       {error && <Feedback tone="error">{error}</Feedback>}
       {notice && <Feedback tone="success">{notice}</Feedback>}
       {loading ? (

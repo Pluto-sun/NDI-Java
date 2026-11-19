@@ -1,3 +1,4 @@
+import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { downloadAttachment } from '../../shared/util/downloadAttachment';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { useCallback, useState, type FormEvent } from 'react';
@@ -244,7 +245,7 @@ function RecordList({
             role="region"
             aria-label="能力指标明细"
           >
-            <table aria-label={intelligenceTitles[kind]}>
+            <table className="two-line-register" aria-label={intelligenceTitles[kind]}>
               <colgroup>
                 {admin && <col style={{ width: 44 }} />}
                 {listFields.map((field) => (
@@ -283,9 +284,13 @@ function RecordList({
                   <tr key={item.id}>
                     {batch.cell(item)}
                     {listFields.map((field) => (
-                      <td key={field}>{display(field, item.fields[field])}</td>
+                      <td key={field}>
+                        <TruncatedText twoLines text={display(field, item.fields[field])} />
+                      </td>
                     ))}
-                    <td>{timestamp(item.updatedAt)}</td>
+                    <td>
+                      <TruncatedText twoLines text={timestamp(item.updatedAt)} />
+                    </td>
                     <td className="sticky-list-action">
                       <div className="gewu-actions">
                         <button

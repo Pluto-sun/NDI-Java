@@ -84,7 +84,7 @@ class ProjectAttributionIT {
                 """, evidence.toString(), first.toString(), "staging-" + evidence, "object-" + evidence,
                 "a".repeat(64), reporter.toString());
         var pending = stages.submit(reporter, first, new StageAdvanceCommand(ProjectInitiatorLevel.CITY,
-                ProjectStage.BIDDING, reviewer, LocalDate.of(2026, 7, 5), evidence, null, null, null, null));
+                ProjectStage.BIDDING, reviewer, LocalDate.of(2026, 7, 5), evidence, null, null, null, null, "2026-08"));
         assertThat(view(reporter, "2026-06", "2026-06", false).projectCount()).isEqualTo(1);
         assertThat(view(reporter, "2026-07", "2026-07", false).projectCount()).isEqualTo(1);
         clock.moveTo(2026, 8, 3);

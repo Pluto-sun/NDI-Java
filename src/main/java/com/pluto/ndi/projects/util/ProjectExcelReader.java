@@ -1,5 +1,8 @@
 package com.pluto.ndi.projects.util;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+import com.pluto.ndi.shared.excel.ExcelWorkbook;
+
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -99,8 +102,8 @@ public class ProjectExcelReader {
 
     public List<ExcelRow> read(byte[] data, String sheetName, Integer headerRowNo,
             Map<String, String> fieldMapping) throws IOException {
-        if (data.length == 0 || data.length > 10 * 1024 * 1024) {
-            throw new IllegalArgumentException("Excel 文件大小必须在 1 字节至 10 MB 之间");
+        if (data.length == 0 || data.length > ExcelImportLimits.MAX_BYTES) {
+            throw new IllegalArgumentException("Excel 文件大小必须在 1 字节至 20 MB 之间");
         }
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(data))) {
             if (!workbook.getExternalLinksTable().isEmpty()) {
@@ -166,9 +169,11 @@ public class ProjectExcelReader {
                 }
             }
             var result = new ArrayList<ExcelRow>();
+            int dataRows = 0;
             for (int r = headerIndex + 1; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
-                if (row == null) continue;
+                if (!ExcelWorkbook.hasData(row)) continue;
+                ExcelImportLimits.checkRowCount(++dataRows);
                 var cells = new HashMap<String, String>();
                 for (var entry : headers.entrySet()) {
                     cells.put(
@@ -185,7 +190,6 @@ public class ProjectExcelReader {
                     });
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
-                if (result.size() == 1000) throw new IllegalArgumentException("单批次最多导入 1000 行");
                 result.add(new ExcelRow(r + 1, Map.copyOf(cells)));
             }
             return result;
@@ -193,8 +197,8 @@ public class ProjectExcelReader {
     }
 
     public WorkbookInspection inspect(byte[] data, String fileName) throws IOException {
-        if (data.length == 0 || data.length > 10 * 1024 * 1024) {
-            throw new IllegalArgumentException("Excel 文件大小必须在 1 字节至 10 MB 之间");
+        if (data.length == 0 || data.length > ExcelImportLimits.MAX_BYTES) {
+            throw new IllegalArgumentException("Excel 文件大小必须在 1 字节至 20 MB 之间");
         }
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(data))) {
             if (!workbook.getExternalLinksTable().isEmpty()) {

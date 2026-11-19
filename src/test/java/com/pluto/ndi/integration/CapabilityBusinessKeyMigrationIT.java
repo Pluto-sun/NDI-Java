@@ -25,7 +25,7 @@ class CapabilityBusinessKeyMigrationIT {
         var jdbc = new JdbcTemplate(source);
         var insert = """
                 INSERT INTO intelligence_capability(id,kind,province_id,details,updated_at)
-                SELECT UUID_TO_BIN(UUID()), 'AGENTS_LIVE', id, JSON_OBJECT('智能体名称','重复智能体'), NOW(6)
+                SELECT UUID_TO_BIN(UUID()), 'AGENTS_LIVE', id, JSON_OBJECT('智能体名称','重复智能体','应用项目名称','相同应用'), NOW(6)
                 FROM organization_province WHERE province_code='440000'
                 """;
         jdbc.update(insert);

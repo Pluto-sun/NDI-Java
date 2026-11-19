@@ -1,5 +1,8 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+import com.pluto.ndi.shared.excel.ExcelWorkbook;
+
 import org.apache.poi.openxml4j.opc.PackagingURIHelper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.util.XMLHelper;
@@ -13,7 +16,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 final class MonthlyTokenWorkbook {
-    private static final int MAX_BYTES = 10 * 1024 * 1024;
+    private static final int MAX_IMAGE_BYTES = 40 * 1024 * 1024;
     private static final Pattern AMOUNT = Pattern.compile("^(1[0-2]|[1-9])月Token量[（(]万[）)]$");
     private static final Pattern SCREENSHOT = Pattern.compile("^(?:(1[0-2]|[1-9])月)?Token量[-－—]截图$");
     private static final Pattern IMAGE_FORMULA =
@@ -31,7 +34,7 @@ final class MonthlyTokenWorkbook {
     }
 
     static Content read(byte[] bytes, String sheetName) throws IOException {
-        if (bytes.length == 0 || bytes.length > MAX_BYTES) throw invalid("工作簿不得超过 10 MB");
+        if (bytes.length == 0 || bytes.length > ExcelImportLimits.MAX_BYTES) throw invalid("工作簿不得超过 20 MB");
         try (var book = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             var sheets = new ArrayList<String>();
             for (int i = 0; i < book.getNumberOfSheets(); i++) {
@@ -43,8 +46,8 @@ final class MonthlyTokenWorkbook {
             var sheet = book.getSheet(selected);
             var formatter = new DataFormatter(Locale.CHINA);
             var header = sheet.getRow(0);
-            if (header == null || header.getLastCellNum() > 128 || sheet.getLastRowNum() > 1000)
-                throw invalid("首行须为表头，最多支持 128 列及 1000 行数据");
+            if (header == null || header.getLastCellNum() > 128)
+                throw invalid("首行须为表头，最多支持 128 列");
             var amounts = new LinkedHashMap<Integer, Integer>();
             var screenshots = new HashMap<Integer, Integer>();
             var names = new HashMap<String, Integer>();
@@ -78,8 +81,10 @@ final class MonthlyTokenWorkbook {
                 throw invalid("存在缺少用量列的截图月份");
             var images = embeddedImages(book);
             var result = new ArrayList<Line>();
+            int dataRows = 0;
             for (var row : sheet) {
-                if (row.getRowNum() == 0) continue;
+                if (row.getRowNum() == 0 || !ExcelWorkbook.hasData(row)) continue;
+                ExcelImportLimits.checkRowCount(++dataRows);
                 for (var entry : amounts.entrySet()) {
                     var amount = get(row, entry.getValue());
                     var shot = get(row, screenshots.get(entry.getKey()));
@@ -137,9 +142,9 @@ final class MonthlyTokenWorkbook {
                     var image = cache.get(key);
                     if (image == null) {
                         try (var content = file.getInputStream()) {
-                            var data = content.readNBytes(MAX_BYTES - total + 1);
+                            var data = content.readNBytes(MAX_IMAGE_BYTES - total + 1);
                             total += data.length;
-                            if (total > MAX_BYTES) throw invalid("内嵌截图合计不得超过 10 MB");
+                            if (total > MAX_IMAGE_BYTES) throw invalid("内嵌截图解压后合计不得超过 40 MB");
                             var signature = HexFormat.of().parseHex(type.equals("image/png") ? "89504e470d0a1a0a" : "ffd8ff");
                             if (!Arrays.equals(signature, Arrays.copyOf(data, signature.length))) continue;
                             image = new Image(type, data);

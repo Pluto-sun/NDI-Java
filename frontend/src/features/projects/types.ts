@@ -29,6 +29,8 @@ export interface ProjectUser {
   reviewerProvinceIds: string[];
 }
 export interface ReferenceData {
+  readableProvinceIds: string[];
+  readableCityIds: string[];
   provinces: ProvinceOption[];
   cities: CityOption[];
   industries: CodeLabel[];
@@ -146,7 +148,7 @@ export interface ProjectSummary {
 export interface ProjectResponsiblePerson {
   id: string | null;
   name: string;
-  responsibility: 'PROVINCE_LEADER' | 'CITY_MANAGER' | 'SUPPORT_EXPERT' | null;
+  responsibility: 'PROVINCE_LEADER' | 'CITY_MANAGER' | 'SUPPORT_EXPERT' | 'SOLUTION_SUPPORT' | null;
   userId: string | null;
   accountName: string | null;
   accountEnabled: boolean;
@@ -259,6 +261,7 @@ export interface ApprovalSummary {
   proposedSignedAmount: number | null;
   evidenceDocumentId: string | null;
   stageOccurredAt: string | null;
+  proposedPlannedBidMonth: string | null;
   changeReason: string | null;
   reviewOpinion: string | null;
   submittedAt: string;

@@ -1,6 +1,8 @@
 package com.pluto.ndi.projects.service;
 
 import java.util.Locale;
+import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.time.LocalDate;
@@ -25,10 +27,18 @@ public record ProjectQuery(
         String keyword,
         LocalDate opportunityDateStart,
         LocalDate opportunityDateEnd,
-        String responsiblePersonName
+        String responsiblePersonName,
+        List<UUID> provinceIds,
+        List<UUID> cityIds
 ) {
 
     public ProjectQuery {
+        provinceIds = locations(provinceId, provinceIds);
+        cityIds = locations(cityId, cityIds);
+        if (!cityIds.isEmpty() && (provinceIds.size() > 1
+                || provinceIds.isEmpty() && (cityId == null || cityIds.size() > 1))) {
+            throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
+        }
         projectCode = normalize(projectCode, true);
         projectName = normalize(projectName, false);
         industryCode = normalize(industryCode, true);
@@ -46,6 +56,26 @@ public record ProjectQuery(
         if (signingSubjectCode != null && !Set.of("PROVINCE_SIGN", "DS_SIGN").contains(signingSubjectCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
         }
+    }
+
+    public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,
+            UUID provinceId, UUID cityId, boolean includeTerminated, String signingSubjectCode,
+            String provinceLeaderName, String cityAccountManagerName, String productSupportExpertName, String keyword,
+            LocalDate opportunityDateStart, LocalDate opportunityDateEnd, String responsiblePersonName) {
+        this(projectCode, projectName, stage, industryCode, provinceId, cityId, includeTerminated, signingSubjectCode,
+                provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
+                opportunityDateStart, opportunityDateEnd, responsiblePersonName, null, null);
+    }
+
+    private static List<UUID> locations(UUID single, List<UUID> multiple) {
+        var result = new LinkedHashSet<UUID>();
+        if (single != null) result.add(single);
+        if (multiple != null) {
+            if (multiple.size() > 500 || multiple.stream().anyMatch(java.util.Objects::isNull))
+                throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
+            result.addAll(multiple);
+        }
+        return List.copyOf(result);
     }
 
     public ProjectQuery(String projectCode,String projectName,ProjectStage stage,String industryCode,

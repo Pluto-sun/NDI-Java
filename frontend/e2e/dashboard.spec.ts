@@ -57,7 +57,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     page.getByRole('heading', { name: '阶段分布概览（项目数／金额）', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: '近期项目变动情况', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: `详情：${name}`, exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

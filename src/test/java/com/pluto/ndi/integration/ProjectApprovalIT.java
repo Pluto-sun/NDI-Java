@@ -363,21 +363,24 @@ class ProjectApprovalIT {
     @Test
     void advancesAllThreeStagesOnlyAfterApprovalAndValidatedEvidence() {
         var projectId = createProject();
-        var solutionId = createAvailableDocument(projectId, "CUSTOMER_SOLUTION");
         var awardId = createAvailableDocument(projectId, "AWARD_NOTICE");
-        when(documentDirectory.isUsable("PROJECT", projectId, solutionId, "CUSTOMER_SOLUTION")).thenReturn(true);
         when(documentDirectory.isUsable("PROJECT", projectId, awardId, "AWARD_NOTICE")).thenReturn(true);
         var occurredOn = LocalDate.now(ZoneId.of("Asia/Shanghai"));
 
-        var missingEvidence = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+        var missingMonth = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
                 ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
                 null, null, null, null, null)));
-        assertThat(missingEvidence).isInstanceOf(BusinessException.class);
-        assertThat(((BusinessException) missingEvidence).errorCode()).isEqualTo(ProjectErrorCode.STAGE_EVIDENCE_REQUIRED);
+        assertThat(missingMonth).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) missingMonth).errorCode()).isEqualTo(ProjectErrorCode.BID_MONTH_REQUIRED);
+        var invalidMonth = catchThrowable(() -> stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
+                null, null, null, null, null, "2026-13")));
+        assertThat(((BusinessException) invalidMonth).errorCode()).isEqualTo(ProjectErrorCode.BID_MONTH_REQUIRED);
 
         var bidding = stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
                 ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId, occurredOn,
-                solutionId, null, null, "客户方案已确认", "安排招投标"));
+                null, null, null, "客户方案已确认", "安排招投标", "2026-01"));
+        assertThat(projectRepository.findById(projectId).orElseThrow().plannedBidMonth()).isNull();
         assertThat(projectRepository.findById(projectId).orElseThrow().currentStageCode())
                 .isEqualTo(ProjectStage.SOLUTION_EXCHANGE.name());
         var wrongApprover = catchThrowable(() -> approvalService.decide(provinceUserId, bidding.id(), true, null));
@@ -385,6 +388,8 @@ class ProjectApprovalIT {
         assertThat(((BusinessException) wrongApprover).errorCode()).isEqualTo(ProjectErrorCode.APPROVAL_FORBIDDEN);
         assertThat(approvalService.decide(interfaceUserId, bidding.id(), true, null).status())
                 .isEqualTo(ApprovalStatus.APPROVED);
+        assertThat(projectRepository.findById(projectId).orElseThrow().plannedBidMonth())
+                .isEqualTo(LocalDate.of(2026, 1, 1));
 
         var signed = stageService.submit(provinceUserId, projectId, new StageAdvanceCommand(
                 ProjectInitiatorLevel.PROVINCE, ProjectStage.SIGNED, interfaceUserId, occurredOn,
@@ -406,6 +411,63 @@ class ProjectApprovalIT {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM project_progress WHERE project_id = UUID_TO_BIN(?)",
                 Integer.class, projectId.toString())).isEqualTo(2);
+    }
+
+    @Test
+    void oldPendingBiddingUsesTheValidProjectMonthOrConflictsWithoutOne() {
+        for (boolean hasProjectMonth : List.of(true, false)) {
+            var projectId = createProject();
+            if (hasProjectMonth) {
+                jdbc.update("UPDATE project_project SET planned_bid_month='2026-07-01' WHERE id=UUID_TO_BIN(?)",
+                        projectId.toString());
+            }
+            var request = stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
+                    ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId,
+                    LocalDate.now(ZoneId.of("Asia/Shanghai")), null, null, null, null, null, "2026-10"));
+            jdbc.update("UPDATE project_approval_request SET proposed_planned_bid_month=NULL WHERE id=UUID_TO_BIN(?)",
+                    request.id().toString());
+            assertThat(approvalService.decide(interfaceUserId, request.id(), true, null).status())
+                    .isEqualTo(hasProjectMonth ? ApprovalStatus.APPROVED : ApprovalStatus.CONFLICT);
+            var after = projectRepository.findById(projectId).orElseThrow();
+            assertThat(after.currentStageCode()).isEqualTo(hasProjectMonth ? "BIDDING" : "SOLUTION_EXCHANGE");
+            assertThat(after.plannedBidMonth()).isEqualTo(hasProjectMonth ? LocalDate.of(2026, 7, 1) : null);
+        }
+    }
+
+    @Test
+    void allowsMultipleSolutionSupportPeopleAndRejectsOutOfScopeAccount() throws Exception {
+        var projectId = createProject();
+        var version = projectRepository.findById(projectId).orElseThrow().versionNo();
+        var endpoint = "/api/v1/projects/" + projectId + "/people";
+        var wrong = UUID.randomUUID();
+        addUserInProvince(wrong, null, null, "GROUP_REVIEWER");
+        var people = """
+                {"expectedVersion":%s,"people":[
+                    {"name":"支撑甲","responsibility":"SOLUTION_SUPPORT","userId":"%s"},
+                    {"name":"支撑乙","responsibility":"SOLUTION_SUPPORT"}]}
+                """;
+        mockMvc.perform(get(endpoint + "/accounts").header("X-NDI-Actor-Id", interfaceUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].id").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(wrong.toString()))));
+        mockMvc.perform(put(endpoint).header("X-NDI-Actor-Id", interfaceUserId.toString())
+                        .contentType("application/json").content(people.formatted(version, wrong)))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put(endpoint).header("X-NDI-Actor-Id", interfaceUserId.toString())
+                        .contentType("application/json").content(people.formatted(version, cityUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.responsiblePersons[*].responsibility")
+                        .value(org.hamcrest.Matchers.contains("SOLUTION_SUPPORT", "SOLUTION_SUPPORT")));
+        var configured = projectService.findDetail(cityUserId, projectId);
+        mockMvc.perform(put("/api/v1/projects/{projectId}/profile", projectId)
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json")
+                        .content("""
+                                {"expectedVersion":%d,"customerName":"客户","industryCode":"C25",
+                                 "customerNeed":"客户需要系统升级","cityAccountManagerName":"新增旧版客户经理"}
+                                """.formatted(configured.versionNo())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.responsiblePersons[*].responsibility")
+                        .value(org.hamcrest.Matchers.contains("SOLUTION_SUPPORT", "SOLUTION_SUPPORT", "CITY_MANAGER")));
     }
 
     @Test
@@ -1098,8 +1160,23 @@ class ProjectApprovalIT {
         mockMvc.perform(get("/api/v1/projects")
                         .header("X-NDI-Actor-Id", cityUserId.toString())
                         .param("provinceId", UUID.randomUUID().toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(0));
+                .andExpect(status().isBadRequest());
+
+        var otherProvince = UUID.randomUUID();
+        var otherCity = UUID.randomUUID();
+        jdbc.update("INSERT INTO organization_province (id, province_code, province_name, enabled) VALUES (UUID_TO_BIN(?), ?, ?, true)",
+                otherProvince.toString(), otherProvince.toString().replace("-", ""), "其他省分");
+        jdbc.update("INSERT INTO organization_city (id, province_id, city_code, city_name, enabled) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, true)",
+                otherCity.toString(), provinceId.toString(), otherCity.toString().replace("-", ""), "另一地市");
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("provinceIds", otherProvince.toString(), provinceId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("provinceIds", provinceId.toString()).param("cityIds", otherCity.toString(), cityId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2));
+        mockMvc.perform(get("/api/v1/projects").header("X-NDI-Actor-Id", cityUserId.toString())
+                        .param("provinceIds", otherProvince.toString()).param("cityIds", cityId.toString()))
+                .andExpect(status().isBadRequest());
 
         jdbc.update("UPDATE project_project SET project_name = '进度%目标' WHERE id = UUID_TO_BIN(?)",
                 activeId.toString());
@@ -1285,7 +1362,7 @@ class ProjectApprovalIT {
         when(documentDirectory.isUsable("PROJECT", projectId, solutionId, "CUSTOMER_SOLUTION")).thenReturn(true);
         stageService.submit(cityUserId, projectId, new StageAdvanceCommand(
                 ProjectInitiatorLevel.CITY, ProjectStage.BIDDING, interfaceUserId,
-                LocalDate.now(ZoneId.of("Asia/Shanghai")), solutionId, null, null, null, null));
+                LocalDate.now(ZoneId.of("Asia/Shanghai")), solutionId, null, null, null, null, "2026-01"));
         mockMvc.perform(delete("/api/v1/projects/{projectId}/documents/{documentId}", projectId, solutionId)
                         .header("X-NDI-Actor-Id", cityUserId.toString()))
                 .andExpect(status().isConflict())

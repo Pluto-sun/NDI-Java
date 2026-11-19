@@ -1,5 +1,7 @@
 package com.pluto.ndi.projects.controller;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.projects.domain.ProjectImportTask.Configuration;
 import com.pluto.ndi.projects.service.ProjectImportWizardService;
@@ -48,7 +50,7 @@ public class ProjectImportTaskController {
             @RequestParam(required = false) Long expectedVersion,
             @RequestParam(required = false) UUID expectedTaskId)
             throws IOException {
-        if (file.isEmpty() || file.getSize() > 10 * 1024 * 1024)
+        if (file.isEmpty() || file.getSize() > ExcelImportLimits.MAX_BYTES)
             throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
         return responses.success(
                 service.upload(

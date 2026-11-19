@@ -4,6 +4,7 @@ import { crc32 } from 'node:zlib';
 export function importWorkbook(
   rows: Record<string, string>[],
   sourceTitles: Record<string, string> = {},
+  size?: number,
 ): Buffer {
   const headers = Object.keys(rows[0]);
   const escape = (value: string) =>
@@ -23,7 +24,7 @@ export function importWorkbook(
         `<row r="${index + 1}">${cells.map((value, column) => `<c r="${columnName(column)}${index + 1}" t="inlineStr"><is><t xml:space="preserve">${escape(value)}</t></is></c>`).join('')}</row>`,
     )
     .join('');
-  const entries = {
+  const entries: Record<string, string> = {
     '[Content_Types].xml':
       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
     '_rels/.rels':
@@ -34,6 +35,10 @@ export function importWorkbook(
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
     'xl/worksheets/sheet1.xml': `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheet}</sheetData></worksheet>`,
   };
+  if (size !== undefined) {
+    entries['xl/padding.xml'] = '';
+    entries['xl/padding.xml'] = ' '.repeat(size - storedZip(entries).length);
+  }
   return storedZip(entries);
 }
 

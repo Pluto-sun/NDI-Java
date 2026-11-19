@@ -33,6 +33,7 @@ public record ApprovalSummary(
         BigDecimal proposedSignedAmount,
         String proposedProgressContent,
         String proposedNextAction,
+        java.time.LocalDate proposedPlannedBidMonth,
         String changeReason,
         String reviewOpinion,
         Instant submittedAt,
@@ -54,7 +55,7 @@ public record ApprovalSummary(
                 request.targetStageCode(), request.proposedProjectName(),
                 request.proposedTotalAmount(), request.evidenceDocumentId(), request.stageOccurredAt(),
                 request.proposedContractNo(), request.proposedSignedAmount(),
-                request.proposedProgressContent(), request.proposedNextAction(),
+                request.proposedProgressContent(), request.proposedNextAction(), request.proposedPlannedBidMonth(),
                 request.changeReason(), request.reviewOpinion(),
                 request.submittedAt(), request.dueAt(), request.decidedAt(),
                 request.fieldChanges().stream().map(item -> new ApprovalFieldChangeSummary(

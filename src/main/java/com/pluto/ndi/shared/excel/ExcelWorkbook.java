@@ -26,8 +26,8 @@ public final class ExcelWorkbook {
     public record Line(int number, Map<String, String> cells) {}
 
     private static XSSFWorkbook open(byte[] data) throws IOException {
-        if (data.length == 0 || data.length > 10 * 1024 * 1024)
-            throw new IllegalArgumentException("Excel 文件须为 1 字节至 10 MB");
+        if (data.length == 0 || data.length > ExcelImportLimits.MAX_BYTES)
+            throw new IllegalArgumentException("Excel 文件须为 1 字节至 20 MB");
         var workbook = new XSSFWorkbook(new ByteArrayInputStream(data));
         if (!workbook.getExternalLinksTable().isEmpty()) {
             workbook.close();
@@ -129,9 +129,11 @@ public final class ExcelWorkbook {
                     throw new IllegalArgumentException("映射列不存在或重复使用");
             var result = new ArrayList<Line>();
             var formatter = new DataFormatter(Locale.CHINA);
+            int dataRows = 0;
             for (int i = rowNo; i <= sheet.getLastRowNum(); i++) {
                 var dataRow = sheet.getRow(i);
-                if (dataRow == null) continue;
+                if (!hasData(dataRow)) continue;
+                ExcelImportLimits.checkRowCount(++dataRows);
                 var cells = new LinkedHashMap<String, String>();
                 for (var field : fields) {
                     var column = source.get(mapping.getOrDefault(field, ""));
@@ -156,11 +158,24 @@ public final class ExcelWorkbook {
                 }
                 if (cells.values().stream().allMatch(String::isBlank)) continue;
                 result.add(new Line(i + 1, cells));
-                if (result.size() > 1000) throw new IllegalArgumentException("一次最多导入 1000 行");
             }
             if (result.isEmpty()) throw new IllegalArgumentException("所选工作表没有可导入内容");
             return result;
         }
+    }
+
+    public static boolean hasData(Row row) {
+        if (row == null) return false;
+        for (var cell : row) {
+            switch (cell.getCellType()) {
+                case BLANK, _NONE -> { }
+                case STRING -> {
+                    if (!cell.getStringCellValue().isBlank()) return true;
+                }
+                default -> { return true; }
+            }
+        }
+        return false;
     }
 
     public static byte[] template(List<String> fields) throws IOException {
@@ -188,6 +203,10 @@ public final class ExcelWorkbook {
             sheet.createFreezePane(0, 1);
             if (configureDropdowns != null)
                 configureDropdowns.accept(new ExcelDropdowns(wb, sheet, fields));
+            var guide = wb.createSheet("填写说明");
+            guide.createRow(0).createCell(0).setCellValue("每次最多导入 2000 行数据，表头不计入。");
+            guide.createRow(1).createCell(0).setCellValue("Excel 文件最大 20 MB。请填写“导入数据”工作表。");
+            guide.setColumnWidth(0, 58 * 256);
             wb.write(out);
             return out.toByteArray();
         }

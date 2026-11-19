@@ -57,6 +57,9 @@ export function ProjectRequests({
   const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [stageApproverId, setStageApproverId] = useState('');
   const [stageDate, setStageDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [plannedBidMonth, setPlannedBidMonth] = useState(
+    project.plannedBidMonth?.slice(0, 7) ?? '',
+  );
   const [evidenceId, setEvidenceId] = useState('');
   const [contractNo, setContractNo] = useState('');
   const [signedAmount, setSignedAmount] = useState('');
@@ -65,8 +68,8 @@ export function ProjectRequests({
   const [requestId, setRequestId] = useState('');
   const [stageOpen, setStageOpen] = useState(false);
   const target = nextStages[project.currentStageCode];
-  const requiredPurpose = target ? evidencePurpose[target] : undefined;
-  const evidence = documents.filter((item) => item.purposeCode === requiredPurpose);
+  const materialPurpose = target ? evidencePurpose[target] : undefined;
+  const evidence = documents.filter((item) => item.purposeCode === materialPurpose);
   const label = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
 
@@ -109,8 +112,11 @@ export function ProjectRequests({
         targetStage: target,
         approverId: stageApproverId,
         stageOccurredOn: stageDate,
-        ...(requiredPurpose
-          ? { evidenceDocumentId: evidenceId }
+        ...(materialPurpose
+          ? {
+              evidenceDocumentId: evidenceId || undefined,
+              ...(target === 'BIDDING' ? { plannedBidMonth } : {}),
+            }
           : {
               contractNo: contractNo.trim(),
               signedAmount,
@@ -153,7 +159,10 @@ export function ProjectRequests({
           type="button"
           className="primary-button"
           disabled={!!requestId}
-          onClick={() => setStageOpen(true)}
+          onClick={() => {
+            setPlannedBidMonth(project.plannedBidMonth?.slice(0, 7) ?? '');
+            setStageOpen(true);
+          }}
         >
           发起阶段推进
         </button>
@@ -192,15 +201,30 @@ export function ProjectRequests({
                   ))}
                 </Select>
               </label>
-              {requiredPurpose ? (
+              {target === 'BIDDING' && (
+                <label>
+                  拟招标月份
+                  <input
+                    type="month"
+                    required
+                    min="1000-01"
+                    max="9999-12"
+                    value={plannedBidMonth}
+                    onChange={(event) => setPlannedBidMonth(event.target.value)}
+                  />
+                </label>
+              )}
+              {materialPurpose ? (
                 <label className="span-two">
                   {target === 'BIDDING' ? '客户侧交流方案' : '中标通知书'}
                   <Select
-                    required
+                    required={target === 'SIGNED'}
                     value={evidenceId}
                     onChange={(event) => setEvidenceId(event.target.value)}
                   >
-                    <option value="">请先在“项目资料”上传对应材料</option>
+                    <option value="">
+                      {target === 'BIDDING' ? '不附材料' : '请先在“项目资料”上传对应材料'}
+                    </option>
                     {evidence.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.originalName}

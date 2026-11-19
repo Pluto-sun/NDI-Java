@@ -323,3 +323,36 @@
   height: 16px;
   padding: 0;
 }
+
+.topbar.project-detail-topbar {
+  position: sticky;
+  top: 0;
+}
+.project-detail-topbar .topbar-main {
+  flex: 1 1 260px;
+}
+.project-detail-topbar .topbar-breadcrumb {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+.project-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.project-detail-title h1 {
+  min-width: 0;
+}
+.project-detail-title .project-detail-stage {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+@media (max-width: 620px) {
+  .project-detail-topbar .topbar-title {
+    display: none;
+  }
+  .project-detail-title {
+    width: 100%;
+  }
+}

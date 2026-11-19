@@ -1,3 +1,4 @@
+import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
@@ -76,7 +77,12 @@ export function DashboardActivities({
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy && !data && <Loading />}
       <div className="table-scroll">
-        <table>
+        <table aria-label="近期项目变动">
+          <colgroup>
+            {[154, 96, 235, 120, 170, 130, 200, 130, 172, 172, 170].map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th>变动时间</th>
@@ -118,29 +124,55 @@ export function DashboardActivities({
                     : row.afterAmount - row.beforeAmount;
               return (
                 <tr key={row.id}>
-                  <td>{dateTime(row.occurredAt)}</td>
+                  <td>
+                    <TruncatedText text={dateTime(row.occurredAt)} />
+                  </td>
                   <td>
                     <span className="status-pill">{eventLabels[row.eventType] ?? '项目变更'}</span>
                   </td>
                   <th>
-                    <Link className="inline-link" to={`/projects/${row.projectId}`}>
-                      {row.projectName}
-                    </Link>
+                    <TruncatedText text={row.projectName}>
+                      <Link className="inline-link" to={`/projects/${row.projectId}`}>
+                        {row.projectName}
+                      </Link>
+                    </TruncatedText>
                   </th>
-                  <td>{row.province}</td>
-                  <td>{row.industry}</td>
-                  <td>{categories.join('、') || '—'}</td>
-                  <td>{products.map((item) => item.label).join('、') || '—'}</td>
-                  <td>{delta === null ? '—' : `${delta > 0 ? '+' : ''}${amount(delta)}`}</td>
                   <td>
-                    {stageName(row.beforeStage)}
-                    {row.beforeAmount !== null && ` / ${amount(row.beforeAmount)} 万元`}
+                    <TruncatedText text={row.province} />
                   </td>
                   <td>
-                    {stageName(row.afterStage)}
-                    {row.afterAmount !== null && ` / ${amount(row.afterAmount)} 万元`}
+                    <TruncatedText text={row.industry} />
                   </td>
-                  <td>{row.leaderName}</td>
+                  <td>
+                    <TruncatedText text={categories.join('、') || '—'} />
+                  </td>
+                  <td>
+                    <TruncatedText text={products.map((item) => item.label).join('、') || '—'} />
+                  </td>
+                  <td>
+                    <TruncatedText
+                      text={delta === null ? '—' : `${delta > 0 ? '+' : ''}${amount(delta)}`}
+                    />
+                  </td>
+                  <td>
+                    <TruncatedText
+                      text={
+                        stageName(row.beforeStage) +
+                        (row.beforeAmount === null ? '' : ` / ${amount(row.beforeAmount)} 万元`)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <TruncatedText
+                      text={
+                        stageName(row.afterStage) +
+                        (row.afterAmount === null ? '' : ` / ${amount(row.afterAmount)} 万元`)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <TruncatedText text={row.leaderName} />
+                  </td>
                 </tr>
               );
             })}

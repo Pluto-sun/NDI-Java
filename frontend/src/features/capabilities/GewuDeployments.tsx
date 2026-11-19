@@ -1,3 +1,4 @@
+import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -224,7 +225,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
             aria-label="格物部署明细横向滚动区域"
             tabIndex={0}
           >
-            <table aria-label={title}>
+            <table className="two-line-register" aria-label={title}>
               <colgroup>
                 {admin && <col style={{ width: 44 }} />}
                 {columns.map((field) => (
@@ -270,12 +271,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
                         key={field}
                         className={counters.includes(field) ? 'gewu-numeric' : undefined}
                       >
-                        {item.fields[field] || '—'}
-                        {field === '项目名称' && (
-                          <small className="gewu-project-context">
-                            {item.fields['地市']} · {item.fields['部署版本']}
-                          </small>
-                        )}
+                        <TruncatedText twoLines text={item.fields[field] || '—'} />
                       </td>
                     ))}
                     <td className="sticky-list-action">

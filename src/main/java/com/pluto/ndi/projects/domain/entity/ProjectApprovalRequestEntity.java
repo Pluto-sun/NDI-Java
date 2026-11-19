@@ -98,6 +98,9 @@ public class ProjectApprovalRequestEntity {
     @Column(name = "proposed_next_action")
     private String proposedNextAction;
 
+    @Column(name = "proposed_planned_bid_month")
+    private java.time.LocalDate proposedPlannedBidMonth;
+
     @Column(name = "change_reason")
     private String changeReason;
 
@@ -173,7 +176,7 @@ public class ProjectApprovalRequestEntity {
             ProjectEntity project, ProjectInitiatorLevel initiatorLevel,
             UUID initiatorId, UUID approverId, String targetStageCode,
             UUID evidenceDocumentId, Instant stageOccurredAt, String proposedContractNo,
-            BigDecimal proposedSignedAmount, String progressContent, String nextAction, Instant submittedAt
+            BigDecimal proposedSignedAmount, String progressContent, String nextAction, java.time.LocalDate plannedBidMonth, Instant submittedAt
     ) {
         var entity = new ProjectApprovalRequestEntity();
         entity.id = UUID.randomUUID();
@@ -196,6 +199,7 @@ public class ProjectApprovalRequestEntity {
         entity.proposedSignedAmount = proposedSignedAmount;
         entity.proposedProgressContent = progressContent;
         entity.proposedNextAction = nextAction;
+        entity.proposedPlannedBidMonth = plannedBidMonth;
         entity.submittedAt = submittedAt;
         entity.dueAt = submittedAt.plusSeconds(48 * 60 * 60);
         return entity;
@@ -238,6 +242,7 @@ public class ProjectApprovalRequestEntity {
     public String proposedContractNo() { return proposedContractNo; }
     public BigDecimal proposedSignedAmount() { return proposedSignedAmount; }
     public String proposedProgressContent() { return proposedProgressContent; }
+    public java.time.LocalDate proposedPlannedBidMonth() { return proposedPlannedBidMonth; }
     public String proposedNextAction() { return proposedNextAction; }
     public String changeReason() { return changeReason; }
     public String reviewOpinion() { return reviewOpinion; }

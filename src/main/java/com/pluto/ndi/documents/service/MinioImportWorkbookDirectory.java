@@ -1,5 +1,7 @@
 package com.pluto.ndi.documents.service;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import com.pluto.ndi.documents.config.StorageProperties;
 import com.pluto.ndi.documents.domain.DocumentErrorCode;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -65,8 +67,8 @@ class MinioImportWorkbookDirectory implements ImportWorkbookDirectory {
     public byte[] read(String bucket, String key) {
         try (var stream =
                 client.getObject(GetObjectArgs.builder().bucket(bucket).object(key).build())) {
-            var bytes = stream.readNBytes(10 * 1024 * 1024 + 1);
-            if (bytes.length > 10 * 1024 * 1024)
+            var bytes = stream.readNBytes(ExcelImportLimits.MAX_BYTES + 1);
+            if (bytes.length > ExcelImportLimits.MAX_BYTES)
                 throw new BusinessException(DocumentErrorCode.INTEGRITY_FAILED);
             return bytes;
         } catch (MinioException | IOException failure) {

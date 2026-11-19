@@ -1,5 +1,7 @@
 package com.pluto.ndi.projects.controller;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -219,7 +221,7 @@ public class ProjectImportController {
     }
 
     private void checkFile(MultipartFile file) {
-        if (file.getSize() > 10 * 1024 * 1024 || file.isEmpty()) {
+        if (file.getSize() > ExcelImportLimits.MAX_BYTES || file.isEmpty()) {
             throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
         }
     }

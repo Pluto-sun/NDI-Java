@@ -8,6 +8,7 @@ import { Feedback } from '../../shared/ui/Feedback';
 export const responsibilityLabels: Record<string, string> = {
   PROVINCE_LEADER: '省分负责人',
   CITY_MANAGER: '地市客户经理',
+  SOLUTION_SUPPORT: '解决方案支撑',
   SUPPORT_EXPERT: '产品单位支撑专家',
 };
 

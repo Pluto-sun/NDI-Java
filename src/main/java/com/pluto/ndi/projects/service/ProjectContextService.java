@@ -40,18 +40,33 @@ public class ProjectContextService {
 
     @Transactional(readOnly = true)
     public ProjectReferenceData referenceData(UUID actorId) {
-        currentUser(actorId);
+        var actor = currentUser(actorId);
+        var scope = identities.findReadableProjectScope(new com.pluto.ndi.identity.service.ProjectActor(
+                actor.id(), actor.provinceId(), actor.cityId(), true)).orElse(null);
+        var provinces = organizations.findEnabledProvinces();
+        var cities = organizations.findEnabledCities();
+        var readableCities = cities.stream().filter(city -> scope != null && switch (scope.level()) {
+            case NATIONAL -> true;
+            case PROVINCE -> scope.provinceIds().contains(city.provinceId());
+            case CITY -> city.id().equals(scope.organizationId());
+        }).toList();
+        var readableProvinces = provinces.stream().filter(province -> scope != null && switch (scope.level()) {
+            case NATIONAL -> true;
+            case PROVINCE -> scope.provinceIds().contains(province.id());
+            case CITY -> readableCities.stream().anyMatch(city -> city.provinceId().equals(province.id()));
+        }).map(province -> province.id()).toList();
         var industryOptions = industries.findByEnabledTrueOrderByIndustryCodeAsc().stream()
                 .map(item -> new ProjectReferenceData.CodeLabel(item.industryCode(), item.industryName()))
                 .toList();
-        return new ProjectReferenceData(organizations.findEnabledProvinces(), organizations.findEnabledCities(),
+        return new ProjectReferenceData(provinces, cities,
                 industryOptions,
                 Arrays.stream(ProjectCategory.values())
                         .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList(),
                 Arrays.stream(ProjectStage.values())
                         .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList(),
                 Arrays.stream(ProjectApplicationScenario.values())
-                        .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList());
+                        .map(item -> new ProjectReferenceData.CodeLabel(item.name(), item.label())).toList(),
+                readableProvinces, readableCities.stream().map(city -> city.id()).toList());
     }
 
     @Transactional(readOnly = true)

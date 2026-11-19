@@ -436,7 +436,7 @@ export function ImportRevenuePage() {
         title: '计收',
         amountUnit: '元',
         emptyValueLabel: '--',
-        backTo: '/revenue/new',
+        backTo: '/revenue',
         fieldOptions: (field, values) =>
           field === '对应省分（集成）'
             ? [

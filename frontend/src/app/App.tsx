@@ -291,6 +291,9 @@ export function App() {
   ].includes(location.pathname)
     ? (location.pathname.split('/')[2] as 'scheduling' | 'revenue' | 'capability')
     : null;
+  const projectDetailRoute =
+    /^\/projects\/[^/]+$/.test(location.pathname) &&
+    !['/projects/new', '/projects/import'].includes(location.pathname);
   const hasStages = ['/projects', '/workbench'].includes(location.pathname);
   const stage = new URLSearchParams(location.search).get('stage') ?? '';
   return (
@@ -308,11 +311,22 @@ export function App() {
         />
       </aside>
       <div className="main-shell">
-        <header className={dashboardModule ? 'topbar module-dashboard-topbar' : 'topbar'}>
+        <header
+          className={
+            dashboardModule
+              ? 'topbar module-dashboard-topbar'
+              : projectDetailRoute
+                ? 'topbar project-detail-topbar'
+                : 'topbar'
+          }
+        >
           <div className="topbar-main">
             <div className="topbar-breadcrumb">
               <span className="topbar-title">工业三化运营管理平台</span>
-              {title && (
+              {projectDetailRoute && (
+                <div id="project-detail-title" className="project-detail-title" />
+              )}
+              {title && !projectDetailRoute && (
                 <>
                   <span aria-hidden="true">/</span>
                   <h1>{title}</h1>

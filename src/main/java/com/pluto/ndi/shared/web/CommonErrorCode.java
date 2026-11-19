@@ -10,6 +10,7 @@ public enum CommonErrorCode implements ErrorCode {
     CONFLICT(HttpStatus.CONFLICT, "COMMON_CONFLICT", "资源状态冲突", "当前资源状态不允许该操作"),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON_METHOD_NOT_ALLOWED", "请求方法不支持", "当前资源不支持该请求方法"),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_UNSUPPORTED_MEDIA_TYPE", "请求媒体类型不支持", "请求媒体类型不受支持"),
+    UPLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "COMMON_UPLOAD_TOO_LARGE", "上传请求过大", "上传超过大小限制，Excel 文件最大 20 MB"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_INTERNAL_ERROR", "系统内部错误", "系统暂时无法处理该请求");
 
     private final HttpStatus status;

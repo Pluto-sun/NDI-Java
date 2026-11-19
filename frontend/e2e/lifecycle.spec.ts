@@ -65,16 +65,21 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
       await expect(page.getByText('资料上传完成，可用于阶段推进。', { exact: true })).toBeVisible();
     }
     await page.getByRole('button', { name: '发起阶段推进', exact: true }).click();
-    if (purpose) {
+    await page.getByRole('combobox', { name: '指定审批人', exact: true }).selectOption(reviewer);
+    if (target === 'BIDDING') await page.getByLabel('拟招标月份', { exact: true }).fill('2026-01');
+    if (purpose && (upload || target === 'SIGNED')) {
       const label = purpose === 'CUSTOMER_SOLUTION' ? '客户侧交流方案' : '中标通知书';
+      const select = page.getByRole('combobox', { name: label, exact: true });
+      await select.click();
       await page
-        .getByRole('combobox', { name: label, exact: true })
-        .selectOption({ label: `${purpose}.pdf` });
-    } else {
+        .getByRole('listbox', { name: '可选项' })
+        .getByRole('option', { name: `${purpose}.pdf`, exact: true })
+        .click();
+      await expect(select.locator('option:checked')).toHaveText(`${purpose}.pdf`);
+    } else if (target === 'COLLECTION') {
       await page.getByRole('textbox', { name: '合同编号', exact: true }).fill(`HT-${randomUUID()}`);
       await page.getByRole('spinbutton', { name: '签约金额（万元）', exact: true }).fill('80');
     }
-    await page.getByRole('combobox', { name: '指定审批人', exact: true }).selectOption(reviewer);
     const before = await detail();
     const submitted = page.waitForResponse(
       (response) =>
@@ -91,7 +96,7 @@ test('浏览器创建、材料上传、三级推进、回退清合同与终止�
     await page.goto(`/projects/${projectId}`);
   }
 
-  await advance('BIDDING', 'CUSTOMER_SOLUTION');
+  await advance('BIDDING', 'CUSTOMER_SOLUTION', false);
   await advance('SIGNED', 'AWARD_NOTICE');
   await advance('COLLECTION', '');
 

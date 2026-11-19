@@ -45,7 +45,7 @@ class ZeroDataProjectIT {
     @Test void initializesDirectoryAccountsAndProjectWithoutAnyLegacyOrDemoData() throws Exception {
         var administrator = sessions.login("zero-admin", "zero-admin-password").user().id();
         assertThat(admin.configuration(administrator).provinces()).hasSize(34);
-        assertThat(admin.configuration(administrator).cities()).hasSize(372);
+        assertThat(admin.configuration(administrator).cities()).hasSize(457);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_project", Integer.class)).isZero();
         var province = admin.configuration(administrator).provinces().stream().filter(item->item.name().equals("广东省")).findFirst().orElseThrow();
         assertThatThrownBy(() -> admin.createProvince(administrator, "零数据省"))

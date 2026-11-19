@@ -1,5 +1,7 @@
 package com.pluto.ndi.shared.imports;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.shared.audit.AuditWriter;
 import com.pluto.ndi.shared.excel.ExcelWorkbook;
@@ -279,9 +281,9 @@ public abstract class TabularImportEngine<C> {
         if (old.step() != 3
                 || selection == null
                 || selection.isEmpty()
-                || selection.size() > 1000
+                || selection.size() > ExcelImportLimits.MAX_ROWS
                 || new HashSet<>(selection).size() != selection.size())
-            throw invalid("至少选择一条通过预检的记录");
+            throw invalid("请选择 1 至 " + ExcelImportLimits.MAX_ROWS + " 条通过预检的记录");
         // 确认时重查范围和库内重复；所有选中行在同一事务完成，避免一项任务产生可续导的半成品。
         var fresh = validateRows(actor, batch, old.batch().rows());
         var byNumber = new HashMap<Integer, Row>();

@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MonthlyTokenWorkbookTest {
 
@@ -76,6 +77,58 @@ class MonthlyTokenWorkbookTest {
             var second = result.lines().get(1);
             assertThat(second.month()).isEqualTo(11);
             assertThat(second.warning()).contains("测试说明");
+        }
+    }
+
+    @Test
+    void countsWorkbookRowsSeparatelyFromMonthsAndAllowsLargeEmbeddedImages() throws Exception {
+        var content = tokenWorkbook(2000, true);
+        assertThat(content.length).isBetween(10 * 1024 * 1024 + 1, 20 * 1024 * 1024);
+        var accepted = MonthlyTokenWorkbook.read(content, null);
+        assertThat(accepted.lines()).hasSize(2001);
+        assertThat(accepted.lines().getFirst().image().data()).hasSize(11 * 1024 * 1024);
+        assertThatThrownBy(() -> MonthlyTokenWorkbook.read(tokenWorkbook(2001, false), null))
+                .hasMessageContaining("2000");
+    }
+
+    private static byte[] tokenWorkbook(int rows, boolean withImage) throws Exception {
+        try (var book = new XSSFWorkbook(); var out = new ByteArrayOutputStream()) {
+            var sheet = book.createSheet("月度用量");
+            var header = sheet.createRow(0);
+            var titles = List.of("系统ID", "10月Token量（万）", "Token量-截图", "11月Token量（万）");
+            for (int i = 0; i < titles.size(); i++) header.createCell(i).setCellValue(titles.get(i));
+            for (int i = 1; i <= rows; i++) {
+                var row = sheet.createRow(i);
+                row.createCell(0).setCellValue("项目 " + i);
+                row.createCell(1).setCellValue(0);
+            }
+            sheet.getRow(1).createCell(3).setCellValue(1);
+            if (withImage) {
+                sheet.getRow(1).createCell(2).setCellFormula("_xlfn.DISPIMG(\"ID_BIG\",1)");
+                var parts = book.getPackage();
+                var images = parts.createPart(PackagingURIHelper.createPartName("/xl/cellimages.xml"), "application/xml");
+                var png = PackagingURIHelper.createPartName("/xl/media/large.png");
+                var media = parts.createPart(png, "image/png");
+                images.addRelationship(png, TargetMode.INTERNAL,
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", "rId1");
+                try (var stream = images.getOutputStream()) {
+                    stream.write("""
+                            <cellImages xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                              <pic><cNvPr name="ID_BIG"/><blip r:embed="rId1"/></pic>
+                            </cellImages>
+                            """.getBytes(StandardCharsets.UTF_8));
+                }
+                // 此处验证工作簿解包边界，使用固定随机数据避免 ZIP 压缩弱化测试。
+                var data = new byte[11 * 1024 * 1024];
+                new java.util.Random(20261119).nextBytes(data);
+                var signature = java.util.HexFormat.of().parseHex("89504e470d0a1a0a");
+                System.arraycopy(signature, 0, data, 0, signature.length);
+                try (var stream = media.getOutputStream()) {
+                    stream.write(data);
+                }
+            }
+            book.write(out);
+            return out.toByteArray();
         }
     }
 

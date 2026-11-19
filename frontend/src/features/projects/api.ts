@@ -44,6 +44,8 @@ export interface ProjectQuery {
   industryCode?: string;
   provinceId?: string;
   cityId?: string;
+  provinceIds?: string[];
+  cityIds?: string[];
   includeTerminated?: boolean;
   signingSubjectCode?: string;
   provinceLeaderName?: string;
@@ -56,10 +58,13 @@ export interface ProjectQuery {
 }
 
 /** 列表与导出使用相同的规范化条件，空枚举、空 UUID 不发送；布尔值 false 必须保留。 */
-function projectFilterValues(filter: Omit<ProjectQuery, 'page'>): Record<string, string | boolean> {
-  const values: Record<string, string | boolean> = {};
+function projectFilterValues(
+  filter: Omit<ProjectQuery, 'page'>,
+): Record<string, string | boolean | string[]> {
+  const values: Record<string, string | boolean | string[]> = {};
   for (const [key, value] of Object.entries(filter)) {
-    if (typeof value === 'boolean') values[key] = value;
+    if (Array.isArray(value) && value.length) values[key] = value;
+    else if (typeof value === 'boolean') values[key] = value;
     else if (typeof value === 'string' && value.trim()) values[key] = value.trim();
   }
   return values;
@@ -82,7 +87,8 @@ export const projectsApi = {
   list: ({ page, ...filter }: ProjectQuery) => {
     const query = new URLSearchParams({ page: String(page), size: '20' });
     for (const [key, value] of Object.entries(projectFilterValues(filter))) {
-      query.set(key, String(value));
+      if (Array.isArray(value)) value.forEach((id) => query.append(key, id));
+      else query.set(key, String(value));
     }
     return request<Page<ProjectSummary>>(`?${query}`);
   },
@@ -302,6 +308,7 @@ export const projectsApi = {
       approverId: string;
       stageOccurredOn: string;
       evidenceDocumentId?: string;
+      plannedBidMonth?: string;
       contractNo?: string;
       signedAmount?: string;
     },

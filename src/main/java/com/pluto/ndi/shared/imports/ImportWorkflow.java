@@ -1,5 +1,7 @@
 package com.pluto.ndi.shared.imports;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import java.util.*;
 
 /** 项目、排产、计收共享的步骤、必填映射和选择规则。 */
@@ -12,7 +14,7 @@ public final class ImportWorkflow {
 
     public static boolean validSelection(List<Integer> selection) {
         return selection == null
-                || selection.size() <= 1000
+                || selection.size() <= ExcelImportLimits.MAX_ROWS
                         && new HashSet<>(selection).size() == selection.size()
                         && selection.stream().allMatch(n -> n != null && n > 0);
     }

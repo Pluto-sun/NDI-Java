@@ -299,6 +299,16 @@ public class ProjectService {
     }
 
     private Specification<ProjectEntity> specification(ProjectDataScope scope, ProjectQuery query) {
+        if (!query.provinceIds().isEmpty() && !organizationDirectory.findEnabledProvinces().stream()
+                .map(item -> item.id()).collect(java.util.stream.Collectors.toSet()).containsAll(query.provinceIds())) {
+            throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
+        }
+        if (!query.cityIds().isEmpty()) {
+            var cities = organizationDirectory.findEnabledCities().stream()
+                    .filter(item -> query.provinceIds().isEmpty() || query.provinceIds().contains(item.provinceId()))
+                    .map(item -> item.id()).collect(java.util.stream.Collectors.toSet());
+            if (!cities.containsAll(query.cityIds())) throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
+        }
         var leaderIds = query.provinceLeaderName() == null ? null
                 : identityDirectory.findUserIdsByDisplayNameContaining(query.provinceLeaderName());
         return (root, criteria, builder) -> {
@@ -348,11 +358,11 @@ public class ProjectService {
             if (query.industryCode() != null) {
                 conditions.add(builder.equal(root.get("industryCode"), query.industryCode()));
             }
-            if (query.provinceId() != null) {
-                conditions.add(builder.equal(root.get("provinceId"), query.provinceId()));
+            if (!query.provinceIds().isEmpty()) {
+                conditions.add(root.get("provinceId").in(query.provinceIds()));
             }
-            if (query.cityId() != null) {
-                conditions.add(builder.equal(root.get("cityId"), query.cityId()));
+            if (!query.cityIds().isEmpty()) {
+                conditions.add(root.get("cityId").in(query.cityIds()));
             }
             if (!query.includeTerminated()) {
                 conditions.add(builder.notEqual(root.get("currentStageCode"), ProjectStage.TERMINATED.name()));

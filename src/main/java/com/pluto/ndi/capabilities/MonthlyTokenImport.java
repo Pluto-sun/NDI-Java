@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.excel.ExcelImportLimits;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,9 +36,9 @@ class MonthlyTokenImport {
     @Transactional
     public int confirm(UUID actor, byte[] file, String sheet, int year, List<String> selection) {
         agents.scope(actor);
-        if (selection == null || selection.isEmpty() || selection.size() > 1000
+        if (selection == null || selection.isEmpty() || selection.size() > ExcelImportLimits.MAX_ROWS
                 || new HashSet<>(selection).size() != selection.size())
-            throw invalid("请选择 1 至 1000 条通过预检的记录");
+            throw invalid("请选择 1 至 2000 条通过预检的记录");
         var selected = Set.copyOf(selection);
         var rows = check(actor, workbook(file, sheet, year), year).stream()
                 .filter(row -> selected.contains(row.row().key()) && row.row().status().equals("READY"))

@@ -219,7 +219,7 @@ class ProjectFieldChangesIT {
     }
 
     @Test
-    void lateApprovalRevisesOnlyAffectedProjectAndRecordsCategoryBeforeAndAfter() throws Exception {
+    void lateApprovalKeepsClosedSnapshotAndAuditsCategoryBeforeAndAfter() throws Exception {
         var project = create("跨月变更项目");
         var other = create("未变更项目");
         var request = approvals.submitMajorChange(reporter, project, command(item(ProjectChangeField.TOTAL_AMOUNT, "150"),
@@ -231,16 +231,22 @@ class ProjectFieldChangesIT {
         clock.moveTo(7, 2);
         approvals.decide(leader, request.id(), true, null);
         var history = snapshots.workbench(leader, YearMonth.of(2026, 6), false);
-        assertThat(history.totalExpectedAmount()).isEqualByComparingTo("250.00");
-        assertThat(history.categoryTotals().network()).isEqualByComparingTo("140.00");
-        assertThat(history.categoryTotals().gewu()).isEqualByComparingTo("20.00");
-        assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE project_id = UUID_TO_BIN(?) AND month_start = '2026-06-01'",
-                Integer.class, other.toString())).isZero();
-        mvc.perform(get("/api/v1/projects/workbench/history/{id}/revisions", project)
-                        .param("month", "2026-06").header("X-NDI-Actor-Id", leader.toString()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].beforeCategories.network").value(60))
-                .andExpect(jsonPath("$.data[0].afterCategories.network").value(80))
-                .andExpect(jsonPath("$.data[0].afterCategories.gewu").value(20));
+        assertThat(history.totalExpectedAmount()).isEqualByComparingTo("200.00");
+        assertThat(history.categoryTotals().network()).isEqualByComparingTo("120.00");
+        assertThat(history.categoryTotals().gewu()).isEqualByComparingTo("0.00");
+        for (var id : List.of(project, other)) {
+            assertThat(jdbc.queryForObject("SELECT revision_no FROM project_monthly_snapshot WHERE project_id = UUID_TO_BIN(?) AND month_start = '2026-06-01'",
+                    Integer.class, id.toString())).isZero();
+        }
+        assertThat(snapshots.revisions(leader, project, YearMonth.of(2026, 6))).isEmpty();
+        var payload = jdbc.queryForObject("""
+                SELECT payload FROM project_change_event
+                WHERE project_id = UUID_TO_BIN(?) AND event_type = 'MAJOR_CHANGE_APPROVED'
+                """, String.class, project.toString());
+        var event = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
+        assertThat(event.at("/before/categoryAmounts/NETWORK").decimalValue()).isEqualByComparingTo("60");
+        assertThat(event.at("/after/categoryAmounts/NETWORK").decimalValue()).isEqualByComparingTo("80");
+        assertThat(event.at("/after/categoryAmounts/GEWU").decimalValue()).isEqualByComparingTo("20");
     }
 
     private MajorChangeCommand command(MajorChangeItem... items) {
