@@ -68,6 +68,7 @@ class RevenueIT {
     }
 
     @Autowired RevenueService service;
+    @Autowired RevenueMapper mapper;
     @Autowired RevenueImportService imports;
     @Autowired com.pluto.ndi.production.service.ProductionImportService productionImports;
     @Autowired JdbcTemplate jdbc;
@@ -255,6 +256,27 @@ class RevenueIT {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.recognize(group, e.id(), e.version(), value("1")))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void feeMonthParticipatesInUniquenessAndNormalizesHistoricalValues() {
+        var source = source();
+        var september = service.create(admin, source);
+        jdbc.update("""
+                UPDATE revenue_entry SET source_fields = JSON_SET(source_fields, '$."费用账期"', '202609')
+                WHERE id = UUID_TO_BIN(?)
+                """, september.id().toString());
+        source.put("费用账期", "2026-09");
+        var normalized = service.validate(admin, source);
+        assertThat(service.duplicate(normalized)).isTrue();
+        assertThatThrownBy(() -> mapper.insert(UUID.randomUUID(), admin, normalized, java.time.Instant.now()))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+        source.put("费用账期", "2026-08");
+        assertThat(service.create(admin, source).id()).isNotEqualTo(september.id());
+        source.remove("费用账期");
+        service.create(admin, source);
+        source.put("费用账期", " -- ");
+        assertThatThrownBy(() -> service.create(admin, source)).isInstanceOf(BusinessException.class);
     }
 
     @Test

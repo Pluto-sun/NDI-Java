@@ -65,7 +65,15 @@ public class RevenueFields {
             String contractNo,
             String clauseNo,
             BigDecimal clauseAmount,
-            BigDecimal sourceAmount) {}
+            BigDecimal sourceAmount) {
+        public List<String> businessKey() {
+            return List.of(month, contractNo, clauseNo,
+                    fields.getOrDefault("业务号码/项目编号", ""),
+                    fields.getOrDefault("自然客户名称", ""),
+                    fields.getOrDefault("产品编码", ""),
+                    fields.getOrDefault("费用账期", ""));
+        }
+    }
 
     public Source normalize(Map<String, String> input) {
         if (input == null || !FIELDS.containsAll(input.keySet()))

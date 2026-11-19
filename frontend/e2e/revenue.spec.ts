@@ -212,14 +212,14 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
   await page.screenshot({ path: testInfo.outputPath('revenue-notifications.png'), fullPage: true });
 });
 
-test('创建和导入统一按六字段查重，客户和产品不同可共存', async ({ page, request }, testInfo) => {
-  const contract = 'SIX-KEY-' + randomUUID();
+test('创建和导入统一按七字段查重，费用账期不同可共存', async ({ page, request }, testInfo) => {
+  const contract = 'SEVEN-KEY-' + randomUUID();
   const first = source(contract);
   await api<Entry>(request, ids.admin, '', { source: first });
   await page.goto('/revenue/new');
   await switchActor(page, ids.admin);
   const reference = await api<Reference>(request, ids.admin, '/reference-data');
-  for (const [field, value] of Object.entries({ ...first, '业务号码/项目编号': '000010' })) {
+  for (const [field, value] of Object.entries({ ...first, 费用账期: '2026-08' })) {
     if (field === '省份名称')
       await page
         .getByRole('combobox', { name: '省份名称（选填）', exact: true })
@@ -233,24 +233,26 @@ test('创建和导入统一按六字段查重，客户和产品不同可共存',
         .getByLabel(field + (reference.required.includes(field) ? ' *' : '（选填）'), {
           exact: true,
         })
-        .fill(field === '月账期' ? '2026-10' : field === '费用账期' ? '2026-09' : value);
+        .fill(field === '月账期' ? '2026-10' : value);
   }
   await page.getByRole('button', { name: '创建计收明细', exact: true }).click();
   await expect(page).toHaveURL(/\/revenue\/[0-9a-f-]+$/);
   const repeated = await request.post(root, {
     headers: { 'X-NDI-Actor-Id': ids.admin },
-    data: { source: { ...first, '业务号码/项目编号': '000010' } },
+    data: { source: { ...first, 费用账期: '2026-08' } },
   });
   expect(repeated.status()).toBe(409);
   await page.goto('/revenue/import');
   await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
-    name: '六字段.xlsx',
+    name: '七字段.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: importWorkbook([
       { ...first, 产品编码: '' },
       { ...first, '业务号码/项目编号': '000011' },
       { ...first, 自然客户名称: '新增自然客户' },
       { ...first, 产品编码: '000012' },
+      { ...first, 费用账期: '202607' },
+      { ...first, 费用账期: '2026-07' },
       { ...first, '业务号码/项目编号': '000011' },
     ]),
   });
@@ -258,7 +260,7 @@ test('创建和导入统一按六字段查重，客户和产品不同可共存',
   await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
   await expect(page.getByText('系统内已存在相同业务唯一键的记录', { exact: true })).toBeVisible();
   await expect(
-    page.getByText('与文件内前序记录重复：业务唯一键相同', { exact: true }),
+    page.getByText('与文件内前序记录重复：业务唯一键相同', { exact: true }).first(),
   ).toBeVisible();
   await page.getByRole('button', { name: '查看／修正第 3 行', exact: true }).click();
   const locationDialog = page.getByRole('dialog', { name: '修正第 3 行', exact: true });
@@ -273,11 +275,11 @@ test('创建和导入统一按六字段查重，客户和产品不同可共存',
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出预检失败原始数据' }).click();
   expect((await download).suggestedFilename()).toMatch(/预检失败原始数据\.xlsx$/);
-  await page.screenshot({ path: testInfo.outputPath('six-key-preview.png'), fullPage: true });
-  await page.getByRole('button', { name: '确认导入 3 行并结束任务', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('seven-key-preview.png'), fullPage: true });
+  await page.getByRole('button', { name: '确认导入 4 行并结束任务', exact: true }).click();
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   await page.goto('/revenue?search=' + contract);
-  await expect(page.locator('tbody tr')).toHaveCount(5);
+  await expect(page.locator('tbody tr')).toHaveCount(6);
 });
 
 test('数科固定组织、无审签日期与导入修正使用一致选项', async ({ page, request }, testInfo) => {
@@ -425,7 +427,7 @@ test('数字条款归一后四字段查重，创建与导入支持常见审签�
   expect(list.items[0].source['审签日期']).toBe('2026-07-20');
 });
 
-test('自然客户名称选填仍可创建和导入未归属记录，空标识仍参与六字段判重', async ({
+test('自然客户名称选填仍可创建和导入未归属记录，空标识仍参与七字段判重', async ({
   page,
   request,
 }, testInfo) => {

@@ -248,28 +248,26 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
 
     public Set<Source> existingDuplicates(List<Source> sources) {
         if (sources.isEmpty()) return Set.of();
-        var keys = sources.stream().map(source -> List.of(
-                source.month() + "-01", source.contractNo(), source.clauseNo(),
-                source.fields().getOrDefault("业务号码/项目编号", ""),
-                source.fields().getOrDefault("自然客户名称", ""),
-                source.fields().getOrDefault("产品编码", ""))).toList();
+        var keys = sources.stream().map(Source::businessKey).toList();
         var matched = jdbc.queryForList("""
                 SELECT k.row_no
                 FROM JSON_TABLE(:keys, '$[*]' COLUMNS (
                     row_no FOR ORDINALITY,
-                    account_month DATE PATH '$[0]',
+                    account_month VARCHAR(7) PATH '$[0]',
                     contract_no VARCHAR(200) PATH '$[1]',
                     clause_no VARCHAR(200) PATH '$[2]',
                     business_no VARCHAR(2000) PATH '$[3]',
                     customer_name VARCHAR(2000) PATH '$[4]',
-                    product_code VARCHAR(2000) PATH '$[5]'
+                    product_code VARCHAR(2000) PATH '$[5]',
+                    fee_month VARCHAR(7) PATH '$[6]'
                 )) k
-                JOIN revenue_entry e ON e.active_key=1 AND e.account_month=k.account_month
+                JOIN revenue_entry e ON e.active_key=1 AND e.account_month=CAST(CONCAT(k.account_month, '-01') AS DATE)
                     AND e.contract_number_key=CONVERT(k.contract_no USING utf8mb4) COLLATE utf8mb4_bin
                     AND e.clause_number_key=CONVERT(k.clause_no USING utf8mb4) COLLATE utf8mb4_bin
                     AND e.business_number_hash=UNHEX(SHA2(CONVERT(k.business_no USING utf8mb4),256))
                     AND e.natural_customer_name_hash=UNHEX(SHA2(CONVERT(k.customer_name USING utf8mb4),256))
                     AND e.product_code_hash=UNHEX(SHA2(CONVERT(k.product_code USING utf8mb4),256))
+                    AND e.fee_month_key=CONVERT(k.fee_month USING utf8mb4) COLLATE utf8mb4_bin
                 """, Map.of("keys", encode(keys)), Integer.class);
         var duplicates = new HashSet<Source>();
         matched.forEach(index -> duplicates.add(sources.get(index - 1)));
