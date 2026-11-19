@@ -117,4 +117,4 @@ export const statusLabels: Record<string, string> = {
   WITHDRAWN: '已撤销',
 };
 export { money } from './format';
-export const revenueImportApi = tabularImportApi(root, { exportFailedRows: true });
+export const revenueImportApi = tabularImportApi(root);

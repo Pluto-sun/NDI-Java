@@ -119,6 +119,9 @@ class ProjectImportWorkbookWriterTest {
             var headers = sheet.createRow(1);
             headers.createCell(0).setCellValue("自定义项目标题");
             headers.createCell(2).setCellValue("未映射编号");
+            headers.createCell(3).setCellValue("失败原因");
+            headers.createCell(4).setCellValue("预检失败原因");
+            headers.createCell(5).setCellValue("原日期");
             sheet.createRow(2).createCell(0).setCellValue("通过的项目");
             var failed = sheet.createRow(4);
             failed.createCell(0).setCellValue("  原始名称  ");
@@ -127,10 +130,19 @@ class ProjectImportWorkbookWriterTest {
             var format = source.createCellStyle();
             format.setDataFormat(source.createDataFormat().getFormat("0000"));
             code.setCellStyle(format);
+            failed.createCell(3).setCellValue("用户列");
+            failed.createCell(4).setCellValue("另一用户列");
+            var date = failed.createCell(5);
+            date.setCellValue(java.time.LocalDate.of(2026, 9, 7));
+            var dateStyle = source.createCellStyle();
+            dateStyle.setDataFormat(source.createDataFormat().getFormat("yyyy/mm/dd"));
+            date.setCellStyle(dateStyle);
+            failed.createCell(6).setCellValue("超出表头的原值");
             source.write(bytes);
 
             var exported = new ProjectImportWorkbookWriter(new ObjectMapper())
-                    .originalRows(bytes.toByteArray(), "源表", 2, List.of(5));
+                    .originalRows(bytes.toByteArray(), "源表", 2,
+                            java.util.Map.of(5, List.of("=需按文本保存", "日期无效", "日期无效")));
             try (var result = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
                 var output = result.getSheet("源表");
                 assertThat(output.getPhysicalNumberOfRows()).isEqualTo(2);
@@ -139,6 +151,15 @@ class ProjectImportWorkbookWriterTest {
                 assertThat(output.getRow(1).getCell(0).getStringCellValue()).isEqualTo("  原始名称  ");
                 var formatter = new org.apache.poi.ss.usermodel.DataFormatter();
                 assertThat(formatter.formatCellValue(output.getRow(1).getCell(2))).isEqualTo("0007");
+                assertThat(output.getRow(1).getCell(3).getStringCellValue()).isEqualTo("用户列");
+                assertThat(output.getRow(1).getCell(4).getStringCellValue()).isEqualTo("另一用户列");
+                assertThat(formatter.formatCellValue(output.getRow(1).getCell(5))).isEqualTo("2026/09/07");
+                assertThat(output.getRow(1).getCell(6).getStringCellValue()).isEqualTo("超出表头的原值");
+                assertThat(output.getRow(0).getCell(7).getStringCellValue()).isEqualTo("预检失败原因（2）");
+                var reason = output.getRow(1).getCell(7);
+                assertThat(reason.getCellType()).isEqualTo(org.apache.poi.ss.usermodel.CellType.STRING);
+                assertThat(reason.getStringCellValue()).isEqualTo("=需按文本保存；日期无效");
+                assertThat(reason.getCellStyle().getWrapText()).isTrue();
             }
         }
     }

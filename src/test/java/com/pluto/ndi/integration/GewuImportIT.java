@@ -119,10 +119,32 @@ class GewuImportIT {
             assertThat(sheet.getRow(0).getCell(2).getStringCellValue()).isEqualTo("地市");
             assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("无效地市");
             assertThat(sheet.getRow(1).getCell(10).getStringCellValue()).isEqualTo("来源行2");
+            int reasonColumn = sheet.getRow(0).getLastCellNum() - 1;
+            assertThat(sheet.getRow(0).getCell(reasonColumn).getStringCellValue()).isEqualTo("失败原因");
+            assertThat(sheet.getRow(1).getCell(reasonColumn).getStringCellValue())
+                    .isEqualTo("省份和地市须匹配启用的组织");
         }
         assertThatThrownBy(() -> imports.originalFailedRows(admin(), batch))
                 .isInstanceOf(BusinessException.class);
-        var corrected = imports.revise(actor, batch, 3, 0, Map.of("地市", "深圳市"));
+        var invalid = imports.revise(actor, batch, 3, 0, Map.of("地市", "深圳市", "接口人", ""));
+        assertThat(invalid.failedRows()).isEqualTo(1);
+        var taskBeforeExport = imports.current(actor);
+        // 模拟旧任务仅保存失败状态、缺少原因明细。
+        jdbc.update("""
+                UPDATE capability_import_task SET task_json = JSON_SET(task_json, '$.batch.rows[1].errorsJson', '[]')
+                WHERE actor_id=UUID_TO_BIN(?)
+                """, actor.toString());
+        try (var exported = new XSSFWorkbook(new ByteArrayInputStream(imports.originalFailedRows(actor, batch)))) {
+            var sheet = exported.getSheetAt(0);
+            assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("无效地市");
+            assertThat(sheet.getRow(1).getCell(sheet.getRow(0).getLastCellNum() - 1).getStringCellValue())
+                    .contains("接口人").doesNotContain("省份和地市");
+        }
+        var afterExport = imports.current(actor);
+        assertThat(afterExport.version()).isEqualTo(taskBeforeExport.version());
+        assertThat(afterExport.step()).isEqualTo(3);
+        assertThat(afterExport.batch().rows().get(1).errorsJson()).isEqualTo("[]");
+        var corrected = imports.revise(actor, batch, 3, 1, Map.of("接口人", "导入验收接口人"));
         assertThat(corrected.validRows()).isEqualTo(2);
         assertThatThrownBy(() -> imports.originalFailedRows(actor, batch))
                 .hasMessageContaining("没有预检失败");
@@ -180,6 +202,9 @@ class GewuImportIT {
                 try (var exported = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
                     assertThat(exported.getSheetAt(0).getRow(1).getCell(1).getStringCellValue())
                             .isEqualTo("无效省分");
+                    var sheetOut = exported.getSheetAt(0);
+                    var reason = sheetOut.getRow(1).getCell(sheetOut.getRow(0).getLastCellNum() - 1);
+                    assertThat(preview.batch().rows().getFirst().errorsJson()).contains(reason.getStringCellValue());
                 }
             }
         }

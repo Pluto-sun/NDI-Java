@@ -1,7 +1,12 @@
 package com.pluto.ndi.capabilities;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.shared.excel.ExcelImportLimits;
+import com.pluto.ndi.shared.excel.ExcelWorkbook;
+import com.pluto.ndi.shared.imports.ImportWorkflow;
 
+import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,22 +20,64 @@ import static com.pluto.ndi.capabilities.GewuDeploymentService.invalid;
 @Service
 class MonthlyTokenImport {
     private final IntelligenceService agents;
+    private final ObjectMapper json;
 
-    MonthlyTokenImport(IntelligenceService agents) {
+    MonthlyTokenImport(IntelligenceService agents, ObjectMapper json) {
         this.agents = agents;
+        this.json = json;
     }
 
     public record Row(String key, int sourceRow, String province, String agent, String month,
             String amount, boolean screenshot, String status, String message, String warning) {}
-    public record Preview(String sheet, List<String> sheets, List<Row> rows) {}
-    private record Checked(Row row, UUID agent, UUID existing, MonthlyTokenWorkbook.Image image) {}
+    public record Preview(String sheet, List<String> sheets, List<Row> rows, String fingerprint) {}
+    private record Checked(Row row, UUID agent, UUID existing, MonthlyTokenWorkbook.Image image,
+            List<String> failureReasons) {}
     private record AgentMonth(UUID agent, String month) {}
 
+    @Transactional(readOnly = true)
     public Preview preview(UUID actor, byte[] file, String sheet, int year) {
         agents.scope(actor);
         var workbook = workbook(file, sheet, year);
-        return new Preview(workbook.sheet(), workbook.sheets(),
-                check(actor, workbook, year).stream().map(Checked::row).toList());
+        var rows = check(actor, workbook, year).stream().map(Checked::row).toList();
+        return new Preview(workbook.sheet(), workbook.sheets(), rows,
+                fingerprint(actor, file, workbook.sheet(), year, rows));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] originalFailedRows(UUID actor, byte[] file, String sheet, int year,
+            String expectedFingerprint) throws IOException {
+        // 月度导入不持久化任务，重新校验并核对屏幕上的预检版本。
+        agents.scope(actor);
+        var workbook = workbook(file, sheet, year);
+        var checked = check(actor, workbook, year);
+        var rows = checked.stream().map(Checked::row).toList();
+        if (!fingerprint(actor, file, workbook.sheet(), year, rows).equals(expectedFingerprint))
+            throw failure(HttpStatus.CONFLICT, "预检结果已变化，请重新预检后导出");
+        var failures = new LinkedHashMap<Integer, List<String>>();
+        for (var item : checked) {
+            var row = item.row();
+            if (!item.failureReasons().isEmpty()) {
+                var reasons = failures.computeIfAbsent(row.sourceRow(), ignored -> new ArrayList<>());
+                item.failureReasons().forEach(reason -> reasons.add(row.month() + "：" + reason));
+            }
+        }
+        if (failures.isEmpty()) throw invalid("当前没有预检失败的数据");
+        var pictures = workbook.lines().stream()
+                .filter(line -> failures.containsKey(line.row()) && line.image() != null)
+                .map(line -> new ExcelWorkbook.ExportPicture(line.row(), line.screenshotColumn(),
+                        "image/png".equals(line.image().type()) ? Workbook.PICTURE_TYPE_PNG : Workbook.PICTURE_TYPE_JPEG,
+                        line.image().data()))
+                .toList();
+        return ExcelWorkbook.originalRows(file, workbook.sheet(), 1, failures, pictures);
+    }
+
+    private String fingerprint(UUID actor, byte[] file, String sheet, int year, List<Row> rows) {
+        try {
+            return ImportWorkflow.sha256(
+                    json.writeValueAsBytes(List.of(actor, ImportWorkflow.sha256(file), sheet, year, rows)));
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException("无法核对月度 Token 预检结果", failure);
+        }
     }
 
     @Transactional
@@ -100,14 +147,17 @@ class MonthlyTokenImport {
             var row = new Row(key, line.row(), agent == null ? line.province() : agent.fields().get("省分"),
                     agent == null ? line.agent() : agent.fields().getOrDefault("智能体名称", ""), month,
                     line.amount(), line.image() != null, status, message, line.warning());
-            result.add(new Checked(row, agentId, existing, line.image()));
+            result.add(new Checked(row, agentId, existing, line.image(),
+                    "FAILED".equals(status) ? List.of(message) : List.of()));
         }
         return result.stream().map(item -> {
             var row = item.row();
             if (item.agent() == null || counts.get(new AgentMonth(item.agent(), row.month())) < 2) return item;
+            var reasons = new ArrayList<>(item.failureReasons());
+            reasons.add("文件内存在同一智能体同月的重复记录");
             return new Checked(new Row(row.key(), row.sourceRow(), row.province(), row.agent(), row.month(),
-                    row.amount(), row.screenshot(), "FAILED", "文件内存在同一智能体同月的重复记录", row.warning()),
-                    item.agent(), item.existing(), item.image());
+                    row.amount(), row.screenshot(), "FAILED", String.join("；", reasons), row.warning()),
+                    item.agent(), item.existing(), item.image(), reasons);
         }).toList();
     }
 

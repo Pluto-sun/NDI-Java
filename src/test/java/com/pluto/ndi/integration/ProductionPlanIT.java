@@ -277,7 +277,11 @@ class ProductionPlanIT {
         assertThat(preview.batch().rows().getFirst().errorsJson()).contains("最多四位小数");
         var batch = preview.batch().batchId();
         try (var failed = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.originalFailedRows(actor, batch)))) {
-            assertThat(failed.getSheetAt(0).getPhysicalNumberOfRows()).isGreaterThan(1);
+            var sheet = failed.getSheetAt(0);
+            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(preview.batch().failedRows() + 1);
+            var reasonColumn = sheet.getRow(0).getLastCellNum() - 1;
+            assertThat(sheet.getRow(0).getCell(reasonColumn).getStringCellValue()).isEqualTo("失败原因");
+            assertThat(sheet.getRow(1).getCell(reasonColumn).getStringCellValue()).contains("最多四位小数");
         }
         assertThatThrownBy(() -> imports.revise(actor, batch, 2, 0,
                 Map.of("格物工业互联网平台-数智业务管理系统预计计收金额", "9")))

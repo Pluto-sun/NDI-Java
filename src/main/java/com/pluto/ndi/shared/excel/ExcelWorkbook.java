@@ -212,9 +212,16 @@ public final class ExcelWorkbook {
         }
     }
 
+    public record ExportPicture(int rowNumber, int column, int format, byte[] content) {}
+
     public static byte[] originalRows(
-            byte[] source, String sheetName, int headerRowNumber, List<Integer> rowNumbers)
+            byte[] source, String sheetName, int headerRowNumber, Map<Integer, List<String>> failures)
             throws IOException {
+        return originalRows(source, sheetName, headerRowNumber, failures, List.of());
+    }
+
+    public static byte[] originalRows(byte[] source, String sheetName, int headerRowNumber,
+            Map<Integer, List<String>> failures, List<ExportPicture> pictures) throws IOException {
         try (var original = new XSSFWorkbook(new ByteArrayInputStream(source));
                 var result = new XSSFWorkbook()) {
             var input = original.getSheet(sheetName);
@@ -222,10 +229,34 @@ public final class ExcelWorkbook {
             result.getCTWorkbook().getWorkbookPr().setDate1904(original.isDate1904());
             var formats = new HashMap<String, org.apache.poi.ss.usermodel.CellStyle>();
             var dataFormat = result.createDataFormat();
+            var header = input.getRow(headerRowNumber - 1);
+            var formatter = new DataFormatter(Locale.CHINA);
+            var titles = new HashSet<String>();
+            for (var cell : header) {
+                titles.add(formatter.formatCellValue(cell).strip());
+                if (cell.getCellType() == CellType.FORMULA
+                        && cell.getCachedFormulaResultType() == CellType.STRING)
+                    titles.add(cell.getStringCellValue().strip());
+            }
+            int reasonColumn = header.getLastCellNum();
+            for (var rowNumber : failures.keySet())
+                reasonColumn = Math.max(reasonColumn, input.getRow(rowNumber - 1).getLastCellNum());
+            String reasonTitle = "失败原因";
+            if (titles.contains(reasonTitle)) {
+                reasonTitle = "预检失败原因";
+                for (int suffix = 2; titles.contains(reasonTitle); suffix++)
+                    reasonTitle = "预检失败原因（" + suffix + "）";
+            }
+            var reasonStyle = result.createCellStyle();
+            reasonStyle.setWrapText(true);
+            reasonStyle.setVerticalAlignment(VerticalAlignment.TOP);
+            output.setColumnWidth(reasonColumn, 56 * 256);
             var sourceRows = new ArrayList<Integer>();
             sourceRows.add(headerRowNumber);
-            sourceRows.addAll(rowNumbers);
+            sourceRows.addAll(new TreeSet<>(failures.keySet()));
+            var targetRows = new HashMap<Integer, Integer>();
             for (int index = 0; index < sourceRows.size(); index++) {
+                targetRows.put(sourceRows.get(index), index);
                 Row sourceRow = input.getRow(sourceRows.get(index) - 1);
                 var targetRow = output.createRow(index);
                 for (var cell : sourceRow) {
@@ -250,6 +281,27 @@ public final class ExcelWorkbook {
                         case ERROR -> target.setCellErrorValue(cell.getErrorCellValue());
                         default -> target.setBlank();
                     }
+                }
+                var reason = targetRow.createCell(reasonColumn);
+                reason.setCellStyle(reasonStyle);
+                reason.setCellValue(index == 0 ? reasonTitle
+                        : String.join("；", new LinkedHashSet<>(failures.get(sourceRows.get(index)))));
+            }
+            if (!pictures.isEmpty()) {
+                var drawing = output.createDrawingPatriarch();
+                var pictureIds = new IdentityHashMap<byte[], Integer>();
+                for (var picture : pictures) {
+                    var targetIndex = targetRows.get(picture.rowNumber());
+                    if (targetIndex == null) continue;
+                    var anchor = result.getCreationHelper().createClientAnchor();
+                    anchor.setCol1(picture.column());
+                    anchor.setCol2(picture.column() + 1);
+                    anchor.setRow1(targetIndex);
+                    anchor.setRow2(targetIndex + 1);
+                    drawing.createPicture(anchor, pictureIds.computeIfAbsent(picture.content(),
+                            content -> result.addPicture(content, picture.format())));
+                    output.getRow(targetIndex).setHeight(input.getRow(picture.rowNumber() - 1).getHeight());
+                    output.setColumnWidth(picture.column(), input.getColumnWidth(picture.column()));
                 }
             }
             output.createFreezePane(0, 1);

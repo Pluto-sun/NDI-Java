@@ -5,6 +5,7 @@ export function importWorkbook(
   rows: Record<string, string>[],
   sourceTitles: Record<string, string> = {},
   size?: number,
+  hasTitle = true,
 ): Buffer {
   const headers = Object.keys(rows[0]);
   const escape = (value: string) =>
@@ -14,7 +15,7 @@ export function importWorkbook(
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;');
   const data = [
-    ['隔离导入验收'],
+    ...(hasTitle ? [['隔离导入验收']] : []),
     headers.map((header) => sourceTitles[header] ?? header),
     ...rows.map((row) => headers.map((header) => row[header] ?? '')),
   ];

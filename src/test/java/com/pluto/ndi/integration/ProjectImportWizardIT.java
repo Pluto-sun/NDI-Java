@@ -212,6 +212,45 @@ class ProjectImportWizardIT {
     }
 
     @Test
+    void exportsLatestProjectReasonsAgainstTheOriginalWorkbook() throws Exception {
+        var f = fixture();
+        var name = "重复原始项目-" + UUID.randomUUID();
+        byte[] file;
+        try (var book = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook(name, name)));
+                var out = new ByteArrayOutputStream()) {
+            book.getSheet("导入数据").getRow(3).getCell(7).setCellValue("未知阶段");
+            book.write(out);
+            file = out.toByteArray();
+        }
+        var uploaded = wizard.upload(f.actor(), null, null, "数据.xlsx", file);
+        var mapped = wizard.save(f.actor(), uploaded.id(), uploaded.version(), 2, configuration(uploaded), null);
+        var preview = wizard.save(f.actor(), mapped.id(), mapped.version(), 3, mapped.configuration(), null);
+        var batch = preview.batch().batchId();
+        try (var result = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.originalFailedRows(f.actor(), batch)))) {
+            var sheet = result.getSheetAt(0);
+            assertThat(sheet.getLastRowNum()).isEqualTo(1);
+            assertThat(sheet.getRow(1).getCell(16).getStringCellValue())
+                    .startsWith("重复项目：").endsWith("；项目阶段未识别");
+        }
+        assertThatThrownBy(() -> imports.originalFailedRows(fixture().actor(), batch))
+                .isInstanceOf(BusinessException.class);
+        imports.reviseRow(f.actor(), batch, 4, 0, Map.of("项目阶段", "方案交流"));
+        jdbc.update("""
+                UPDATE project_import_row SET errors=JSON_ARRAY()
+                WHERE batch_id=UUID_TO_BIN(?) AND source_row_number=4
+                """, batch.toString());
+        try (var result = new XSSFWorkbook(new java.io.ByteArrayInputStream(imports.originalFailedRows(f.actor(), batch)))) {
+            var sheet = result.getSheetAt(0);
+            assertThat(sheet.getRow(1).getCell(7).getStringCellValue()).isEqualTo("未知阶段");
+            assertThat(sheet.getRow(1).getCell(16).getStringCellValue())
+                    .startsWith("重复项目：").doesNotContain("项目阶段未识别");
+        }
+        assertThat(wizard.current(f.actor()).batch().rows().get(1).errorsJson()).isEqualTo("[]");
+        imports.reviseRow(f.actor(), batch, 4, 1, Map.of("项目名称", "工业环境监测-" + UUID.randomUUID()));
+        assertThatThrownBy(() -> imports.originalFailedRows(f.actor(), batch)).hasMessageContaining("没有预检失败");
+    }
+
+    @Test
     void persistsAdjacentStepsVersionsAndCompletesOnlyOnceWithSelectedRows() throws Exception {
         var f = fixture();
         var bytes = workbook("油库检测" + UUID.randomUUID(), "气象观测" + UUID.randomUUID());

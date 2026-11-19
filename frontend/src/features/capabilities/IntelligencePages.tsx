@@ -93,7 +93,7 @@ export function IntelligencePages({
             : undefined
         }
         config={{
-          api: tabularImportApi(root(kind), { exportFailedRows: true }),
+          api: tabularImportApi(root(kind)),
           title: intelligenceTitles[kind],
           backTo: base(kind),
           amountFields: [],

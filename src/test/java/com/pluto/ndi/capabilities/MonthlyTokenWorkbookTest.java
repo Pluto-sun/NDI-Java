@@ -74,6 +74,14 @@ class MonthlyTokenWorkbookTest {
             assertThat(first.amount()).isEqualTo("0");
             assertThat(first.image().type()).isEqualTo("image/png");
             assertThat(first.image().data()).isEqualTo(image);
+            var exported = ExcelWorkbook.originalRows(bytes, result.sheet(), 1,
+                    Map.of(first.row(), List.of("2026-10：测试失败")), List.of(
+                            new ExcelWorkbook.ExportPicture(first.row(), first.screenshotColumn(),
+                                    org.apache.poi.ss.usermodel.Workbook.PICTURE_TYPE_PNG, first.image().data())));
+            try (var failedBook = new XSSFWorkbook(new java.io.ByteArrayInputStream(exported))) {
+                assertThat(failedBook.getAllPictures()).hasSize(1);
+                assertThat(failedBook.getAllPictures().getFirst().getData()).isEqualTo(image);
+            }
             var second = result.lines().get(1);
             assertThat(second.month()).isEqualTo(11);
             assertThat(second.warning()).contains("测试说明");

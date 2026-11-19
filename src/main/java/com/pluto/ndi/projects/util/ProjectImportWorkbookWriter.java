@@ -82,9 +82,9 @@ public class ProjectImportWorkbookWriter {
     }
 
     /** 从上传文件复制表头和指定行，保留列位置、单元格值和数字格式。 */
-    public byte[] originalRows(byte[] source, String sheetName, int headerRowNumber, List<Integer> rowNumbers) {
+    public byte[] originalRows(byte[] source, String sheetName, int headerRowNumber, Map<Integer, List<String>> failures) {
         try {
-            return ExcelWorkbook.originalRows(source, sheetName, headerRowNumber, rowNumbers);
+            return ExcelWorkbook.originalRows(source, sheetName, headerRowNumber, failures);
         } catch (IOException exception) {
             throw new IllegalStateException("生成原始预检失败行工作簿失败", exception);
         }

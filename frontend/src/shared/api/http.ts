@@ -119,18 +119,29 @@ export async function requestBlob(path: string): Promise<Blob> {
   return requestBlobAt(API_ROOT, path);
 }
 
-export async function requestBlobAt(root: string, path: string): Promise<Blob> {
+export async function requestBlobAt(
+  root: string,
+  path: string,
+  init: RequestInit = {},
+  retryCsrf = true,
+): Promise<Blob> {
   const actorId = getActorId();
-  const headers = new Headers();
+  const headers = new Headers(init.headers);
   if (actorId && !sessionMode) headers.set('X-NDI-Actor-Id', actorId);
+  const mutating = !['GET', 'HEAD', 'OPTIONS'].includes((init.method ?? 'GET').toUpperCase());
+  if (sessionMode && mutating) headers.set('X-XSRF-TOKEN', await getCsrfToken());
   let response: Response;
   try {
-    response = await fetch(`${root}${path}`, { headers, credentials: 'same-origin' });
+    response = await fetch(`${root}${path}`, { ...init, headers, credentials: 'same-origin' });
   } catch {
     throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ProblemBody | null;
+    if (sessionMode && mutating && retryCsrf && body?.code === 'AUTH_CSRF_INVALID') {
+      clearCsrfToken();
+      return requestBlobAt(root, path, init, false);
+    }
     notifyExpired(response.status, body?.code);
     throw new ApiError(
       body?.code ?? 'HTTP_ERROR',

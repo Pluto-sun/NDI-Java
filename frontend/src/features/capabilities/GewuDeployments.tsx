@@ -474,7 +474,7 @@ function DeploymentEditor({
   );
 }
 
-const importApi = tabularImportApi(root, { exportFailedRows: true });
+const importApi = tabularImportApi(root);
 const loadImportReference = (signal: AbortSignal) => api<Reference>('/reference-data', { signal });
 export function ImportGewuDeploymentsPage() {
   const { data: reference, error } = useLiveQuery(loadImportReference, '组织目录加载失败');

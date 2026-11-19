@@ -25,7 +25,7 @@ final class MonthlyTokenWorkbook {
 
     record Image(String type, byte[] data) {}
     record Line(int row, int month, String province, String agent, String project, String systemId,
-            String amount, Image image, String warning, String error) {}
+            String amount, Image image, Integer screenshotColumn, String warning, String error) {}
     record Content(String sheet, List<String> sheets, List<Line> lines) {}
 
     static boolean isMonthlyColumn(String header) {
@@ -109,7 +109,7 @@ final class MonthlyTokenWorkbook {
                     }
                     result.add(new Line(row.getRowNum() + 1, entry.getKey(), text(get(row, province), formatter),
                             text(get(row, agent), formatter), text(get(row, project), formatter), text(get(row, id), formatter),
-                            value, image, warning, error));
+                            value, image, screenshots.get(entry.getKey()), warning, error));
                 }
             }
             if (result.isEmpty()) throw invalid("工作表没有可预检的月度数据");

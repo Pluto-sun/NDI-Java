@@ -1,5 +1,7 @@
 package com.pluto.ndi.shared.imports;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.shared.excel.ExcelImportLimits;
 
 import java.util.*;
@@ -24,6 +26,22 @@ public final class ImportWorkflow {
                 .filter(f -> mapping.get(f) == null || mapping.get(f).isBlank())
                 .sorted()
                 .toList();
+    }
+
+    /** 空值或旧格式表示缺少可用明细，由调用方按当前预检规则补算。 */
+    public static List<String> failureReasons(ObjectMapper json, String encoded) {
+        if (encoded == null) return List.of();
+        try {
+            var value = json.readTree(encoded);
+            if (value == null || !value.isArray()) return List.of();
+            var reasons = new LinkedHashSet<String>();
+            for (var item : value) {
+                if (item.isTextual() && !item.textValue().isBlank()) reasons.add(item.textValue());
+            }
+            return List.copyOf(reasons);
+        } catch (JsonProcessingException failure) {
+            return List.of();
+        }
     }
 
     public static String sha256(byte[] bytes) {

@@ -170,6 +170,10 @@ public enum ProjectErrorCode implements ErrorCode {
             "Excel 数据行超限", "一次最多导入 2000 行数据，表头不计入"),
     IMPORT_INVALID_FILE(
             HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_INVALID_FILE", "导入文件无效", "请检查模板、文件大小和工作表内容"),
+    IMPORT_NO_FAILED_ROWS(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_NO_FAILED_ROWS",
+            "没有预检失败的数据", "当前没有预检失败的数据"),
+    IMPORT_FAILURE_RECHECK_REQUIRED(HttpStatus.CONFLICT, "PROJECT_IMPORT_FAILURE_RECHECK_REQUIRED",
+            "缺少预检明细", "旧任务缺少可用的失败原因，请重新预检后导出"),
     IMPORT_ORIGINAL_EXPORT_UNAVAILABLE(
             HttpStatus.CONFLICT, "PROJECT_IMPORT_ORIGINAL_EXPORT_UNAVAILABLE",
             "原始文件不可用", "请通过导入向导上传原始 Excel 并重新预检"),

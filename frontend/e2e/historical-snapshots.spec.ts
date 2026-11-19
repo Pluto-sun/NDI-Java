@@ -90,9 +90,15 @@ test('快照导入区分缺失、部分补录、整月完整及当月实时', as
   await page.goto('/admin/historical-snapshots');
   await preview({ ...row, 格物工业互联网平台月末金额: '0' });
   await expect(page.getByText(/已有快照与导入值冲突/)).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出预检失败原始数据', exact: true }).click();
+  expect((await download).suggestedFilename()).toMatch(/预检失败原始数据\.xlsx$/);
   await page.getByRole('button', { name: '查看／修正第 3 行', exact: true }).click();
   await page.getByLabel('确认覆盖的修订号', { exact: true }).fill('0');
   await page.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: '导出预检失败原始数据', exact: true }),
+  ).toBeHidden();
   await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   const corrected = await view();

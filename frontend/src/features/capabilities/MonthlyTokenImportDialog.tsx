@@ -1,7 +1,8 @@
+import { downloadWorkbook } from '../../shared/imports/importWizard';
 import { MAX_EXCEL_ROWS, validateExcelUpload } from '../../shared/imports/limits';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { requestAt } from '../../shared/api/http';
+import { requestAt, requestBlobAt } from '../../shared/api/http';
 import { Feedback } from '../../shared/ui/Feedback';
 import { ListPagination } from '../../shared/ui/ListPagination';
 import { Modal } from '../../shared/ui/Modal';
@@ -24,6 +25,7 @@ interface Preview {
   sheet: string;
   sheets: string[];
   rows: Row[];
+  fingerprint: string;
 }
 
 const root = '/api/v1/capability/agents-live/token-import';
@@ -48,7 +50,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
   const [error, setError] = useState('');
   const [imported, setImported] = useState<number>();
 
-  async function submit(confirm: boolean) {
+  async function submit(mode: 'preview' | 'confirm' | 'export') {
     if (!file || busy) return;
     setBusy(true);
     setError('');
@@ -59,7 +61,15 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
     if (sheet) form.append('sheet', sheet);
     try {
       validateExcelUpload(file);
-      if (confirm) {
+      if (mode === 'export') {
+        if (!preview) return;
+        form.set('sheet', preview.sheet);
+        form.append('fingerprint', preview.fingerprint);
+        downloadWorkbook(
+          await requestBlobAt(root, '/failed-rows/original', { method: 'POST', body: form }),
+          '月度 Token 导入预检失败原始数据.xlsx',
+        );
+      } else if (mode === 'confirm') {
         form.append(
           'selection',
           new Blob([JSON.stringify(selected)], { type: 'application/json' }),
@@ -88,7 +98,13 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         setPage(0);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '导入失败，请重试');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : mode === 'export'
+            ? '导出失败，请重试'
+            : '导入失败，请重试',
+      );
     } finally {
       setBusy(false);
     }
@@ -118,7 +134,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            void submit(false);
+            void submit('preview');
           }}
         >
           <div className="form-grid">
@@ -163,6 +179,8 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
                   onChange={(event) => {
                     setSheet(event.target.value);
                     setPreview(undefined);
+                    setSelected([]);
+                    setPreview(undefined);
                   }}
                 >
                   {sheets.map((name) => (
@@ -182,6 +200,18 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
               <p className="subtle">
                 一次最多确认 {MAX_EXCEL_ROWS} 条月度记录，已默认勾选前 {MAX_EXCEL_ROWS} 条通过项。
               </p>
+            )}
+            {preview.rows.some((row) => row.status === 'FAILED') && (
+              <div className="action-row">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void submit('export')}
+                >
+                  导出预检失败原始数据
+                </button>
+              </div>
             )}
             <div className="action-row" role="group" aria-label="月度 Token 预检状态">
               {Object.entries({ ALL: '全部', ...labels }).map(([key, label]) => (
@@ -265,7 +295,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
                 type="button"
                 className="primary-button"
                 disabled={busy || selected.length === 0 || selected.length > MAX_EXCEL_ROWS}
-                onClick={() => void submit(true)}
+                onClick={() => void submit('confirm')}
               >
                 确认导入 {selected.length} 条
               </button>

@@ -24,6 +24,7 @@ import com.pluto.ndi.projects.util.ProjectImportWorkbookWriter;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.projects.util.ProjectNarrativeText;
 import com.pluto.ndi.projects.util.ProjectPlanningFields;
+import com.pluto.ndi.shared.imports.ImportWorkflow;
 import com.pluto.ndi.shared.web.BusinessException;
 
 import org.slf4j.Logger;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -199,16 +201,7 @@ public class ProjectImportService {
         for (var row : source) {
             var errors = new ArrayList<String>();
             String key = duplicateKey(row, locationKeys);
-            if (key != null && !encountered.add(key)) {
-                errors.add("重复项目：仅保留文件中首条同省、同地市、同名称记录");
-            }
-            ProjectImportCandidate candidate;
-            try {
-                candidate = normalize(row, actor, errors);
-            } catch (IllegalArgumentException exception) {
-                errors.add("行内日期或字段格式无效");
-                candidate = null;
-            }
+            var candidate = validatePreviewRow(row, actor, key, encountered, errors);
             output.add(
                     ProjectImportRowEntity.preview(
                             null,
@@ -294,24 +287,74 @@ public class ProjectImportService {
 
     @Transactional
     public byte[] originalFailedRows(UUID actorId, UUID batchId) {
+        if (!identity.canUseProjectImport(actorId))
+            throw new BusinessException(ProjectErrorCode.CREATION_FORBIDDEN);
         var batch = batches.findByIdAndActorId(batchId, actorId)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_NOT_FOUND));
-        if (!"PREVIEWED".equals(batch.status())) {
+        if (!"PREVIEWED".equals(batch.status()))
             throw new BusinessException(ProjectErrorCode.IMPORT_NOT_PREVIEWED);
-        }
         var task = tasks.findByBatch(batchId)
-                .filter(item -> item.actorId().equals(actorId))
+                .filter(item -> item.actorId().equals(actorId) && item.step() == 3)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.IMPORT_ORIGINAL_EXPORT_UNAVAILABLE));
-        var rowNumbers = rows.findByBatchIdOrderByRowNumber(batchId).stream().filter(row -> {
-            if ("FAILED".equals(row.status())) return true;
-            var review = nameReviews.read(row);
-            return "READY".equals(row.status()) && review != null && !review.accepted();
-        }).map(ProjectImportRowEntity::rowNumber).toList();
+        var items = rows.findByBatchIdOrderByRowNumber(batchId);
+        var failures = new LinkedHashMap<Integer, List<String>>();
+        for (var row : items) {
+            if ("FAILED".equals(row.status())) {
+                failures.put(row.rowNumber(), ImportWorkflow.failureReasons(json, row.errors()));
+            } else if ("READY".equals(row.status())) {
+                var review = nameReviews.read(row);
+                if (review != null && !review.accepted())
+                    failures.put(row.rowNumber(), List.of("STRONG".equals(review.level())
+                            ? "待确认相似项目：项目名称高度相似，须修改名称或填写差异说明"
+                            : "待确认相似项目：请确认不是同一项目"));
+            }
+        }
+        if (failures.isEmpty()) throw new BusinessException(ProjectErrorCode.IMPORT_NO_FAILED_ROWS);
+        if (failures.containsValue(List.of())) recoverFailureReasons(actorId, items, failures);
         var bytes = workbooks.read(task.bucket(), task.objectKey());
         if (!batch.fileSha256().equals(sha256(bytes))) {
             throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
         }
-        return workbookWriter.originalRows(bytes, batch.sheetName(), batch.headerRowNumber(), rowNumbers);
+        return workbookWriter.originalRows(bytes, batch.sheetName(), batch.headerRowNumber(), failures);
+    }
+
+    private void recoverFailureReasons(UUID actorId, List<ProjectImportRowEntity> items,
+            Map<Integer, List<String>> failures) {
+        var actor = identity.findProjectActor(actorId)
+                .filter(ProjectActor::enabled)
+                .orElseThrow(() -> new BusinessException(ProjectErrorCode.ACCESS_FORBIDDEN));
+        var encountered = new HashSet<String>();
+        var locations = new HashMap<String, String>();
+        for (var row : items) {
+            if (!List.of().equals(failures.get(row.rowNumber()))) {
+                if (row.normalizedKey() != null) encountered.add(row.normalizedKey());
+                continue;
+            }
+            try {
+                var source = ProjectExcelReader.currentFields(nameReviews.source(row));
+                var excel = new ProjectExcelReader.ExcelRow(row.rowNumber(), source);
+                var errors = new ArrayList<String>();
+                validatePreviewRow(excel, actor, duplicateKey(excel, locations), encountered, errors);
+                if (!errors.isEmpty()) failures.put(row.rowNumber(), errors);
+            } catch (IllegalStateException failure) {
+                throw new BusinessException(ProjectErrorCode.IMPORT_FAILURE_RECHECK_REQUIRED);
+            }
+        }
+        if (failures.containsValue(List.of()))
+            throw new BusinessException(ProjectErrorCode.IMPORT_FAILURE_RECHECK_REQUIRED);
+    }
+
+    private ProjectImportCandidate validatePreviewRow(ProjectExcelReader.ExcelRow row, ProjectActor actor,
+            String key, Set<String> encountered, List<String> errors) {
+        if (key != null && !encountered.add(key)) {
+            errors.add("重复项目：仅保留文件中首条同省、同地市、同名称记录");
+        }
+        try {
+            return normalize(row, actor, errors);
+        } catch (IllegalArgumentException failure) {
+            errors.add("行内日期或字段格式无效");
+            return null;
+        }
     }
 
     @Transactional

@@ -201,16 +201,31 @@ public abstract class TabularImportEngine<C> {
 
     public byte[] originalFailedRows(UUID actor, UUID batch) throws java.io.IOException {
         authorize(actor);
-        tasks.lock(actor);
         var stored = batchTask(actor, batch);
         var task = stored.task();
-        var rowNumbers = task.batch().rows().stream()
-                .filter(row -> "FAILED".equals(row.status()))
-                .map(Row::rowNumber)
-                .toList();
-        if (rowNumbers.isEmpty()) throw invalid("当前没有预检失败的数据");
+        if (task.step() != 3 || !"PREVIEWED".equals(task.batch().status())) throw conflict();
+        var failures = new LinkedHashMap<Integer, List<String>>();
+        for (var row : task.batch().rows()) {
+            if ("FAILED".equals(row.status()))
+                failures.put(row.rowNumber(), ImportWorkflow.failureReasons(json, row.errorsJson()));
+        }
+        if (failures.isEmpty()) throw invalid("当前没有预检失败的数据");
+        if (failures.containsValue(List.of())) {
+            Batch recalculated;
+            try {
+                recalculated = validateRows(actor, batch, task.batch().rows());
+            } catch (IllegalStateException failure) {
+                throw invalid("旧任务缺少可用的失败原因，请重新预检后导出");
+            }
+            for (var row : recalculated.rows()) {
+                if (List.of().equals(failures.get(row.rowNumber())))
+                    failures.put(row.rowNumber(), ImportWorkflow.failureReasons(json, row.errorsJson()));
+            }
+            if (failures.containsValue(List.of()))
+                throw invalid("旧任务缺少可用的失败原因，请重新预检后导出");
+        }
         var config = task.configuration();
-        return ExcelWorkbook.originalRows(readSource(stored), config.sheetName(), config.headerRowNo(), rowNumbers);
+        return ExcelWorkbook.originalRows(readSource(stored), config.sheetName(), config.headerRowNo(), failures);
     }
 
     private byte[] readSource(ImportTaskStore.Stored stored) {

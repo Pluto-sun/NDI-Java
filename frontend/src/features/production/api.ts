@@ -64,4 +64,4 @@ export const productionApi = {
   delete: (plan: Plan) =>
     request<void>(`/${plan.id}?version=${plan.version}`, { method: 'DELETE' }),
 };
-export const productionImportApi = tabularImportApi(root, { exportFailedRows: true });
+export const productionImportApi = tabularImportApi(root);
