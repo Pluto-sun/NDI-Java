@@ -138,10 +138,10 @@ public class RevenueFields {
                 source);
     }
 
-    public Revenue.Recognition recognition(Revenue.Recognition value, BigDecimal limit) {
+    public Revenue.Recognition recognition(Revenue.Recognition value) {
         if (value == null || value.amount() == null) throw invalid("认定金额必填");
-        var amount = amount(value.amount().toPlainString(), "认定金额", true);
-        if (amount.compareTo(limit) > 0) throw invalid("认定金额不能超过条款金额");
+        var amount = amount(value.amount().toString(), "认定金额", false);
+        if (amount.signum() <= 0) throw invalid("认定金额须大于零");
         String name = Objects.toString(value.reportedProjectName(), "").strip();
         if (name.isEmpty() || name.length() > 300) throw invalid("通报项目名称须为1至300字");
         String status = Objects.toString(value.projectStatus(), "").strip();

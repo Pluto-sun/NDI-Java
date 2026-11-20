@@ -323,7 +323,7 @@ class RevenueIT {
     @Test
     void approvalKeepsOldResultAndRejectWithdrawDoNotChangeTotals() {
         var e = entry();
-        var pending = service.recognize(cityReporter, e.id(), 0, value("80"));
+        var pending = service.recognize(cityReporter, e.id(), 0, value("180"));
         assertThat(pending.state()).isEqualTo("PENDING");
         assertThat(pending.recognition()).isNull();
         assertThat(service.list(reporter, filter("")).summary().recognizedAmount())
@@ -345,11 +345,11 @@ class RevenueIT {
                 .isInstanceOf(BusinessException.class);
         var approved =
                 service.decide(reviewer, r.id(), pending.version(), r.version(), "APPROVED", "");
-        assertThat(approved.recognition().amount()).isEqualByComparingTo("80");
+        assertThat(approved.recognition().amount()).isEqualByComparingTo("180");
         assertThat(approved.sourceAmount()).isEqualByComparingTo("10");
         var change = service.recognize(reporter, e.id(), approved.version(), value("90"));
         assertThat(change.state()).isEqualTo("CHANGE_PENDING");
-        assertThat(change.recognition().amount()).isEqualByComparingTo("80");
+        assertThat(change.recognition().amount()).isEqualByComparingTo("180");
         r =
                 service.requests(reviewer, e.id()).stream()
                         .filter(x -> x.status().equals("PENDING"))
@@ -369,8 +369,8 @@ class RevenueIT {
         var rejected =
                 service.decide(
                         reviewer, r.id(), change.version(), r.version(), "REJECTED", "金额需核对");
-        assertThat(rejected.recognition().amount()).isEqualByComparingTo("80");
-        var next = service.recognize(reporter, e.id(), rejected.version(), value("0"));
+        assertThat(rejected.recognition().amount()).isEqualByComparingTo("180");
+        var next = service.recognize(reporter, e.id(), rejected.version(), value("1"));
         r =
                 service.requests(reviewer, e.id()).stream()
                         .filter(x -> x.status().equals("PENDING"))
@@ -378,12 +378,12 @@ class RevenueIT {
                         .orElseThrow();
         var withdrawn =
                 service.decide(reporter, r.id(), next.version(), r.version(), "WITHDRAWN", "");
-        assertThat(withdrawn.recognition().amount()).isEqualByComparingTo("80");
-        var direct = service.recognize(reviewer, e.id(), withdrawn.version(), value("0"));
-        assertThat(direct.recognition().amount()).isEqualByComparingTo("0");
+        assertThat(withdrawn.recognition().amount()).isEqualByComparingTo("180");
+        var direct = service.recognize(reviewer, e.id(), withdrawn.version(), value("0.01"));
+        assertThat(direct.recognition().amount()).isEqualByComparingTo("0.01");
         assertThat(service.history(reporter, e.id())).hasSize(2);
         assertThat(service.list(reporter, filter("")).summary().recognizedAmount())
-                .isEqualByComparingTo("0");
+                .isEqualByComparingTo("0.01");
         assertThat(service.notices(reporter)).isNotEmpty();
         var n = service.notices(reporter).getFirst();
         service.read(reporter, n.id());
@@ -406,14 +406,13 @@ class RevenueIT {
         assertThat(e.provinceId()).isNull();
         assertThatThrownBy(() -> service.detail(reporter, e.id()))
                 .isInstanceOf(BusinessException.class);
-        var rec = new Recognition(new BigDecimal("99"), "组织计收", "已交付", province);
+        var rec = new Recognition(new BigDecimal("101"), "组织计收", "已交付", province);
         var saved = service.recognize(otherReviewer, e.id(), 0, rec);
         assertThat(saved.state()).isEqualTo("RECOGNIZED");
+        assertThat(saved.recognition().amount()).isEqualByComparingTo("101");
         assertThat(service.requests(otherReviewer, e.id())).isEmpty();
         assertThatThrownBy(() -> service.detail(cityReporter, e.id()))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.recognize(reviewer, e.id(), saved.version(), value("101")))
-                .hasMessageContaining("条款金额");
         assertThatThrownBy(() -> service.recognize(reviewer, e.id(), saved.version(), value("-1")))
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(
@@ -526,16 +525,17 @@ class RevenueIT {
     }
 
     @Test
-    void zeroLimitMissingSourceAndUnknownRecognitionFieldsRemainDistinct() {
+    void positiveRecognitionWorksWithZeroSourceAndRejectsNonpositiveAmounts() {
         var s = source();
         s.put("条款金额", "0");
         s.put(RevenueFields.SOURCE_AMOUNT, "0");
         var e = service.create(admin, s);
-        assertThatThrownBy(() -> service.recognize(reviewer, e.id(), 0, value("0.01")))
-                .hasMessageContaining("条款金额");
-        var recognized = service.recognize(reviewer, e.id(), 0, value("0"));
-        assertThat(recognized.recognition()).isNotNull();
-        assertThat(recognized.recognition().amount()).isEqualByComparingTo("0");
+        for (var invalidAmount : List.of("0", "-1")) {
+            assertThatThrownBy(() -> service.recognize(reviewer, e.id(), 0, value(invalidAmount)))
+                    .hasMessageContaining("认定金额须大于零");
+        }
+        var recognized = service.recognize(reviewer, e.id(), 0, value("0.01"));
+        assertThat(recognized.recognition().amount()).isEqualByComparingTo("0.01");
         var missing = source();
         missing.put(RevenueFields.SOURCE_AMOUNT, "--");
         assertThatThrownBy(() -> service.create(admin, missing)).hasMessageContaining("必填");
@@ -648,11 +648,10 @@ class RevenueIT {
         var mapped = imports.save(admin, task.id(), task.version(), 2, configuration, null);
         var preview = imports.save(admin, task.id(), mapped.version(), 3, configuration, null);
         assertThat(preview.batch().validRows()).isEqualTo(1);
-        assertThat(preview.batch().rows().get(1).errorsJson()).contains("认定金额不能超过条款金额");
+        assertThat(preview.batch().rows().get(1).errorsJson()).contains("项目状态须为实施中、已交付或已上线");
         var batch = preview.batch().batchId();
         assertThat(imports.current(admin).batch().batchId()).isEqualTo(batch);
-        assertThat(imports.revise(admin, batch, 3, 0, Map.of(RevenueImport.PROVINCE, "无效省份",
-                RevenueImport.AMOUNT, "20")).rows().get(1).errorsJson())
+        assertThat(imports.revise(admin, batch, 3, 0, Map.of(RevenueImport.PROVINCE, "无效省份")).rows().get(1).errorsJson())
                 .contains("对应省分（集成）未匹配启用的省份");
         assertThat(imports.revise(admin, batch, 3, 1, Map.of(RevenueImport.PROVINCE, province.toString()))
                 .rows().get(1).errorsJson()).contains("项目状态须为实施中、已交付或已上线");
@@ -661,7 +660,7 @@ class RevenueIT {
         var completed = imports.confirm(admin, batch, List.of(2, 3));
         assertThat(completed.importedRows()).isEqualTo(2);
         var recognition = service.detail(admin, completed.rows().get(1).recordId()).recognition();
-        assertThat(recognition.amount()).isEqualByComparingTo("20");
+        assertThat(recognition.amount()).isEqualByComparingTo("101");
         assertThat(recognition.projectStatus()).isEqualTo("已上线");
         assertThat(recognition.integratedOrganization()).isEqualTo("数智");
         assertThat(recognition.integratedProvinceId()).isNull();

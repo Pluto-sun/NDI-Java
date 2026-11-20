@@ -46,6 +46,12 @@ function RecognitionForm({
     [error, setError] = useState('');
   async function save(e: FormEvent) {
     e.preventDefault();
+    const amount = Number(value.amount.replaceAll(',', ''));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('认定金额须大于零');
+      return;
+    }
+    setError('');
     setBusy(true);
     try {
       const { integratedTarget, ...recognition } = value;

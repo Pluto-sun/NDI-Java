@@ -75,7 +75,7 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await page.goto('/revenue/' + id);
   await page.getByRole('button', { name: '首次认定', exact: true }).click();
   const recognition = page.getByRole('dialog', { name: '首次认定', exact: true });
-  await recognition.getByLabel('认定金额（元）', { exact: true }).fill('80');
+  await recognition.getByLabel('认定金额（元）', { exact: true }).fill('180');
   await recognition.getByLabel('通报项目名称', { exact: true }).fill('正式通报名称');
   await recognition.getByRole('combobox', { name: '项目状态', exact: true }).selectOption('已上线');
   await recognition
@@ -96,7 +96,7 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await approval.getByRole('button', { name: '确认', exact: true }).click();
   await expect(approval).toHaveCount(0);
   const current = page.getByRole('heading', { name: '当前生效认定', exact: true }).locator('..');
-  await expect(current).toContainText('80.00');
+  await expect(current).toContainText('180.00');
   await expect(current).toContainText('已上线');
   await expect(current).toContainText('数科');
   await switchActor(page, ids.reporter);
@@ -106,14 +106,14 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await edit.getByLabel('认定金额（元）', { exact: true }).fill('90');
   await edit.getByRole('button', { name: '提交审核', exact: true }).click();
   await expect(edit).toHaveCount(0);
-  await expect(current).toContainText('80.00');
+  await expect(current).toContainText('180.00');
   await page.getByRole('button', { name: '撤销申请', exact: true }).click();
   const withdraw = page.getByRole('dialog', { name: '撤销计收认定申请', exact: true });
   await withdraw.getByRole('button', { name: '确认', exact: true }).click();
   await expect(withdraw).toHaveCount(0);
-  await expect(current).toContainText('80.00');
+  await expect(current).toContainText('180.00');
   const detail = await api<Entry>(request, ids.admin, '/' + id);
-  expect(Number(detail.recognition!.amount)).toBe(80);
+  expect(Number(detail.recognition!.amount)).toBe(180);
   await page.screenshot({
     path: testInfo.outputPath('revenue-recognition-detail.png'),
     fullPage: true,
@@ -200,7 +200,13 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
     .getByRole('combobox', { name: '对应省分（集成）', exact: true })
     .selectOption(ids.province);
   await dialog.getByRole('button', { name: '保存认定', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('认定金额须大于零');
+  await dialog.getByLabel('认定金额（元）', { exact: true }).fill('101');
+  await dialog.getByRole('button', { name: '保存认定', exact: true }).click();
   await expect(dialog).toHaveCount(0);
+  expect(Number((await api<Entry>(request, reviewer, '/' + entry.id)).recognition!.amount)).toBe(
+    101,
+  );
   expect(await api<Approval[]>(request, reviewer, `/${entry.id}/requests`)).toHaveLength(0);
   const denied = await request.get(root + '/' + entry.id, {
     headers: { 'X-NDI-Actor-Id': ids.reporter },

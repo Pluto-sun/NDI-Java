@@ -145,7 +145,7 @@ public class RevenueService implements RevenueRecordDeletion {
         var sourceValues = new LinkedHashMap<>(values);
         sourceValues.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE));
         var source = validate(actor, sourceValues);
-        return new ValidatedImport(source, importRecognition(values, source.clauseAmount()));
+        return new ValidatedImport(source, importRecognition(values));
     }
 
     public Entry importEntry(UUID actor, Map<String, String> values) {
@@ -153,7 +153,7 @@ public class RevenueService implements RevenueRecordDeletion {
         return create(actor, validated.source(), validated.recognition());
     }
 
-    private Recognition importRecognition(Map<String, String> values, BigDecimal limit) {
+    private Recognition importRecognition(Map<String, String> values) {
         String amountText = importValue(values, RevenueImport.AMOUNT);
         String name = importValue(values, RevenueImport.PROJECT);
         String province = importValue(values, RevenueImport.PROVINCE);
@@ -165,16 +165,14 @@ public class RevenueService implements RevenueRecordDeletion {
             return null;
         }
         if (amount.signum() <= 0) return null;
-        if (amount.compareTo(limit) > 0) throw invalid("认定金额不能超过条款金额");
-        if (amount.stripTrailingZeros().scale() > 2) throw invalid("认定金额最多两位小数");
         String status = importValue(values, RevenueImport.STATUS);
         if (Revenue.INTEGRATED_ORGANIZATIONS.contains(province))
-            return fields.recognition(new Recognition(amount, name, status, null, province), limit);
+            return fields.recognition(new Recognition(amount, name, status, null, province));
         var integratedProvince = organizations.findEnabledProvinceByName(province)
                 .or(() -> organizations.findEnabledProvinces().stream()
                         .filter(item -> item.id().toString().equals(province)).findFirst())
                 .orElseThrow(() -> invalid("对应省分（集成）未匹配启用的省份、数科或数智"));
-        return fields.recognition(new Recognition(amount, name, status, integratedProvince.id()), limit);
+        return fields.recognition(new Recognition(amount, name, status, integratedProvince.id()));
     }
 
     private static String importValue(Map<String, String> values, String field) {
@@ -222,7 +220,7 @@ public class RevenueService implements RevenueRecordDeletion {
                 e.pendingRequestId() != null, RevenueService::conflict);
         if (!com.pluto.ndi.shared.approval.ApprovalWorkflow.sameVersion(e.version(), version))
             throw conflict();
-        var value = fields.recognition(input, e.clauseAmount());
+        var value = fields.recognition(input);
         var at = Instant.now(clock);
         if (a.reviewer()) {
             apply(actor, e, value, null, at);
@@ -289,7 +287,7 @@ public class RevenueService implements RevenueRecordDeletion {
                 apply(
                         actor,
                         e,
-                        fields.recognition(r.proposed(), e.clauseAmount()),
+                        fields.recognition(r.proposed()),
                         r.id(),
                         Instant.now(clock));
         }
