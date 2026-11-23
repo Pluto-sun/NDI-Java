@@ -51,11 +51,19 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
       }),
   );
   await chooseActor(page, ids.admin);
-  const group = page.getByRole('group', { name: '计收三化分类' });
+  const group = page.getByRole('banner').getByRole('group', { name: '计收三化分类' });
+  const tabs = group.getByRole('button');
+  await expect(tabs).toHaveText(['全部', '网络化', '数字化', '智能化']);
   await expect(group.getByRole('button', { name: '全部', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
+  await page.locator('#main-content').evaluate((content) => {
+    content.style.minHeight = '180vh';
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+  for (const tab of await tabs.all()) await expect(tab).toBeInViewport({ ratio: 1 });
   await group.getByRole('button', { name: '智能化', exact: true }).click();
   await expect(page).toHaveURL(
     (url) =>

@@ -31,6 +31,7 @@ import {
   resumeDestination,
   takeLogoutDestination,
 } from './sessionDestination';
+import { RevenueCategoryTabs } from '../features/revenue/RevenueCategoryTabs';
 import { DashboardControls, ModuleDashboard } from '../features/module-dashboards/ModuleDashboard';
 
 const GewuDeploymentsPage = lazy(() =>
@@ -294,6 +295,7 @@ export function App() {
   const projectDetailRoute =
     /^\/projects\/[^/]+$/.test(location.pathname) &&
     !['/projects/new', '/projects/import'].includes(location.pathname);
+  const revenueListRoute = location.pathname === '/revenue' || location.pathname === '/revenue/';
   const hasStages = ['/projects', '/workbench'].includes(location.pathname);
   const stage = new URLSearchParams(location.search).get('stage') ?? '';
   return (
@@ -317,7 +319,9 @@ export function App() {
               ? 'topbar module-dashboard-topbar'
               : projectDetailRoute
                 ? 'topbar project-detail-topbar'
-                : 'topbar'
+                : revenueListRoute
+                  ? 'topbar revenue-list-topbar'
+                  : 'topbar'
           }
         >
           <div className="topbar-main">
@@ -347,6 +351,7 @@ export function App() {
               />
             )}
           </div>
+          {revenueListRoute && <RevenueCategoryTabs />}
           <div className="account">
             <span>{me.displayName}</span>
             <button

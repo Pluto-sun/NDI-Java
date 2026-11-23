@@ -98,25 +98,6 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
           </div>
         )}
       </div>
-      <div className="revenue-category-tabs" role="group" aria-label="计收三化分类">
-        {['全部', '网络化', '数字化', '智能化'].map((category) => (
-          <button
-            key={category}
-            type="button"
-            className="secondary-button"
-            aria-pressed={(params.get('category') || '全部') === category}
-            onClick={() => {
-              const next = new URLSearchParams(params);
-              next.delete('page');
-              if (category === '全部') next.delete('category');
-              else next.set('category', category);
-              setParams(next);
-            }}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
       {error && <Feedback tone="error">{error}</Feedback>}
       <form
         className="filter-bar revenue-list-filters"

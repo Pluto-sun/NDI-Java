@@ -475,18 +475,6 @@ a {
   border-color: #ad1331;
   color: #ad1331;
 }
-.revenue-category-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.revenue-category-tabs button[aria-pressed='true'] {
-  background: #f9e9ed;
-  border-color: #ad1331;
-  color: #93152d;
-}
-
 .multi-select-options {
   position: absolute;
   inset-inline: 0;
