@@ -87,7 +87,6 @@ export function ReviewerProvincesPage() {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">REVIEWER SCOPE</span>
           <p>每省仅由一名接口人负责。范围变更同步交接相关待审申请，审批期限保持不变。</p>
         </div>
       </div>

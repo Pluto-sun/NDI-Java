@@ -149,7 +149,7 @@ export function ProjectRequests({
       {requestId && (
         <Feedback tone="success">
           申请已提交，正式数据等待审批。
-          <Link className="inline-link" to={`/approvals/${requestId}`}>
+          <Link className="secondary-button compact-button" to={`/approvals/${requestId}`}>
             查看申请
           </Link>
         </Feedback>

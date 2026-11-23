@@ -87,9 +87,9 @@ export function RevenuePending() {
                 {items.map((r) => (
                   <li className="message-item" key={r.id}>
                     <div>
-                      <Link className="message-item-title" to={`/revenue/${r.entryId}`}>
+                      <strong className="message-item-title">
                         {r.proposed.reportedProjectName}
-                      </Link>
+                      </strong>
                       <div className="message-item-meta">
                         <span className={`message-state message-state-${r.status.toLowerCase()}`}>
                           {statusLabels[r.status]}
@@ -102,7 +102,10 @@ export function RevenuePending() {
                       <strong className="message-amount">
                         {money(r.proposed.amount)} <small>元</small>
                       </strong>
-                      <Link className="inline-link" to={`/revenue/${r.entryId}`}>
+                      <Link
+                        className="secondary-button compact-button"
+                        to={`/revenue/${r.entryId}`}
+                      >
                         {view === 'pending' ? '查看并处理' : '查看申请'}
                       </Link>
                     </div>

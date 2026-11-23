@@ -243,7 +243,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
                     }}
                   />
                 ))}
-                <col style={{ width: admin ? 115 : 72 }} />
+                <col style={{ width: admin ? 128 : 76 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -278,7 +278,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
                       <div className="gewu-actions">
                         <button
                           type="button"
-                          className="text-button"
+                          className="secondary-button compact-button"
                           disabled={!ref}
                           onClick={() => setEditor(item)}
                         >
@@ -287,7 +287,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
                         {admin && (
                           <button
                             type="button"
-                            className="text-button"
+                            className="secondary-button compact-button danger"
                             onClick={() => {
                               setError('');
                               setDeleting(item);

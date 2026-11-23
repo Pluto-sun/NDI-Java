@@ -295,7 +295,7 @@ function RecordList({
                       <div className="gewu-actions">
                         <button
                           type="button"
-                          className="text-button"
+                          className="secondary-button compact-button"
                           onClick={() => setEditor(item)}
                         >
                           编辑
@@ -505,7 +505,7 @@ function RecordEditor({
         <div className="dialog-actions">
           {entry && detailsSearch !== undefined && (
             <Link
-              className="text-button"
+              className="secondary-button"
               to={base(kind) + '/' + entry.id}
               state={{ listSearch: detailsSearch }}
             >

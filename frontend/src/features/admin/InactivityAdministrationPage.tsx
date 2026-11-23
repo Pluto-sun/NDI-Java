@@ -89,7 +89,6 @@ export function InactivityAdministrationPage() {
     <section className="inactivity-admin">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">REMINDER ADMINISTRATION</span>
           <p>管理员手动演练超时提醒。该操作会发送真实站内通知，但不修改项目实际最近变动时间。</p>
         </div>
       </div>
@@ -268,7 +267,9 @@ export function InactivityAdministrationPage() {
       {selected && (
         <>
           <p>
-            <Link to={`/projects/${selected.id}`}>查看项目详情</Link>
+            <Link className="secondary-button" to={`/projects/${selected.id}`}>
+              查看项目详情
+            </Link>
           </p>
           <ProjectInactivityAuditPanel
             key={selected.id}

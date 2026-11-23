@@ -182,7 +182,11 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
       {error && (
         <Feedback tone="error">
           {error}
-          <button type="button" className="inline-link" onClick={() => void load()}>
+          <button
+            type="button"
+            className="secondary-button compact-button"
+            onClick={() => void load()}
+          >
             重试所属月份统计
           </button>
         </Feedback>

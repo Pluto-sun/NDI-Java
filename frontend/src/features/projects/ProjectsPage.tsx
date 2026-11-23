@@ -28,15 +28,7 @@ const emptyAdvanced = {
   opportunityDateEnd: '',
 };
 
-export function ProjectsPage({
-  reference,
-  canCreate,
-  userId,
-}: {
-  reference: ReferenceData;
-  canCreate: boolean;
-  userId: string;
-}) {
+export function ProjectsPage({ reference, userId }: { reference: ReferenceData; userId: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const draftKey = `ndi.project-list-draft:${userId}:/projects${location.search}`;
@@ -269,14 +261,8 @@ export function ProjectsPage({
     <section>
       <div className="page-heading project-stage-heading">
         <div>
-          <span className="eyebrow">PROJECTS</span>
           <p>查看权限范围内的项目主档，按编号、名称、行业、归属和阶段定位。</p>
         </div>
-        {canCreate && (
-          <Link className="primary-button" to="/projects/new">
-            新建项目
-          </Link>
-        )}
       </div>
       <form
         className="filter-bar project-list-filters"
@@ -454,12 +440,12 @@ export function ProjectsPage({
             </label>
           </div>
         </details>
-        <button type="submit" className="secondary-button">
+        <button type="submit" className="primary-button">
           查询
         </button>
         <button
           type="button"
-          className="text-button"
+          className="secondary-button"
           onClick={() => {
             sessionStorage.removeItem(draftKey);
             setName('');
@@ -634,7 +620,7 @@ export function ProjectsPage({
                     </td>
                     <td className="sticky-list-action">
                       <Link
-                        className="table-link"
+                        className="secondary-button compact-button"
                         aria-label={`详情：${project.projectName}`}
                         to={`/projects/${project.id}`}
                         state={{ projectListReturnTo: returnTo }}

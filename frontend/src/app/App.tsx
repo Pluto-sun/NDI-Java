@@ -284,7 +284,10 @@ export function App() {
       setLoggingOut(false);
     }
   }
-  const title = pageTitle(location.pathname);
+  const title =
+    location.pathname === '/projects/new' && !canCreate && canImport
+      ? '项目创建'
+      : pageTitle(location.pathname);
   const dashboardModule = [
     '/workbench/scheduling',
     '/workbench/revenue',
@@ -532,9 +535,7 @@ export function App() {
               )}
               <Route
                 path="/projects"
-                element={
-                  <ProjectsPage reference={reference} canCreate={canCreate} userId={me.id} />
-                }
+                element={<ProjectsPage reference={reference} userId={me.id} />}
               />
               <Route
                 path="/projects/new"
@@ -547,12 +548,14 @@ export function App() {
                         <div>
                           <p>通过 Excel 批量导入项目。</p>
                         </div>
-                        <Link className="primary-button" to="/projects/import">
-                          项目导入
-                        </Link>
-                        <Link className="secondary-button" to="/projects">
-                          返回项目列表
-                        </Link>
+                        <div className="inline-actions">
+                          <Link className="primary-button" to="/projects/import">
+                            项目导入
+                          </Link>
+                          <Link className="secondary-button" to="/projects">
+                            返回项目列表
+                          </Link>
+                        </div>
                       </div>
                     </section>
                   ) : (

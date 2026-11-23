@@ -64,7 +64,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
     100,
     240,
     200,
-    ...(reference?.writable ? [88] : []),
+    ...(reference?.writable ? [128] : []),
   ];
   const tableWidth = columnWidths.reduce((total, width) => total + width, admin ? 44 : 0);
   function change(key: string, value: string) {
@@ -283,7 +283,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
                       <td className="sticky-list-action">
                         <div className="admin-row-actions">
                           <button
-                            className="text-button"
+                            className="secondary-button compact-button"
                             onClick={() => {
                               setError('');
                               setAction({ kind: 'edit', plan });
@@ -292,7 +292,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
                             编辑
                           </button>
                           <button
-                            className="text-button danger"
+                            className="secondary-button compact-button danger"
                             onClick={() => {
                               setError('');
                               setAction({ kind: 'delete', plan });
@@ -383,10 +383,9 @@ export function NewProductionPage() {
       .catch((c) => setError(c.message));
   }, []);
   return (
-    <>
+    <div className="form-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">NEW PRODUCTION</span>
           <p>填写项目和产品金额，分类按金额自动识别。</p>
         </div>
         <Link className="secondary-button" to={backTo}>
@@ -411,7 +410,7 @@ export function NewProductionPage() {
           />
         </section>
       )}
-    </>
+    </div>
   );
 }
 const amountLabels: Record<string, string> = {

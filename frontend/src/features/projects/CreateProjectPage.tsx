@@ -303,10 +303,9 @@ export function CreateProjectPage({
   }
 
   return (
-    <section>
+    <section className="form-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">NEW PROJECT</span>
           <p>创建后立即进入“方案交流”；项目名称与金额等重大变更需另行申请。</p>
         </div>
         <div className="action-row">
@@ -315,17 +314,19 @@ export function CreateProjectPage({
               项目导入
             </Link>
           )}
-          <Link className="text-button" to="/projects">
+          <Link className="secondary-button" to="/projects">
             返回列表
           </Link>
         </div>
       </div>
-      <div className="panel draft-panel">
+      <section className="panel form-panel draft-panel" aria-labelledby="project-drafts-title">
         <div className="panel-top">
-          <strong>我的项目草稿</strong>
+          <h2 id="project-drafts-title">我的项目草稿</h2>
           <span>{drafts?.totalElements ?? 0} 条</span>
         </div>
-        <p className="subtle">草稿仅本人可见；载入草稿前会提示替换当前表单。</p>
+        {!!drafts?.items.length && (
+          <p className="subtle">草稿仅本人可见。载入草稿前会提示替换当前表单。</p>
+        )}
         {drafts?.items.map((draft) => (
           <div className="draft-item" key={draft.id}>
             <div>
@@ -335,7 +336,7 @@ export function CreateProjectPage({
             <div className="action-row">
               <button
                 type="button"
-                className="secondary-button"
+                className="secondary-button compact-button"
                 disabled={draftBusy}
                 onClick={() => restoreDraft(draft)}
               >
@@ -343,7 +344,7 @@ export function CreateProjectPage({
               </button>
               <button
                 type="button"
-                className="text-button"
+                className="secondary-button compact-button danger"
                 disabled={draftBusy}
                 onClick={() => void deleteDraft(draft)}
               >
@@ -380,9 +381,9 @@ export function CreateProjectPage({
             </div>
           </div>
         )}
-      </div>
-      <form className="panel form-panel" onSubmit={submit}>
-        <h2>基本信息</h2>
+      </section>
+      <form className="panel form-panel" aria-labelledby="project-basics-title" onSubmit={submit}>
+        <h2 id="project-basics-title">基本信息</h2>
         <div className="form-grid">
           <label>
             归属省分
@@ -619,7 +620,7 @@ export function CreateProjectPage({
               onChange={(event) => setPlannedBidMonth(event.target.value)}
             />
           </label>
-          <fieldset className="span-two">
+          <fieldset className="span-two change-fieldset">
             <legend>应用场景（可多选）</legend>
             <div className="category-grid">
               {reference.applicationScenarios.map((scenario) => (

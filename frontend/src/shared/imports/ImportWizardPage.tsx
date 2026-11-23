@@ -628,7 +628,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
           onSaved={batchUpdated}
         />
       )}
-      <Link to={config.backTo} className="text-button">
+      <Link to={config.backTo} className="secondary-button">
         返回{config.title}创建
       </Link>
     </section>

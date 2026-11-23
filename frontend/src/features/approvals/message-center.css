@@ -74,7 +74,7 @@
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-.message-item-title:hover {
+a.message-item-title:hover {
   color: var(--red-dark);
   text-decoration: underline;
 }

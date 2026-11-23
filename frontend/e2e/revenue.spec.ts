@@ -96,8 +96,13 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await switchActor(page, group);
   await page.goto('/approvals?business=revenue');
   await expect(page.getByRole('heading', { name: '计收审核待办', exact: true })).toBeVisible();
+  const item = page
+    .locator('.message-item')
+    .filter({ has: page.locator(`a[href="/revenue/${id}"]`) });
+  await expect(item.getByRole('link')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('revenue-inbox.png'), fullPage: true });
-  await page.goto('/revenue/' + id);
+  await item.getByRole('link', { name: '查看并处理' }).click();
+  await expect(page).toHaveURL('/revenue/' + id);
   await page.getByRole('button', { name: '通过', exact: true }).click();
   const approval = page.getByRole('dialog', { name: '通过计收认定申请', exact: true });
   await approval.getByRole('button', { name: '确认', exact: true }).click();

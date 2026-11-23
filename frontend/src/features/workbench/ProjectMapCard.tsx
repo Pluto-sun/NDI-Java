@@ -316,7 +316,7 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
           {error}{' '}
           <button
             type="button"
-            className="inline-link"
+            className="secondary-button compact-button"
             onClick={() => setRefreshKey((key) => key + 1)}
           >
             重试

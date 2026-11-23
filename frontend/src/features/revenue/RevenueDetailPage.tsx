@@ -261,7 +261,7 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
     setDecision({ request, kind });
   };
   return (
-    <>
+    <div className="form-page">
       <div className="page-heading">
         <div className="inline-actions">
           <Link className="secondary-button" to={back?.startsWith('/revenue?') ? back : '/revenue'}>
@@ -395,6 +395,6 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
       ) : (
         !error && <Loading />
       )}
-    </>
+    </div>
   );
 }

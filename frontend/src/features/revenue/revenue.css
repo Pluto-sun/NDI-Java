@@ -51,12 +51,6 @@
   align-items: flex-start;
   margin-bottom: 20px;
 }
-.revenue-list-heading .inline-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  padding-top: 6px;
-}
 .filter-bar.revenue-list-filters {
   display: grid;
   grid-template-columns:
@@ -176,11 +170,6 @@
 .revenue-list-table th:last-child {
   background: #fdfafb;
 }
-.revenue-list-table td:last-child a {
-  display: inline-block;
-  padding: 2px 0;
-  font-weight: 600;
-}
 .revenue-state {
   display: inline-flex;
   white-space: nowrap;
@@ -243,9 +232,6 @@
   }
   .revenue-list-filters > .month-filter-field {
     grid-column: 1 / -1;
-  }
-  .revenue-list-heading .inline-actions {
-    padding-top: 0;
   }
 }
 

@@ -157,7 +157,6 @@ export function BackupsPage({ localDevelopment }: { localDevelopment: boolean })
     <section className="backup-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">BACKUP ADMINISTRATION</span>
           <p>成对归档数据库与 MinIO 资料。归档包含敏感业务数据和密码摘要，请限制访问并妥善保管。</p>
         </div>
         <button

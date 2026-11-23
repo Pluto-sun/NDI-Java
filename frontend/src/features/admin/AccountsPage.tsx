@@ -84,7 +84,6 @@ export function AccountsPage({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">ADMINISTRATION</span>
           <div className="title-with-stage">
             <label className="role-view-picker">
               角色

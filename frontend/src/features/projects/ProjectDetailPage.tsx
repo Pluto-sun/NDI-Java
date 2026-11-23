@@ -127,7 +127,7 @@ export function ProjectDetailPage({
     <section className="project-detail-page">
       <div className="page-heading">
         <div>
-          <Link className="back-link" to={returnTo}>
+          <Link className="secondary-button" to={returnTo}>
             ← 返回项目列表
           </Link>
           <p>{detail?.projectCode ?? '主档、进展和里程碑'}</p>

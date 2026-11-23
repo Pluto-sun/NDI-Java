@@ -100,7 +100,6 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
     <section>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">WORKBENCH</span>
           <h2>高级经营分析</h2>
           <p>默认排除已终止项目，展示当前项目经营概览。</p>
         </div>

@@ -65,22 +65,6 @@
   font-size: 20px;
   color: var(--ink);
 }
-.app-shell .primary-button,
-.app-shell .secondary-button {
-  padding: 8px 14px;
-  min-height: 36px;
-  border-radius: 7px;
-  font-size: 13px;
-  line-height: 1.4;
-  flex: 0 0 auto;
-  align-self: center;
-  width: auto;
-}
-.app-shell .text-button {
-  font-size: 12px;
-  min-height: 30px;
-  padding: 5px 8px;
-}
 .app-shell .filter-bar {
   gap: 12px;
 }
@@ -200,16 +184,6 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
-}
-.app-modal .primary-button,
-.app-modal .secondary-button {
-  min-height: 36px;
-  padding: 8px 14px;
-  font-size: 13px;
-}
-.app-modal .text-button {
-  min-height: 32px;
-  padding: 5px 9px;
 }
 .modal-content .form-grid {
   gap: 16px;

@@ -160,12 +160,6 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-.production-list-writable .admin-row-actions .text-button {
-  padding: 3px 0;
-  font-size: 12px;
-  min-height: 30px;
-  white-space: nowrap;
-}
 .production-tags span {
   background: #f4eff1;
   color: #65565e;

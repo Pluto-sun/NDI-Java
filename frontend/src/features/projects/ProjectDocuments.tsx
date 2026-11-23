@@ -156,7 +156,7 @@ export function ProjectDocuments({
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
-          <button type="submit" className="secondary-button" disabled={busy || !file}>
+          <button type="submit" className="primary-button" disabled={busy || !file}>
             {busy ? '上传并校验中…' : '上传资料'}
           </button>
         </form>
@@ -171,13 +171,17 @@ export function ProjectDocuments({
                   {purposes[item.purposeCode]} · {dateTime(item.completedAt)}
                 </small>
               </div>
-              <button type="button" className="text-button" onClick={() => void download(item)}>
+              <button
+                type="button"
+                className="secondary-button compact-button"
+                onClick={() => void download(item)}
+              >
                 下载
               </button>
               {!readOnly && (
                 <button
                   type="button"
-                  className="text-button"
+                  className="secondary-button compact-button danger"
                   disabled={busy}
                   onClick={() => void remove(item)}
                   aria-label={`删除资料 ${item.originalName}`}

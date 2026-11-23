@@ -138,7 +138,10 @@ export function ProjectHistory({
                     <td>{dateTime(item.submittedAt)}</td>
                     <td>
                       {[item.initiatorId, item.approverId].includes(me.id) && (
-                        <Link className="inline-link" to={`/approvals/${item.id}`}>
+                        <Link
+                          className="secondary-button compact-button"
+                          to={`/approvals/${item.id}`}
+                        >
                           查看申请
                         </Link>
                       )}

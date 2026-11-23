@@ -35,10 +35,9 @@ export function AccountSettingsPage({
     setPasswordError('');
   }
   return (
-    <>
+    <div className="form-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">ACCOUNT</span>
           <p>修改个人资料、登录账号与密码。角色及数据范围由管理员维护。</p>
         </div>
       </div>
@@ -215,7 +214,7 @@ export function AccountSettingsPage({
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 

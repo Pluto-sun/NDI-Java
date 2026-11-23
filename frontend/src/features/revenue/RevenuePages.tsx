@@ -42,7 +42,7 @@ const revenueListColumns: { label: string; width: number; numeric?: boolean }[] 
   { label: '通报项目名称', width: 220 },
   { label: '对应省分（集成）', width: 135 },
   { label: '办理状态', width: 120 },
-  { label: '操作', width: 70 },
+  { label: '操作', width: 76 },
 ];
 
 export function RevenueListPage({ admin }: { admin: boolean }) {
@@ -290,6 +290,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
                       </td>
                       <td className="sticky-list-action">
                         <Link
+                          className="secondary-button compact-button"
                           title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.month}`}
                           to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
                         >
@@ -364,7 +365,7 @@ export function NewRevenuePage() {
     }
   }
   return (
-    <>
+    <div className="form-page">
       <div className="page-heading">
         <div className="inline-actions">
           <Link className="secondary-button" to="/revenue">
@@ -403,7 +404,7 @@ export function NewRevenuePage() {
       ) : (
         !error && <Loading />
       )}
-    </>
+    </div>
   );
 }
 export function ImportRevenuePage() {

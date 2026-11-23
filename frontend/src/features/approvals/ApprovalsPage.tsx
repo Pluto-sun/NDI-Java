@@ -182,7 +182,7 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
               {error}
               <button
                 type="button"
-                className="inline-link"
+                className="secondary-button compact-button"
                 onClick={() => setRevision((value) => value + 1)}
               >
                 重新加载审批列表
@@ -235,7 +235,10 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                               {item.overdue && <span className="overdue">已逾期</span>}
                             </td>
                             <td>
-                              <Link className="inline-link" to={`/approvals/${item.requestId}`}>
+                              <Link
+                                className="secondary-button compact-button"
+                                to={`/approvals/${item.requestId}`}
+                              >
                                 查看并处理
                               </Link>
                             </td>
@@ -270,7 +273,10 @@ export function ApprovalsPage({ reference }: { reference: ReferenceData }) {
                               )}
                             </td>
                             <td>
-                              <Link className="inline-link" to={`/approvals/${item.id}`}>
+                              <Link
+                                className="secondary-button compact-button"
+                                to={`/approvals/${item.id}`}
+                              >
                                 查看申请
                               </Link>
                             </td>
@@ -417,7 +423,7 @@ export function ApprovalDetailPage({
     <section>
       <div className="page-heading">
         <div>
-          <Link className="back-link" to="/approvals">
+          <Link className="secondary-button" to="/approvals">
             ← 返回审批待办
           </Link>
 
@@ -442,7 +448,10 @@ export function ApprovalDetailPage({
             <div>
               <dt>项目</dt>
               <dd>
-                <Link className="inline-link" to={`/projects/${item.projectId}`}>
+                <Link
+                  className="secondary-button compact-button"
+                  to={`/projects/${item.projectId}`}
+                >
                   {item.originalProjectName}
                 </Link>
               </dd>

@@ -4,6 +4,9 @@
   background: #faf7f8;
   font-synthesis: none;
   --red: #d82735;
+  --form-width: 960px;
+  --action-height: 36px;
+  --action-radius: 7px;
   --red-dark: #aa1b28;
   --red-soft: #fff0f1;
   --ink: #2c2023;
@@ -207,6 +210,7 @@ a {
 .page-heading {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
@@ -229,21 +233,26 @@ a {
   color: var(--red);
 }
 .primary-button,
-.secondary-button {
+.secondary-button,
+.text-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 9px 16px;
-  border-radius: 8px;
+  min-height: var(--action-height);
+  padding: 7px 14px;
+  border-radius: var(--action-radius);
   border: 1px solid transparent;
   font-weight: 700;
   font-size: 13px;
+  line-height: 1.4;
   white-space: nowrap;
   transition:
-    background 0.18s,
-    transform 0.18s,
-    box-shadow 0.18s;
+    background-color 0.18s,
+    border-color 0.18s;
+}
+:where(.primary-button, .secondary-button, .text-button):focus-visible {
+  outline: 2px solid var(--red-dark);
+  outline-offset: 2px;
 }
 .primary-button {
   background: var(--red);
@@ -252,7 +261,6 @@ a {
 }
 .primary-button:hover:not(:disabled) {
   background: var(--red-dark);
-  transform: translateY(-1px);
 }
 .secondary-button {
   background: #fff;
@@ -263,21 +271,32 @@ a {
   background: #fff7f8;
   border-color: #e6aeb5;
 }
-.text-button,
-.back-link {
-  border: 0;
-  background: none;
+.text-button {
+  min-height: 30px;
+  padding: 5px 8px;
+  background: #f7f2f3;
+  color: var(--ink);
+}
+.text-button:hover:not(:disabled) {
+  background: var(--red-soft);
   color: var(--red-dark);
-  font-weight: 700;
-  padding: 8px 0;
-  white-space: nowrap;
 }
-.text-button:hover,
-.back-link:hover {
-  text-decoration: underline;
+.compact-button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
-.back-link {
-  font-size: 13px;
+.secondary-button.danger {
+  color: var(--red-dark);
+}
+.inline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.page-heading > :is(.action-row, .inline-actions) {
+  margin: 0;
 }
 .panel {
   background: var(--surface);
@@ -761,8 +780,18 @@ label,
   margin: 26px 0 12px;
   font-size: 15px;
 }
-.draft-panel {
-  margin-bottom: 18px;
+.draft-panel > .panel-top {
+  padding: 0 0 14px;
+}
+.draft-panel > .panel-top h2 {
+  color: var(--ink);
+}
+.draft-panel > .empty-state {
+  padding: 16px 0 0;
+  text-align: start;
+}
+.draft-item strong {
+  overflow-wrap: anywhere;
 }
 .import-plans {
   margin: 18px 0;
@@ -834,6 +863,7 @@ label,
 }
 .draft-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -947,9 +977,16 @@ select:disabled {
   background: #eaf8f1;
   color: #146a46;
 }
+.form-page,
 .form-panel {
-  max-width: 960px;
-  padding: 30px;
+  width: 100%;
+  max-width: var(--form-width);
+}
+.form-panel {
+  padding: clamp(19px, 2.5vw, 30px);
+}
+.form-page > .form-panel + .form-panel {
+  margin-top: 18px;
 }
 .form-panel h2:not(:first-child) {
   margin-top: 34px;
@@ -959,6 +996,7 @@ select:disabled {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 20px;
 }
 .optional-details {
@@ -1009,11 +1047,14 @@ select:disabled {
 .category-item > label + label {
   margin-top: 10px;
 }
-.form-actions {
+.form-actions,
+.dialog-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
-  margin-top: 28px;
+  margin-top: 20px;
 }
 .detail-grid {
   display: grid;
@@ -1676,11 +1717,6 @@ select:disabled {
   font-weight: 700;
   text-decoration: underline;
 }
-button.inline-link {
-  border: 0;
-  padding: 2px 6px;
-  background: transparent;
-}
 .approval-header {
   display: flex;
   justify-content: space-between;
@@ -1847,9 +1883,6 @@ button.inline-link {
   }
   .span-two {
     grid-column: auto;
-  }
-  .form-panel {
-    padding: 19px;
   }
   .metric-list > div {
     flex-wrap: wrap;
