@@ -97,14 +97,32 @@ test('项目省市控件对齐并保留多选联动', async ({ page }) => {
   );
   const stage = page.getByRole('combobox', { name: '当前阶段' });
   await expect(city).toBeDisabled();
+  const font = (element: Element) => {
+    const css = getComputedStyle(element);
+    return [css.fontFamily, css.fontSize, css.fontWeight, css.lineHeight, css.color];
+  };
+  const stageLabel = await stage.locator('..').evaluate(font);
+  for (const label of ['归属省分', '归属地市／区县']) {
+    const caption = page.locator('.multi-select-field > span').filter({ hasText: label });
+    expect(await caption.evaluate(font)).toEqual(stageLabel);
+  }
   const style = (control: Element) => {
     const css = getComputedStyle(control);
-    return [css.height, css.borderTopColor, css.borderRadius, css.fontSize, css.backgroundImage];
+    return [
+      css.height,
+      css.borderTopColor,
+      css.borderRadius,
+      css.fontFamily,
+      css.fontSize,
+      css.fontWeight,
+      css.backgroundImage,
+    ];
   };
   expect(await province.evaluate(style)).toEqual(await stage.evaluate(style));
   await province.click();
   await page.getByRole('checkbox', { name: '广东省', exact: true }).check();
   await province.press('Escape');
+  expect(await city.evaluate(style)).toEqual(await stage.evaluate(style));
   await city.click();
   await page.getByRole('checkbox', { name: '广州市', exact: true }).check();
   await page.getByRole('checkbox', { name: '深圳市', exact: true }).check();

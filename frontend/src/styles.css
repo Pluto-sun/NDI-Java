@@ -401,10 +401,6 @@ a {
   position: relative;
   min-width: 0;
 }
-.multi-select-field > span {
-  display: block;
-  margin-bottom: 5px;
-}
 .filter-select-control {
   display: block;
   box-sizing: border-box;
@@ -611,7 +607,8 @@ tbody tr:last-child td {
   border-radius: 11px;
   margin-bottom: 16px;
 }
-label {
+label,
+.multi-select-field {
   display: grid;
   gap: 7px;
   font-size: 13px;
