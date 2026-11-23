@@ -279,7 +279,7 @@ export function ProjectsPage({
         )}
       </div>
       <form
-        className="filter-bar"
+        className="filter-bar project-list-filters"
         onSubmit={(event) => {
           event.preventDefault();
           if (invalidDateRange) {
@@ -320,7 +320,7 @@ export function ProjectsPage({
             ))}
           </Select>
         </label>
-        <label>
+        <label className="project-signing-subject">
           签约主体
           <Select
             value={advanced.signingSubjectCode}

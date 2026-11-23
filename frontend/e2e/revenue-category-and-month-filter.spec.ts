@@ -91,12 +91,20 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
 test('项目省市控件对齐并保留多选联动', async ({ page }) => {
   await page.goto('/projects');
   await chooseActor(page, ids.admin);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
   const province = page.locator('summary[aria-label="归属省分"]');
   const city = page.locator(
     'summary[aria-label="归属地市／区县"], button[aria-label="归属地市／区县"]',
   );
   const stage = page.getByRole('combobox', { name: '当前阶段' });
   await expect(city).toBeDisabled();
+  const signing = page.getByRole('combobox', { name: '签约主体' });
+  for (const control of [province, city]) {
+    expect((await control.boundingBox())!.width).toBeGreaterThan(
+      (await signing.boundingBox())!.width,
+    );
+  }
   const font = (element: Element) => {
     const css = getComputedStyle(element);
     return [css.fontFamily, css.fontSize, css.fontWeight, css.lineHeight, css.color];
@@ -119,10 +127,26 @@ test('项目省市控件对齐并保留多选联动', async ({ page }) => {
     ];
   };
   expect(await province.evaluate(style)).toEqual(await stage.evaluate(style));
+  const provincePanel = province.locator('..');
+  await province.click();
+  await expect(provincePanel).toHaveAttribute('open', '');
+  await page.getByText('查看权限范围内的项目主档，按编号、名称、行业、归属和阶段定位。').click();
+  await expect(provincePanel).not.toHaveAttribute('open');
+  await expect(province).toHaveText('全部');
+  await province.click();
+  await province.evaluate((element) => {
+    element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: window }));
+  });
+  // 浏览器失焦时，焦点去向可能是 Window。
+  expect(errors).toEqual([]);
+  await expect(provincePanel).not.toHaveAttribute('open');
   await province.click();
   await page.getByRole('checkbox', { name: '广东省', exact: true }).check();
   await province.press('Escape');
   expect(await city.evaluate(style)).toEqual(await stage.evaluate(style));
+  await city.click();
+  await page.getByRole('textbox', { name: '项目名称', exact: true }).click();
+  await expect(city.locator('..')).not.toHaveAttribute('open');
   await city.click();
   await page.getByRole('checkbox', { name: '广州市', exact: true }).check();
   await page.getByRole('checkbox', { name: '深圳市', exact: true }).check();

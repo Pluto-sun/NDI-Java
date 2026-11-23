@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 export function MultiSelect({
   label,
   values,
@@ -11,6 +13,17 @@ export function MultiSelect({
   onChange: (values: string[]) => void;
   disabledReason?: string;
 }) {
+  const panel = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      const details = panel.current;
+      if (details?.open && event.target instanceof Node && !details.contains(event.target))
+        details.open = false;
+    };
+    document.addEventListener('pointerdown', closeOutside, true);
+    return () => document.removeEventListener('pointerdown', closeOutside, true);
+  }, []);
+
   return (
     <div className="multi-select-field">
       <span>{label}</span>
@@ -25,9 +38,13 @@ export function MultiSelect({
         </button>
       ) : (
         <details
+          ref={panel}
           className="multi-select"
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget))
+            if (
+              !(event.relatedTarget instanceof Node) ||
+              !event.currentTarget.contains(event.relatedTarget)
+            )
               event.currentTarget.open = false;
           }}
           onKeyDown={(event) => {

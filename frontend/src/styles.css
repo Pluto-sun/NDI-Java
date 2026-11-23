@@ -619,6 +619,17 @@ label,
   min-width: 190px;
   flex: 1;
 }
+.project-list-filters > .project-signing-subject {
+  flex: 0 1 132px;
+  min-width: min(100%, 132px);
+}
+.project-list-filters > .multi-select-field {
+  flex: 1 1 190px;
+  min-width: min(100%, 190px);
+}
+.project-list-filters .multi-select-options label {
+  min-width: 0;
+}
 .export-field-picker {
   margin-bottom: 16px;
 }
