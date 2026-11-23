@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { chooseActor, get, ids, post } from './support/projects';
@@ -74,7 +75,7 @@ test('快照导入区分缺失、部分补录、整月完整及当月实时', as
     expect(partial.trend[0].productStages).toEqual([]);
   }
   await page.goto('/admin/historical-snapshots');
-  await page.getByLabel('快照月份', { exact: true }).fill(previous);
+  await pickMonth(page.getByLabel('快照月份', { exact: true }), previous);
   await page.getByRole('button', { name: '确认整月完整', exact: true }).click();
   await page.getByRole('button', { name: '确认完整', exact: true }).click();
   await expect(page.getByText(`${previous} 已标记为整月完整。`)).toBeVisible();

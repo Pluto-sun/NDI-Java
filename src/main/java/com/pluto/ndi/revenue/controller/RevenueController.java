@@ -41,12 +41,13 @@ public class RevenueController {
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "") String organization,
             @RequestParam(defaultValue = "") String state,
+            @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
                 service.list(
                         actor(auth),
-                        new RevenueMapper.Filter(month, province, search, state, page, size, organization)));
+                        new RevenueMapper.Filter(month, province, search, state, page, size, organization, category)));
     }
 
     @GetMapping("/reference-data")
@@ -66,13 +67,18 @@ public class RevenueController {
         return responses.success(service.detail(actor(auth), id));
     }
 
-    public record Recognize(@Min(0) long version, @NotNull Recognition recognition) {}
+    public record Recognize(@Min(0) long version, @NotNull Recognition recognition, @NotNull UUID approverId) {}
+
+    @GetMapping("/{id}/recognition-approvers")
+    public ApiResponse<List<RevenueService.Approver>> approvers(Authentication auth, @PathVariable UUID id) {
+        return responses.success(service.approvers(actor(auth), id));
+    }
 
     @PostMapping("/{id}/recognition")
     public ApiResponse<Entry> recognize(
             Authentication auth, @PathVariable UUID id, @Valid @RequestBody Recognize body) {
         return responses.success(
-                service.recognize(actor(auth), id, body.version(), body.recognition()));
+                service.recognize(actor(auth), id, body.version(), body.recognition(), body.approverId()));
     }
 
     public record Decide(

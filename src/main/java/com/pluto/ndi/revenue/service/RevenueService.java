@@ -14,7 +14,6 @@ import com.pluto.ndi.revenue.util.RevenueSourceOptions;
 import com.pluto.ndi.shared.audit.AuditWriter;
 import com.pluto.ndi.shared.web.BusinessException;
 
-import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
@@ -87,6 +86,8 @@ public class RevenueService implements RevenueRecordDeletion {
                 || f.size() > 100
                 || f.search() != null && f.search().length() > 300
                 || f.organization() != null && f.organization().length() > 300) throw invalid("查询条件无效");
+        if (f.category() != null && !f.category().isEmpty() && !Revenue.CATEGORIES.contains(f.category()))
+            throw invalid("三化分类筛选无效");
         if (f.month() != null && !f.month().isBlank()) RevenueFields.month(f.month());
         if (f.state() != null
                 && !Set.of("", "UNRECOGNIZED", "PENDING", "RECOGNIZED", "CHANGE_PENDING")
@@ -133,6 +134,8 @@ public class RevenueService implements RevenueRecordDeletion {
 
     public Entry create(UUID actor, Map<String, String> values) {
         var source = validate(actor, values);
+        if (Revenue.NETWORK.equals(source.fields().get(Revenue.CATEGORY_FIELD)))
+            throw invalid("网络化条目仅允许系统管理员通过 Excel 导入");
         if (duplicate(source)) throw conflict();
         return create(actor, source, null);
     }
@@ -145,7 +148,14 @@ public class RevenueService implements RevenueRecordDeletion {
         var sourceValues = new LinkedHashMap<>(values);
         sourceValues.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE));
         var source = validate(actor, sourceValues);
-        return new ValidatedImport(source, importRecognition(values));
+        var network = Revenue.NETWORK.equals(source.fields().get(Revenue.CATEGORY_FIELD));
+        if (network && !access.require(actor).administrator())
+            throw new BusinessException(new RevenueError(org.springframework.http.HttpStatus.FORBIDDEN,
+                    "REVENUE_NETWORK_IMPORT_FORBIDDEN", "网络化条目仅允许系统管理员导入"));
+        var recognition = network ? importRecognition(values) : null;
+        if (network && recognition == null)
+            throw invalid("网络化条目须填写大于 0 的有效认定金额、通报项目名称和对应省分（集成）");
+        return new ValidatedImport(source, recognition);
     }
 
     public Entry importEntry(UUID actor, Map<String, String> values) {
@@ -211,34 +221,41 @@ public class RevenueService implements RevenueRecordDeletion {
         audit.record(actor, "REVENUE_ENTRY", id, "REVENUE_ENTRY_DELETED", Map.of("version", version));
     }
 
-    public Entry recognize(UUID actor, UUID id, long version, Recognition input) {
-        var e = require(actor, id, true);
-        var a = access.require(actor);
-        if (!a.recognize(e.provinceId(), e.specificOrganization()))
+    public record Approver(UUID id, String displayName) {}
+
+    @Transactional(readOnly = true)
+    public List<Approver> approvers(UUID actor, UUID id) {
+        var entry = require(actor, id, false);
+        requireRecognitionScope(actor, entry);
+        return identities.findEnabledProjectUsers().stream()
+                .filter(user -> !user.id().equals(actor) && user.roleCodes().contains("GROUP_REVIEWER"))
+                .map(user -> new Approver(user.id(), user.displayName()))
+                .toList();
+    }
+
+    private void requireRecognitionScope(UUID actor, Entry entry) {
+        if (!access.require(actor).recognize(entry.provinceId(), entry.specificOrganization(),
+                entry.source().get(Revenue.CATEGORY_FIELD)))
             throw RevenueAccessService.forbidden();
+    }
+
+    public Entry recognize(UUID actor, UUID id, long version, Recognition input, UUID approver) {
+        var e = require(actor, id, true);
+        requireRecognitionScope(actor, e);
         com.pluto.ndi.shared.approval.ApprovalWorkflow.requireNoPending(
                 e.pendingRequestId() != null, RevenueService::conflict);
         if (!com.pluto.ndi.shared.approval.ApprovalWorkflow.sameVersion(e.version(), version))
             throw conflict();
+        if (approver == null || approver.equals(actor) || identities.findProjectUser(approver)
+                .filter(user -> user.roleCodes().contains("GROUP_REVIEWER")).isEmpty())
+            throw invalid("请选择一名已启用的集团审核人，且不能选择本人");
         var value = fields.recognition(input);
         var at = Instant.now(clock);
-        if (a.reviewer()) {
-            apply(actor, e, value, null, at);
-        } else {
-            var targets = identities.findEligibleStageApprovers(e.provinceId());
-            if (targets.size() != 1) throw invalid("本省尚未配置有效的唯一接口人，请联系管理员配置");
-            UUID approver = targets.getFirst().id();
-            if (approver.equals(actor)) throw RevenueAccessService.forbidden();
-            UUID request = UUID.randomUUID();
-            mapper.submit(request, e, actor, approver, value, at);
-            mapper.notify(approver, id, request, "SUBMITTED", "计收认定申请待审核", at);
-            audit.record(
-                    actor,
-                    "REVENUE_REQUEST",
-                    request,
-                    "REVENUE_SUBMITTED",
-                    Map.of("entryId", id, "proposed", value, "approverId", approver));
-        }
+        UUID request = UUID.randomUUID();
+        mapper.submit(request, e, actor, approver, value, at);
+        mapper.notify(approver, id, request, "SUBMITTED", "计收认定申请待审核", at);
+        audit.record(actor, "REVENUE_REQUEST", request, "REVENUE_SUBMITTED",
+                Map.of("entryId", id, "proposed", value, "approverId", approver));
         mapper.bump(id, at);
         return require(actor, id, false);
     }
@@ -275,11 +292,8 @@ public class RevenueService implements RevenueRecordDeletion {
         if (decision.equals("WITHDRAWN")) {
             if (!r.initiatorId().equals(actor)) throw RevenueAccessService.forbidden();
         } else {
-            if (!a.reviewer()
-                    || actor.equals(r.initiatorId())
-                    || !actor.equals(r.approverId())
-                    || !a.recognize(e.provinceId(), e.specificOrganization())
-                    || !identities.isEligibleStageApprover(actor, e.provinceId()))
+            if (!a.groupApprover() || actor.equals(r.initiatorId()) || !actor.equals(r.approverId())
+                    || !Revenue.REVIEWED_CATEGORIES.contains(e.source().getOrDefault(Revenue.CATEGORY_FIELD, "")))
                 throw RevenueAccessService.forbidden();
             com.pluto.ndi.shared.approval.ApprovalWorkflow.requireOpinion(
                     !decision.equals("REJECTED"), text, () -> invalid("驳回必须填写审核意见"));
@@ -349,15 +363,7 @@ public class RevenueService implements RevenueRecordDeletion {
     @Transactional(readOnly = true)
     public List<Request> pending(UUID actor) {
         var a = access.require(actor);
-        if (!a.reviewer()) return List.of();
-        return mapper.assigned(actor).stream()
-                .filter(
-                        r -> {
-                            var e = require(actor, r.entryId(), false);
-                            return a.recognize(e.provinceId(), e.specificOrganization())
-                                    && identities.isEligibleStageApprover(actor, e.provinceId());
-                        })
-                .toList();
+        return a.groupApprover() ? mapper.assigned(actor) : List.of();
     }
 
     @Transactional(readOnly = true)
@@ -384,40 +390,6 @@ public class RevenueService implements RevenueRecordDeletion {
     public void read(UUID actor, UUID notice) {
         access.require(actor);
         mapper.read(actor, notice, Instant.now(clock));
-    }
-
-    @EventListener
-    @Transactional(propagation = Propagation.MANDATORY)
-    public void handover(ReviewerScopeChanged event) {
-        for (var province : event.provinceIds().stream().sorted().toList()) {
-            var targets = identities.findEligibleStageApprovers(province);
-            if (targets.size() != 1) continue;
-            UUID target = targets.getFirst().id();
-            for (var id : mapper.pendingEntries(province)) {
-                var a = access.require(target);
-                var e = mapper.find(id, a, true).orElseThrow();
-                if (e.pendingRequestId() == null) continue;
-                var r = request(e.pendingRequestId(), true);
-                if (!r.status().equals("PENDING") || r.approverId().equals(target)) continue;
-                if (r.initiatorId().equals(target)) throw invalid("计收待审申请不能交接给发起人本人");
-                mapper.reassign(r.id(), target);
-                var at = Instant.now(clock);
-                mapper.notify(target, e.id(), r.id(), "REASSIGNED", "接口人交接：计收认定申请待审核", at);
-                mapper.notify(r.approverId(), e.id(), r.id(), "TRANSFERRED", "计收认定待办已交接给新接口人", at);
-                audit.record(
-                        event.actorId(),
-                        "REVENUE_REQUEST",
-                        r.id(),
-                        "REVENUE_REASSIGNED",
-                        Map.of(
-                                "previousApproverId",
-                                r.approverId(),
-                                "approverId",
-                                target,
-                                "provinceId",
-                                province));
-            }
-        }
     }
 
     private static BusinessException invalid(String text) {

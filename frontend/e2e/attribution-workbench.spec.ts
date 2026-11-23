@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids, createProject, get } from './support/projects';
 import { randomUUID } from 'node:crypto';
@@ -18,8 +19,8 @@ test('所属月份区间统计与月末快照分开，支持阶段、金额、�
     year: 'numeric',
     month: '2-digit',
   }).format(new Date());
-  await panel.getByLabel('所属月份起始', { exact: true }).fill(currentMonth);
-  await panel.getByLabel('所属月份结束', { exact: true }).fill(currentMonth);
+  await pickMonth(panel.getByLabel('所属月份起始', { exact: true }), currentMonth);
+  await pickMonth(panel.getByLabel('所属月份结束', { exact: true }), currentMonth);
   await expect(panel.getByRole('button', { name: '查询所属月份统计', exact: true })).toBeEnabled();
   await panel
     .getByRole('group', { name: '所属月份统计阶段', exact: true })
@@ -41,8 +42,8 @@ test('所属月份区间统计与月末快照分开，支持阶段、金额、�
   await expect(
     panel.getByRole('table', { name: '按项目所属月份的阶段指标明细：5G工业专网金额', exact: true }),
   ).toBeVisible();
-  await panel.getByLabel('所属月份起始', { exact: true }).fill('1999-01');
-  await panel.getByLabel('所属月份结束', { exact: true }).fill('1999-02');
+  await pickMonth(panel.getByLabel('所属月份起始', { exact: true }), '1999-01');
+  await pickMonth(panel.getByLabel('所属月份结束', { exact: true }), '1999-02');
   await panel.getByRole('button', { name: '查询所属月份统计', exact: true }).click();
   await expect(
     panel.locator('.kpi').filter({ hasText: '区间项目数量' }).locator('strong'),

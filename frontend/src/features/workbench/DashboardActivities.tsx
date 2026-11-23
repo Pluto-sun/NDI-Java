@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -45,26 +46,26 @@ export function DashboardActivities({
             if (from && to && from <= to) setRange({ from, to });
           }}
         >
-          <label>
+          <div className="month-filter-field">
             变动月份起始
-            <input
-              type="month"
+            <MonthPicker
+              aria-label="变动月份起始"
               value={from}
               max={to}
               required
-              onChange={(event) => setFrom(event.target.value)}
+              onChange={(selectedMonth) => setFrom(selectedMonth)}
             />
-          </label>
-          <label>
+          </div>
+          <div className="month-filter-field">
             变动月份结束
-            <input
-              type="month"
+            <MonthPicker
+              aria-label="变动月份结束"
               value={to}
               min={from}
               required
-              onChange={(event) => setTo(event.target.value)}
+              onChange={(selectedMonth) => setTo(selectedMonth)}
             />
-          </label>
+          </div>
           <button className="secondary-button" disabled={busy}>
             查询变动
           </button>

@@ -405,23 +405,88 @@ a {
   display: block;
   margin-bottom: 5px;
 }
-.multi-select > summary {
+.filter-select-control {
   display: block;
-  cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 11px;
+  border: 1px solid #dfd3d7;
   border-radius: 8px;
-  padding: 8px 28px 8px 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  list-style: none;
 }
-.multi-select > summary::after {
-  content: '⌄';
+.filter-select-control::-webkit-details-marker {
+  display: none;
+}
+.filter-select-control:focus-visible {
+  outline: 2px solid var(--accent, #ad1331);
+  outline-offset: 2px;
+}
+.filter-select-control:hover {
+  border-color: #c8adb4;
+}
+.filter-select-control:disabled {
+  cursor: not-allowed;
+  color: #76696e;
+  background-color: #f8f5f6;
+  opacity: 1;
+}
+.month-picker {
+  position: relative;
+  min-width: 110px;
+}
+.month-picker-panel {
   position: absolute;
-  right: 10px;
-  top: 8px;
+  inset-inline-start: 0;
+  top: calc(100% + 4px);
+  width: min(15rem, calc(100vw - 40px));
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px #30202626;
 }
+.month-picker-year {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.month-picker-grid button {
+  padding-inline: 4px;
+}
+.month-picker-grid button[aria-pressed='true'] {
+  border-color: #ad1331;
+  color: #ad1331;
+}
+.revenue-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.revenue-category-tabs button[aria-pressed='true'] {
+  background: #f9e9ed;
+  border-color: #ad1331;
+  color: #93152d;
+}
+
 .multi-select-options {
   position: absolute;
   inset-inline: 0;
@@ -2003,4 +2068,18 @@ button.inline-link {
   .project-category-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.month-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.filter-bar .month-filter-field {
+  min-width: min(190px, 100%);
+  flex: 1;
 }

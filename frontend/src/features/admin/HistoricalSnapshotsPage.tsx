@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { requestAt } from '../../shared/api/http';
@@ -55,15 +56,15 @@ export function HistoricalSnapshotsPage() {
           setMessage('');
         }}
       >
-        <label>
+        <div className="month-filter-field">
           快照月份
-          <input
-            type="month"
+          <MonthPicker
+            aria-label="快照月份"
             required
             value={month}
-            onChange={(event) => setMonth(event.target.value)}
+            onChange={(selectedMonth) => setMonth(selectedMonth)}
           />
-        </label>
+        </div>
         <button className="secondary-button" disabled={busy}>
           确认整月完整
         </button>

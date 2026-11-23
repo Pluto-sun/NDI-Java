@@ -18,7 +18,7 @@ test('全国只读角色查看和下载真实资料，但无上传删除及业�
   const group = '77777777-7777-4777-8777-777777777777';
   await page.getByRole('button', { name: '切换测试账号', exact: true }).click();
   await chooseActor(page, group);
-  await expect(page.getByLabel('月份', { exact: true })).toHaveValue('2026-09');
+  await expect(page.getByLabel('月份', { exact: true })).toHaveText('2026-09');
   await expect(page.getByRole('heading', { name: '项目资料', exact: true })).toBeVisible();
   await expect(page.getByText('只读验收.pdf', { exact: true })).toBeVisible();
   await expect(

@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ReferenceData } from '../projects/types';
@@ -144,27 +145,27 @@ export function WorkbenchPage({ reference }: { reference: ReferenceData }) {
               if (from && to && from <= to) setRange({ from, to });
             }}
           >
-            <label>
+            <div className="month-filter-field">
               所属月份起始
-              <input
-                type="month"
+              <MonthPicker
+                aria-label="所属月份起始"
                 value={from}
                 max={to}
                 min="1000-01"
                 required
-                onChange={(event) => setFrom(event.target.value)}
+                onChange={(selectedMonth) => setFrom(selectedMonth)}
               />
-            </label>
-            <label>
+            </div>
+            <div className="month-filter-field">
               所属月份结束
-              <input
-                type="month"
+              <MonthPicker
+                aria-label="所属月份结束"
                 value={to}
                 min={from}
                 required
-                onChange={(event) => setTo(event.target.value)}
+                onChange={(selectedMonth) => setTo(selectedMonth)}
               />
-            </label>
+            </div>
             <button className="primary-button" disabled={main.busy}>
               应用月份
             </button>

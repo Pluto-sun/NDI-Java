@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -193,24 +194,24 @@ export function AdvancedWorkbench({ reference }: { reference: ReferenceData }) {
               跨月审批通过后，会修订对应历史月份。
             </p>
             <div className="filter-bar">
-              <label>
+              <div className="month-filter-field">
                 趋势起始月份
-                <input
-                  type="month"
+                <MonthPicker
+                  aria-label="趋势起始月份"
                   value={fromMonth}
                   max={month}
-                  onChange={(event) => setFromMonth(event.target.value)}
+                  onChange={(selectedMonth) => setFromMonth(selectedMonth)}
                 />
-              </label>
-              <label>
+              </div>
+              <div className="month-filter-field">
                 报表／趋势结束月份
-                <input
-                  type="month"
+                <MonthPicker
+                  aria-label="报表／趋势结束月份"
                   value={month}
                   min={fromMonth}
-                  onChange={(event) => setMonth(event.target.value)}
+                  onChange={(selectedMonth) => setMonth(selectedMonth)}
                 />
-              </label>
+              </div>
               <label className="checkbox-label">
                 <input
                   type="checkbox"

@@ -27,13 +27,11 @@ function RecognitionForm({
   reference,
   onSaved,
   onClose,
-  reviewer,
 }: {
   entry: Entry;
   reference: Reference;
   onSaved: () => void;
   onClose: () => void;
-  reviewer: boolean;
 }) {
   const [value, setValue] = useState({
       amount: String(entry.recognition?.amount ?? ''),
@@ -44,6 +42,22 @@ function RecognitionForm({
     }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [approvers, setApprovers] = useState<{ id: string; displayName: string }[] | null>(null);
+  const [approverId, setApproverId] = useState('');
+  useEffect(() => {
+    let active = true;
+    revenueApi
+      .approvers(entry.id)
+      .then((users) => {
+        if (active) setApprovers(users);
+      })
+      .catch((failure) => {
+        if (active) setError(message(failure));
+      });
+    return () => {
+      active = false;
+    };
+  }, [entry.id]);
   async function save(e: FormEvent) {
     e.preventDefault();
     const amount = Number(value.amount.replaceAll(',', ''));
@@ -56,11 +70,15 @@ function RecognitionForm({
     try {
       const { integratedTarget, ...recognition } = value;
       const isOrganization = reference.integratedOrganizations.includes(integratedTarget);
-      await revenueApi.recognize(entry, {
-        ...recognition,
-        integratedProvinceId: isOrganization ? null : integratedTarget || null,
-        integratedOrganization: isOrganization ? integratedTarget : null,
-      });
+      await revenueApi.recognize(
+        entry,
+        {
+          ...recognition,
+          integratedProvinceId: isOrganization ? null : integratedTarget || null,
+          integratedOrganization: isOrganization ? integratedTarget : null,
+        },
+        approverId,
+      );
       refreshNotificationCounts();
       onSaved();
     } catch (e) {
@@ -75,9 +93,26 @@ function RecognitionForm({
         {error && <Feedback tone="error">{error}</Feedback>}
         <p>
           条款金额 {money(entry.clauseAmount)} 元；来源本月计收 {money(entry.sourceAmount)} 元。
-          {reviewer ? '本次保存直接生效。' : '提交后由本省接口人审核，审核前保留当前结果。'}
+          指定集团审核人，审核通过前保留当前认定结果。
         </p>
+        {approvers?.length === 0 && <Feedback tone="error">当前没有可选的集团审核人。</Feedback>}
         <div className="form-grid">
+          <label>
+            集团审核人
+            <Select
+              required
+              disabled={!approvers?.length}
+              value={approverId}
+              onChange={(event) => setApproverId(event.target.value)}
+            >
+              <option value="">请选择集团审核人</option>
+              {approvers?.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.displayName}
+                </option>
+              ))}
+            </Select>
+          </label>
           <label>
             认定金额（元）
             <input
@@ -131,8 +166,8 @@ function RecognitionForm({
           <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>
             取消
           </button>
-          <button className="primary-button" disabled={busy}>
-            {reviewer ? '保存认定' : '提交审核'}
+          <button className="primary-button" disabled={busy || !approverId}>
+            提交审核
           </button>
         </div>
       </form>
@@ -286,8 +321,8 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
                       </button>
                     )}
                     {r.approverId === me.id &&
-                      me.roleCodes.includes('INTERFACE_REVIEWER') &&
-                      !reference.canCreate && (
+                      me.roleCodes.includes('GROUP_REVIEWER') &&
+                      r.initiatorId !== me.id && (
                         <>
                           <button
                             className="primary-button"
@@ -327,11 +362,10 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
             <RecognitionForm
               entry={entry}
               reference={reference}
-              reviewer={me.roleCodes.includes('INTERFACE_REVIEWER')}
               onClose={() => setEditing(false)}
               onSaved={() => {
                 setEditing(false);
-                setNotice('认定操作已保存');
+                setNotice('认定申请已提交');
                 void load().catch((e) => setError(message(e)));
               }}
             />

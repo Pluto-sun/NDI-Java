@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from './api';
@@ -209,10 +210,14 @@ export function ProjectHistory({
         历史月份仅在快照生成后可查询。审批跨月通过时，相关项目的历史数字可能被修订。
       </p>
       <div className="action-row">
-        <label>
+        <div className="month-filter-field">
           月份
-          <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-        </label>
+          <MonthPicker
+            aria-label="月份"
+            value={month}
+            onChange={(selectedMonth) => setMonth(selectedMonth)}
+          />
+        </div>
         <button
           className="secondary-button"
           type="button"

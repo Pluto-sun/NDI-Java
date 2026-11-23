@@ -19,13 +19,35 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
-    {
-      name: 'small-screen',
-      use: { viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' },
-    },
-  ],
+  projects:
+    process.env.NDI_E2E_BROWSER_MATRIX === '1'
+      ? [
+          { name: 'chrome', use: { channel: 'chrome', viewport: { width: 1440, height: 1000 } } },
+          {
+            name: 'firefox',
+            use: { browserName: 'firefox', viewport: { width: 1440, height: 1000 } },
+          },
+          {
+            name: 'edge',
+            use: {
+              ...(process.env.NDI_E2E_EDGE_PATH
+                ? { launchOptions: { executablePath: process.env.NDI_E2E_EDGE_PATH } }
+                : { channel: 'msedge' }),
+              viewport: { width: 1440, height: 1000 },
+            },
+          },
+          {
+            name: 'small-screen',
+            use: { viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' },
+          },
+        ]
+      : [
+          { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
+          {
+            name: 'small-screen',
+            use: { viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' },
+          },
+        ],
   webServer: {
     command: 'npm run dev -- --port 15173 --strictPort',
     url: 'http://127.0.0.1:15173',

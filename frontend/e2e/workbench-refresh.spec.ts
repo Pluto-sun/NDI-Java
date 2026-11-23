@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { chooseActor, createProject, ids } from './support/projects';
@@ -38,8 +39,8 @@ test('当前工作台定时刷新且失败保留旧值，隐藏及离开页面�
   await refresh.click();
   const count = page.locator('.kpi').filter({ hasText: '项目总数' }).locator('strong');
   await expect(count).toBeVisible();
-  await page.getByLabel('趋势起始月份', { exact: true }).fill('2020-01');
-  await page.getByLabel('报表／趋势结束月份', { exact: true }).fill('2020-01');
+  await pickMonth(page.getByLabel('趋势起始月份', { exact: true }), '2020-01');
+  await pickMonth(page.getByLabel('报表／趋势结束月份', { exact: true }), '2020-01');
   await page.getByRole('button', { name: '查看月报与趋势', exact: true }).click();
   const historicalCount = page
     .locator('.kpi')

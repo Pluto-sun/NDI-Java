@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { chooseActor, get, ids } from './support/projects';
@@ -23,7 +24,7 @@ async function checkSticky(page: Page) {
   });
   const header = page.getByRole('banner');
   await expect.poll(async () => (await header.boundingBox())?.y).toBe(0);
-  const control = header.locator('input[type=month], button[aria-pressed]').first();
+  const control = header.locator('summary[aria-label], button[aria-pressed]').first();
   await expect(control).toBeInViewport();
   await control.click({ trial: true });
 }
@@ -85,7 +86,7 @@ test('排产跨月汇总去重、产品金额精确、城市范围和固定标�
   await chooseActor(page, ids.admin);
   await expect(page.getByTestId('dashboard-total-count')).toHaveText('2');
   await checkSticky(page);
-  await page.getByLabel('排产月份结束月').fill(year + '-02');
+  await pickMonth(page.getByLabel('排产月份结束月', { exact: true }), year + '-02');
   await expect(page.getByTestId('dashboard-total-amount')).toHaveText('29.0003');
   await expect(page.getByRole('table', { name: '省分分布' }).locator('tbody tr')).toHaveCount(1);
   await page.screenshot({ path: info.outputPath('scheduling-dashboard.png'), fullPage: true });
@@ -122,7 +123,7 @@ test('计收月账期口径、未认定记录、具体组织与省内权限', as
   await expect(page.getByRole('rowheader', { name: '未归属', exact: true })).toBeVisible();
   await expect(page.getByRole('rowheader', { name: '数科', exact: true })).toBeVisible();
   await checkSticky(page);
-  await page.getByLabel('月账期起始月').fill(month.replace('-02', '-01'));
+  await pickMonth(page.getByLabel('月账期起始月', { exact: true }), month.replace('-02', '-01'));
   await expect(page.getByTestId('dashboard-total-count')).toHaveText('4');
   await page.screenshot({ path: info.outputPath('revenue-dashboard.png') });
 });

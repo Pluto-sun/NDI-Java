@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids, createProject, get } from './support/projects';
@@ -26,18 +27,18 @@ test('地图所属月份区间与总览同口径，省份下钻保留区间且�
   await map
     .getByRole('combobox', { name: '地图统计口径', exact: true })
     .selectOption('ATTRIBUTION');
-  await map.getByLabel('地图所属月份起始', { exact: true }).fill(current);
-  await map.getByLabel('地图所属月份结束', { exact: true }).fill(current);
+  await pickMonth(map.getByLabel('地图所属月份起始', { exact: true }), current);
+  await pickMonth(map.getByLabel('地图所属月份结束', { exact: true }), current);
   const province = map.locator('.map-regions li').filter({ hasText: '本地演示省' });
   await expect(province.locator('small')).toHaveText(
     `${expected.projectCount} 个项目 · 总金额 ${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(expected.totalExpectedAmount)} 万元`,
   );
   await province.getByRole('button').click();
-  await expect(map.getByLabel('地图所属月份起始', { exact: true })).toHaveValue(current);
+  await expect(map.getByLabel('地图所属月份起始', { exact: true })).toHaveText(current);
   await expect(map.getByRole('heading', { name: '地市统计', exact: true })).toBeVisible();
   await expect(map.locator('.map-regions a')).toHaveCount(0);
-  await map.getByLabel('地图所属月份起始', { exact: true }).fill('1999-01');
-  await map.getByLabel('地图所属月份结束', { exact: true }).fill('1999-02');
+  await pickMonth(map.getByLabel('地图所属月份起始', { exact: true }), '1999-01');
+  await pickMonth(map.getByLabel('地图所属月份结束', { exact: true }), '1999-02');
   await expect(
     map.locator('.map-regions li').filter({ hasText: '本地演示市' }).locator('small'),
   ).toHaveText('0 个项目 · 总金额 0 万元');

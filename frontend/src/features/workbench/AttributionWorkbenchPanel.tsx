@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { projectsApi } from '../projects/api';
@@ -89,26 +90,26 @@ export function AttributionWorkbenchPanel({ reference }: { reference: ReferenceD
         }}
       >
         <div className="filter-bar">
-          <label>
+          <div className="month-filter-field">
             所属月份起始
-            <input
-              type="month"
+            <MonthPicker
+              aria-label="所属月份起始"
               value={from}
               max={to}
               required
-              onChange={(event) => setFrom(event.target.value)}
+              onChange={(selectedMonth) => setFrom(selectedMonth)}
             />
-          </label>
-          <label>
+          </div>
+          <div className="month-filter-field">
             所属月份结束
-            <input
-              type="month"
+            <MonthPicker
+              aria-label="所属月份结束"
               value={to}
               min={from}
               required
-              onChange={(event) => setTo(event.target.value)}
+              onChange={(selectedMonth) => setTo(selectedMonth)}
             />
-          </label>
+          </div>
           <label>
             归属省分
             <Select

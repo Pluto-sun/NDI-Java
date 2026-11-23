@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import './production.css';
 import { ListPagination } from '../../shared/ui/ListPagination';
@@ -123,14 +124,14 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
           setParams(next);
         }}
       >
-        <label>
+        <div className="month-filter-field">
           排产月份
-          <input
-            type="month"
+          <MonthPicker
+            aria-label="排产月份"
             value={draft.month ?? ''}
-            onChange={(e) => change('month', e.target.value)}
+            onChange={(selectedMonth) => change('month', selectedMonth)}
           />
-        </label>
+        </div>
         <label>
           省份
           <Select

@@ -88,6 +88,8 @@ public class RevenueFields {
         for (var field : FIELDS)
             if (REQUIRED.contains(field) && values.get(field).isBlank())
                 throw invalid(field + "必填");
+        if (!Revenue.CATEGORIES.contains(values.get(Revenue.CATEGORY_FIELD)))
+            throw invalid("三化分类须为网络化、数字化或智能化");
         String month = month(values.get("月账期"));
         values.put("月账期", month);
         if (!values.get("费用账期").isBlank()) values.put("费用账期", month(values.get("费用账期")));

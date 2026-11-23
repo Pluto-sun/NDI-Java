@@ -65,7 +65,8 @@
   gap: 12px;
   padding: 16px;
 }
-.revenue-list-filters label {
+.revenue-list-filters label,
+.filter-bar.revenue-list-filters > .month-filter-field {
   min-width: 0;
 }
 .revenue-list-filters input,
@@ -240,7 +241,7 @@
   .revenue-filter-actions {
     grid-column: 1 / -1;
   }
-  .revenue-list-filters label:first-child {
+  .revenue-list-filters > .month-filter-field {
     grid-column: 1 / -1;
   }
   .revenue-list-heading .inline-actions {

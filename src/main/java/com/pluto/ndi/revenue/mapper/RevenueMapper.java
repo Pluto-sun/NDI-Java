@@ -36,7 +36,10 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
 """;
 
     public record Filter(
-            String month, String province, String search, String state, int page, int size, String organization) {
+            String month, String province, String search, String state, int page, int size, String organization, String category) {
+        public Filter(String month, String province, String search, String state, int page, int size, String organization) {
+            this(month, province, search, state, page, size, organization, null);
+        }
         public Filter(String month, String province, String search, String state, int page, int size) {
             this(month, province, search, state, page, size, null);
         }
@@ -155,6 +158,10 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             args.addValue("organization", "%" + f.organization().strip().replace("!", "!!")
                     .replace("%", "!%").replace("_", "!_") + "%");
         }
+        if (f.category() != null && !f.category().isEmpty()) {
+            sql.append(" AND JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"三化分类\"'))=:category");
+            args.addValue("category", f.category());
+        }
         String pending =
                 "EXISTS(SELECT 1 FROM revenue_recognition_request r WHERE r.entry_id=e.id AND"
                         + " r.status='PENDING')";
@@ -226,6 +233,7 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                 pending == null
                         ? (value == null ? "UNRECOGNIZED" : "RECOGNIZED")
                         : (value == null ? "PENDING" : "CHANGE_PENDING");
+        var source = decodeMap(r.getString("source_fields"));
         return new Entry(
                 uuid(r.getString("eid")),
                 r.getLong("version_no"),
@@ -236,14 +244,14 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                 r.getString("clause_no"),
                 r.getBigDecimal("clause_amount"),
                 r.getBigDecimal("source_amount"),
-                decodeMap(r.getString("source_fields")),
+                source,
                 value,
                 r.getTimestamp("created_at").toInstant(),
                 instant(r, "recognized_at"),
                 uuid(r.getString("recognizer")),
                 state,
                 pending,
-                pending == null && a.recognize(province, org));
+                pending == null && a.recognize(province, org, source.get("三化分类")));
     }
 
     public Set<Source> existingDuplicates(List<Source> sources) {
@@ -409,7 +417,7 @@ SELECT r.*,BIN_TO_UUID(r.id) rid,BIN_TO_UUID(r.entry_id) entry,
     public List<Request> assigned(UUID actor) {
         return jdbc.query(
                 REQUEST_SELECT
-                        + " WHERE r.approver_id=UUID_TO_BIN(:id) AND r.status='PENDING' ORDER BY"
+                        + " WHERE r.approver_id=UUID_TO_BIN(:id) AND r.status='PENDING' AND EXISTS (SELECT 1 FROM revenue_entry e WHERE e.id=r.entry_id AND e.active_key=1) ORDER BY"
                         + " r.created_at,r.id LIMIT 1000",
                 Map.of("id", str(actor)),
                 (r, n) -> request(r));
@@ -506,23 +514,6 @@ FROM revenue_recognition_history h JOIN identity_user_account a ON a.id=h.actor_
                 Map.of("id", str(notice), "actor", str(actor), "at", Timestamp.from(at)));
     }
 
-    public List<UUID> pendingEntries(UUID province) {
-        return jdbc.query(
-                "SELECT BIN_TO_UUID(e.id) FROM revenue_entry e JOIN revenue_recognition_request r"
-                        + " ON r.entry_id=e.id AND r.status='PENDING' WHERE"
-                        + " e.province_id=UUID_TO_BIN(:province) ORDER BY e.id",
-                Map.of("province", str(province)),
-                (r, n) -> uuid(r.getString(1)));
-    }
-
-    public void reassign(UUID request, UUID target) {
-        jdbc.update(
-                "UPDATE revenue_recognition_request SET"
-                        + " approver_id=UUID_TO_BIN(:target),version_no=version_no+1 WHERE"
-                        + " id=UUID_TO_BIN(:id)",
-                Map.of("id", str(request), "target", str(target)));
-    }
-
     public record Counts(long unread, long pending) {}
 
     public Counts counts(Access access) {
@@ -540,26 +531,10 @@ FROM revenue_recognition_history h JOIN identity_user_account a ON a.id=h.actor_
                                 + scope,
                         parameters,
                         Long.class);
-        long pending = 0;
-        if (access.reviewer() && !access.user().reviewerProvinceIds().isEmpty()) {
-            var ids =
-                    access.user().reviewerProvinceIds().stream()
-                            .map(
-                                    id ->
-                                            java.nio.ByteBuffer.allocate(16)
-                                                    .putLong(id.getMostSignificantBits())
-                                                    .putLong(id.getLeastSignificantBits())
-                                                    .array())
-                            .toList();
-            parameters.addValue("provinces", ids);
-            pending =
-                    jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM revenue_recognition_request r JOIN revenue_entry"
-                                + " e ON e.id=r.entry_id WHERE r.approver_id=UUID_TO_BIN(:actor)"
-                                + " AND r.status='PENDING' AND e.province_id IN (:provinces)",
-                            parameters,
-                            Long.class);
-        }
+        long pending = access.groupApprover() ? jdbc.queryForObject(
+                "SELECT COUNT(*) FROM revenue_recognition_request r JOIN revenue_entry e ON e.id=r.entry_id"
+                    + " WHERE r.approver_id=UUID_TO_BIN(:actor) AND r.status='PENDING' AND e.active_key=1",
+                parameters, Long.class) : 0;
         return new Counts(unread, pending);
     }
 

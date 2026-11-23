@@ -85,7 +85,8 @@
   gap: 12px;
 }
 .app-shell input,
-.app-shell select {
+.app-shell select,
+.app-shell .filter-select-control {
   min-height: 38px;
   padding: 8px 11px;
   font-size: 13px;

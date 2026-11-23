@@ -1,6 +1,7 @@
 package com.pluto.ndi.revenue.service;
 
 import com.pluto.ndi.identity.service.*;
+import com.pluto.ndi.revenue.domain.Revenue;
 import com.pluto.ndi.revenue.domain.RevenueError;
 import com.pluto.ndi.shared.web.BusinessException;
 
@@ -27,16 +28,17 @@ public class RevenueAccessService {
                             && Objects.equals(user.provinceId(), province);
         }
 
-        public boolean recognize(UUID province, boolean organization) {
-            if (creator) return false;
-            return reviewer
-                    ? organization
-                            || province == null
-                            || user.reviewerProvinceIds().contains(province)
-                    : province != null
-                            && !organization
-                            && local
-                            && Objects.equals(user.provinceId(), province);
+        public boolean recognize(UUID province, boolean organization, String category) {
+            return reviewer && Revenue.REVIEWED_CATEGORIES.contains(Objects.toString(category, ""))
+                    && (organization || province == null || user.reviewerProvinceIds().contains(province));
+        }
+
+        public boolean groupApprover() {
+            return user.roleCodes().contains("GROUP_REVIEWER");
+        }
+
+        public boolean administrator() {
+            return user.roleCodes().contains("SYSTEM_ADMIN");
         }
     }
 
@@ -50,7 +52,7 @@ public class RevenueAccessService {
         boolean creator =
                 roles.stream()
                         .anyMatch(Set.of("SYSTEM_ADMIN", "GROUP_REVIEWER", "DS_TECH")::contains);
-        boolean reviewer = !creator && roles.contains("INTERFACE_REVIEWER");
+        boolean reviewer = roles.contains("INTERFACE_REVIEWER");
         boolean local =
                 roles.stream()
                         .anyMatch(

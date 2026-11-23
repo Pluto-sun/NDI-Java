@@ -573,7 +573,7 @@
 .dashboard-inline-filters select {
   min-width: 0;
 }
-.dashboard-inline-filters input[type='month'] {
+.dashboard-inline-filters .month-picker {
   width: 170px;
 }
 .dashboard-inline-filters .checkbox-label {
@@ -664,7 +664,7 @@
   .dashboard-inline-filters label {
     width: 100%;
   }
-  .dashboard-inline-filters input[type='month'],
+  .dashboard-inline-filters .month-picker,
   .dashboard-inline-filters select {
     width: 100%;
     max-width: none;

@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { requestAt } from '../../shared/api/http';
@@ -62,22 +63,20 @@ export function DashboardControls({ module }: { module: Module }) {
   return (
     <div className="module-dashboard-months" role="group" aria-label={title + '范围'}>
       <span>{title}</span>
-      <input
-        type="month"
+      <MonthPicker
         min="1900-01"
         max="9999-12"
         aria-label={title + '起始月'}
         value={from}
-        onChange={(event) => update('from', event.target.value)}
+        onChange={(selectedMonth) => update('from', selectedMonth)}
       />
       <span aria-hidden="true">至</span>
-      <input
-        type="month"
+      <MonthPicker
         min="1900-01"
         max="9999-12"
         aria-label={title + '结束月'}
         value={to}
-        onChange={(event) => update('to', event.target.value)}
+        onChange={(selectedMonth) => update('to', selectedMonth)}
       />
     </div>
   );

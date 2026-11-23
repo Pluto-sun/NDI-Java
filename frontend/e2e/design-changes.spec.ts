@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { ids, chooseActor, get, post } from './support/projects';
@@ -11,18 +12,18 @@ test('四区月份独立，阶段切换保留时间，地图支持缩放和键�
   const region = page.getByRole('form', { name: '区域时间筛选', exact: true });
   const trend = page.getByRole('form', { name: '趋势时间筛选', exact: true });
   const activity = page.getByRole('form', { name: '近期变动时间筛选', exact: true });
-  const original = await activity.getByLabel('变动月份起始', { exact: true }).inputValue();
+  const original = await activity.getByLabel('变动月份起始', { exact: true }).textContent();
   const requests: URL[] = [];
   page.on('request', (request) => {
     if (request.url().includes('/workbench/dashboard?')) requests.push(new URL(request.url()));
   });
-  await main.getByLabel('所属月份起始', { exact: true }).fill('2000-01');
-  await main.getByLabel('所属月份结束', { exact: true }).fill('2000-01');
+  await pickMonth(main.getByLabel('所属月份起始', { exact: true }), '2000-01');
+  await pickMonth(main.getByLabel('所属月份结束', { exact: true }), '2000-01');
   await main.getByRole('button', { name: '应用月份', exact: true }).click();
   await expect(page.locator('.dashboard-kpi').first().locator('strong').first()).toHaveText('0');
-  await expect(region.getByLabel('区域月份起始', { exact: true })).toHaveValue(original);
-  await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveValue(original);
-  await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveValue(original);
+  await expect(region.getByLabel('区域月份起始', { exact: true })).toHaveText(original);
+  await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveText(original);
+  await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveText(original);
   expect(
     requests
       .filter((url) => url.searchParams.get('from') === '2000-01')
@@ -32,21 +33,21 @@ test('四区月份独立，阶段切换保留时间，地图支持缩放和键�
     [region, '区域', '2001'],
     [trend, '趋势', '2002'],
   ] as const) {
-    await form.getByLabel(`${label}月份起始`, { exact: true }).fill(`${year}-01`);
-    await form.getByLabel(`${label}月份结束`, { exact: true }).fill(`${year}-01`);
+    await pickMonth(form.getByLabel(`${label}月份起始`, { exact: true }), `${year}-01`);
+    await pickMonth(form.getByLabel(`${label}月份结束`, { exact: true }), `${year}-01`);
     await form.getByRole('button', { name: `应用${label}月份`, exact: true }).click();
   }
-  await activity.getByLabel('变动月份起始', { exact: true }).fill('2003-01');
-  await activity.getByLabel('变动月份结束', { exact: true }).fill('2003-01');
+  await pickMonth(activity.getByLabel('变动月份起始', { exact: true }), '2003-01');
+  await pickMonth(activity.getByLabel('变动月份结束', { exact: true }), '2003-01');
   await activity.getByRole('button', { name: '查询变动', exact: true }).click();
   await page
     .getByRole('group', { name: '项目阶段快捷筛选', exact: true })
     .getByRole('button', { name: '招投标', exact: true })
     .click();
-  await expect(main.getByLabel('所属月份起始', { exact: true })).toHaveValue('2000-01');
-  await expect(region.getByLabel('区域月份起始', { exact: true })).toHaveValue('2001-01');
-  await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveValue('2002-01');
-  await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveValue('2003-01');
+  await expect(main.getByLabel('所属月份起始', { exact: true })).toHaveText('2000-01');
+  await expect(region.getByLabel('区域月份起始', { exact: true })).toHaveText('2001-01');
+  await expect(trend.getByLabel('趋势月份起始', { exact: true })).toHaveText('2002-01');
+  await expect(activity.getByLabel('变动月份起始', { exact: true })).toHaveText('2003-01');
   await expect(page.getByText(/较上期|上期为/)).toHaveCount(0);
   const svg = page.getByRole('group', {
     name: '省分项目分布地图',

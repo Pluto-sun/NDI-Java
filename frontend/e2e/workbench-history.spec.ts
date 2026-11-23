@@ -1,3 +1,4 @@
+import { pickMonth } from './support/monthPicker';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
 
@@ -10,9 +11,9 @@ test('历史月报六指标、阶段组合、终止口径及冻结属地和行�
     .click();
   const from = page.getByLabel('趋势起始月份', { exact: true });
   const to = page.getByLabel('报表／趋势结束月份', { exact: true });
-  await expect(to).toHaveValue('2026-09');
-  await from.fill('2020-01');
-  await to.fill('2020-01');
+  await expect(to).toHaveText('2026-09');
+  await pickMonth(from, '2020-01');
+  await pickMonth(to, '2020-01');
   const stages = page.getByRole('group', { name: '趋势阶段', exact: true });
   await stages.getByRole('button', { name: '招投标', exact: true }).click();
   const load = page.getByRole('button', { name: '查看月报与趋势', exact: true });
@@ -46,7 +47,7 @@ test('历史月报六指标、阶段组合、终止口径及冻结属地和行�
       ...values,
     ]);
   }
-  await to.fill('2020-02');
+  await pickMonth(to, '2020-02');
   await metric.selectOption('totalExpectedAmount');
   await load.click();
   await expect(count('2020-02')).toHaveText('2');
@@ -91,14 +92,12 @@ test('历史月报六指标、阶段组合、终止口径及冻结属地和行�
   await expect(table).toHaveCount(0);
   await stages.getByRole('button', { name: '方案交流', exact: true }).click();
   await stages.getByRole('button', { name: '招投标', exact: true }).click();
-  await from.fill('2020-02');
-  await to.fill('2020-01');
-  await load.click();
-  await expect(page.getByRole('alert')).toHaveText(
-    '请选择至少一个阶段，且起始月份不得晚于报表月份。',
-  );
-  await from.fill('2020-01');
-  await to.fill('2020-02');
+  await from.click();
+  const monthChoices = from.locator('..').getByRole('group');
+  await expect(monthChoices.getByRole('button', { name: '3月', exact: true })).toBeDisabled();
+  await from.press('Escape');
+  await pickMonth(from, '2020-01');
+  await pickMonth(to, '2020-02');
   await load.click();
   await expect(count('2020-02')).toHaveText('2');
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -111,11 +110,11 @@ test('历史月报六指标、阶段组合、终止口径及冻结属地和行�
   await page
     .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
     .click();
-  await page.getByLabel('趋势起始月份', { exact: true }).fill('2020-01');
-  await page.getByLabel('报表／趋势结束月份', { exact: true }).fill('2020-01');
+  await pickMonth(page.getByLabel('趋势起始月份', { exact: true }), '2020-01');
+  await pickMonth(page.getByLabel('报表／趋势结束月份', { exact: true }), '2020-01');
   await page.getByRole('button', { name: '查看月报与趋势', exact: true }).click();
   await expect(count('2020-01')).toHaveText('2');
-  await page.getByLabel('报表／趋势结束月份', { exact: true }).fill('2020-02');
+  await pickMonth(page.getByLabel('报表／趋势结束月份', { exact: true }), '2020-02');
   await page.getByRole('button', { name: '查看月报与趋势', exact: true }).click();
   await expect(count('2020-02')).toHaveText('1');
 });
@@ -137,10 +136,15 @@ test('上月跨年按经营时区计算，历史月报加载失败后重试恢�
   await page
     .getByRole('button', { name: '展开高级分析：历史月报、地图下钻与行业分析', exact: true })
     .click();
-  await expect(page.getByLabel('报表／趋势结束月份', { exact: true })).toHaveValue('2025-12');
-  await expect(page.getByLabel('统计月份', { exact: true })).toHaveAttribute('max', '2025-12');
-  await page.getByLabel('趋势起始月份', { exact: true }).fill('2020-01');
-  await page.getByLabel('报表／趋势结束月份', { exact: true }).fill('2020-01');
+  await expect(page.getByLabel('报表／趋势结束月份', { exact: true })).toHaveText('2025-12');
+  const mapMonth = page.getByLabel('统计月份', { exact: true });
+  await mapMonth.click();
+  const mapMonths = mapMonth.locator('..').getByRole('group');
+  await mapMonths.getByRole('spinbutton', { name: '年份', exact: true }).fill('2026');
+  await expect(mapMonths.getByRole('button', { name: '1月', exact: true })).toBeDisabled();
+  await mapMonth.press('Escape');
+  await pickMonth(page.getByLabel('趋势起始月份', { exact: true }), '2020-01');
+  await pickMonth(page.getByLabel('报表／趋势结束月份', { exact: true }), '2020-01');
   const load = page.getByRole('button', { name: '查看月报与趋势', exact: true });
   await load.click();
   await expect(page.getByRole('alert')).toHaveText('历史月报暂不可用');

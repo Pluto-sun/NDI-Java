@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { revenueText } from './format';
 import {
@@ -31,6 +32,7 @@ const revenueListColumns: { label: string; width: number; numeric?: boolean }[] 
   { label: '省份', width: 90 },
   { label: '地市／组织', width: 150 },
   { label: '来源项目', width: 240 },
+  { label: '三化分类', width: 88 },
   { label: '客户', width: 160 },
   { label: '合同编号', width: 150 },
   { label: '条款编号', width: 72 },
@@ -96,6 +98,25 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
           </div>
         )}
       </div>
+      <div className="revenue-category-tabs" role="group" aria-label="计收三化分类">
+        {['全部', '网络化', '数字化', '智能化'].map((category) => (
+          <button
+            key={category}
+            type="button"
+            className="secondary-button"
+            aria-pressed={(params.get('category') || '全部') === category}
+            onClick={() => {
+              const next = new URLSearchParams(params);
+              next.delete('page');
+              if (category === '全部') next.delete('category');
+              else next.set('category', category);
+              setParams(next);
+            }}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
       {error && <Feedback tone="error">{error}</Feedback>}
       <form
         className="filter-bar revenue-list-filters"
@@ -104,19 +125,21 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
           e.preventDefault();
           const next = new URLSearchParams();
           Object.entries(draft)
-            .filter(([k, v]) => k !== 'page' && v)
+            .filter(([k, v]) => !['page', 'category'].includes(k) && v)
             .forEach(([k, v]) => next.set(k, v));
+          const category = params.get('category');
+          if (category) next.set('category', category);
           setParams(next);
         }}
       >
-        <label>
+        <div className="month-filter-field">
           月账期
-          <input
-            type="month"
+          <MonthPicker
+            aria-label="月账期"
             value={draft.month ?? ''}
-            onChange={(e) => change('month', e.target.value)}
+            onChange={(selectedMonth) => change('month', selectedMonth)}
           />
-        </label>
+        </div>
         <label>
           省份／具体组织
           <Select value={draft.province ?? ''} onChange={(e) => change('province', e.target.value)}>
@@ -169,7 +192,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
             className="secondary-button"
             onClick={() => {
               setDraft({});
-              setParams({});
+              setParams(params.get('category') ? { category: params.get('category')! } : {});
             }}
           >
             重置
@@ -266,6 +289,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
                       </td>
                       <td>{revenueText(e.source['地市/组织名称'])}</td>
                       <td className="revenue-project-name">{revenueText(e.source['项目名称'])}</td>
+                      <td>{revenueText(e.source['三化分类'])}</td>
                       <td>{revenueText(e.source['客户名称'] || e.source['自然客户名称'])}</td>
                       <td>{revenueText(e.contractNo)}</td>
                       <td>{revenueText(e.clauseNo)}</td>
@@ -315,7 +339,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
               }}
             />
             <p className="revenue-list-note">
-              未认定与已认定均包含各自的待审记录，待审核不单独累加。未归属记录仅全国范围账号可查看，由接口人认定。
+              未认定与已认定均包含各自的待审记录，待审核不单独累加。未归属记录仅全国范围账号可查看，由接口人发起认定，集团审核。
             </p>
           </section>
         </>
@@ -376,7 +400,8 @@ export function NewRevenuePage() {
       {reference?.canCreate ? (
         <form className="panel form-panel" onSubmit={submit}>
           <p>
-            仅填写来源字段；认定结果由省市提交审核或接口人认定。金额单位：元。省份留空为未归属记录，仅全国范围账号可查看，由接口人直接认定。
+            新增可选择数字化或智能化。网络化由系统管理员通过 Excel
+            导入。认定由接口人发起并指定集团审核人。金额单位为元。
           </p>
           <p className="subtle">
             月账期、费用账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码七项组合唯一；其中仅月账期必填，其余六项未填或--统一按空字符串参与判重。
@@ -455,7 +480,7 @@ export function ImportRevenuePage() {
         noDuplicateMessage:
           '月账期、费用账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码七项组合唯一；其中仅月账期必填，其余六项未填或--统一按空字符串参与判重，同名项目允许多条明细。',
         uploadHint:
-          '认定金额、通报项目名称、对应省分（集成）均填写且金额大于零时，导入为已认定。金额单位为元。',
+          '网络化仅系统管理员可导入，须填写大于 0 的认定金额、通报项目名称和对应省分（集成）。数字化和智能化按未认定导入，由接口人发起认定。金额单位为元。',
         previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
       }}
     />

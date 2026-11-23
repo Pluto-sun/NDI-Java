@@ -81,10 +81,12 @@ export const revenueApi = {
   detail: (id: string) => request<Entry>(`/${id}`),
   create: (source: Record<string, string>) =>
     request<Entry>('', { method: 'POST', ...jsonBody({ source }) }),
-  recognize: (entry: Entry, recognition: Recognition) =>
+  approvers: (id: string) =>
+    request<{ id: string; displayName: string }[]>(`/${id}/recognition-approvers`),
+  recognize: (entry: Entry, recognition: Recognition, approverId: string) =>
     request<Entry>(`/${entry.id}/recognition`, {
       method: 'POST',
-      ...jsonBody({ version: entry.version, recognition }),
+      ...jsonBody({ version: entry.version, recognition, approverId }),
     }),
   requests: (id: string) => request<Approval[]>(`/${id}/requests`),
   history: (id: string) => request<History[]>(`/${id}/history`),

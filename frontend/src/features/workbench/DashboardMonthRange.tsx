@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useState } from 'react';
 
 export interface MonthRange {
@@ -27,28 +28,28 @@ export function DashboardMonthRange({
         if (draft.from && draft.to && draft.from <= draft.to) onApply({ ...draft });
       }}
     >
-      <label>
+      <div className="month-filter-field">
         {label}月份起始
-        <input
-          type="month"
+        <MonthPicker
+          aria-label={label + '月份起始'}
           min="1000-01"
           max={draft.to}
           required
           value={draft.from}
-          onChange={(event) => setDraft({ ...draft, from: event.target.value })}
+          onChange={(selectedMonth) => setDraft({ ...draft, from: selectedMonth })}
         />
-      </label>
-      <label>
+      </div>
+      <div className="month-filter-field">
         {label}月份结束
-        <input
-          type="month"
+        <MonthPicker
+          aria-label={label + '月份结束'}
           min={draft.from}
           max="9999-12"
           required
           value={draft.to}
-          onChange={(event) => setDraft({ ...draft, to: event.target.value })}
+          onChange={(selectedMonth) => setDraft({ ...draft, to: selectedMonth })}
         />
-      </label>
+      </div>
       <button className="secondary-button" disabled={busy}>
         应用{label}月份
       </button>

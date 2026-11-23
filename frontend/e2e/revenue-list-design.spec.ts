@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
-import type { Entry } from '../src/features/revenue/api';
+import type { Approval, Entry } from '../src/features/revenue/api';
 
 test('计收列表长文本、金额对齐、横向滚动、筛选返回和空状态', async ({
   page,
@@ -32,19 +32,37 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
     if (index < 2) {
       const recognition = await request.post(`${root}/${entry.id}/recognition`, {
         headers: {
-          'X-NDI-Actor-Id': index === 0 ? '55555555-5555-4555-8555-555555555555' : ids.reporter,
+          'X-NDI-Actor-Id': '55555555-5555-4555-8555-555555555555',
         },
         data: {
           version: entry.version,
+          approverId: '77777777-7777-4777-8777-777777777777',
           recognition: {
-            amount: '0.00',
+            amount: '180.00',
             reportedProjectName: '布局验收项目',
             projectStatus: '',
-            integratedProvinceId: null,
+            integratedProvinceId: ids.province,
           },
         },
       });
       expect(recognition.ok(), await recognition.text()).toBeTruthy();
+      if (index === 0) {
+        const pending = (await recognition.json()).data as Entry;
+        const history = await request.get(`${root}/${entry.id}/requests`, {
+          headers: { 'X-NDI-Actor-Id': '55555555-5555-4555-8555-555555555555' },
+        });
+        expect(history.ok(), await history.text()).toBeTruthy();
+        const [approval] = (await history.json()).data as Approval[];
+        const decision = await request.post(`${root}/requests/${approval.id}/decision`, {
+          headers: { 'X-NDI-Actor-Id': '77777777-7777-4777-8777-777777777777' },
+          data: {
+            entryVersion: pending.version,
+            requestVersion: approval.version,
+            decision: 'APPROVED',
+          },
+        });
+        expect(decision.ok(), await decision.text()).toBeTruthy();
+      }
     }
   }
   const listUrl = `/revenue?month=2026-11&search=${encodeURIComponent(prefix)}`;
@@ -53,11 +71,11 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
   const table = page.getByRole('table', { name: '计收明细清单', exact: true });
   await expect(table.locator('tbody tr')).toHaveCount(3);
   const summary = page.getByRole('region', { name: '当前筛选汇总', exact: true });
-  await expect(summary.locator('strong')).toHaveText(['3', '2', '1', '1', '0.00']);
+  await expect(summary.locator('strong')).toHaveText(['3', '2', '1', '1', '180.00']);
   const amountCells = table.locator('tbody tr').first().locator('.revenue-numeric');
   await expect(amountCells).toHaveText(['12,345,678.90', '123,456.78', '--']);
   const recognized = table.locator('tbody tr').filter({ hasText: '已认定' });
-  await expect(recognized.locator('.revenue-recognized-amount')).toHaveText('0.00');
+  await expect(recognized.locator('.revenue-recognized-amount')).toHaveText('180.00');
   const alignment = await table.evaluate((element) => {
     const geometry = (row: string) =>
       Array.from(element.querySelectorAll(`${row} .revenue-numeric`)).map((cell) => ({
@@ -89,10 +107,14 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
   const controls = await page
     .getByRole('form', { name: '计收筛选', exact: true })
     .evaluate((form) =>
-      Array.from(form.querySelectorAll('input, select, button')).map((control) => {
-        const box = control.getBoundingClientRect();
-        return { x: box.x, right: box.right, y: box.y, bottom: box.bottom };
-      }),
+      Array.from(form.querySelectorAll('input, select, button, summary'))
+        .filter((control) => control.matches('summary') || !control.closest('details:not([open])'))
+        .map((control) => {
+          const box = control.getBoundingClientRect();
+          const name = control.getAttribute('aria-label') ?? control.parentElement?.textContent;
+          return { x: box.x, right: box.right, y: box.y, bottom: box.bottom, name };
+        })
+        .filter((control) => control.right > control.x),
     );
   controls.forEach((control, index) => {
     expect(control.x).toBeGreaterThanOrEqual(0);
@@ -103,6 +125,7 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
           other.right <= control.x ||
           control.bottom <= other.y ||
           other.bottom <= control.y,
+        `筛选控件位置重叠：${control.name?.trim()} / ${other.name?.trim()}`,
       ).toBeTruthy();
     });
   });
@@ -114,7 +137,7 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
   await detail.click();
   await page.getByRole('link', { name: '返回计收列表', exact: true }).click();
   await expect(page.getByLabel('项目／客户／合同／条款', { exact: true })).toHaveValue(prefix);
-  await expect(page.getByLabel('月账期', { exact: true })).toHaveValue('2026-11');
+  await expect(page.getByLabel('月账期', { exact: true })).toHaveText('2026-11');
   const state = page.getByRole('combobox', { name: '办理状态', exact: true });
   await state.selectOption('RECOGNIZED');
   await page.getByRole('button', { name: '查询', exact: true }).click();

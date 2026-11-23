@@ -6,8 +6,10 @@
   gap: 6px;
   font-size: 12px;
 }
-.topbar .module-dashboard-months input {
+.topbar .module-dashboard-months > .month-picker {
   width: 132px;
+}
+.topbar .module-dashboard-months > .month-picker > summary {
   min-height: 32px;
   padding: 3px 6px;
   font-size: 12px;

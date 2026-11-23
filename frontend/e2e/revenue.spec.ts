@@ -52,6 +52,8 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
       await page
         .getByRole('combobox', { name: '省份名称（选填）', exact: true })
         .selectOption(value);
+    else if (field === '三化分类')
+      await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption(value);
     else if (field === '地市/组织名称')
       await page
         .getByRole('combobox', { name: '地市/组织名称（选填）', exact: true })
@@ -73,6 +75,10 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await expect(page.getByRole('button', { name: '首次认定', exact: true })).toHaveCount(0);
   await switchActor(page, ids.reporter);
   await page.goto('/revenue/' + id);
+  await expect(page.getByRole('heading', { name: '当前生效认定', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '首次认定', exact: true })).toHaveCount(0);
+  await switchActor(page, reviewer);
+  await page.goto('/revenue/' + id);
   await page.getByRole('button', { name: '首次认定', exact: true }).click();
   const recognition = page.getByRole('dialog', { name: '首次认定', exact: true });
   await recognition.getByLabel('认定金额（元）', { exact: true }).fill('180');
@@ -81,12 +87,13 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await recognition
     .getByRole('combobox', { name: '对应省分（集成）', exact: true })
     .selectOption('数科');
+  await recognition.getByRole('combobox', { name: '集团审核人' }).selectOption(group);
   await recognition.getByRole('button', { name: '提交审核', exact: true }).click();
   await expect(recognition).toHaveCount(0);
   await expect(
     page.getByRole('heading', { name: '当前生效认定', exact: true }).locator('..'),
   ).toContainText('尚无生效认定');
-  await switchActor(page, reviewer);
+  await switchActor(page, group);
   await page.goto('/approvals?business=revenue');
   await expect(page.getByRole('heading', { name: '计收审核待办', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('revenue-inbox.png'), fullPage: true });
@@ -99,11 +106,12 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   await expect(current).toContainText('180.00');
   await expect(current).toContainText('已上线');
   await expect(current).toContainText('数科');
-  await switchActor(page, ids.reporter);
+  await switchActor(page, reviewer);
   await page.goto('/revenue/' + id);
   await page.getByRole('button', { name: '修改认定', exact: true }).click();
   const edit = page.getByRole('dialog', { name: '修改认定', exact: true });
   await edit.getByLabel('认定金额（元）', { exact: true }).fill('90');
+  await edit.getByRole('combobox', { name: '集团审核人' }).selectOption(group);
   await edit.getByRole('button', { name: '提交审核', exact: true }).click();
   await expect(edit).toHaveCount(0);
   await expect(current).toContainText('180.00');
@@ -182,7 +190,7 @@ test('集团三步导入33字段、修正重复条款、只导入一次；接口
   expect(denied.status()).toBe(403);
 });
 
-test('具体组织直接认定，省分不能因集成省分而取得权限', async ({ page, request }, testInfo) => {
+test('具体组织由集团审核，省分不能因集成省分而取得权限', async ({ page, request }, testInfo) => {
   const row = {
     ...source('ORG-' + randomUUID()),
     省份名称: '具体组织',
@@ -194,20 +202,26 @@ test('具体组织直接认定，省分不能因集成省分而取得权限', as
   await page.goto('/revenue/' + entry.id);
   await page.getByRole('button', { name: '首次认定', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '首次认定', exact: true });
+  await dialog.getByRole('combobox', { name: '集团审核人' }).selectOption(group);
   await dialog.getByLabel('认定金额（元）', { exact: true }).fill('0');
   await dialog.getByLabel('通报项目名称', { exact: true }).fill('组织通报');
   await dialog
     .getByRole('combobox', { name: '对应省分（集成）', exact: true })
     .selectOption(ids.province);
-  await dialog.getByRole('button', { name: '保存认定', exact: true }).click();
+  await dialog.getByRole('button', { name: '提交审核', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('认定金额须大于零');
   await dialog.getByLabel('认定金额（元）', { exact: true }).fill('101');
-  await dialog.getByRole('button', { name: '保存认定', exact: true }).click();
+  await dialog.getByRole('button', { name: '提交审核', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect(Number((await api<Entry>(request, reviewer, '/' + entry.id)).recognition!.amount)).toBe(
-    101,
-  );
-  expect(await api<Approval[]>(request, reviewer, `/${entry.id}/requests`)).toHaveLength(0);
+  const pending = await api<Entry>(request, reviewer, '/' + entry.id);
+  expect(pending.recognition).toBeNull();
+  const [approval] = await api<Approval[]>(request, reviewer, `/${entry.id}/requests`);
+  const saved = await api<Entry>(request, group, `/requests/${approval.id}/decision`, {
+    entryVersion: pending.version,
+    requestVersion: approval.version,
+    decision: 'APPROVED',
+  });
+  expect(Number(saved.recognition!.amount)).toBe(101);
   const denied = await request.get(root + '/' + entry.id, {
     headers: { 'X-NDI-Actor-Id': ids.reporter },
   });
@@ -230,6 +244,8 @@ test('创建和导入统一按七字段查重，费用账期不同可共存', as
       await page
         .getByRole('combobox', { name: '省份名称（选填）', exact: true })
         .selectOption(value);
+    else if (field === '三化分类')
+      await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption(value);
     else if (field === '地市/组织名称')
       await page
         .getByRole('combobox', { name: '地市/组织名称（选填）', exact: true })
@@ -300,7 +316,7 @@ test('数科固定组织、无审签日期与导入修正使用一致选项', as
   await page.getByLabel('合同编号（选填）', { exact: true }).fill(contract);
   await page.getByLabel('条款编号（选填）', { exact: true }).fill('001');
   await page.getByLabel('自然客户名称（选填）', { exact: true }).fill('数科自然客户');
-  await page.getByLabel('三化分类 *', { exact: true }).fill('数字化');
+  await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption('数字化');
   await page.getByLabel('条款金额 *', { exact: true }).fill('100');
   await page.getByLabel('产品本月计收不含税额/标品含税收入 *', { exact: true }).fill('10');
   await page.getByText('其他来源字段（选填）', { exact: true }).click();
@@ -373,6 +389,8 @@ test('数字条款归一后四字段查重，创建与导入支持常见审签�
       await page
         .getByRole('combobox', { name: '省份名称（选填）', exact: true })
         .selectOption(value);
+    else if (field === '三化分类')
+      await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption(value);
     else if (field === '地市/组织名称')
       await page
         .getByRole('combobox', { name: '地市/组织名称（选填）', exact: true })
@@ -442,7 +460,7 @@ test('自然客户名称选填仍可创建和导入未归属记录，空标识�
   await switchActor(page, ids.admin);
   await page.getByLabel('月账期 *', { exact: true }).fill('2026-11');
   await page.getByLabel('自然客户名称（选填）', { exact: true }).fill(customer);
-  await page.getByLabel('三化分类 *', { exact: true }).fill('数字化');
+  await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption('数字化');
   await page.getByLabel('条款金额 *', { exact: true }).fill('100');
   await page.getByLabel('产品本月计收不含税额/标品含税收入 *', { exact: true }).fill('0');
   await page.getByRole('button', { name: '创建计收明细', exact: true }).click();
@@ -501,7 +519,7 @@ test('五项标识的空白和--统一判重，仅四列Excel也可导入', asyn
   await page.goto('/revenue/new');
   await switchActor(page, ids.admin);
   await page.getByLabel('月账期 *', { exact: true }).fill(month);
-  await page.getByLabel('三化分类 *', { exact: true }).fill('数字化');
+  await page.getByRole('combobox', { name: '三化分类 *', exact: true }).selectOption('数字化');
   await page.getByLabel('条款金额 *', { exact: true }).fill('100');
   await page.getByLabel('产品本月计收不含税额/标品含税收入 *', { exact: true }).fill('0');
   await page.getByText('其他来源字段（选填）', { exact: true }).click();
@@ -603,6 +621,7 @@ test('计收工作簿有同名项目列时自动识别表头并可分别映射',
           认定金额: '50',
           项目状态: '已上线',
           第二项目名称: '通报验收项目',
+          三化分类: '网络化',
           '对应省分（集成）': '数智',
         },
       ],

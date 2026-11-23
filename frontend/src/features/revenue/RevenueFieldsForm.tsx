@@ -25,7 +25,10 @@ export function RevenueFieldsForm({
     '自然客户名称',
   ]);
   const fieldInput = (field: string) => {
-    const options = sourceFieldOptions(field, values, reference);
+    const options =
+      field === '三化分类'
+        ? ['', '数字化', '智能化']
+        : sourceFieldOptions(field, values, reference);
     return (
       <label key={field}>
         {field}

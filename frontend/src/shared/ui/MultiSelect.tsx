@@ -15,7 +15,12 @@ export function MultiSelect({
     <div className="multi-select-field">
       <span>{label}</span>
       {disabledReason ? (
-        <button type="button" className="secondary-button" disabled aria-label={label}>
+        <button
+          type="button"
+          className="filter-select-control themed-select"
+          disabled
+          aria-label={label}
+        >
           {disabledReason}
         </button>
       ) : (
@@ -32,7 +37,7 @@ export function MultiSelect({
             event.currentTarget.querySelector('summary')?.focus();
           }}
         >
-          <summary aria-label={label}>
+          <summary className="filter-select-control themed-select" aria-label={label}>
             {values.length === 0
               ? '全部'
               : values.length === 1

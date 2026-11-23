@@ -72,7 +72,7 @@ VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),UUID_TO_BIN(?),UUID_TO_BIN(?),7,'PENDING',J
         var examples =
                 List.of("000", "--", "A002", "2-01", "2.01", "0".repeat(150) + "9".repeat(50));
         for (int i = 0; i < examples.size(); i++) entry("EXAMPLE-" + i, examples.get(i));
-        Flyway.configure().dataSource(source).load().migrate();
+        Flyway.configure().dataSource(source).target("62").load().migrate();
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT clause_no FROM revenue_entry WHERE id=UUID_TO_BIN(?)",

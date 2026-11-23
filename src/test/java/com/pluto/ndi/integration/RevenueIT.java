@@ -72,8 +72,6 @@ class RevenueIT {
     @Autowired RevenueImportService imports;
     @Autowired com.pluto.ndi.production.service.ProductionImportService productionImports;
     @Autowired JdbcTemplate jdbc;
-    @Autowired ApplicationEventPublisher events;
-    @Autowired TransactionTemplate transactions;
     UUID province,
             otherProvince,
             city,
@@ -201,12 +199,12 @@ class RevenueIT {
         var source = source();
         source.put("月账期", "2089-06");
         var legacy = service.create(admin, source);
-        var applied = service.recognize(reviewer, legacy.id(), legacy.version(), value("12.34"));
+        var applied = approve(reviewer, legacy, value("12.34"));
+        service.recognize(reviewer, legacy.id(), applied.version(), value("99"), group);
         jdbc.update("""
                 UPDATE revenue_entry SET source_fields=JSON_REMOVE(source_fields,'$."三化分类"')
                 WHERE id=UUID_TO_BIN(?)
                 """, legacy.id().toString());
-        service.recognize(cityReporter, legacy.id(), applied.version(), value("99"));
         var unrecognized = source();
         unrecognized.put("月账期", "2089-06");
         unrecognized.put("省份名称", "");
@@ -225,6 +223,58 @@ class RevenueIT {
         var invalid = source();
         invalid.remove("三化分类");
         assertThatThrownBy(() -> service.create(admin, invalid)).hasMessageContaining("三化分类必填");
+    }
+
+    @Test
+    void networkImportAndCategorySummaryEnforceTheSameRules() throws Exception {
+        var network = source();
+        network.put("三化分类", "网络化");
+        assertThatThrownBy(() -> service.create(admin, network)).hasMessageContaining("仅允许系统管理员通过 Excel");
+        assertThatThrownBy(() -> service.validateImport(admin, network)).hasMessageContaining("大于 0");
+        var imported = new LinkedHashMap<>(network);
+        imported.put("认定金额", "33");
+        imported.put("通报项目名称", "网络化验收");
+        imported.put("对应省分（集成）", provinceName);
+        var digital = source();
+        digital.put(RevenueImport.AMOUNT, "33");
+        digital.put(RevenueImport.PROJECT, "数字化认定须审核");
+        digital.put(RevenueImport.PROVINCE, provinceName);
+        var intelligent = new LinkedHashMap<>(digital);
+        intelligent.put("三化分类", "智能化");
+        assertThat(service.validateImport(admin, intelligent).recognition()).isNull();
+        var mapping = new LinkedHashMap<String, String>();
+        imported.keySet().forEach(field -> mapping.put(field, field));
+        var config = new Configuration("来源数据", 1, mapping);
+        var groupFile = imports.upload(group, "混合.xlsx", recognitionWorkbook(imported, digital), null, null);
+        var groupMapping = imports.save(group, groupFile.id(), groupFile.version(), 2, config, null);
+        var groupPreview = imports.save(group, groupFile.id(), groupMapping.version(), 3, config, null);
+        assertThat(groupPreview.batch().rows().getFirst().errorsJson()).contains("仅允许系统管理员导入");
+        assertThat(groupPreview.batch().validRows()).isEqualTo(1);
+        assertThatThrownBy(() -> imports.confirm(group, groupPreview.batch().batchId(), List.of(2)))
+                .isInstanceOf(BusinessException.class);
+        var groupDone = imports.confirm(group, groupPreview.batch().batchId(), List.of(3));
+        var digitalEntry = service.detail(group, groupDone.rows().stream().filter(row -> row.recordId() != null).findFirst().orElseThrow().recordId());
+        assertThat(digitalEntry.state()).isEqualTo("UNRECOGNIZED");
+        assertThat(digitalEntry.recognition()).isNull();
+
+        var adminFile = imports.upload(admin, "网络化.xlsx", recognitionWorkbook(imported), null, null);
+        var adminMapping = imports.save(admin, adminFile.id(), adminFile.version(), 2, config, null);
+        var adminPreview = imports.save(admin, adminFile.id(), adminMapping.version(), 3, config, null);
+        assertThat(adminPreview.batch().validRows()).isEqualTo(1);
+        var done = imports.confirm(admin, adminPreview.batch().batchId(), List.of(2));
+        var entry = service.detail(admin, done.rows().getFirst().recordId());
+        assertThat(entry.state()).isEqualTo("RECOGNIZED");
+        assertThat(entry.recognition().amount()).isEqualByComparingTo("33");
+        assertThat(service.detail(reviewer, entry.id()).canRecognize()).isFalse();
+        assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), entry.version(), value("1"), group))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.approvers(reviewer, entry.id())).isInstanceOf(BusinessException.class);
+        var list = service.list(reporter, new RevenueMapper.Filter("2026-10", province.toString(),
+                "", "RECOGNIZED", 0, 1, null, "网络化"));
+        assertThat(list.items()).extracting(Entry::id).containsExactly(entry.id());
+        assertThat(list.totalElements()).isEqualTo(1);
+        assertThat(list.summary().total()).isEqualTo(1);
+        assertThat(list.summary().recognizedAmount()).isEqualByComparingTo("33");
     }
 
     @Test
@@ -252,9 +302,9 @@ class RevenueIT {
         assertThat(service.detail(otherReviewer, e.id()).canRecognize()).isFalse();
         assertThatThrownBy(() -> service.detail(outsider, e.id()))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.recognize(admin, e.id(), e.version(), value("1")))
+        assertThatThrownBy(() -> service.recognize(admin, e.id(), e.version(), value("1"), group))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.recognize(group, e.id(), e.version(), value("1")))
+        assertThatThrownBy(() -> service.recognize(group, e.id(), e.version(), value("1"), group))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -315,160 +365,105 @@ class RevenueIT {
         var different = new LinkedHashMap<>(minimal);
         different.put("合同编号", "新增合同");
         assertThat(service.create(admin, different).id()).isNotEqualTo(saved.id());
-        var applied = service.recognize(reviewer, saved.id(), saved.version(), value("5"));
+        var applied = approve(reviewer, saved, value("5"));
         assertThat(applied.recognition().amount()).isEqualByComparingTo("5");
-        assertThat(service.requests(reviewer, saved.id())).isEmpty();
+        assertThat(service.requests(reviewer, saved.id())).hasSize(1);
+    }
+
+    private Entry approve(UUID actor, Entry entry, Recognition value) {
+        var pending = service.recognize(actor, entry.id(), entry.version(), value, group);
+        var request = service.pending(group).stream()
+                .filter(item -> item.id().equals(pending.pendingRequestId())).findFirst().orElseThrow();
+        return service.decide(group, request.id(), pending.version(), request.version(), "APPROVED", "");
     }
 
     @Test
     void approvalKeepsOldResultAndRejectWithdrawDoNotChangeTotals() {
         var e = entry();
-        var pending = service.recognize(cityReporter, e.id(), 0, value("180"));
+        for (var actor : List.of(reporter, cityReporter, otherReviewer, admin, group)) {
+            assertThatThrownBy(() -> service.approvers(actor, e.id())).isInstanceOf(BusinessException.class);
+            assertThatThrownBy(() -> service.recognize(actor, e.id(), e.version(), value("180"), group))
+                    .isInstanceOf(BusinessException.class);
+        }
+        var unassignedGroup = user("GROUP_REVIEWER", null, null);
+        var pending = service.recognize(reviewer, e.id(), 0, value("180"), group);
         assertThat(pending.state()).isEqualTo("PENDING");
         assertThat(pending.recognition()).isNull();
-        assertThat(service.list(reporter, filter("")).summary().recognizedAmount())
-                .isEqualByComparingTo("0");
-        var r = service.requests(reviewer, e.id()).getFirst();
-        assertThat(r.approverId()).isEqualTo(reviewer);
-        assertThatThrownBy(() -> service.recognize(reviewer, e.id(), pending.version(), value("2")))
+        assertThat(service.list(reporter, filter("")).summary().recognizedAmount()).isEqualByComparingTo("0");
+        var r = service.pending(group).getFirst();
+        assertThat(r.approverId()).isEqualTo(group);
+        assertThat(service.counts(group).pending()).isEqualTo(1);
+        assertThat(service.pending(unassignedGroup)).isEmpty();
+        for (var actor : List.of(reviewer, unassignedGroup, admin)) {
+            assertThatThrownBy(() -> service.decide(actor, r.id(), pending.version(), r.version(), "APPROVED", ""))
+                    .isInstanceOf(BusinessException.class);
+        }
+        assertThatThrownBy(() -> service.recognize(reviewer, e.id(), pending.version(), value("2"), group))
                 .isInstanceOf(BusinessException.class);
-        var firstRequest = r;
-        assertThatThrownBy(
-                        () ->
-                                service.decide(
-                                        otherReviewer,
-                                        firstRequest.id(),
-                                        pending.version(),
-                                        firstRequest.version(),
-                                        "APPROVED",
-                                        ""))
-                .isInstanceOf(BusinessException.class);
-        var approved =
-                service.decide(reviewer, r.id(), pending.version(), r.version(), "APPROVED", "");
+        var approved = service.decide(group, r.id(), pending.version(), r.version(), "APPROVED", "");
         assertThat(approved.recognition().amount()).isEqualByComparingTo("180");
-        assertThat(approved.sourceAmount()).isEqualByComparingTo("10");
-        var change = service.recognize(reporter, e.id(), approved.version(), value("90"));
+        var change = service.recognize(reviewer, e.id(), approved.version(), value("90"), group);
         assertThat(change.state()).isEqualTo("CHANGE_PENDING");
         assertThat(change.recognition().amount()).isEqualByComparingTo("180");
-        r =
-                service.requests(reviewer, e.id()).stream()
-                        .filter(x -> x.status().equals("PENDING"))
-                        .findFirst()
-                        .orElseThrow();
-        var changeRequest = r;
-        assertThatThrownBy(
-                        () ->
-                                service.decide(
-                                        reviewer,
-                                        changeRequest.id(),
-                                        change.version(),
-                                        changeRequest.version(),
-                                        "REJECTED",
-                                        ""))
+        var request = service.pending(group).getFirst();
+        assertThatThrownBy(() -> service.decide(group, request.id(), change.version(), request.version(), "REJECTED", ""))
                 .hasMessageContaining("意见");
-        var rejected =
-                service.decide(
-                        reviewer, r.id(), change.version(), r.version(), "REJECTED", "金额需核对");
+        var rejected = service.decide(group, request.id(), change.version(), request.version(), "REJECTED", "金额需核对");
         assertThat(rejected.recognition().amount()).isEqualByComparingTo("180");
-        var next = service.recognize(reporter, e.id(), rejected.version(), value("1"));
-        r =
-                service.requests(reviewer, e.id()).stream()
-                        .filter(x -> x.status().equals("PENDING"))
-                        .findFirst()
-                        .orElseThrow();
-        var withdrawn =
-                service.decide(reporter, r.id(), next.version(), r.version(), "WITHDRAWN", "");
+        var next = service.recognize(reviewer, e.id(), rejected.version(), value("1"), group);
+        var withdrawal = service.pending(group).getFirst();
+        var withdrawn = service.decide(reviewer, withdrawal.id(), next.version(), withdrawal.version(), "WITHDRAWN", "");
         assertThat(withdrawn.recognition().amount()).isEqualByComparingTo("180");
-        var direct = service.recognize(reviewer, e.id(), withdrawn.version(), value("0.01"));
-        assertThat(direct.recognition().amount()).isEqualByComparingTo("0.01");
+        var applied = approve(reviewer, withdrawn, value("0.01"));
+        assertThat(applied.recognition().amount()).isEqualByComparingTo("0.01");
         assertThat(service.history(reporter, e.id())).hasSize(2);
-        assertThat(service.list(reporter, filter("")).summary().recognizedAmount())
-                .isEqualByComparingTo("0.01");
-        assertThat(service.notices(reporter)).isNotEmpty();
-        var n = service.notices(reporter).getFirst();
-        service.read(reporter, n.id());
-        assertThat(
-                        service.notices(reporter).stream()
-                                .filter(x -> x.id().equals(n.id()))
-                                .findFirst()
-                                .orElseThrow()
-                                .readAt())
-                .isNotNull();
+        assertThat(service.list(reporter, filter("")).summary().recognizedAmount()).isEqualByComparingTo("0.01");
+        var notice = service.notices(reviewer).getFirst();
+        service.read(reviewer, notice.id());
+        assertThat(service.notices(reviewer)).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(notice.id());
+            assertThat(item.readAt()).isNotNull();
+        });
     }
 
     @Test
-    void organizationDirectRecognitionHasNoProvincePermissionLeak() {
+    void organizationRecognitionRequiresGroupReviewAndRemainsOutsideProvinceScope() {
         var s = source();
         s.put("省份名称", "--");
         s.put("地市/组织名称", "具体组织全称");
-        var e = service.create(admin, s);
-        assertThat(e.specificOrganization()).isTrue();
-        assertThat(e.provinceId()).isNull();
-        assertThatThrownBy(() -> service.detail(reporter, e.id()))
-                .isInstanceOf(BusinessException.class);
-        var rec = new Recognition(new BigDecimal("101"), "组织计收", "已交付", province);
-        var saved = service.recognize(otherReviewer, e.id(), 0, rec);
-        assertThat(saved.state()).isEqualTo("RECOGNIZED");
+        s.put("三化分类", "智能化");
+        var entry = service.create(admin, s);
+        assertThat(entry.specificOrganization()).isTrue();
+        assertThat(entry.provinceId()).isNull();
+        assertThatThrownBy(() -> service.detail(reporter, entry.id())).isInstanceOf(BusinessException.class);
+        var value = new Recognition(new BigDecimal("101"), "组织计收", "已交付", province);
+        var saved = approve(otherReviewer, entry, value);
         assertThat(saved.recognition().amount()).isEqualByComparingTo("101");
-        assertThat(service.requests(otherReviewer, e.id())).isEmpty();
-        assertThatThrownBy(() -> service.detail(cityReporter, e.id()))
-                .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.recognize(reviewer, e.id(), saved.version(), value("-1")))
-                .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(
-                        () -> service.recognize(reviewer, e.id(), saved.version(), value("1.001")))
+        assertThat(service.requests(otherReviewer, entry.id())).hasSize(1);
+        assertThatThrownBy(() -> service.detail(cityReporter, entry.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), saved.version(), value("1.001"), group))
                 .hasMessageContaining("两位小数");
     }
 
     @Test
-    void missingAndDisabledReviewerBlocksSubmissionAndHandoverTransfersPending() {
-        var e = entry();
-        jdbc.update(
-                "UPDATE identity_user_account SET enabled=FALSE WHERE id=UUID_TO_BIN(?)",
-                reviewer.toString());
-        assertThatThrownBy(() -> service.recognize(reporter, e.id(), 0, value("1")))
-                .hasMessageContaining("接口人");
-        jdbc.update(
-                "UPDATE identity_user_account SET enabled=TRUE WHERE id=UUID_TO_BIN(?)",
-                reviewer.toString());
-        var pending = service.recognize(reporter, e.id(), 0, value("1"));
-        var before = service.requests(reporter, e.id()).getFirst();
-        transactions.executeWithoutResult(
-                status -> {
-                    jdbc.update(
-                            "DELETE FROM identity_reviewer_province WHERE"
-                                    + " province_id=UUID_TO_BIN(?)",
-                            province.toString());
-                    scope(otherReviewer, province);
-                    events.publishEvent(new ReviewerScopeChanged(admin, Set.of(province)));
-                });
-        var after = service.requests(reporter, e.id()).getFirst();
-        assertThat(after.approverId()).isEqualTo(otherReviewer);
-        assertThat(after.version()).isEqualTo(before.version() + 1);
-        assertThat(after.createdAt()).isEqualTo(before.createdAt());
-        assertThat(service.pending(reviewer)).isEmpty();
-        assertThat(service.pending(otherReviewer)).extracting(Request::id).contains(after.id());
-        assertThatThrownBy(
-                        () ->
-                                service.decide(
-                                        reviewer,
-                                        before.id(),
-                                        pending.version(),
-                                        before.version(),
-                                        "APPROVED",
-                                        ""))
+    void disabledOrSelfGroupApproverIsIneligibleAndRoleIsRecheckedAtDecision() {
+        var entry = entry();
+        jdbc.update("UPDATE identity_user_account SET enabled=FALSE WHERE id=UUID_TO_BIN(?)", group.toString());
+        assertThat(service.approvers(reviewer, entry.id())).noneMatch(item -> item.id().equals(group));
+        assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), 0, value("1"), group))
+                .hasMessageContaining("已启用的集团审核人");
+        jdbc.update("UPDATE identity_user_account SET enabled=TRUE WHERE id=UUID_TO_BIN(?)", group.toString());
+        jdbc.update("INSERT INTO identity_user_role VALUES(UUID_TO_BIN(?),'GROUP_REVIEWER')", reviewer.toString());
+        assertThat(service.approvers(reviewer, entry.id())).noneMatch(item -> item.id().equals(reviewer));
+        assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), 0, value("1"), reviewer))
+                .hasMessageContaining("本人");
+        assertThat(service.approvers(reviewer, entry.id())).anyMatch(item -> item.id().equals(group));
+        var pending = service.recognize(reviewer, entry.id(), 0, value("1"), group);
+        var request = service.pending(group).getFirst();
+        jdbc.update("DELETE FROM identity_user_role WHERE user_id=UUID_TO_BIN(?) AND role_code='GROUP_REVIEWER'",
+                group.toString());
+        assertThatThrownBy(() -> service.decide(group, request.id(), pending.version(), request.version(), "APPROVED", ""))
                 .isInstanceOf(BusinessException.class);
-        assertThat(
-                        service.decide(
-                                        otherReviewer,
-                                        after.id(),
-                                        pending.version(),
-                                        after.version(),
-                                        "APPROVED",
-                                        "")
-                                .recognition()
-                                .amount())
-                .isEqualByComparingTo("1");
     }
 
     @Test
@@ -501,13 +496,13 @@ class RevenueIT {
             var e = entry();
             var gate = new CountDownLatch(1);
             var submits = new ArrayList<Future<Boolean>>();
-            for (var actor : List.of(reporter, cityReporter))
+            for (var actor : List.of(reviewer, reviewer))
                 submits.add(
                         pool.submit(
                                 () -> {
                                     gate.await();
                                     try {
-                                        service.recognize(actor, e.id(), 0, value("1"));
+                                        service.recognize(actor, e.id(), 0, value("1"), group);
                                         return true;
                                     } catch (BusinessException ex) {
                                         return false;
@@ -531,10 +526,10 @@ class RevenueIT {
         s.put(RevenueFields.SOURCE_AMOUNT, "0");
         var e = service.create(admin, s);
         for (var invalidAmount : List.of("0", "-1")) {
-            assertThatThrownBy(() -> service.recognize(reviewer, e.id(), 0, value(invalidAmount)))
+            assertThatThrownBy(() -> service.recognize(reviewer, e.id(), 0, value(invalidAmount), group))
                     .hasMessageContaining("认定金额须大于零");
         }
-        var recognized = service.recognize(reviewer, e.id(), 0, value("0.01"));
+        var recognized = approve(reviewer, e, value("0.01"));
         assertThat(recognized.recognition().amount()).isEqualByComparingTo("0.01");
         var missing = source();
         missing.put(RevenueFields.SOURCE_AMOUNT, "--");
@@ -557,6 +552,23 @@ class RevenueIT {
         imports.discard(admin, revenue.id(), revenue.version());
         assertThat(imports.current(admin)).isNull();
         assertThat(productionImports.current(admin)).isNull();
+    }
+
+    @SafeVarargs
+    private final byte[] recognitionWorkbook(Map<String, String>... rows) throws Exception {
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(workbook(List.of(rows), false)));
+                var out = new ByteArrayOutputStream()) {
+            var sheet = book.getSheetAt(0);
+            var header = sheet.getRow(0);
+            for (var field : List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.PROVINCE)) {
+                int column = header.getLastCellNum();
+                header.createCell(column).setCellValue(field);
+                for (int i = 0; i < rows.length; i++)
+                    sheet.getRow(i + 1).createCell(column).setCellValue(rows[i].getOrDefault(field, ""));
+            }
+            book.write(out);
+            return out.toByteArray();
+        }
     }
 
     byte[] workbook(List<Map<String, String>> rows, boolean numeric) throws Exception {
@@ -601,6 +613,7 @@ class RevenueIT {
             var values = source();
             values.put("省份名称", names.get(0));
             values.put("地市/组织名称", names.get(1));
+            values.put("三化分类", "网络化");
             values.put(RevenueImport.AMOUNT, "20");
             values.put(RevenueImport.PROJECT, "通报项目");
             values.put(RevenueImport.PROVINCE, "内蒙古");
@@ -624,6 +637,7 @@ class RevenueIT {
         var valid = source();
         var excessive = new LinkedHashMap<>(valid);
         excessive.put("合同编号", UUID.randomUUID().toString());
+        excessive.put("三化分类", "网络化");
         excessive.put(RevenueImport.AMOUNT, "101");
         excessive.put(RevenueImport.PROJECT, "待修正项目");
         excessive.put(RevenueImport.PROVINCE, province.toString());

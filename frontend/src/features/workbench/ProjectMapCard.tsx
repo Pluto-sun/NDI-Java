@@ -1,3 +1,4 @@
+import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -213,39 +214,39 @@ export function ProjectMapCard({ reference }: { reference: ReferenceData }) {
         </label>
         {source === 'ATTRIBUTION' ? (
           <>
-            <label>
+            <div className="month-filter-field">
               地图所属月份起始
-              <input
-                type="month"
+              <MonthPicker
+                aria-label="地图所属月份起始"
                 value={from}
                 max={to}
-                onChange={(event) => setFrom(event.target.value)}
+                onChange={(selectedMonth) => setFrom(selectedMonth)}
               />
-            </label>
-            <label>
+            </div>
+            <div className="month-filter-field">
               地图所属月份结束
-              <input
-                type="month"
+              <MonthPicker
+                aria-label="地图所属月份结束"
                 value={to}
                 min={from}
-                onChange={(event) => setTo(event.target.value)}
+                onChange={(selectedMonth) => setTo(selectedMonth)}
               />
-            </label>
+            </div>
           </>
         ) : (
           <>
-            <label>
+            <div className="month-filter-field">
               统计月份
-              <input
-                type="month"
+              <MonthPicker
+                aria-label="统计月份"
                 value={month}
                 max={previousBusinessMonth()}
-                onChange={(event) => {
-                  setMonth(event.target.value);
-                  setSource(event.target.value ? 'SNAPSHOT' : 'CURRENT');
+                onChange={(selectedMonth) => {
+                  setMonth(selectedMonth);
+                  setSource(selectedMonth ? 'SNAPSHOT' : 'CURRENT');
                 }}
               />
-            </label>
+            </div>
             {month && (
               <button
                 type="button"

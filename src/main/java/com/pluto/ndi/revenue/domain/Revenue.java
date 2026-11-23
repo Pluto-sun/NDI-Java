@@ -12,6 +12,11 @@ import java.util.*;
 public final class Revenue {
     private Revenue() {}
 
+    public static final String CATEGORY_FIELD = "三化分类";
+    public static final String NETWORK = "网络化";
+    public static final Set<String> REVIEWED_CATEGORIES = Set.of("数字化", "智能化");
+    public static final Set<String> CATEGORIES = Set.of(NETWORK, "数字化", "智能化");
+
     public static final List<String> PROJECT_STATUSES = List.of("实施中", "已交付", "已上线");
     public static final List<String> INTEGRATED_ORGANIZATIONS = List.of("数科", "数智");
 

@@ -68,7 +68,7 @@ VALUES(UUID_TO_BIN(?),UUID_TO_BIN(?),UUID_TO_BIN(?),UUID_TO_BIN(?),7,'PENDING',J
                 id,
                 UUID.randomUUID().toString(),
                 UUID.randomUUID().toString());
-        Flyway.configure().dataSource(datasource).load().migrate();
+        Flyway.configure().dataSource(datasource).target("62").load().migrate();
         assertThat(jdbc.queryForObject("SELECT contract_no FROM revenue_entry", String.class))
                 .isEmpty();
         assertThat(jdbc.queryForObject("SELECT clause_no FROM revenue_entry", String.class))
