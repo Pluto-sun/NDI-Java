@@ -5,10 +5,9 @@ import { chooseActor, createProject, ids } from './support/projects';
 test('项目筛选支持多省单省多市，清空无效地市并恢复 URL', async ({ page }) => {
   await page.goto('/projects');
   await chooseActor(page, ids.admin);
-  const province = page.locator('summary[aria-label="归属省分"]');
-  const city = page.locator('summary[aria-label="归属地市／区县"]');
-  const cityDisabled = page.getByRole('button', { name: '归属地市／区县', exact: true });
-  await expect(cityDisabled).toBeDisabled();
+  const province = page.getByRole('button', { name: '归属省分', exact: true });
+  const city = page.getByRole('button', { name: '归属地市／区县', exact: true });
+  await expect(city).toBeDisabled();
   await expect(page.getByPlaceholder('输入项目编号')).toBeHidden();
   await page.getByText('更多筛选条件', { exact: true }).click();
   await expect(page.getByPlaceholder('输入项目编号')).toBeVisible();
@@ -16,13 +15,17 @@ test('项目筛选支持多省单省多市，清空无效地市并恢复 URL', a
   await province.click();
   const provinces = page.getByRole('group', { name: '归属省分', exact: true });
   const guangdong = provinces.getByRole('checkbox', { name: '广东省', exact: true });
-  await guangdong.check();
+  await provinces.getByText('广东省', { exact: true }).click();
+  await expect(guangdong).toBeChecked();
+  await expect(provinces).toBeVisible();
   await guangdong.press('Escape');
   await city.click();
   const cities = page.getByRole('group', { name: '归属地市／区县', exact: true });
   const guangzhou = cities.getByRole('checkbox', { name: '广州市', exact: true });
   const shenzhen = cities.getByRole('checkbox', { name: '深圳市', exact: true });
-  await guangzhou.check();
+  await cities.getByText('广州市', { exact: true }).click();
+  await expect(guangzhou).toBeChecked();
+  await expect(cities).toBeVisible();
   await shenzhen.check();
   await shenzhen.press('Escape');
   await page.getByRole('button', { name: '查询', exact: true }).click();
@@ -32,9 +35,10 @@ test('项目筛选支持多省单省多市，清空无效地市并恢复 URL', a
 
   await province.click();
   const other = provinces.getByRole('checkbox', { name: '江西省', exact: true });
-  await other.check();
+  await provinces.getByText('江西省', { exact: true }).click();
+  await expect(other).toBeChecked();
   await other.press('Escape');
-  await expect(cityDisabled).toBeDisabled();
+  await expect(city).toBeDisabled();
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page).toHaveURL(
     (url) =>
@@ -52,7 +56,8 @@ test('项目筛选支持多省单省多市，清空无效地市并恢复 URL', a
   expect(exportBody.provinceIds).toHaveLength(2);
   expect(exportBody).not.toHaveProperty('cityIds');
   await province.click();
-  await guangdong.uncheck();
+  await provinces.getByText('广东省', { exact: true }).click();
+  await expect(guangdong).not.toBeChecked();
   await guangdong.press('Escape');
   await city.click();
   await expect(cities.getByRole('checkbox', { checked: true })).toHaveCount(0);

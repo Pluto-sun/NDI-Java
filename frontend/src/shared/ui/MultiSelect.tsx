@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 export function MultiSelect({
   label,
@@ -13,55 +13,68 @@ export function MultiSelect({
   onChange: (values: string[]) => void;
   disabledReason?: string;
 }) {
-  const panel = useRef<HTMLDetailsElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const optionsId = useId();
+  const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (disabledReason) {
+      setOpen(false);
+      return;
+    }
+    if (!open) return;
     const closeOutside = (event: PointerEvent) => {
-      const details = panel.current;
-      if (details?.open && event.target instanceof Node && !details.contains(event.target))
-        details.open = false;
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
     };
     document.addEventListener('pointerdown', closeOutside, true);
     return () => document.removeEventListener('pointerdown', closeOutside, true);
-  }, []);
+  }, [disabledReason, open]);
+
+  const expanded = open && !disabledReason;
+  const selection =
+    values.length === 0
+      ? '全部'
+      : values.length === 1
+        ? (options.find((option) => option.value === values[0])?.label ?? '已选 1 项')
+        : `已选 ${values.length} 项`;
 
   return (
     <div className="multi-select-field">
       <span>{label}</span>
-      {disabledReason ? (
+      <div
+        ref={root}
+        className="multi-select"
+        onBlur={(event) => {
+          // 点击选项名称时可能短暂失焦，由外部点击和明确的焦点转移负责收起。
+          const next = event.relatedTarget;
+          if (
+            next instanceof Element &&
+            next !== document.body &&
+            !event.currentTarget.contains(next)
+          )
+            setOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || !expanded) return;
+          event.stopPropagation();
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+      >
         <button
+          ref={trigger}
           type="button"
           className="filter-select-control themed-select"
-          disabled
+          disabled={!!disabledReason}
           aria-label={label}
+          aria-expanded={expanded}
+          aria-controls={expanded ? optionsId : undefined}
+          onClick={() => setOpen(!expanded)}
         >
-          {disabledReason}
+          {disabledReason || selection}
         </button>
-      ) : (
-        <details
-          ref={panel}
-          className="multi-select"
-          onBlur={(event) => {
-            if (
-              !(event.relatedTarget instanceof Node) ||
-              !event.currentTarget.contains(event.relatedTarget)
-            )
-              event.currentTarget.open = false;
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Escape' || !event.currentTarget.open) return;
-            event.stopPropagation();
-            event.currentTarget.open = false;
-            event.currentTarget.querySelector('summary')?.focus();
-          }}
-        >
-          <summary className="filter-select-control themed-select" aria-label={label}>
-            {values.length === 0
-              ? '全部'
-              : values.length === 1
-                ? (options.find((option) => option.value === values[0])?.label ?? '已选 1 项')
-                : `已选 ${values.length} 项`}
-          </summary>
-          <fieldset className="multi-select-options" aria-label={label}>
+        {expanded && (
+          <fieldset id={optionsId} className="multi-select-options" aria-label={label}>
             <button
               type="button"
               className="text-button"
@@ -83,12 +96,12 @@ export function MultiSelect({
                     )
                   }
                 />
-                {option.label}
+                <span>{option.label}</span>
               </label>
             ))}
           </fieldset>
-        </details>
-      )}
+        )}
+      </div>
     </div>
   );
 }
