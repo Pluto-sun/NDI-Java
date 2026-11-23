@@ -638,16 +638,44 @@ label,
   min-width: 190px;
   flex: 1;
 }
+.project-list-filters > label {
+  flex: 0 1 144px;
+  min-width: min(100%, 144px);
+}
+.project-list-filters > .project-name-filter {
+  flex: 1 1 180px;
+  min-width: min(100%, 180px);
+}
 .project-list-filters > .project-signing-subject {
   flex: 0 1 132px;
   min-width: min(100%, 132px);
 }
 .project-list-filters > .multi-select-field {
-  flex: 1 1 190px;
-  min-width: min(100%, 190px);
+  flex: 0 1 168px;
+  min-width: min(100%, 168px);
+}
+.project-filter-actions {
+  align-self: flex-end;
+  margin-inline-start: auto;
 }
 .project-list-filters .multi-select-options label {
   min-width: 0;
+}
+@media (max-width: 620px) {
+  .filter-bar.project-list-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .project-list-filters > :is(label, .multi-select-field) {
+    min-width: 0;
+  }
+  .project-list-filters > .project-signing-subject {
+    width: min(100%, 132px);
+  }
+  .project-list-filters
+    > :is(.project-name-filter, .project-filter-actions, .project-advanced-filters) {
+    grid-column: 1 / -1;
+  }
 }
 .export-field-picker {
   margin-bottom: 16px;

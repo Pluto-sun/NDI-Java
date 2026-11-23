@@ -6,7 +6,7 @@ import { ids, chooseActor, post } from './support/projects';
 test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目', async ({ page, request }, testInfo) => {
   const prefix = `筛选-${randomUUID()}`;
   async function create(suffix: string, subject: string) {
-    return post(request, ids.reporter, '', {
+    return post<{ id: string }>(request, ids.reporter, '', {
       provinceId: ids.province,
       cityId: ids.city,
       projectName: `${prefix}-${suffix}`,
@@ -27,20 +27,64 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   }
   await create('目标', 'DS_SIGN');
   await create('其他', 'PROVINCE_SIGN');
-  await page.goto('/projects');
+  const terminated = await create('已结束', 'DS_SIGN');
+  const approval = await post<{ id: string }>(
+    request,
+    ids.reporter,
+    `/${terminated.id}/major-changes`,
+    {
+      changeType: 'TERMINATE',
+      initiatorLevel: 'CITY',
+      approverId: ids.leader,
+      reason: '验收项目列表终止项目筛选',
+    },
+  );
+  await post(request, ids.leader, `/approvals/${approval.id}/decision`, {
+    approved: true,
+    opinion: '同意终止',
+  });
+  await page.goto('/projects?includeTerminated=false');
   await chooseActor(page, ids.reporter);
   await page.getByRole('textbox', { name: '项目名称', exact: true }).fill(prefix);
   await page.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(page.getByRole('row')).toHaveCount(4);
+  await expect(page.getByRole('row').filter({ hasText: prefix + '-已结束' })).toContainText(
+    '已终止',
+  );
+  await expect(page.getByRole('checkbox', { name: '含已终止项目', exact: true })).toHaveCount(0);
+  const tabs = page.getByRole('group', { name: '项目阶段快捷筛选' });
+  await tabs.getByRole('button', { name: '方案交流', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(3);
+  await tabs.getByRole('button', { name: '全部', exact: true }).click();
+  await expect(page.getByRole('row')).toHaveCount(4);
+
+  const filters = page.getByRole('form', { name: '项目筛选' });
+  const queryButton = filters.getByRole('button', { name: '查询' });
+  const resetButton = filters.getByRole('button', { name: '重置筛选' });
+  const city = filters.getByRole('button', { name: '归属地市／区县' });
+  const [box, queryBox, resetBox, cityBox] = await Promise.all(
+    [filters, queryButton, resetButton, city].map((element) => element.boundingBox()),
+  );
+  expect(queryBox!.y).toBeCloseTo(resetBox!.y, 0);
+  expect(box!.x + box!.width - resetBox!.x - resetBox!.width).toBeLessThan(21);
+  expect(cityBox!.width).toBeLessThanOrEqual(169);
+  if (testInfo.project.name !== 'small-screen') {
+    expect(queryBox!.x).toBeGreaterThan(cityBox!.x + cityBox!.width);
+    expect(queryBox!.y + queryBox!.height).toBeCloseTo(cityBox!.y + cityBox!.height, 0);
+  } else {
+    const provinceBox = await filters.getByRole('button', { name: '归属省分' }).boundingBox();
+    expect(provinceBox!.y).toBeCloseTo(cityBox!.y, 0);
+    expect(provinceBox!.width).toBeCloseTo(cityBox!.width, 0);
+  }
+
   await page.getByText('更多筛选条件', { exact: true }).focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await page.getByRole('checkbox', { name: '含已终止项目', exact: true }).uncheck();
   await page.getByRole('combobox', { name: '签约主体', exact: true }).selectOption('DS_SIGN');
   await page.getByRole('textbox', { name: '项目负责人', exact: true }).fill('%_专家');
   await page.getByRole('textbox', { name: '编号或名称关键字', exact: true }).fill(prefix);
   await page.getByRole('button', { name: '查询', exact: true }).click();
-  await expect(page.getByRole('row')).toHaveCount(2);
+  await expect(page.getByRole('row')).toHaveCount(3);
   await expect(page.getByRole('link', { name: `详情：${prefix}-目标`, exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: `详情：${prefix}-其他`, exact: true })).toHaveCount(
     0,
@@ -54,7 +98,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   expect(response.ok(), await response.text()).toBeTruthy();
   expect(response.request().postDataJSON()).not.toHaveProperty('stage');
   expect(response.request().postDataJSON()).not.toHaveProperty('cityId');
-  expect(response.request().postDataJSON()).toHaveProperty('includeTerminated', false);
+  expect(response.request().postDataJSON()).toHaveProperty('includeTerminated', true);
   expect(response.request().postDataJSON()).toMatchObject({
     signingSubjectCode: 'DS_SIGN',
     responsiblePersonName: '%_专家',
@@ -68,7 +112,8 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   const csv = await readFile((await download.path())!, 'utf8');
   expect(csv).toContain(`${prefix}-目标`);
   expect(csv).not.toContain(`${prefix}-其他`);
-  expect(csv.trim().split(/\r?\n/)).toHaveLength(2);
+  expect(csv).toContain(`${prefix}-已结束`);
+  expect(csv.trim().split(/\r?\n/)).toHaveLength(3);
   await page.getByRole('button', { name: '重置筛选', exact: true }).click();
   await expect(page.getByRole('button', { name: '下载 CSV', exact: true })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '项目负责人', exact: true })).toHaveValue('');

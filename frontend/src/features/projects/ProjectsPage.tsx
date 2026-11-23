@@ -11,7 +11,6 @@ import { amount } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 import { Modal } from '../../shared/ui/Modal';
 import { ListPagination } from '../../shared/ui/ListPagination';
-import { PROJECT_STAGE_TABS } from '../../shared/ui/ProjectStageTabs';
 
 const productShortNames: Record<string, string> = {
   NETWORK: '5G',
@@ -66,7 +65,6 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
       industryCode: searchParams.get('industryCode') ?? '',
       provinceIds,
       cityIds,
-      includeTerminated: searchParams.get('includeTerminated') !== 'false',
       ...(Object.fromEntries(
         Object.keys(emptyAdvanced).map((key) => [key, searchParams.get(key) ?? '']),
       ) as typeof emptyAdvanced),
@@ -82,10 +80,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     setSearchParams(params);
   }
   const [name, setName] = useState(draftString('projectName', query.projectName));
-  const initialStage = PROJECT_STAGE_TABS.some((item) => item.code === searchParams.get('stage'))
-    ? searchParams.get('stage')!
-    : '';
-  const [stage, setStage] = useState(draftString('stage', initialStage));
+  const [stage, setStage] = useState(draftString('stage', query.stage));
   const [projectCode, setProjectCode] = useState(draftString('projectCode', query.projectCode));
   const [industryCode, setIndustryCode] = useState(draftString('industryCode', query.industryCode));
   const draftLocations = (key: string, fallback: string[]) => {
@@ -105,11 +100,6 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
         )
       : [];
   const selectedCityIds = cityIds.filter((id) => cities.some((item) => item.id === id));
-  const [includeTerminated, setIncludeTerminated] = useState(
-    typeof savedDraft?.includeTerminated === 'boolean'
-      ? savedDraft.includeTerminated
-      : query.includeTerminated,
-  );
   const [advanced, setAdvanced] = useState({
     ...emptyAdvanced,
     ...Object.fromEntries(
@@ -139,7 +129,6 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     setIndustryCode(query.industryCode);
     setProvinceIds(query.provinceIds);
     setCityIds(query.cityIds);
-    setIncludeTerminated(query.includeTerminated);
     setAdvanced({
       ...emptyAdvanced,
       ...Object.fromEntries(
@@ -175,7 +164,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     // 新查询不继续展示上一组条件的下载入口。
     setExportTask(null);
     projectsApi
-      .list(query)
+      .list({ ...query, includeTerminated: true })
       .then((result) => {
         if (active) {
           setData(result);
@@ -229,7 +218,10 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     try {
       const { page: _page, ...filter } = query;
       void _page;
-      const result = await projectsApi.exportProjects(filter, appliedFields);
+      const result = await projectsApi.exportProjects(
+        { ...filter, includeTerminated: true },
+        appliedFields,
+      );
       if (currentQuery.current === appliedQuery && currentFields.current === appliedFields) {
         setExportTask(result);
         setExportOpen(false);
@@ -266,6 +258,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
       </div>
       <form
         className="filter-bar project-list-filters"
+        aria-label="项目筛选"
         onSubmit={(event) => {
           event.preventDefault();
           if (invalidDateRange) {
@@ -282,12 +275,11 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
             industryCode,
             provinceIds,
             cityIds: selectedCityIds,
-            includeTerminated,
             ...advanced,
           });
         }}
       >
-        <label>
+        <label className="project-name-filter">
           项目名称
           <input
             value={name}
@@ -337,21 +329,44 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
         <MultiSelect
           label="归属地市／区县"
           values={selectedCityIds}
-          disabledReason={provinceIds.length === 1 ? undefined : '请只选择一个省分'}
+          disabledReason={provinceIds.length === 1 ? undefined : '请先单选省分'}
           options={cities.map((item) => ({
             value: item.id,
             label: item.legacyMunicipalityCity ? item.name + '（未细分区县）' : item.name,
           }))}
           onChange={setCityIds}
         />
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={includeTerminated}
-            onChange={(event) => setIncludeTerminated(event.target.checked)}
-          />
-          含已终止项目
-        </label>
+        <div className="inline-actions project-filter-actions">
+          <button type="submit" className="primary-button">
+            查询
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              sessionStorage.removeItem(draftKey);
+              setName('');
+              setProjectCode('');
+              setStage('');
+              setIndustryCode('');
+              setProvinceIds([]);
+              setCityIds([]);
+              setAdvanced(emptyAdvanced);
+              setQuery({
+                page: 0,
+                projectName: '',
+                stage: '',
+                projectCode: '',
+                industryCode: '',
+                provinceIds: [],
+                cityIds: [],
+                ...emptyAdvanced,
+              });
+            }}
+          >
+            重置筛选
+          </button>
+        </div>
         <details
           className="project-advanced-filters"
           open={advancedOpen}
@@ -440,37 +455,6 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
             </label>
           </div>
         </details>
-        <button type="submit" className="primary-button">
-          查询
-        </button>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => {
-            sessionStorage.removeItem(draftKey);
-            setName('');
-            setProjectCode('');
-            setStage('');
-            setIndustryCode('');
-            setProvinceIds([]);
-            setCityIds([]);
-            setIncludeTerminated(true);
-            setAdvanced(emptyAdvanced);
-            setQuery({
-              page: 0,
-              projectName: '',
-              stage: '',
-              projectCode: '',
-              industryCode: '',
-              provinceIds: [],
-              cityIds: [],
-              includeTerminated: true,
-              ...emptyAdvanced,
-            });
-          }}
-        >
-          重置筛选
-        </button>
       </form>
       {exportOpen && (
         <Modal title="配置项目导出" busy={exportBusy} onClose={() => setExportOpen(false)}>
@@ -638,7 +622,6 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
                               industryCode,
                               provinceIds,
                               cityIds: selectedCityIds,
-                              includeTerminated,
                               ...advanced,
                               advancedOpen,
                             }),
