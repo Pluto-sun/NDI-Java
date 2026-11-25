@@ -1,6 +1,7 @@
 package com.pluto.ndi.revenue.mapper;
 
 import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.shared.reporting.SchedulingOverviewSource;
 import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
 import java.math.BigDecimal;
 
@@ -99,6 +100,42 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
                     }
                 });
         return DashboardSummary.amounts(List.copyOf(categories.values()), List.copyOf(provinces.values()));
+    }
+
+    public SchedulingOverviewSource schedulingOverview(Access access, DashboardSummary.MonthRange months) {
+        var base = where(access, new Filter(null, null, null, null, 0, 1));
+        var condition = base.sql() + """
+                 AND e.recognition IS NOT NULL
+                 AND e.fee_month_key BETWEEN :start AND :finish
+                 AND e.fee_month_key REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$'
+                """;
+        var args = base.args().addValue("start", months.from().substring(0, 7))
+                .addValue("finish", months.to().substring(0, 7))
+                .addValue("digitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+        var groups = jdbc.query("""
+                SELECT STR_TO_DATE(CONCAT(e.fee_month_key,'-01'),'%Y-%m-%d') AS month,
+                    BIN_TO_UUID(v.id) AS bucket_id,
+                    COALESCE(v.province_name, CASE WHEN e.specific_organization THEN
+                        IF(JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$."省份名称"'))=:digitalTech,
+                           :digitalTech,'具体组织') ELSE '未归属' END) AS bucket_name,
+                    COALESCE(NULLIF(NULLIF(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(
+                        e.source_fields,'$."三化分类"'))),''),'--'),'null'),'未分类') AS category_label,
+                    COALESCE(SUM(e.recognized_amount),0) AS amount
+                FROM revenue_entry e
+                LEFT JOIN revenue_organization_province m
+                    ON e.specific_organization AND m.organization_key=e.source_organization_key
+                LEFT JOIN organization_province v
+                    ON v.id=IF(e.specific_organization,m.province_id,e.province_id)
+                """ + condition + " GROUP BY month,bucket_id,bucket_name,category_label", args, (rs, row) ->
+                new SchedulingOverviewSource.Group(rs.getDate("month").toLocalDate(), rs.getString("bucket_id"),
+                        rs.getString("bucket_name"), Map.of(rs.getString("category_label"),
+                                rs.getBigDecimal("amount").movePointLeft(4))));
+        long count = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT CAST(NULLIF(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(
+                    e.recognition,'$.reportedProjectName'))),'null'),'') AS BINARY))
+                FROM revenue_entry e
+                """ + condition, args, Long.class);
+        return new SchedulingOverviewSource(count, groups);
     }
 
     private static final String ASSIGNED_PROVINCE = """

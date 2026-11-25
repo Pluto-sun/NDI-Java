@@ -1,6 +1,7 @@
 package com.pluto.ndi.production.mapper;
 
 import com.pluto.ndi.shared.reporting.DashboardSummary;
+import com.pluto.ndi.shared.reporting.SchedulingOverviewSource;
 import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
 import java.math.BigDecimal;
 
@@ -46,6 +47,13 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
   JOIN organization_province v ON v.id=p.province_id JOIN organization_city c ON c.id=p.city_id
 """;
 
+    private static final String PRODUCT_TOTALS = """
+            COALESCE(p.network_order_amount,0) AS network,
+            COALESCE(p.gewu_order_amount,0)+COALESCE(p.gewu_revenue_amount,0) AS gewu,
+            COALESCE(p.big_data_order_amount,0)+COALESCE(p.big_data_revenue_amount,0) AS big_data,
+            COALESCE(p.wangwu_order_amount,0)+COALESCE(p.wangwu_revenue_amount,0) AS wangwu
+            """;
+
     private StringBuilder scopeWhere(Access access, MapSqlParameterSource args) {
         var where = new StringBuilder(" WHERE p.deleted_at IS NULL");
         switch (access.scope().level()) {
@@ -87,12 +95,9 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
                     SUM(network>0) AS network_count, SUM(network) AS network_amount, SUM(gewu>0) AS gewu_count, SUM(gewu) AS gewu_amount, SUM(big_data>0) AS big_data_count, SUM(big_data) AS big_data_amount, SUM(wangwu>0) AS wangwu_count, SUM(wangwu) AS wangwu_amount
                 FROM (
                     SELECT v.province_name,
-                        COALESCE(p.network_order_amount,0) AS network,
-                        COALESCE(p.gewu_order_amount,0) + COALESCE(p.gewu_revenue_amount,0) AS gewu,
-                        COALESCE(p.big_data_order_amount,0) + COALESCE(p.big_data_revenue_amount,0) AS big_data,
-                        COALESCE(p.wangwu_order_amount,0) + COALESCE(p.wangwu_revenue_amount,0) AS wangwu
-                    FROM production_plan p JOIN organization_province v ON v.id=p.province_id
-                """ + where + ") scoped GROUP BY province_name", args, (rs, row) -> {
+                """ + PRODUCT_TOTALS
+                + " FROM production_plan p JOIN organization_province v ON v.id=p.province_id"
+                + where + ") scoped GROUP BY province_name", args, (rs, row) -> {
                     BigDecimal provinceAmount = BigDecimal.ZERO;
                     for (int i = 0; i < keys.size(); i++) {
                         counts[i] += rs.getLong(keys.get(i) + "_count");
@@ -105,6 +110,26 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
         var categories = new ArrayList<Metric>();
         for (int i = 0; i < keys.size(); i++) categories.add(new Metric(names.get(i), counts[i], totals[i]));
         return DashboardSummary.amounts(categories, provinces);
+    }
+
+    public SchedulingOverviewSource schedulingOverview(Access access, DashboardSummary.MonthRange months) {
+        var args = new MapSqlParameterSource("start", months.from()).addValue("finish", months.to());
+        var where = scopeWhere(access, args).append(" AND p.plan_month BETWEEN :start AND :finish");
+        var source = " FROM production_plan p JOIN organization_province v ON v.id=p.province_id" + where;
+        var groups = jdbc.query("""
+                SELECT plan_month AS month, province_id, province_name,
+                    SUM(network) AS network, SUM(gewu) AS digital, SUM(big_data+wangwu) AS intelligent
+                FROM (SELECT p.plan_month, BIN_TO_UUID(v.id) AS province_id, v.province_name,
+                """ + PRODUCT_TOTALS + source + ") scoped GROUP BY plan_month,province_id,province_name",
+                args, (rs, row) ->
+                new SchedulingOverviewSource.Group(rs.getDate("month").toLocalDate(),
+                        rs.getString("province_id"), rs.getString("province_name"), Map.of(
+                                "网络化", rs.getBigDecimal("network"), "数字化", rs.getBigDecimal("digital"),
+                                "智能化", rs.getBigDecimal("intelligent"))));
+        long count = jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT CAST(NULLIF(TRIM(p.project_name),'') AS BINARY))" + source,
+                args, Long.class);
+        return new SchedulingOverviewSource(count, groups);
     }
 
     public Result list(Access access, Filter filter) {

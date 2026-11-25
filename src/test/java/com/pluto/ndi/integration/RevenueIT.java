@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.pluto.ndi.NdiApplication;
 import com.pluto.ndi.identity.service.ReviewerScopeChanged;
+import com.pluto.ndi.production.domain.ProductionPlan;
+import com.pluto.ndi.production.domain.SchedulingOverview;
+import com.pluto.ndi.production.service.ProductionPlanService;
+import com.pluto.ndi.production.service.SchedulingOverviewService;
 import com.pluto.ndi.revenue.domain.*;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.mapper.RevenueMapper;
@@ -69,6 +73,8 @@ class RevenueIT {
 
     @Autowired RevenueService service;
     @Autowired RevenueMapper mapper;
+    @Autowired SchedulingOverviewService schedulingOverview;
+    @Autowired ProductionPlanService plans;
     @Autowired com.pluto.ndi.revenue.service.RevenueOrganizationService organizationAssignments;
     @Autowired RevenueImportService imports;
     @Autowired com.pluto.ndi.production.service.ProductionImportService productionImports;
@@ -196,6 +202,75 @@ class RevenueIT {
 
     RevenueMapper.Filter filter(String state) {
         return new RevenueMapper.Filter("2026-10", province.toString(), "", state, 0, 100);
+    }
+
+    @Test
+    void schedulingOverviewUsesFeeMonthsEffectiveRecognitionAndIndependentScopes() {
+        String sameName = "跨省同名";
+        var plan = plans.create(admin, cockpitPlan(sameName, "2090-01", province, city));
+        plans.create(admin, cockpitPlan(sameName, "2090-02", otherProvince, otherCity));
+        plans.create(admin, cockpitPlan(sameName, "2090-03", province, city));
+        var deleted = plans.create(admin, cockpitPlan("已删除", "2090-01", province, city));
+        plans.delete(admin, deleted.id(), deleted.version());
+        assertThat(plan.bigDataAmount()).isEqualByComparingTo("1.5");
+
+        var first = cockpitRecognition("2090-01", provinceName, "30000", sameName);
+        var applied = approve(reviewer, first, new Recognition(new BigDecimal("30000"), sameName, "实施中", null));
+        service.recognize(reviewer, first.id(), applied.version(), value("100000000"), group);
+
+        String otherName = jdbc.queryForObject("SELECT province_name FROM organization_province WHERE id=UUID_TO_BIN(?)",
+                String.class, otherProvince.toString());
+        approve(otherReviewer, cockpitRecognition("2090-02", otherName, "60000", sameName),
+                new Recognition(new BigDecimal("60000"), sameName, "实施中", null));
+        var noFee = approve(reviewer, cockpitRecognition("2090-01", provinceName, "100000", "历史空费用账期"),
+                new Recognition(new BigDecimal("100000"), "历史空费用账期", "实施中", null));
+        jdbc.update("""
+                UPDATE revenue_entry SET source_fields=JSON_REMOVE(source_fields,'$."费用账期"')
+                WHERE id=UUID_TO_BIN(?)
+                """, noFee.id().toString());
+        approve(reviewer, cockpitRecognition("2090-02", "具体组织", "10000", sameName),
+                new Recognition(new BigDecimal("10000"), sameName, "实施中", null));
+
+        var result = schedulingOverview.load(admin, "2090-01", "2090-02");
+        assertThat(result.plannedProjects()).isEqualTo(1);
+        assertThat(result.recognizedProjects()).isEqualTo(1);
+        assertThat(result.total()).isEqualTo(new SchedulingOverview.Amounts("6", "10", "-4", "166.6667"));
+        assertThat(result.categories().get(1).amounts().recognized()).isEqualTo("10");
+        assertThat(result.categories().get(2).amounts().planned()).isEqualTo("3");
+        assertThat(result.months().get(1).recognizedIncrease()).isEqualTo("4");
+        assertThat(result.provinces()).extracting(SchedulingOverview.Province::name)
+                .containsExactly(otherName, provinceName, "具体组织");
+
+        var scoped = schedulingOverview.load(cityReporter, "2090-01", "2090-02");
+        assertThat(scoped.productionScope()).isEqualTo("CITY");
+        assertThat(scoped.revenueScope()).isEqualTo("PROVINCE");
+        assertThat(scoped.total()).isEqualTo(new SchedulingOverview.Amounts("3", "3", "0", "100"));
+        assertThat(scoped.months().get(1).amounts().rate()).isNull();
+        assertThat(scoped.months().get(1).recognizedIncrease()).isEqualTo("-3");
+        var interfaceView = schedulingOverview.load(reviewer, "2090-01", "2090-02");
+        assertThat(interfaceView.total().planned()).isEqualTo("3");
+        assertThat(interfaceView.total().recognized()).isEqualTo("10");
+        assertThat(schedulingOverview.load(admin, "2090-09", "2090-09").empty()).isTrue();
+        assertThatThrownBy(() -> schedulingOverview.load(UUID.randomUUID(), "2090-01", "2090-02"))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> schedulingOverview.load(admin, "2090-02", "2090-01"))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private ProductionPlan.Command cockpitPlan(String name, String month, UUID place, UUID district) {
+        return new ProductionPlan.Command("统计验收", month, place, district, name, "验收客户", List.of(),
+                new BigDecimal("1.5"), null, null, BigDecimal.ONE, new BigDecimal("0.5"),
+                null, null, null, null, null);
+    }
+
+    private Entry cockpitRecognition(String fee, String place, String amount, String name) {
+        var fields = source();
+        fields.put("月账期", "2090-11");
+        fields.put("费用账期", fee);
+        fields.put("省份名称", place);
+        fields.put(RevenueFields.SOURCE_AMOUNT, amount);
+        fields.put("项目名称", name + UUID.randomUUID());
+        return service.create(admin, fields);
     }
 
     @Test

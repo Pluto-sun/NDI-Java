@@ -6,7 +6,7 @@ import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import './module-dashboard.css';
 
-type Module = 'scheduling' | 'revenue' | 'capability';
+type Module = 'revenue' | 'capability';
 const views = [
   { key: 'gewu', label: '格物部署清单', metric: '部署项数量', endpoint: 'gewu-deployments' },
   { key: 'wangwu', label: '万悟部署情况', metric: '部署记录总数', endpoint: 'wangwu' },
@@ -59,7 +59,7 @@ export function DashboardControls({ module }: { module: Module }) {
   }
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
-  const title = module === 'scheduling' ? '排产月份' : '月账期';
+  const title = '月账期';
   return (
     <div className="module-dashboard-months" role="group" aria-label={title + '范围'}>
       <span>{title}</span>
@@ -88,12 +88,7 @@ export function ModuleDashboard({ module }: { module: Module }) {
   const to = params.get('to') ?? '';
   const view = views.find(({ key }) => key === params.get('view')) ?? views[0];
   const capability = module === 'capability';
-  const scheduling = module === 'scheduling';
-  const root = capability
-    ? '/api/v1/capability/' + view.endpoint
-    : scheduling
-      ? '/api/v1/production/plans'
-      : '/api/v1/revenue/entries';
+  const root = capability ? '/api/v1/capability/' + view.endpoint : '/api/v1/revenue/entries';
   const query = capability ? '' : '?' + new URLSearchParams({ from, to }).toString();
   const invalid = !capability && !!from && !!to && from > to;
   const load = useCallback(
@@ -101,9 +96,9 @@ export function ModuleDashboard({ module }: { module: Module }) {
     [root, query],
   );
   const { data, error, busy } = useLiveQuery(load, '驾驶舱读取失败', !invalid);
-  const unit = scheduling ? '万元' : '元';
-  const amountLabel = scheduling ? '预计总排产金额' : '认定金额合计';
-  const countLabel = capability ? view.metric : scheduling ? '排产条目总数' : '计收台账记录总数';
+  const unit = '元';
+  const amountLabel = '认定金额合计';
+  const countLabel = capability ? view.metric : '计收台账记录总数';
   if (invalid) return <Feedback tone="error">起始月须早于或等于结束月。</Feedback>;
   if (!data) return error ? <Feedback tone="error">{error}</Feedback> : <Loading />;
   return (
@@ -142,7 +137,6 @@ export function ModuleDashboard({ module }: { module: Module }) {
           </article>
         ))}
       </div>
-      {scheduling && <p className="subtle">同一条目涉及多个产品时，计入各对应产品。</p>}
       <section className="panel register-region" aria-labelledby="register-region-title">
         <h2 id="register-region-title">省分分布</h2>
         <table aria-label="省分分布">

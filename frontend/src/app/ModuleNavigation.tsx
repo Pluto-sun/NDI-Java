@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { SchedulingCockpitLink } from './SchedulingCockpitLink';
 import { NotificationNavLinks } from '../features/approvals/NotificationNavLinks';
 
 function MenuGroup({
@@ -45,7 +46,7 @@ export function ModuleNavigation({
           项目管理驾驶舱
         </NavLink>
         <NavLink to="/workbench/revenue">计收驾驶舱</NavLink>
-        <NavLink to="/workbench/scheduling">排产驾驶舱</NavLink>
+        <SchedulingCockpitLink />
         <NavLink to="/workbench/capability">能力指标驾驶舱</NavLink>
       </MenuGroup>
       <MenuGroup title="项目管理" active={pathname.startsWith('/projects')}>

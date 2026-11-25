@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAnchoredPanel } from './useAnchoredPanel';
 
 export function MonthPicker({
@@ -7,6 +8,7 @@ export function MonthPicker({
   min,
   max,
   required = false,
+  portal = false,
   'aria-label': label,
 }: {
   value: string;
@@ -14,6 +16,7 @@ export function MonthPicker({
   min?: string;
   max?: string;
   required?: boolean;
+  portal?: boolean;
   'aria-label': string;
 }) {
   const [open, setOpen] = useState(false);
@@ -34,12 +37,18 @@ export function MonthPicker({
     onChange(month);
     close();
   };
+  const renderPanel = (content: React.ReactNode) =>
+    portal ? createPortal(content, document.body) : content;
   return (
     <details
       open={open}
       className="month-picker"
       onBlur={(event) => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+        if (
+          event.relatedTarget &&
+          !event.currentTarget.contains(event.relatedTarget) &&
+          !panel.current?.contains(event.relatedTarget)
+        )
           setOpen(false);
       }}
       onKeyDown={(event) => {
@@ -55,7 +64,7 @@ export function MonthPicker({
         aria-label={label}
         aria-description={value || '未选择月份'}
         aria-expanded={open}
-        aria-controls={id}
+        aria-controls={open ? id : undefined}
         onClick={(event) => {
           event.preventDefault();
           if (open) {
@@ -63,6 +72,7 @@ export function MonthPicker({
             return;
           }
           setOpen(true);
+          if (portal) requestAnimationFrame(() => panel.current?.focus());
           const selected =
             value.slice(0, 4) ||
             new Intl.DateTimeFormat('en', {
@@ -81,75 +91,77 @@ export function MonthPicker({
       >
         {value || '选择月份'}
       </summary>
-      {open && (
-        <div
-          ref={panel}
-          popover="manual"
-          className="month-picker-panel"
-          id={id}
-          role="group"
-          aria-label={label + '选项'}
-        >
-          <div className="month-picker-year">
-            <button
-              type="button"
-              className="secondary-button"
-              aria-label="上一年"
-              disabled={activeYear <= Number(minimum.slice(0, 4))}
-              onClick={() => setYear(String(activeYear - 1))}
-            >
-              ‹
-            </button>
-            <input
-              type="number"
-              aria-label="年份"
-              value={year}
-              inputMode="numeric"
-              onChange={(event) => setYear(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.preventDefault();
-              }}
-            />
-            <button
-              type="button"
-              className="secondary-button"
-              aria-label="下一年"
-              disabled={activeYear >= Number(maximum.slice(0, 4))}
-              onClick={() => setYear(String(activeYear + 1))}
-            >
-              ›
-            </button>
-          </div>
-          <div className="month-picker-grid">
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+      {open &&
+        renderPanel(
+          <div
+            ref={panel}
+            popover="manual"
+            className="month-picker-panel"
+            tabIndex={portal ? -1 : undefined}
+            id={id}
+            role="group"
+            aria-label={label + '选项'}
+          >
+            <div className="month-picker-year">
               <button
                 type="button"
-                key={month}
                 className="secondary-button"
-                disabled={
-                  !/^\d{4}$/.test(year) ||
-                  monthValue(month) < minimum ||
-                  monthValue(month) > maximum
-                }
-                aria-pressed={value === monthValue(month)}
-                onClick={() => choose(monthValue(month))}
+                aria-label="上一年"
+                disabled={activeYear <= Number(minimum.slice(0, 4))}
+                onClick={() => setYear(String(activeYear - 1))}
               >
-                {month}月
+                ‹
               </button>
-            ))}
-          </div>
-          {!required && (
-            <button
-              type="button"
-              className="text-button"
-              disabled={!value}
-              onClick={() => choose('')}
-            >
-              清空
-            </button>
-          )}
-        </div>
-      )}
+              <input
+                type="number"
+                aria-label="年份"
+                value={year}
+                inputMode="numeric"
+                onChange={(event) => setYear(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.preventDefault();
+                }}
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                aria-label="下一年"
+                disabled={activeYear >= Number(maximum.slice(0, 4))}
+                onClick={() => setYear(String(activeYear + 1))}
+              >
+                ›
+              </button>
+            </div>
+            <div className="month-picker-grid">
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                <button
+                  type="button"
+                  key={month}
+                  className="secondary-button"
+                  disabled={
+                    !/^\d{4}$/.test(year) ||
+                    monthValue(month) < minimum ||
+                    monthValue(month) > maximum
+                  }
+                  aria-pressed={value === monthValue(month)}
+                  onClick={() => choose(monthValue(month))}
+                >
+                  {month}月
+                </button>
+              ))}
+            </div>
+            {!required && (
+              <button
+                type="button"
+                className="text-button"
+                disabled={!value}
+                onClick={() => choose('')}
+              >
+                清空
+              </button>
+            )}
+          </div>,
+        )}
     </details>
   );
 }

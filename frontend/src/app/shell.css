@@ -42,6 +42,18 @@
   min-height: 34px;
   border-radius: 6px;
 }
+.nav-popup-fallback {
+  margin: 3px 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sidebar .nav-popup-fallback a {
+  margin-top: 4px;
+  color: var(--red-dark);
+}
 .nav-module-children .nav-count {
   min-width: 19px;
   height: 19px;

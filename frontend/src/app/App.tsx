@@ -21,6 +21,7 @@ import { authApi, type AccountProfile, type AuthenticationMode } from '../featur
 import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 import { ModuleNavigation } from './ModuleNavigation';
+import { schedulingCockpitPath } from './SchedulingCockpitLink';
 import { pageTitle } from './pageTitle';
 import { ProjectStageTabs } from '../shared/ui/ProjectStageTabs';
 import { Modal } from '../shared/ui/Modal';
@@ -70,6 +71,7 @@ const ImportProductionPage = lazy(() =>
   })),
 );
 
+const SchedulingCockpit = lazy(() => import('../features/scheduling-cockpit/SchedulingCockpit'));
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
     default: module.WorkbenchPage,
@@ -281,6 +283,17 @@ export function App() {
       />
     );
 
+  if (
+    location.pathname === schedulingCockpitPath ||
+    location.pathname === schedulingCockpitPath + '/'
+  ) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <SchedulingCockpit />
+      </Suspense>
+    );
+  }
+
   const { canCreate, canImport } = projectEntryPermissions(me);
   async function logout() {
     if (!me || loggingOut) return;
@@ -303,13 +316,12 @@ export function App() {
     location.pathname === '/projects/new' && !canCreate && canImport
       ? '项目创建'
       : pageTitle(location.pathname);
-  const dashboardModule = [
-    '/workbench/scheduling',
-    '/workbench/revenue',
-    '/workbench/capability',
-  ].includes(location.pathname)
-    ? (location.pathname.split('/')[2] as 'scheduling' | 'revenue' | 'capability')
-    : null;
+  const dashboardModule =
+    location.pathname === '/workbench/revenue'
+      ? 'revenue'
+      : location.pathname === '/workbench/capability'
+        ? 'capability'
+        : null;
   const projectDetailRoute =
     /^\/projects\/[^/]+$/.test(location.pathname) &&
     !['/projects/new', '/projects/import'].includes(location.pathname);
@@ -494,10 +506,6 @@ export function App() {
               <Route
                 path="/workbench/revenue"
                 element={<ModuleDashboard key="revenue" module="revenue" />}
-              />
-              <Route
-                path="/workbench/scheduling"
-                element={<ModuleDashboard key="scheduling" module="scheduling" />}
               />
               <Route
                 path="/workbench/capability"

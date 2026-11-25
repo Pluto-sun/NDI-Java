@@ -32,7 +32,7 @@ async function checkSticky(page: Page) {
 const production = '/production/plans';
 const revenue = '/revenue/entries';
 
-test('排产跨月汇总去重、产品金额精确、城市范围和固定标题栏', async ({ page, request }, info) => {
+test('原排产统计接口保留条目数、分项金额和城市范围', async ({ request }, info) => {
   const year = info.project.name === 'desktop' ? '2081' : '2082';
   const ref = await get<ReferenceData>(request, ids.admin, '/reference-data');
   const other = ref.cities.find((city) => city.provinceId !== ids.province)!;
@@ -83,14 +83,6 @@ test('排产跨月汇总去重、产品金额精确、城市范围和固定标�
       })
     ).status(),
   ).toBe(400);
-  await page.goto('/workbench/scheduling' + range);
-  await chooseActor(page, ids.admin);
-  await expect(page.getByTestId('dashboard-total-count')).toHaveText('2');
-  await checkSticky(page);
-  await pickMonth(page.getByLabel('排产月份结束月', { exact: true }), year + '-02');
-  await expect(page.getByTestId('dashboard-total-amount')).toHaveText('29.0003');
-  await expect(page.getByRole('table', { name: '省分分布' }).locator('tbody tr')).toHaveCount(1);
-  await page.screenshot({ path: info.outputPath('scheduling-dashboard.png'), fullPage: true });
 });
 
 test('计收月账期口径、未认定记录、具体组织与省内权限', async ({ page, request }, info) => {
