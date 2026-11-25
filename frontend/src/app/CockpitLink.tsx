@@ -1,10 +1,18 @@
 import { useState, type MouseEvent } from 'react';
 
 export const schedulingCockpitPath = '/workbench/scheduling';
-const windowName = 'ndi-scheduling-cockpit';
-let cockpit: Window | null = null;
+export const revenueCockpitPath = '/workbench/revenue';
+const windows = new Map<string, Window>();
 
-export function SchedulingCockpitLink() {
+export function CockpitLink({
+  path,
+  windowName,
+  label,
+}: {
+  path: string;
+  windowName: string;
+  label: string;
+}) {
   const [blocked, setBlocked] = useState(false);
 
   function open(event: MouseEvent<HTMLAnchorElement>) {
@@ -12,6 +20,7 @@ export function SchedulingCockpitLink() {
       return;
     event.preventDefault();
 
+    const cockpit = windows.get(windowName);
     if (cockpit && !cockpit.closed) {
       cockpit.focus();
       return;
@@ -22,12 +31,12 @@ export function SchedulingCockpitLink() {
       setBlocked(true);
       return;
     }
-    cockpit = target;
+    windows.set(windowName, target);
     try {
-      if (target.location.href === 'about:blank') target.location.replace(schedulingCockpitPath);
+      if (target.location.href === 'about:blank') target.location.replace(path);
     } catch {
       // 用户可能已将原标签页导航到其他站点。仍可直接使用链接打开驾驶舱。
-      cockpit = null;
+      windows.delete(windowName);
       setBlocked(true);
       return;
     }
@@ -37,14 +46,14 @@ export function SchedulingCockpitLink() {
 
   return (
     <>
-      <a href={schedulingCockpitPath} target={windowName} onClick={open}>
-        排产驾驶舱
+      <a href={path} target={windowName} onClick={open}>
+        {label}
       </a>
       {blocked && (
         <div className="nav-popup-fallback" role="status">
           浏览器阻止了新标签页。
-          <a href={schedulingCockpitPath} target={windowName}>
-            打开排产驾驶舱
+          <a href={path} target={windowName}>
+            打开{label}
           </a>
         </div>
       )}

@@ -25,16 +25,24 @@ const coastLabels: Record<string, [number, number]> = {
   '310000': [30, 10],
 };
 
+type MapProvince = Pick<OverviewProvince, 'adcode' | 'name' | 'total'>;
+
 export function CockpitMap({
   provinces,
   nationwide,
+  mapLabel,
+  describe = (region) => amountDescription(region.total),
+  palette = bands,
 }: {
-  provinces: OverviewProvince[];
+  provinces: MapProvince[];
   nationwide: boolean;
+  mapLabel?: string;
+  describe?: (region: MapProvince) => string;
+  palette?: typeof bands;
 }) {
   const [shapes, setShapes] = useState<ReturnType<typeof mapShapes>>([]);
   const [boundary, setBoundary] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [active, setActive] = useState<OverviewProvince | null>(null);
+  const [active, setActive] = useState<MapProvince | null>(null);
   useEffect(() => {
     let current = true;
     projectsApi
@@ -57,7 +65,7 @@ export function CockpitMap({
   const offMap = provinces.filter(
     (row) => !row.adcode || (boundary === 'ready' && !represented.has(row.adcode)),
   );
-  const label = active ? active.name + ' · ' + amountDescription(active.total) : '';
+  const label = active ? active.name + ' · ' + describe(active) : '';
   return (
     <>
       <div className="sc-map">
@@ -65,12 +73,12 @@ export function CockpitMap({
           <svg
             viewBox="14 0 652 440"
             role="group"
-            aria-label={(nationwide ? '全国' : '可见范围') + '省分排产计收地图'}
+            aria-label={mapLabel ?? (nationwide ? '全国' : '可见范围') + '省分排产计收地图'}
           >
             {shapes.map((shape) => {
               const row = byCode.get(shape.adcode);
               const amount = Number(row?.total.recognized ?? 0) / 10000;
-              const accessible = row ? row.name + ' · ' + amountDescription(row.total) : shape.name;
+              const accessible = row ? row.name + ' · ' + describe(row) : shape.name;
               return (
                 <path
                   key={shape.adcode}
@@ -78,7 +86,9 @@ export function CockpitMap({
                   aria-label={accessible}
                   tabIndex={row ? 0 : undefined}
                   fill={
-                    row || nationwide ? bands.find((band) => amount < band.below)?.color : '#e5ebf4'
+                    row || nationwide
+                      ? palette.find((band) => amount < band.below)?.color
+                      : '#e5ebf4'
                   }
                   fillRule="evenodd"
                   onPointerEnter={() => setActive(row ?? null)}
@@ -125,7 +135,7 @@ export function CockpitMap({
       </div>
       <div className="sc-map-legend">
         <strong>累计计收金额</strong>
-        {bands.map((band) => (
+        {palette.map((band) => (
           <span key={band.label}>
             <i style={{ background: band.color }} />
             {band.label}

@@ -1,5 +1,4 @@
 import { requiredRevenueFields } from './support/revenue';
-import { pickMonth } from './support/monthPicker';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { chooseActor, get, ids } from './support/projects';
@@ -85,7 +84,7 @@ test('原排产统计接口保留条目数、分项金额和城市范围', async
   ).toBe(400);
 });
 
-test('计收月账期口径、未认定记录、具体组织与省内权限', async ({ page, request }, info) => {
+test('计收月账期口径、未认定记录、具体组织与省内权限', async ({ request }, info) => {
   const month = info.project.name === 'desktop' ? '2083-02' : '2084-02';
   const ref = await get<ReferenceData>(request, ids.admin, '/reference-data');
   const province = ref.provinces.find((option) => option.id === ids.province)!.name;
@@ -115,15 +114,11 @@ test('计收月账期口径、未认定记录、具体组织与省内权限', as
   const range = `?from=${month}&to=${month}`;
   const scoped = await summary(request, revenue + '/dashboard' + range, ids.reporter);
   expect(scoped).toMatchObject({ count: 1, amount: '0' });
-  await page.goto('/workbench/revenue' + range);
-  await chooseActor(page, ids.admin);
-  await expect(page.getByTestId('dashboard-total-count')).toHaveText('3');
-  await expect(page.getByRole('rowheader', { name: '具体组织', exact: true })).toBeVisible();
-  await expect(page.getByRole('rowheader', { name: '数科', exact: true })).toBeVisible();
-  await checkSticky(page);
-  await pickMonth(page.getByLabel('月账期起始月', { exact: true }), month.replace('-02', '-01'));
-  await expect(page.getByTestId('dashboard-total-count')).toHaveText('4');
-  await page.screenshot({ path: info.outputPath('revenue-dashboard.png') });
+  const national = await summary(request, revenue + '/dashboard' + range);
+  expect(national.count).toBe(3);
+  expect(national.provinces.map((row: { label: string }) => row.label)).toEqual(
+    expect.arrayContaining(['数科', '具体组织', province]),
+  );
 });
 
 test('能力指标四个视图按各自台账计数并可在滚动时切换', async ({ page, request }, info) => {

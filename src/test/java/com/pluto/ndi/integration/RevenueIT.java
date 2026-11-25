@@ -73,6 +73,9 @@ class RevenueIT {
 
     @Autowired RevenueService service;
     @Autowired RevenueMapper mapper;
+    @Autowired RevenueAccessService revenueAccess;
+    @Autowired com.pluto.ndi.projects.GewuContractReport gewuContracts;
+    @Autowired com.pluto.ndi.organization.service.RegionAdcodeCatalog regionAdcodes;
     @Autowired SchedulingOverviewService schedulingOverview;
     @Autowired ProductionPlanService plans;
     @Autowired com.pluto.ndi.revenue.service.RevenueOrganizationService organizationAssignments;
@@ -202,6 +205,98 @@ class RevenueIT {
 
     RevenueMapper.Filter filter(String state) {
         return new RevenueMapper.Filter("2026-10", province.toString(), "", state, 0, 100);
+    }
+
+    @Test
+    void annualCockpitUsesEffectiveIntegratedAttributionAndScopedContractMatching() {
+        int year = 2077;
+        var fixed = java.time.Clock.fixed(java.time.Instant.parse("2077-06-21T00:00:00Z"), java.time.ZoneOffset.UTC);
+        var annualOverview = new RevenueAnnualOverviewService(revenueAccess, mapper, gewuContracts, regionAdcodes, fixed);
+        String fee = year + "-02";
+        String matched = "ANNUAL-" + UUID.randomUUID();
+        String other = "ANNUAL-" + UUID.randomUUID();
+        var jiangsu = jdbc.queryForObject("SELECT BIN_TO_UUID(id) FROM organization_province WHERE province_code='320000'",
+                (row, index) -> UUID.fromString(row.getString(1)));
+        addAnnualProject(matched, fee, "COLLECTION", "GEWU", "10");
+        addAnnualProject(other, fee, "COLLECTION", "GEWU", "0");
+        addAnnualProject("OTHER-" + matched, fee, "SOLUTION_EXCHANGE", "GEWU", "99");
+        addAnnualProject("PRODUCT-" + matched, fee, "COLLECTION", "NETWORK", "99");
+        addAnnualProject("YEAR-" + matched, (year - 1) + "-02", "COLLECTION", "GEWU", "99");
+
+        var first = annualEntry(matched, fee);
+        var approved = approve(reviewer, first, new Recognition(new BigDecimal("120000"), "共同通报名称", "实施中", jiangsu));
+        service.recognize(reviewer, first.id(), approved.version(), new Recognition(BigDecimal.ONE, "修改待审", "已上线", province), group);
+        approve(reviewer, annualEntry(matched, year + "-03"),
+                new Recognition(new BigDecimal("30000"), "共同通报名称", "实施中", jiangsu));
+        var pending = annualEntry(matched, year + "-04");
+        service.recognize(reviewer, pending.id(), pending.version(), value("999999"), group);
+        annualEntry(matched, year + "-05");
+        for (String organization : List.of("数科", "数智")) {
+            approve(reviewer, annualEntry("ORG-" + UUID.randomUUID(), fee),
+                    new Recognition(new BigDecimal("20000"), "组织计收", "实施中", null, organization));
+        }
+        approve(reviewer, annualEntry("YEAR-" + matched, (year - 1) + "-03"),
+                new Recognition(new BigDecimal("999999"), "跨年", "实施中", jiangsu));
+        var result = annualOverview.load(admin);
+        assertThat(result.total().total()).isEqualByComparingTo("19");
+        assertThat(result.months().get(1).money().total()).isEqualByComparingTo("16");
+        assertThat(result.months().get(2).money().total()).isEqualByComparingTo("3");
+        assertThat(result.coveredProvinces()).isEqualTo(1);
+        assertThat(result.gewu().signedCount()).isEqualTo(2);
+        assertThat(result.gewu().recognizedCount()).isEqualTo(1);
+        assertThat(result.gewu().signedAmount()).isEqualByComparingTo("10");
+        assertThat(result.gewu().recognizedAmount()).isEqualByComparingTo("15");
+        assertThat(result.gewu().amountGap()).isEqualByComparingTo("-5");
+        assertThat(result.gewu().amountGapRate()).isEqualByComparingTo("-50");
+        var js = result.regions().stream().filter(row -> row.key().equals(jiangsu.toString())).findFirst().orElseThrow();
+        assertThat(js.gewu().signedCount()).isEqualTo(1);
+        assertThat(js.adcode()).isEqualTo("320000");
+        assertThat(result.regions().stream().filter(row -> row.organization())).hasSize(2).allSatisfy(row -> {
+            assertThat(row.gewu()).isNull();
+            assertThat(row.adcode()).isNull();
+        });
+        var primary = result.regions().stream().filter(row -> row.key().equals(province.toString())).findFirst().orElseThrow();
+        assertThat(primary.gewu().signedCount()).isEqualTo(1);
+        assertThat(primary.gewu().amountGapRate()).isNull();
+        assertThat(annualOverview.load(cityReporter).gewu().recognizedCount()).isEqualTo(1);
+        var out = annualOverview.load(outsider);
+        assertThat(out.total().total()).isZero();
+        assertThat(out.gewu().signedCount()).isZero();
+        assertThat(annualOverview.load(reviewer).projectScope()).isEqualTo("PROVINCE");
+
+        approve(reviewer, annualEntry(matched, year + "-06"),
+                new Recognition(new BigDecimal("20000"), "共同通报名称", "实施中", otherProvince));
+        var conflict = annualOverview.load(admin);
+        assertThat(conflict.conflicts()).hasSize(1);
+        assertThat(conflict.conflicts().getFirst().contract()).isEqualTo(matched);
+        assertThat(conflict.gewu().recognizedCount()).isEqualTo(1);
+        assertThat(conflict.gewu().recognizedAmount()).isEqualByComparingTo("17");
+        assertThat(conflict.regions().stream().mapToLong(row -> row.gewu() == null ? 0 : row.gewu().signedCount()).sum())
+                .isEqualTo(2);
+    }
+
+    private Entry annualEntry(String contract, String fee) {
+        var fields = source();
+        fields.put("合同编号", contract);
+        fields.put("月账期", fee.substring(0, 4) + "-12");
+        fields.put("费用账期", fee);
+        return service.create(admin, fields);
+    }
+
+    private void addAnnualProject(String contract, String month, String stage, String category, String amount) {
+        var id = UUID.randomUUID().toString();
+        jdbc.update("""
+                INSERT INTO project_project(id,project_code,province_id,city_id,project_name,customer_name,customer_need,
+                    total_amount,current_stage_code,city_account_manager_name,version_no,created_by,created_at,updated_by,
+                    updated_at,attribution_month,contract_no,construction_content_raw)
+                VALUES(UUID_TO_BIN(?),?,UUID_TO_BIN(?),UUID_TO_BIN(?),?,'测试客户','统计验收',100,?,'测试经理',
+                    0,UUID_TO_BIN(?),UTC_TIMESTAMP(),UUID_TO_BIN(?),UTC_TIMESTAMP(),?,?,'统计验收')
+                """, id, id, province.toString(), city.toString(), id, stage,
+                admin.toString(), admin.toString(), month + "-01", contract);
+        jdbc.update("""
+                INSERT INTO project_category_amount(id,project_id,category_code,expected_amount)
+                VALUES(UUID_TO_BIN(UUID()),UUID_TO_BIN(?),?,?)
+                """, id, category, new BigDecimal(amount));
     }
 
     @Test

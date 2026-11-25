@@ -102,13 +102,37 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
         return DashboardSummary.amounts(List.copyOf(categories.values()), List.copyOf(provinces.values()));
     }
 
+    private static final String RECOGNIZED_FEE_RANGE = " " + """
+            AND e.recognition IS NOT NULL
+            AND e.fee_month_key BETWEEN :start AND :finish
+            AND e.fee_month_key REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$'
+            """;
+
+    public List<AnnualRecognition> annualRecognitions(Access access, int year) {
+        var base = where(access, new Filter(null, null, null, null, 0, 1));
+        var args = base.args().addValue("start", year + "-01").addValue("finish", year + "-12");
+        return jdbc.query("""
+                SELECT CAST(RIGHT(e.fee_month_key,2) AS UNSIGNED) AS fee_month,
+                    JSON_VALUE(e.source_fields,'$."三化分类"') AS category,
+                    e.contract_number_key, e.recognized_amount,
+                    JSON_VALUE(e.recognition,'$.reportedProjectName') AS reported_name,
+                    JSON_VALUE(e.recognition,'$.integratedOrganization') AS integrated_org,
+                    BIN_TO_UUID(v.id) AS province_id, v.province_name
+                FROM revenue_entry e
+                LEFT JOIN organization_province v
+                  ON BIN_TO_UUID(v.id)=JSON_VALUE(e.recognition,'$.integratedProvinceId')
+                """ + base.sql() + RECOGNIZED_FEE_RANGE, args, (rs, index) -> new AnnualRecognition(rs.getInt("fee_month"),
+                rs.getString("category"), rs.getString("contract_number_key"), rs.getString("reported_name"),
+                rs.getString("integrated_org"), rs.getString("province_id"), rs.getString("province_name"),
+                rs.getBigDecimal("recognized_amount").movePointLeft(4)));
+    }
+
+    public record AnnualRecognition(int month, String category, String contract, String reportedName,
+            String organization, String provinceId, String provinceName, BigDecimal amount) {}
+
     public SchedulingOverviewSource schedulingOverview(Access access, DashboardSummary.MonthRange months) {
         var base = where(access, new Filter(null, null, null, null, 0, 1));
-        var condition = base.sql() + """
-                 AND e.recognition IS NOT NULL
-                 AND e.fee_month_key BETWEEN :start AND :finish
-                 AND e.fee_month_key REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$'
-                """;
+        var condition = base.sql() + RECOGNIZED_FEE_RANGE;
         var args = base.args().addValue("start", months.from().substring(0, 7))
                 .addValue("finish", months.to().substring(0, 7))
                 .addValue("digitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);

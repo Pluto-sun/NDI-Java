@@ -21,7 +21,7 @@ import { authApi, type AccountProfile, type AuthenticationMode } from '../featur
 import { LoginPage } from '../features/auth/LoginPage';
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage';
 import { ModuleNavigation } from './ModuleNavigation';
-import { schedulingCockpitPath } from './SchedulingCockpitLink';
+import { schedulingCockpitPath, revenueCockpitPath } from './CockpitLink';
 import { pageTitle } from './pageTitle';
 import { ProjectStageTabs } from '../shared/ui/ProjectStageTabs';
 import { Modal } from '../shared/ui/Modal';
@@ -71,6 +71,7 @@ const ImportProductionPage = lazy(() =>
   })),
 );
 
+const RevenueCockpit = lazy(() => import('../features/revenue-cockpit/RevenueCockpit'));
 const SchedulingCockpit = lazy(() => import('../features/scheduling-cockpit/SchedulingCockpit'));
 const WorkbenchPage = lazy(() =>
   import('../features/workbench/WorkbenchPage').then((module) => ({
@@ -283,13 +284,17 @@ export function App() {
       />
     );
 
-  if (
-    location.pathname === schedulingCockpitPath ||
-    location.pathname === schedulingCockpitPath + '/'
-  ) {
+  const cockpitPath = location.pathname.replace(/\/$/, '');
+  const Cockpit =
+    cockpitPath === schedulingCockpitPath
+      ? SchedulingCockpit
+      : cockpitPath === revenueCockpitPath
+        ? RevenueCockpit
+        : null;
+  if (Cockpit) {
     return (
       <Suspense fallback={<Loading />}>
-        <SchedulingCockpit />
+        <Cockpit />
       </Suspense>
     );
   }
@@ -316,12 +321,7 @@ export function App() {
     location.pathname === '/projects/new' && !canCreate && canImport
       ? '项目创建'
       : pageTitle(location.pathname);
-  const dashboardModule =
-    location.pathname === '/workbench/revenue'
-      ? 'revenue'
-      : location.pathname === '/workbench/capability'
-        ? 'capability'
-        : null;
+  const dashboardModule = location.pathname === '/workbench/capability' ? 'capability' : null;
   const projectDetailRoute =
     /^\/projects\/[^/]+$/.test(location.pathname) &&
     !['/projects/new', '/projects/import'].includes(location.pathname);
@@ -503,10 +503,6 @@ export function App() {
               )}
               <Route path="/" element={<Navigate to="/workbench" replace />} />
               <Route path="/workbench" element={<WorkbenchPage reference={reference} />} />
-              <Route
-                path="/workbench/revenue"
-                element={<ModuleDashboard key="revenue" module="revenue" />}
-              />
               <Route
                 path="/workbench/capability"
                 element={<ModuleDashboard key="capability" module="capability" />}

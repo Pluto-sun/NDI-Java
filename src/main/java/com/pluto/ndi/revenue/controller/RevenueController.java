@@ -5,6 +5,7 @@ import com.pluto.ndi.revenue.domain.*;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.mapper.RevenueMapper;
 import com.pluto.ndi.revenue.service.RevenueService;
+import com.pluto.ndi.revenue.service.RevenueAnnualOverviewService;
 import com.pluto.ndi.shared.security.ActorPrincipal;
 import com.pluto.ndi.shared.web.*;
 
@@ -22,9 +23,17 @@ public class RevenueController {
     private final RevenueService service;
     private final ApiResponseFactory responses;
 
-    public RevenueController(RevenueService service, ApiResponseFactory responses) {
+    private final RevenueAnnualOverviewService annual;
+
+    public RevenueController(RevenueService service, ApiResponseFactory responses, RevenueAnnualOverviewService annual) {
         this.service = service;
         this.responses = responses;
+        this.annual = annual;
+    }
+
+    @GetMapping("/annual-overview")
+    public ApiResponse<RevenueAnnualOverview> annualOverview(Authentication auth) {
+        return responses.success(annual.load(actor(auth)));
     }
 
     @GetMapping("/dashboard")
