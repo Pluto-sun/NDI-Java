@@ -1,9 +1,11 @@
+import { useLiveQuery } from '../../shared/api/useLiveQuery';
+import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import './production.css';
 import { ListPagination } from '../../shared/ui/ListPagination';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { Select } from '../../shared/ui/Select';
@@ -22,8 +24,9 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
     [notice, setNotice] = useState(''),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
-  const [action, setAction] = useState<{ kind: 'edit' | 'delete'; plan: Plan } | null>(null);
+  const [action, setAction] = useState<Plan | null>(null);
   const query = params.toString();
+  const listScroll = useLedgerScroll(!loading && !!result);
   const load = useCallback(async () => {
     const request = new URLSearchParams(query);
     request.set('size', '20');
@@ -64,7 +67,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
     100,
     240,
     200,
-    ...(reference?.writable ? [128] : []),
+    reference?.writable ? 128 : 72,
   ];
   const tableWidth = columnWidths.reduce((total, width) => total + width, admin ? 44 : 0);
   function change(key: string, value: string) {
@@ -79,7 +82,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
     if (!action) return;
     setBusy(true);
     try {
-      await productionApi.delete(action.plan);
+      await productionApi.delete(action);
       setAction(null);
       setNotice('排产记录已删除');
       await load();
@@ -209,6 +212,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
           </div>
           {batch.toolbar}
           <div
+            ref={listScroll.table}
             className="table-scroll production-list-scroll sticky-actions-scroll"
             role="region"
             aria-label="排产明细横向滚动区域"
@@ -245,7 +249,7 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
                   <th>项目状态</th>
                   <th>产品简介</th>
                   <th>备注</th>
-                  {reference?.writable && <th className="sticky-list-action">操作</th>}
+                  <th className="sticky-list-action">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,30 +283,30 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
                     <td>{plan.projectStatus || '—'}</td>
                     <td className="production-remark">{plan.productIntroduction || '—'}</td>
                     <td className="production-remark">{plan.remark || '—'}</td>
-                    {reference?.writable && (
-                      <td className="sticky-list-action">
-                        <div className="admin-row-actions">
+                    <td className="sticky-list-action">
+                      <div className="admin-row-actions">
+                        <Link
+                          className="secondary-button compact-button"
+                          to={`/scheduling/${plan.id}`}
+                          state={listScroll.state}
+                          onClick={listScroll.remember}
+                        >
+                          详情
+                        </Link>
+                        {reference?.writable && (
                           <button
-                            className="secondary-button compact-button"
-                            onClick={() => {
-                              setError('');
-                              setAction({ kind: 'edit', plan });
-                            }}
-                          >
-                            编辑
-                          </button>
-                          <button
+                            type="button"
                             className="secondary-button compact-button danger"
                             onClick={() => {
                               setError('');
-                              setAction({ kind: 'delete', plan });
+                              setAction(plan);
                             }}
                           >
                             删除
                           </button>
-                        </div>
-                      </td>
-                    )}
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -321,44 +325,20 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
           />
         </section>
       )}
-      {action && reference && (
-        <Modal
-          title={action.kind === 'edit' ? '编辑排产' : '删除排产'}
-          busy={busy}
-          onClose={() => setAction(null)}
-        >
+      {action && (
+        <Modal title="删除排产" busy={busy} onClose={() => setAction(null)}>
           {error && <Feedback tone="error">{error}</Feedback>}
-          {action.kind === 'edit' ? (
-            <PlanForm
-              reference={reference}
-              initial={action.plan}
-              onCancel={() => setAction(null)}
-              onSave={async (values) => {
-                await productionApi.update(action.plan, values);
-                setAction(null);
-                setNotice('排产记录已更新');
-                await load();
-              }}
-            />
-          ) : (
-            <>
-              <p>
-                确认删除「{action.plan.projectName}」在 {action.plan.planMonth} 的排产记录？
-              </p>
-              <div className="form-actions">
-                <button
-                  className="secondary-button"
-                  onClick={() => setAction(null)}
-                  disabled={busy}
-                >
-                  取消
-                </button>
-                <button className="primary-button" onClick={() => void remove()} disabled={busy}>
-                  确认删除
-                </button>
-              </div>
-            </>
-          )}
+          <p>
+            确认删除「{action.projectName}」在 {action.planMonth} 的排产记录？
+          </p>
+          <div className="form-actions">
+            <button className="secondary-button" onClick={() => setAction(null)} disabled={busy}>
+              取消
+            </button>
+            <button className="primary-button" onClick={() => void remove()} disabled={busy}>
+              确认删除
+            </button>
+          </div>
         </Modal>
       )}
     </>
@@ -367,8 +347,130 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
 function useProductionListReturn() {
   const { state } = useLocation();
   return typeof state?.listSearch === 'string' && state.listSearch
-    ? '/scheduling?' + state.listSearch
+    ? '/scheduling?' + state.listSearch.replace(/^\?/, '')
     : '/scheduling';
+}
+
+export function ProductionDetailPage() {
+  const { id = '' } = useParams();
+  const backTo = useProductionListReturn();
+  const [editing, setEditing] = useState<Plan | null>(null);
+  const [notice, setNotice] = useState('');
+  const load = useCallback((signal: AbortSignal) => productionApi.detail(id, signal), [id]);
+  const loadReference = useCallback(() => productionApi.reference(), []);
+  const result = useLiveQuery(load, '排产详情加载失败');
+  const reference = useLiveQuery(loadReference, '排产组织目录加载失败', !!editing);
+  const plan = result.data;
+  const basic = plan && [
+    ['接口人', plan.reviewerName],
+    ['排产月份', plan.planMonth],
+    ['省份', plan.provinceName],
+    ['地市', plan.cityName],
+    ['项目名称', plan.projectName],
+    ['客户名称', plan.customerName],
+    ['项目状态', plan.projectStatus],
+  ];
+  return (
+    <>
+      <div className="page-heading">
+        <Link className="secondary-button" to={backTo}>
+          返回列表
+        </Link>
+      </div>
+      {result.error && <Feedback tone="error">{result.error}</Feedback>}
+      {notice && <Feedback tone="success">{notice}</Feedback>}
+      {!plan && result.busy && <Loading />}
+      {plan && basic && (
+        <section className="panel ledger-detail">
+          <div className="page-heading">
+            <h2>{editing ? '编辑排产' : '基本信息'}</h2>
+            {plan.writable && !editing && (
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setNotice('');
+                  setEditing(plan);
+                }}
+              >
+                编辑
+              </button>
+            )}
+          </div>
+          {editing ? (
+            reference.error ? (
+              <>
+                <Feedback tone="error">{reference.error}</Feedback>
+                <button type="button" className="secondary-button" onClick={() => setEditing(null)}>
+                  取消
+                </button>
+              </>
+            ) : reference.data ? (
+              <PlanForm
+                reference={reference.data}
+                initial={editing}
+                onCancel={() => setEditing(null)}
+                onSave={async (values) => {
+                  await productionApi.update(editing, values);
+                  await result.refresh();
+                  setEditing(null);
+                  setNotice('排产记录已更新');
+                }}
+              />
+            ) : (
+              <Loading />
+            )
+          ) : (
+            <>
+              <dl className="facts">
+                {basic.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value || '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+              <section className="production-amount-section" aria-label="产品金额">
+                <h3>产品金额（万元）</h3>
+                <div className="production-product-amounts">
+                  {categories.map((product) => (
+                    <section key={product.code} className="production-product-amount">
+                      <h4>{product.label}</h4>
+                      <dl className="production-product-facts">
+                        {product.fields.map((key) => (
+                          <div key={key}>
+                            <dt>
+                              {key.endsWith('OrderAmount')
+                                ? '政企运营平台预计下单金额'
+                                : '数智业务管理系统预计计收金额'}
+                            </dt>
+                            <dd>{plainAmount(plan[key] ?? '—')}</dd>
+                          </div>
+                        ))}
+                        <div className="production-product-total">
+                          <dt>总排产金额</dt>
+                          <dd>{plainAmount(plan[product.amount] ?? '—')}</dd>
+                        </div>
+                      </dl>
+                    </section>
+                  ))}
+                </div>
+              </section>
+              <dl className="facts production-supplemental">
+                <div>
+                  <dt>产品简介</dt>
+                  <dd>{plan.productIntroduction || '—'}</dd>
+                </div>
+                <div>
+                  <dt>备注</dt>
+                  <dd>{plan.remark || '—'}</dd>
+                </div>
+              </dl>
+            </>
+          )}
+        </section>
+      )}
+    </>
+  );
 }
 
 export function NewProductionPage() {

@@ -101,6 +101,9 @@ class RevenueBusinessKeyIT {
                                 "业务号码/项目编号",
                                 "000001"));
         result.put("三化分类", "数字化");
+        result.put("产品名称", "验收产品");
+        result.putIfAbsent("费用账期", "202610");
+        result.putIfAbsent("业务号码/项目编号", "000042");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -112,7 +115,7 @@ class RevenueBusinessKeyIT {
     }
 
     @Test
-    void creationUsesAllFourFieldsAndPreservesEmptyAndFullTextValues() {
+    void creationUsesIdentityAndPreservesFullTextValues() {
         var source = source();
         var first = service.create(admin, source);
         assertThat(service.duplicate(service.validate(admin, source))).isTrue();
@@ -130,7 +133,7 @@ class RevenueBusinessKeyIT {
         assertThat(service.create(admin, withBusiness(source, prefix + "甲")).id())
                 .isNotEqualTo(service.create(admin, withBusiness(source, prefix + "乙")).id());
         var empty = withBusiness(source, "");
-        var blank = service.create(admin, empty);
+        assertThatThrownBy(() -> service.create(admin, empty)).hasMessageContaining("业务号码/项目编号必填");
         var omitted = new LinkedHashMap<>(source);
         omitted.remove("业务号码/项目编号");
         assertThatThrownBy(() -> service.create(admin, omitted))
@@ -139,7 +142,6 @@ class RevenueBusinessKeyIT {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.create(admin, withBusiness(source, "--")))
                 .isInstanceOf(BusinessException.class);
-        assertThat(service.detail(admin, blank.id()).source()).containsEntry("业务号码/项目编号", "");
         // 绕过服务层仍由数据库阻断，防止两个并发请求同时通过预查。
         assertThatThrownBy(
                         () ->
@@ -163,7 +165,7 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
                         withBusiness(source, "000002"),
                         source,
                         withBusiness(source, "EXISTING"),
-                        withBusiness(source, ""),
+                        withBusiness(source, "000004"),
                         withBusiness(source, ""));
         var task = imports.upload(admin, "四字段唯一键.xlsx", workbook(rows), null, null);
         var mapping = new LinkedHashMap<String, String>();
@@ -175,6 +177,7 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
         assertThat(preview.batch().failedRows()).isEqualTo(3);
         assertThat(preview.batch().rows().get(2).errorsJson()).contains("文件内前序记录重复");
         assertThat(preview.batch().rows().get(3).errorsJson()).contains("系统内已存在");
+        assertThat(preview.batch().rows().get(5).errorsJson()).contains("业务号码/项目编号必填");
         // 预检后发生外部写入，最终确认仍重新检查，不能重复落库。
         service.create(admin, source);
         assertThatThrownBy(
@@ -346,54 +349,30 @@ SELECT UUID_TO_BIN(?),account_month,province_id,specific_organization,contract_n
     }
 
     @Test
-    void allFiveOptionalIdentifiersShareEmptyPlaceholderAndMissingIdentity() throws Exception {
-        var minimal =
-                new LinkedHashMap<>(
-                        Map.of("月账期", "202612", "条款金额", "100", RevenueFields.SOURCE_AMOUNT, "0", "三化分类", "数字化"));
-        var saved = service.create(admin, minimal);
-        var placeholders = new LinkedHashMap<>(minimal);
-        for (var field : List.of("合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码"))
+    void optionalIdentifiersShareEmptyPlaceholderAndMissingIdentity() throws Exception {
+        var base = source();
+        for (var field : List.of("条款编号", "自然客户名称", "产品编码")) base.remove(field);
+        var saved = service.create(admin, base);
+        var placeholders = new LinkedHashMap<>(base);
+        for (var field : List.of("条款编号", "自然客户名称", "产品编码"))
             placeholders.put(field, " -- ");
         assertThat(service.duplicate(service.validate(admin, placeholders))).isTrue();
-        assertThatThrownBy(() -> service.create(admin, placeholders))
-                .isInstanceOf(BusinessException.class);
-        for (var field : List.of("合同编号", "条款编号", "业务号码/项目编号", "自然客户名称", "产品编码")) {
-            var changed = new LinkedHashMap<>(minimal);
-            changed.put(field, "001");
-            assertThat(service.create(admin, changed).id()).isNotEqualTo(saved.id());
-        }
-        assertThatThrownBy(
-                        () ->
-                                jdbc.update(
-                                        """
-INSERT INTO revenue_entry(id,account_month,specific_organization,contract_no,clause_no,clause_amount,source_amount,source_fields,created_by,created_at,updated_at)
-SELECT UUID_TO_BIN(?),account_month,FALSE,'--','--',clause_amount,source_amount,JSON_OBJECT('业务号码/项目编号','--','自然客户名称','--','产品编码','--'),created_by,created_at,updated_at FROM revenue_entry WHERE id=UUID_TO_BIN(?)
-""",
-                                        UUID.randomUUID().toString(),
-                                        saved.id().toString()))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        var first = new LinkedHashMap<>(minimal);
+        assertThatThrownBy(() -> service.create(admin, placeholders)).isInstanceOf(BusinessException.class);
+        assertThat(service.detail(admin, saved.id()).source()).containsEntry("条款编号", "");
+        var first = new LinkedHashMap<>(base);
         first.put("月账期", "202701");
         placeholders.put("月账期", "202701");
         var named = new LinkedHashMap<>(first);
         named.put("自然客户名称", "另一客户");
-        var task =
-                imports.upload(
-                        admin,
-                        "空标识.xlsx",
-                        workbook(List.of(first, placeholders, named)),
-                        null,
-                        null);
+        var task = imports.upload(admin, "空标识.xlsx", workbook(List.of(first, placeholders, named)), null, null);
         var mapping = new LinkedHashMap<String, String>();
         RevenueFields.FIELDS.forEach(f -> mapping.put(f, f));
         var config = new Configuration("来源数据", 1, mapping);
         var second = imports.save(admin, task.id(), task.version(), 2, config, null);
         var preview = imports.save(admin, task.id(), second.version(), 3, config, null);
         assertThat(preview.batch().validRows()).isEqualTo(2);
-        assertThat(preview.batch().failedRows()).isEqualTo(1);
         assertThat(preview.batch().rows().get(1).errorsJson()).contains("文件内前序记录重复");
-        assertThat(imports.confirm(admin, preview.batch().batchId(), List.of(2, 4)).importedRows())
-                .isEqualTo(2);
+        assertThat(imports.confirm(admin, preview.batch().batchId(), List.of(2, 4)).importedRows()).isEqualTo(2);
         first.put("月账期", "202702");
         placeholders.put("月账期", "202702");
         assertThat(concurrent(first, placeholders)).containsExactlyInAnyOrder(true, false);

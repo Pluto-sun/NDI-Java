@@ -34,6 +34,16 @@ import {
 import { RevenueCategoryTabs } from '../features/revenue/RevenueCategoryTabs';
 import { DashboardControls, ModuleDashboard } from '../features/module-dashboards/ModuleDashboard';
 
+const GewuDeploymentDetailPage = lazy(() =>
+  import('../features/capabilities/GewuDeployments').then((m) => ({
+    default: m.GewuDeploymentDetailPage,
+  })),
+);
+const ProductionDetailPage = lazy(() =>
+  import('../features/production/ProductionPages').then((m) => ({
+    default: m.ProductionDetailPage,
+  })),
+);
 const GewuDeploymentsPage = lazy(() =>
   import('../features/capabilities/GewuDeployments').then((module) => ({
     default: module.GewuDeploymentsPage,
@@ -81,6 +91,11 @@ const ImportProjectsPage = lazy(() =>
 const ProjectDetailPage = lazy(() =>
   import('../features/projects/ProjectDetailPage').then((module) => ({
     default: module.ProjectDetailPage,
+  })),
+);
+const RevenueOrganizationsPage = lazy(() =>
+  import('../features/revenue/RevenueOrganizationsPage').then((m) => ({
+    default: m.RevenueOrganizationsPage,
   })),
 );
 const RevenueListPage = lazy(() =>
@@ -492,6 +507,16 @@ export function App() {
                 path="/revenue"
                 element={<RevenueListPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
               />
+              <Route
+                path="/revenue/organizations"
+                element={
+                  me.roleCodes.includes('SYSTEM_ADMIN') ? (
+                    <RevenueOrganizationsPage />
+                  ) : (
+                    <Navigate to="/revenue" replace />
+                  )
+                }
+              />
               <Route path="/revenue/new" element={<NewRevenuePage />} />
               <Route path="/revenue/import" element={<ImportRevenuePage />} />
               <Route path="/revenue/:id" element={<RevenueDetailPage me={me} />} />
@@ -501,12 +526,14 @@ export function App() {
               />
               <Route path="/scheduling/new" element={<NewProductionPage />} />
               <Route path="/scheduling/import" element={<ImportProductionPage />} />
+              <Route path="/scheduling/:id" element={<ProductionDetailPage />} />
               <Route path="/capability" element={<Navigate replace to="/capability/gewu" />} />
               <Route
                 path="/capability/gewu"
                 element={<GewuDeploymentsPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
               />
               <Route path="/capability/gewu/import" element={<ImportGewuDeploymentsPage />} />
+              <Route path="/capability/gewu/:id" element={<GewuDeploymentDetailPage />} />
               {(Object.keys(intelligenceTitles) as (keyof typeof intelligenceTitles)[]).flatMap(
                 (kind) => [
                   <Route

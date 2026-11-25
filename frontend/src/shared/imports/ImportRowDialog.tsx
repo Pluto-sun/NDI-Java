@@ -143,7 +143,7 @@ export function ImportRowDialog({
             )}
             <div className="form-grid import-row-fields">
               {fields.map((field) => {
-                const value = cells[field];
+                const value = config.displayCell?.(field, cells[field]) ?? cells[field];
                 const multiple = config.multipleFieldOptions?.(field);
                 const selected = multiple
                   ? value

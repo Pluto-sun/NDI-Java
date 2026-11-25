@@ -1,3 +1,4 @@
+import { displayImportedProjectStage } from '../../shared/ui/ProjectStageTabs';
 import { ImportWizardPage } from '../../shared/imports/ImportWizardPage';
 import { projectsApi } from './api';
 import type { ReferenceData } from './types';
@@ -34,6 +35,9 @@ export function ImportProjectsPage({ reference }: { reference: ReferenceData }) 
     <ImportWizardPage
       config={{
         api: projectsApi,
+        manualSelectionAfterRepair: true,
+        displayCell: (field, value) =>
+          field === '项目阶段' ? displayImportedProjectStage(value) : value,
         fieldOptions,
         multipleFieldOptions: (field) =>
           field === '应用场景' ? reference.applicationScenarios : undefined,

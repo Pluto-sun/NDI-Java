@@ -29,11 +29,15 @@ export function nameAccepted(review: ImportNameReview | null) {
     (review.confirmed && (review.level !== 'STRONG' || (review.reason?.trim().length ?? 0) >= 5))
   );
 }
+export const canImportRow = (row: ImportRow) =>
+  row.status === 'READY' && nameAccepted(row.nameReview);
+
 export function selectedFor(task: ImportTask) {
+  const saved = task.selectedRows == null ? null : new Set(task.selectedRows);
   return new Set(
-    task.selectedRows ??
-      task.batch?.rows.filter((row) => row.status === 'READY').map((row) => row.rowNumber) ??
-      [],
+    task.batch?.rows
+      .filter((row) => canImportRow(row) && (!saved || saved.has(row.rowNumber)))
+      .map((row) => row.rowNumber),
   );
 }
 const normalized = (value: string) =>

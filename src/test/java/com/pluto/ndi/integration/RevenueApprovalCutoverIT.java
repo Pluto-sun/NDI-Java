@@ -27,7 +27,7 @@ class RevenueApprovalCutoverIT {
         jdbc.update("""
                 INSERT INTO revenue_entry(id,version_no,account_month,specific_organization,contract_no,clause_no,
                     clause_amount,source_amount,source_fields,recognition,recognized_amount,created_by,created_at,updated_at)
-                VALUES(UUID_TO_BIN(?),7,'2026-11-01',TRUE,'CUTOVER','1',5,9,JSON_OBJECT(),
+                VALUES(UUID_TO_BIN(?),7,'2026-11-01',TRUE,'CUTOVER','1',5,9,JSON_OBJECT('省份名称','具体组织','地市/组织名称','联通（湖北）产业互联网有限公司'),
                     JSON_OBJECT('amount',30),30,UUID_TO_BIN(?),NOW(6),NOW(6))
                 """, entry, actor);
         jdbc.update("""
@@ -39,6 +39,8 @@ class RevenueApprovalCutoverIT {
         assertThat(jdbc.queryForObject("SELECT opinion FROM revenue_recognition_request", String.class)).contains("流程切换");
         assertThat(jdbc.queryForObject("SELECT recognized_amount FROM revenue_entry", java.math.BigDecimal.class))
                 .isEqualByComparingTo("30");
+        assertThat(jdbc.queryForObject("SELECT source_organization_key FROM revenue_entry", byte[].class))
+                .isEqualTo(com.pluto.ndi.revenue.util.RevenueOrganizationNames.key("联通(湖北)产业互联网有限公司"));
         assertThat(jdbc.queryForObject("SELECT version_no FROM revenue_entry", Long.class)).isEqualTo(8L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM system_audit_event WHERE event_type='REVENUE_WITHDRAWN'", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM revenue_notification WHERE kind='WITHDRAWN'", Integer.class)).isEqualTo(2);

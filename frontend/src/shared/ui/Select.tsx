@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useAnchoredPanel } from './useAnchoredPanel';
 
 /** 保留原生表单、校验及变更事件，使用页面内选项替代操作系统菜单。 */
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -15,8 +16,15 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [position, setPosition] = useState({ left: 0, top: 0, width: 200, maxHeight: 280 });
-  const options = control.current ? Array.from(control.current.options) : [];
+  const expanded = open && !props.disabled;
+  useEffect(() => {
+    if (props.disabled) setOpen(false);
+  }, [props.disabled]);
+  useAnchoredPanel(expanded, control, panel, () => setOpen(false), 220);
+  const [options, setOptions] = useState<HTMLOptionElement[]>([]);
+  useLayoutEffect(() => {
+    if (expanded && control.current) setOptions(Array.from(control.current.options));
+  }, [expanded, props.children]);
 
   const close = () => {
     setOpen(false);
@@ -24,16 +32,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   };
   function show() {
     if (props.disabled || !control.current) return;
-    const rect = control.current.getBoundingClientRect();
-    const below = innerHeight - rect.bottom - 12;
-    const height = Math.min(280, Math.max(below, rect.top - 12));
-    const width = Math.min(innerWidth - 24, Math.max(220, rect.width));
-    setPosition({
-      left: Math.max(12, Math.min(rect.left, innerWidth - width - 12)),
-      top: below >= Math.min(180, height) ? rect.bottom + 5 : Math.max(12, rect.top - height - 5),
-      width,
-      maxHeight: height,
-    });
+    setOptions(Array.from(control.current.options));
     setActive(control.current.selectedIndex);
     setOpen(true);
   }
@@ -46,31 +45,14 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
     close();
   }
   useLayoutEffect(() => {
-    if (!open) return;
-    panel.current?.showPopover?.();
-    panel.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-    return () => {
-      panel.current?.hidePopover?.();
-    };
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    panel.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-  }, [active, open]);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!panel.current?.contains(event.target as Node) && event.target !== control.current)
-        setOpen(false);
-    };
-    const resize = () => setOpen(false);
-    document.addEventListener('pointerdown', outside, true);
-    window.addEventListener('resize', resize);
-    return () => {
-      document.removeEventListener('pointerdown', outside, true);
-      window.removeEventListener('resize', resize);
-    };
-  }, [open]);
+    const popup = panel.current;
+    const item = popup?.querySelector('[data-active="true"]');
+    if (!expanded || !popup || !item) return;
+    const bounds = popup.getBoundingClientRect();
+    const option = item.getBoundingClientRect();
+    if (option.top < bounds.top) popup.scrollTop -= bounds.top - option.top;
+    else if (option.bottom > bounds.bottom) popup.scrollTop += option.bottom - bounds.bottom;
+  }, [active, expanded]);
 
   return (
     <>
@@ -87,9 +69,9 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
             else show();
           }
         }}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        aria-activedescendant={open ? `${id}-${active}` : undefined}
+        aria-expanded={expanded}
+        aria-controls={expanded ? id : undefined}
+        aria-activedescendant={expanded ? `${id}-${active}` : undefined}
         onMouseDown={(event) => {
           props.onMouseDown?.(event);
           if (!event.defaultPrevented) {
@@ -154,7 +136,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
           props.onBlur?.(event);
         }}
       />
-      {open &&
+      {expanded &&
         createPortal(
           <div
             ref={panel}
@@ -163,7 +145,6 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
             aria-label="可选项"
             popover="manual"
             className="select-options"
-            style={{ ...position }}
             onMouseDown={(event) => event.preventDefault()}
           >
             {options.map((option, index) => (

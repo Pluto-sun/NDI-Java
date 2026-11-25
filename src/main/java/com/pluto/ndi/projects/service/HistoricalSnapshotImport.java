@@ -94,7 +94,7 @@ public class HistoricalSnapshotImport extends TabularImportEngine<Snapshot> {
                 (row, index) -> UUID.fromString(row.getString(1)), code).stream().findFirst()
                 .orElseThrow(() -> invalid("无法匹配系统项目编号：" + code));
         var stage = Arrays.stream(ProjectStage.values())
-                .filter(item -> item.name().equals(text(cells, STAGE)) || item.label().equals(text(cells, STAGE)))
+                .filter(item -> item.matchesImportValue(text(cells, STAGE)))
                 .findFirst().orElseThrow(() -> invalid("月末阶段无效"));
         var location = organizations.findEnabledLocationByNames(text(cells, PROVINCE), text(cells, CITY))
                 .orElseThrow(() -> invalid("月末省分和地市不匹配"));

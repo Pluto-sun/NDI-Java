@@ -1,12 +1,18 @@
 import './ProjectStageTabs.css';
 
+const pendingCollection = '待计收';
+
 export const PROJECT_STAGE_TABS = [
   { code: '', label: '全部' },
   { code: 'SOLUTION_EXCHANGE', label: '方案交流' },
   { code: 'BIDDING', label: '招投标' },
   { code: 'SIGNED', label: '签约' },
-  { code: 'COLLECTION', label: '计收' },
+  { code: 'COLLECTION', label: pendingCollection },
 ] as const;
+
+export function displayImportedProjectStage(value: string) {
+  return value === '计收' ? pendingCollection : value;
+}
 
 /** 即时应用的阶段筛选，列表和驾驶舱共享稳定代码及交互。 */
 export function ProjectStageTabs({

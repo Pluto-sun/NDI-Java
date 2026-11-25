@@ -459,11 +459,8 @@ a {
   min-width: 110px;
 }
 .month-picker-panel {
-  position: absolute;
-  inset-inline-start: 0;
-  top: calc(100% + 4px);
-  width: min(15rem, calc(100vw - 40px));
-  z-index: 20;
+  overflow: auto;
+  z-index: 10000;
   display: grid;
   gap: 8px;
   border: 1px solid var(--line);
@@ -491,11 +488,8 @@ a {
   color: #ad1331;
 }
 .multi-select-options {
-  position: absolute;
-  inset-inline: 0;
-  top: 100%;
-  z-index: 5;
-  margin: 4px 0 0;
+  z-index: 10000;
+  min-inline-size: 0;
   padding: 8px;
   max-height: 240px;
   overflow: auto;
@@ -2139,4 +2133,39 @@ select:disabled {
 .filter-bar .month-filter-field {
   min-width: min(190px, 100%);
   flex: 1;
+}
+
+.ledger-detail .facts dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.revenue-organization-panel table {
+  width: 100%;
+  min-width: 0;
+}
+.revenue-organization-panel table td:first-child {
+  overflow-wrap: anywhere;
+}
+.revenue-organization-panel table :is(td, th):nth-child(2) {
+  width: clamp(110px, 25%, 240px);
+}
+.revenue-organization-panel table :is(td, th):last-child {
+  width: 160px;
+}
+.revenue-organization-panel table .inline-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 620px) {
+  .revenue-organization-panel table {
+    table-layout: fixed;
+  }
+  .revenue-organization-panel table :is(td, th):nth-child(2) {
+    width: 84px;
+  }
+  .revenue-organization-panel table :is(td, th) {
+    padding: 8px 6px;
+  }
+  .revenue-organization-panel table :is(td, th):last-child {
+    width: 74px;
+  }
 }

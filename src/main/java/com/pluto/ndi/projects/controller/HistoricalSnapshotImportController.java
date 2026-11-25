@@ -1,6 +1,7 @@
 package com.pluto.ndi.projects.controller;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
+import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.service.HistoricalSnapshotImport;
 import com.pluto.ndi.shared.excel.ExcelWorkbook;
 import com.pluto.ndi.shared.imports.ImportControllerBase;
@@ -32,7 +33,9 @@ public class HistoricalSnapshotImportController extends ImportControllerBase {
 
     @Override
     protected byte[] templateBytes(UUID actor) throws java.io.IOException {
-        return ExcelWorkbook.template(imports.fields(), Set.of("快照月份", "系统项目编号"));
+        return ExcelWorkbook.template(imports.fields(), Set.of("快照月份", "系统项目编号"),
+                dropdowns -> dropdowns.list("月末阶段",
+                        Arrays.stream(ProjectStage.values()).map(ProjectStage::label).toList()));
     }
 
     @PostMapping("/complete")

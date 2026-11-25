@@ -1,3 +1,4 @@
+import { PROJECT_STAGE_TABS, displayImportedProjectStage } from '../../shared/ui/ProjectStageTabs';
 import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -17,6 +18,16 @@ export function HistoricalSnapshotWizard() {
       config={{
         api,
         title: '历史快照',
+        displayCell: (field, value) =>
+          field === '月末阶段' ? displayImportedProjectStage(value) : value,
+        fieldOptions: (field) =>
+          field === '月末阶段'
+            ? [
+                '',
+                ...PROJECT_STAGE_TABS.filter(({ code }) => code).map(({ label }) => label),
+                '已终止',
+              ]
+            : undefined,
         backTo: route,
         amountFields: ['月末项目总金额'],
         rowTitleFields: ['系统项目编号', '快照月份', '月末阶段'],

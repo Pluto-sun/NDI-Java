@@ -67,6 +67,11 @@ public class GewuDeploymentController extends ImportControllerBase {
         return responses.success(deployments.reference(actor(auth)));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<Deployment> detail(Authentication auth, @PathVariable UUID id) {
+        return responses.success(deployments.detail(actor(auth), id));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<Deployment> create(Authentication auth, @RequestBody Input body) {

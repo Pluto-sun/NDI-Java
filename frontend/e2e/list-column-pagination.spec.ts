@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { verifyStickyAction } from './support/stickyActions';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
@@ -28,6 +29,7 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
       headers: { 'X-NDI-Actor-Id': ids.admin },
       data: {
         source: {
+          ...requiredRevenueFields,
           月账期: '202611',
           自然客户名称: '分页自然客户',
           省份名称: '本地演示省',
@@ -67,15 +69,12 @@ test('排产金额与表头同轴，排产及计收共用右侧分页并可翻�
   expect(headerGeometry).toEqual(cellGeometry);
   expect(headerGeometry.every((c) => c.align === 'right')).toBeTruthy();
   const region = page.getByRole('region', { name: '排产明细横向滚动区域', exact: true });
-  await verifyStickyAction(
-    region,
-    table.getByRole('button', { name: '编辑', exact: true }).first(),
-  );
+  await verifyStickyAction(region, table.getByRole('link', { name: '详情', exact: true }).first());
   const regionBox = await region.boundingBox();
   const edit = await table
     .locator('tbody tr')
     .first()
-    .getByRole('button', { name: '编辑', exact: true })
+    .getByRole('link', { name: '详情', exact: true })
     .boundingBox();
   expect(edit!.x).toBeGreaterThan(regionBox!.x);
   expect(edit!.x + edit!.width).toBeLessThanOrEqual(regionBox!.x + regionBox!.width);

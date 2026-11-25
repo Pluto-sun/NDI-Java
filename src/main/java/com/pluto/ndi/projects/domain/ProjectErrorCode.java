@@ -101,6 +101,8 @@ public enum ProjectErrorCode implements ErrorCode {
             "建设内容和产品推广内容不得超过4000字，备注不得超过10000字"),
     INVALID_INDUSTRY(
             HttpStatus.BAD_REQUEST, "PROJECT_INVALID_INDUSTRY", "客户所属行业无效", "客户所属行业必须使用已启用的工业行业代码"),
+    INVALID_PRODUCT_FILTER(HttpStatus.BAD_REQUEST, "PROJECT_INVALID_PRODUCT_FILTER",
+            "产品类别筛选无效", "请选择系统支持的产品类别"),
     INVALID_CATEGORY_AMOUNT(
             HttpStatus.BAD_REQUEST,
             "PROJECT_INVALID_CATEGORY_AMOUNT",

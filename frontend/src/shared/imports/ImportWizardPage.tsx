@@ -15,7 +15,7 @@ import {
   chooseSheet,
   missingMappings,
   downloadWorkbook,
-  nameAccepted,
+  canImportRow,
   selectedFor,
   type ImportRow,
 } from './importWizard';
@@ -219,11 +219,12 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     setTask(updated);
     const next = new Set(
       Array.from(selectedRef.current).filter((number) =>
-        batch.rows.some((row) => row.rowNumber === number && row.status === 'READY'),
+        batch.rows.some((row) => row.rowNumber === number && canImportRow(row)),
       ),
     );
     const edited = editor && batch.rows.find((row) => row.rowNumber === editor.row.rowNumber);
-    if (edited?.status === 'READY') next.add(edited.rowNumber);
+    if (!config.manualSelectionAfterRepair && edited && canImportRow(edited))
+      next.add(edited.rowNumber);
     changeSelection(next);
   }
   const step = task?.step ?? 1;
@@ -231,17 +232,13 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
   const sheet = task?.inspection.sheets.find((sheet) => sheet.name === configuration.sheetName);
   const requiredAmountFields = config.requireAmountMapping ? config.amountFields : [];
   const missing = task ? missingMappings(task, configuration, requiredAmountFields) : [];
-  const hasPreviewFailures = batch?.rows.some(
-    (row) => row.status !== 'READY' || !nameAccepted(row.nameReview),
-  );
+  const hasPreviewFailures = batch?.rows.some((row) => !canImportRow(row));
   const canConfirm =
     !!batch &&
     batch.status === 'PREVIEWED' &&
     selected.size > 0 &&
     selected.size <= MAX_EXCEL_ROWS &&
-    batch.rows
-      .filter((row) => selected.has(row.rowNumber))
-      .every((row) => row.status === 'READY' && nameAccepted(row.nameReview));
+    batch.rows.filter((row) => selected.has(row.rowNumber)).every(canImportRow);
   return (
     <section className="import-entry">
       <h1>{config.title}导入</h1>
@@ -513,15 +510,11 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
                           disabled={busy}
                           onClick={() =>
                             changeSelection(
-                              new Set(
-                                batch.rows
-                                  .filter((row) => row.status === 'READY')
-                                  .map((row) => row.rowNumber),
-                              ),
+                              new Set(batch.rows.filter(canImportRow).map((row) => row.rowNumber)),
                             )
                           }
                         >
-                          选择全部通过行
+                          {config.manualSelectionAfterRepair ? '全选可导入' : '选择全部通过行'}
                         </button>
                         <button
                           className="text-button"

@@ -40,7 +40,14 @@ async function enter(page: BrowserPage, actor: string = ids.reporter) {
   ).toHaveCount(0);
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Excel 项目导入', exact: true })).toBeVisible();
+  await discardPriorImport(page);
 }
+async function discardPriorImport(page: BrowserPage) {
+  const fresh = page.getByRole('button', { name: '从头导入', exact: true });
+  await expect(fresh.or(page.getByLabel('Excel 文件', { exact: true }))).toBeVisible();
+  if (await fresh.isVisible()) await fresh.click();
+}
+
 async function upload(page: BrowserPage, rows: Record<string, string>[]) {
   await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
     name: '项目数据.xlsx',
@@ -58,14 +65,20 @@ async function preview(page: BrowserPage) {
   ).toBeVisible();
 }
 async function finish(page: BrowserPage, count: number) {
-  const response = page.waitForResponse(
-    (r) =>
-      r.url().includes('/imports/') &&
-      r.url().endsWith('/confirm') &&
-      r.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: `确认导入 ${count} 行并结束任务`, exact: true }).click();
-  const result = (await (await response).json()).data as ImportBatch;
+  const button = page.getByRole('button', { name: `确认导入 ${count} 行并结束任务`, exact: true });
+  await expect(button).toBeEnabled();
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (result) =>
+        result.url().includes('/imports/') &&
+        result.url().endsWith('/confirm') &&
+        result.request().method() === 'POST',
+      { timeout: 30_000 },
+    ),
+    button.click(),
+  ]);
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const result = (await response.json()).data as ImportBatch;
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   return result;
 }
@@ -80,14 +93,19 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
   await expect(page.getByText('合同编号不能为空；签约金额不能为空', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '查看／修正第 3 行', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '修正第 3 行', exact: true });
+  await expect(editor.getByRole('combobox', { name: '项目阶段', exact: true })).toHaveValue(
+    '待计收',
+  );
   await editor.getByLabel('合同编号', { exact: true }).fill(contract);
   await editor.getByLabel('签约金额（万）', { exact: true }).fill('80.50');
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
   await expect(editor).toHaveCount(0);
+  await page.getByRole('checkbox', { name: '选择第 3 行', exact: true }).check();
   const result = await finish(page, 1);
   expect(result.importedRows).toBe(1);
   expect(await get<ImportTask | null>(request, ids.reporter, '/imports/task')).toBeNull();
   const detail = await get<ProjectDetail>(request, ids.reporter, `/${result.rows[0].projectId}`);
+  expect(detail.currentStageCode).toBe('COLLECTION');
   expect(detail.contractNo).toBe(contract);
   expect(Number(detail.signedAmount)).toBe(80.5);
   expect(detail.responsiblePersons).toHaveLength(2);
@@ -108,6 +126,22 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
     page.getByRole('heading', { name: '存在未完成的导入任务', exact: true }),
   ).toHaveCount(0);
   await expect(page.getByText('我的导入计划', { exact: true })).toHaveCount(0);
+  await upload(page, [
+    {
+      ...(await sourceRow(request, '新阶段名称-' + randomUUID())),
+      项目阶段: '待计收',
+      合同编号: 'HT-' + randomUUID(),
+      '签约金额（万）': '50',
+    },
+  ]);
+  await preview(page);
+  const newLabel = await finish(page, 1);
+  const imported = await get<ProjectDetail>(
+    request,
+    ids.reporter,
+    `/${newLabel.rows[0].projectId}`,
+  );
+  expect(imported.currentStageCode).toBe('COLLECTION');
 });
 
 test('预检修正使用字典选项并联动省市', async ({ page, request }) => {
@@ -156,6 +190,7 @@ test('预检修正使用字典选项并联动省市', async ({ page, request }) 
   await field('签约主体').selectOption('数科签约');
   await editor.getByRole('listbox', { name: '应用场景', exact: true }).selectOption(scenario.code);
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  await page.getByRole('checkbox', { name: '选择第 3 行', exact: true }).check();
   const result = await finish(page, 1);
   expect(result.importedRows).toBe(1);
 });
@@ -189,6 +224,7 @@ test('自动字段匹配、必选标识、逐级返回、阶段恢复、首条�
   page,
   request,
 }, testInfo) => {
+  test.setTimeout(75_000);
   const base = await sourceRow(request, `车间温度-${randomUUID()}`);
   const { 项目名称, ...fields } = base;
   const row = { ...fields, 商机名称: 项目名称 };
@@ -228,6 +264,7 @@ test('自动字段匹配、必选标识、逐级返回、阶段恢复、首条�
   await editor.getByLabel('客户名称', { exact: true }).fill('修正客户');
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
   await expect(editor).toHaveCount(0);
+  await page.getByRole('checkbox', { name: '选择第 5 行', exact: true }).check();
   await page.getByRole('checkbox', { name: '选择第 6 行', exact: true }).uncheck();
   await page.getByRole('button', { name: '关闭Excel 项目导入', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
@@ -270,9 +307,11 @@ test('库内高相似项目须弹窗确认和差异说明，未处理前不能�
   await upload(page, [await sourceRow(request, `${prefix}温度采集二期项目`)]);
   await preview(page);
   await expect(page.getByText('待确认相似项目', { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }),
-  ).toBeDisabled();
+  const candidate = page.getByRole('checkbox', { name: '选择第 3 行', exact: true });
+  await expect(candidate).not.toBeChecked();
+  await expect(candidate).toBeDisabled();
+  await page.getByRole('button', { name: '全选可导入', exact: true }).click();
+  await expect(candidate).not.toBeChecked();
   await page.getByRole('button', { name: '处理相似项目', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '第 3 行相似项目确认', exact: true });
   await expect(modal.getByText(`${prefix}温度采集一期项目`, { exact: true })).toBeVisible();
@@ -283,6 +322,8 @@ test('库内高相似项目须弹窗确认和差异说明，未处理前不能�
   await page.screenshot({ path: testInfo.outputPath('import-name-review.png'), fullPage: false });
   await modal.getByRole('button', { name: '确认并记录', exact: true }).click();
   await expect(modal).toHaveCount(0);
+  await expect(candidate).not.toBeChecked();
+  await candidate.check();
   const result = await finish(page, 1);
   expect(result.importedRows).toBe(1);
   expect(result.rows[0].nameReview!.confirmed).toBeTruthy();
@@ -405,6 +446,7 @@ test('分类按金额自动识别，零金额计入且不再映射类别，唯�
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
   await page.getByRole('button', { name: '继续完成导入', exact: true }).click();
   await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '第三步：预检与导入' })).toBeVisible();
   const task = await get<ImportTask>(request, ids.reporter, '/imports/task');
   expect(JSON.parse(task.batch!.rows[0].sourceCellsJson!)).not.toHaveProperty('三化类别');
   await page.screenshot({
@@ -427,6 +469,7 @@ test('导入字段与模板统一，项目创建和维护只保留备注', async
   await expect(page.getByLabel('产品推广内容', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('备注（选填）', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();
+  await discardPriorImport(page);
   const { 项目负责人: omitted, ...legacy } = await sourceRow(request, `旧人员-${randomUUID()}`);
   void omitted;
   await upload(page, [
@@ -560,6 +603,7 @@ test('直辖市地市须填写实际区县，预检修正可选择区县', async
   await expect(city).toHaveValue(districtName);
   await expect(city.locator('option', { hasText: municipalityName })).toHaveCount(0);
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  await page.getByRole('checkbox', { name: '选择第 3 行', exact: true }).check();
   const result = await finish(page, 1);
   await page.getByRole('button', { name: '返回项目创建', exact: true }).click();
   await page.getByRole('link', { name: '项目导入', exact: true }).click();

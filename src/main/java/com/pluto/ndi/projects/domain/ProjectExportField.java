@@ -9,7 +9,7 @@ import com.pluto.ndi.shared.web.BusinessException;
 public enum ProjectExportField {
     PROJECT_CODE("projectCode", "项目编号"), PROJECT_NAME("projectName", "项目名称"),
     CUSTOMER_NAME("customerName", "客户名称"), INDUSTRY_CODE("industryCode", "行业代码"),
-    TOTAL_AMOUNT("totalAmount", "项目总金额"), CURRENT_STAGE_CODE("currentStageCode", "当前阶段"),
+    TOTAL_AMOUNT("totalAmount", "项目总金额"), CURRENT_STAGE_CODE("currentStageCode", "阶段代码"),
     NETWORK_AMOUNT("networkAmount", "5G工业专网金额"), GEWU_AMOUNT("gewuAmount", "格物工业互联网平台金额"),
     BIG_DATA_AMOUNT("bigDataAmount", "工业大数据平台金额"), WANGWU_AMOUNT("wangwuAmount", "万悟工业智能体平台金额"),
     CREATED_AT("createdAt", "创建时间"), PROVINCE("province", "省分"), CITY("city", "地市"),
@@ -21,7 +21,7 @@ public enum ProjectExportField {
 
     public static final int MAX_FIELDS = 23;
     private static final List<ProjectExportField> DEFAULTS = List.of(PROJECT_CODE, PROJECT_NAME, CUSTOMER_NAME,
-            INDUSTRY_CODE, TOTAL_AMOUNT, CURRENT_STAGE_CODE, NETWORK_AMOUNT, GEWU_AMOUNT, BIG_DATA_AMOUNT, WANGWU_AMOUNT, CREATED_AT);
+            INDUSTRY_CODE, TOTAL_AMOUNT, CURRENT_STAGE_NAME, NETWORK_AMOUNT, GEWU_AMOUNT, BIG_DATA_AMOUNT, WANGWU_AMOUNT, CREATED_AT);
     private final String code;
     private final String label;
     ProjectExportField(String code, String label) { this.code = code; this.label = label; }

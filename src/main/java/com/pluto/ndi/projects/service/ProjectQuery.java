@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.time.LocalDate;
 
 import com.pluto.ndi.projects.domain.ProjectStage;
+import com.pluto.ndi.projects.domain.ProjectCategory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.shared.web.BusinessException;
 
@@ -29,10 +30,17 @@ public record ProjectQuery(
         LocalDate opportunityDateEnd,
         String responsiblePersonName,
         List<UUID> provinceIds,
-        List<UUID> cityIds
+        List<UUID> cityIds,
+        List<String> productCodes
 ) {
 
     public ProjectQuery {
+        productCodes = productCodes == null ? List.of() : productCodes;
+        if (productCodes.size() > 4 || productCodes.stream()
+                .anyMatch(code -> ProjectCategory.fromCode(code).isEmpty())) {
+            throw new BusinessException(ProjectErrorCode.INVALID_PRODUCT_FILTER);
+        }
+        productCodes = productCodes.stream().distinct().toList();
         provinceIds = locations(provinceId, provinceIds);
         cityIds = locations(cityId, cityIds);
         if (!cityIds.isEmpty() && (provinceIds.size() > 1
@@ -64,7 +72,17 @@ public record ProjectQuery(
             LocalDate opportunityDateStart, LocalDate opportunityDateEnd, String responsiblePersonName) {
         this(projectCode, projectName, stage, industryCode, provinceId, cityId, includeTerminated, signingSubjectCode,
                 provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
-                opportunityDateStart, opportunityDateEnd, responsiblePersonName, null, null);
+                opportunityDateStart, opportunityDateEnd, responsiblePersonName, null, null, null);
+    }
+
+    public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,
+            UUID provinceId, UUID cityId, boolean includeTerminated, String signingSubjectCode,
+            String provinceLeaderName, String cityAccountManagerName, String productSupportExpertName, String keyword,
+            LocalDate opportunityDateStart, LocalDate opportunityDateEnd, String responsiblePersonName,
+            List<UUID> provinceIds, List<UUID> cityIds) {
+        this(projectCode, projectName, stage, industryCode, provinceId, cityId, includeTerminated, signingSubjectCode,
+                provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
+                opportunityDateStart, opportunityDateEnd, responsiblePersonName, provinceIds, cityIds, null);
     }
 
     private static List<UUID> locations(UUID single, List<UUID> multiple) {

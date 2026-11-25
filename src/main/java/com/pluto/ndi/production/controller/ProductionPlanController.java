@@ -63,6 +63,11 @@ public class ProductionPlanController extends com.pluto.ndi.shared.imports.Impor
         return responses.success(plans.reference(actor(auth)));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<ProductionPlan> detail(Authentication auth, @PathVariable UUID id) {
+        return responses.success(plans.detail(actor(auth), id));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ProductionPlan> create(

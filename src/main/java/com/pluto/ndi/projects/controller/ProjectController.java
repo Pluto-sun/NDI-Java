@@ -87,6 +87,7 @@ public class ProjectController {
             @RequestParam(required = false) UUID cityId,
             @RequestParam(required = false) java.util.List<UUID> provinceIds,
             @RequestParam(required = false) java.util.List<UUID> cityIds,
+            @RequestParam(required = false) java.util.List<String> productCodes,
             @RequestParam(required = false) @Size(max = 20, message = "签约主体代码不得超过20个字符") String signingSubjectCode,
             @RequestParam(required = false) @Size(max = 100, message = "省分负责人姓名不得超过100个字符") String provinceLeaderName,
             @RequestParam(required = false) @Size(max = 100, message = "客户经理姓名不得超过100个字符") String cityAccountManagerName,
@@ -100,7 +101,7 @@ public class ProjectController {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         var query = new ProjectQuery(projectCode, projectName, stage, industryCode,
                 provinceId, cityId, includeTerminated, signingSubjectCode, provinceLeaderName,
-                cityAccountManagerName, productSupportExpertName, keyword, opportunityDateStart, opportunityDateEnd, responsiblePersonName, provinceIds, cityIds);
+                cityAccountManagerName, productSupportExpertName, keyword, opportunityDateStart, opportunityDateEnd, responsiblePersonName, provinceIds, cityIds, productCodes);
         return responseFactory.success(PageResponse.from(projectService.findProjects(actorId(authentication), query, pageable)));
     }
 

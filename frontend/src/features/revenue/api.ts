@@ -71,9 +71,21 @@ export interface Listing extends Page<Entry> {
     recognizedAmount: string | number;
   };
 }
+export interface OrganizationAssignment {
+  key: string;
+  name: string;
+  provinceId: string | null;
+}
+const organizations = '/api/v1/revenue/organizations';
 const root = '/api/v1/revenue/entries';
 const request = <T>(path: string, init?: RequestInit) => requestAt<T>(root, path, init);
 export const revenueApi = {
+  organizations: () => requestAt<OrganizationAssignment[]>(organizations, ''),
+  assignOrganization: (key: string, provinceId: string | null) =>
+    requestAt<OrganizationAssignment>(organizations, `/${key}`, {
+      method: 'PUT',
+      ...jsonBody({ provinceId }),
+    }),
   counts: (signal?: AbortSignal) =>
     request<{ unread: number; pending: number }>('/counts', { signal }),
   reference: () => request<Reference>('/reference-data'),

@@ -143,7 +143,7 @@ public class ProjectImportWriter {
             // 预检之后仍可能有其他批次或审批占用合同编号，写入时再次校验；唯一索引防护并发。
             if ("COLLECTION".equals(candidate.stageCode())
                     && (candidate.contractNo() == null || candidate.signedAmount() == null)) {
-                throw new IllegalStateException("计收阶段必须填写合同编号和签约金额");
+                throw new IllegalStateException("待计收阶段必须填写合同编号和签约金额");
             }
             if (candidate.contractNo() != null
                     && projects.existsByContractNo(candidate.contractNo())) {

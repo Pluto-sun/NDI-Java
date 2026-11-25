@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids, get } from './support/projects';
@@ -42,6 +43,7 @@ for (const module of [
           '工业专网排产（万元）': invalid ? '' : '10',
         };
       return {
+        ...requiredRevenueFields,
         月账期: '202611',
         省份名称: '数科',
         '地市/组织名称': '',

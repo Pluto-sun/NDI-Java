@@ -352,6 +352,14 @@ public class ProjectService {
                     builder.like(person.get("name"),"%"+escapeLike(query.responsiblePersonName())+"%",'\\'));
                 conditions.add(builder.exists(personQuery));
             }
+            if (!query.productCodes().isEmpty()) {
+                var products = criteria.subquery(UUID.class);
+                var product = products.from(ProjectCategoryAmountEntity.class);
+                products.select(product.get("projectId")).where(
+                        builder.equal(product.get("projectId"), root.get("id")),
+                        product.get("categoryCode").in(query.productCodes()));
+                conditions.add(builder.exists(products));
+            }
             if (query.stage() != null) {
                 conditions.add(builder.equal(root.get("currentStageCode"), query.stage().name()));
             }

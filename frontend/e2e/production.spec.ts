@@ -65,14 +65,35 @@ test('排产新增、筛选、编辑和删除保持金额零值及空值区分',
   await expect(row.locator('.production-tags span')).toHaveText(['格物工业互联网平台']);
   await expect(row.locator('td.numeric')).toHaveText(['0', '28', '—', '—']);
   await page.getByLabel('项目 / 客户 / 接口人', { exact: true }).fill(name);
+  const queried = page.waitForResponse((result) => {
+    const url = new URL(result.url());
+    return url.pathname === '/api/v1/production/plans' && url.searchParams.get('search') === name;
+  });
   await page.getByRole('button', { name: '查询', exact: true }).click();
-  await row.getByRole('button', { name: '编辑', exact: true }).click();
+  expect((await queried).ok()).toBeTruthy();
+  const scroll = page.getByRole('region', { name: '排产明细横向滚动区域', exact: true });
+  await expect
+    .poll(() => scroll.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeGreaterThan(250);
+  const scrollLeft = await scroll.evaluate((element) => {
+    element.scrollLeft = 250;
+    return element.scrollLeft;
+  });
+  expect(scrollLeft).toBeGreaterThan(0);
+  await row.getByRole('link', { name: '详情', exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '产品金额（万元）' })).toBeVisible();
+  await page.getByRole('button', { name: '编辑', exact: true }).click();
   await expect(amount('格物工业互联网平台', order)).toHaveValue('20');
   await expect(amount('格物工业互联网平台', revenue)).toHaveValue('8');
   await page.getByLabel('备注（选填）', { exact: true }).fill('修改备注');
   await amount('格物工业互联网平台', order).fill('');
   await amount('格物工业互联网平台', revenue).fill('123.45');
   await page.getByRole('button', { name: '保存排产', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '基本信息', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '返回列表', exact: true }).click();
+  await expect(page).toHaveURL((url) => url.searchParams.get('search') === name);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollLeft)).toBe(scrollLeft);
   await expect(row.locator('td.numeric')).toHaveText(['0', '123.45', '—', '—']);
   await expect(row).toContainText('修改备注');
   await page.screenshot({ path: testInfo.outputPath('production-list.png'), fullPage: true });

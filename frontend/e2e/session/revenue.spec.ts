@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from '../support/revenue';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { importWorkbook } from '../support/importWorkbook';
@@ -9,6 +10,7 @@ test('正式会话计收创建导入受CSRF保护，集团可创建但不能认�
   await expect(page.getByRole('heading', { name: '计收列表', exact: true })).toBeVisible();
   const root = '/api/v1/revenue/entries';
   const values = {
+    ...requiredRevenueFields,
     月账期: '202610',
     自然客户名称: '会话自然客户',
     省份名称: '广东省',

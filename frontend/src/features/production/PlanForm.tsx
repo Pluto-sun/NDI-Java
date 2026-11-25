@@ -173,42 +173,6 @@ export function PlanForm({
               onChange={(e) => field('customerName', e.target.value)}
             />
           </label>
-        </div>
-        <div className="form-grid production-product-amounts">
-          {categories.map((product) => {
-            const amounts = product.fields
-              .map((key) => values[key])
-              .filter((value) => value !== null);
-            const units = amounts.map((value) => parseAmountUnits(expandScientificAmount(value)));
-            const total =
-              units.length && units.every((value) => value !== null)
-                ? formatAmountUnits(units.reduce<bigint>((sum, value) => sum + (value ?? 0n), 0n))
-                : '—';
-            return (
-              <fieldset key={product.code} className="production-product-amount">
-                <legend>{product.label}</legend>
-                {product.fields.map((key) => (
-                  <label key={key}>
-                    {key.endsWith('OrderAmount')
-                      ? '政企运营平台预计下单金额'
-                      : '数智业务管理系统预计计收金额'}
-                    <input
-                      inputMode="decimal"
-                      maxLength={21}
-                      placeholder="未填写"
-                      value={values[key] ?? ''}
-                      onChange={(e) => field(key, e.target.value.trim() || null)}
-                      onBlur={(e) => field(key, expandScientificAmount(e.target.value) || null)}
-                    />
-                  </label>
-                ))}
-                <div className="production-product-total">
-                  <span>总排产金额</span>
-                  <output aria-label={`${product.label}总排产金额`}>{total}</output>
-                </div>
-              </fieldset>
-            );
-          })}
           <label className="full-width">
             项目状态（选填）
             <input
@@ -217,6 +181,47 @@ export function PlanForm({
               onChange={(e) => field('projectStatus', e.target.value)}
             />
           </label>
+        </div>
+        <section className="production-amount-section" aria-label="产品金额">
+          <h3>产品金额（万元）</h3>
+          <div className="production-product-amounts">
+            {categories.map((product) => {
+              const amounts = product.fields
+                .map((key) => values[key])
+                .filter((value) => value !== null);
+              const units = amounts.map((value) => parseAmountUnits(expandScientificAmount(value)));
+              const total =
+                units.length && units.every((value) => value !== null)
+                  ? formatAmountUnits(units.reduce<bigint>((sum, value) => sum + (value ?? 0n), 0n))
+                  : '—';
+              return (
+                <fieldset key={product.code} className="production-product-amount">
+                  <legend>{product.label}</legend>
+                  {product.fields.map((key) => (
+                    <label key={key}>
+                      {key.endsWith('OrderAmount')
+                        ? '政企运营平台预计下单金额'
+                        : '数智业务管理系统预计计收金额'}
+                      <input
+                        inputMode="decimal"
+                        maxLength={21}
+                        placeholder="未填写"
+                        value={values[key] ?? ''}
+                        onChange={(e) => field(key, e.target.value.trim() || null)}
+                        onBlur={(e) => field(key, expandScientificAmount(e.target.value) || null)}
+                      />
+                    </label>
+                  ))}
+                  <div className="production-product-total">
+                    <span>总排产金额</span>
+                    <output aria-label={`${product.label}总排产金额`}>{total}</output>
+                  </div>
+                </fieldset>
+              );
+            })}
+          </div>
+        </section>
+        <div className="form-grid production-supplemental">
           <label className="full-width">
             产品简介（选填）
             <textarea

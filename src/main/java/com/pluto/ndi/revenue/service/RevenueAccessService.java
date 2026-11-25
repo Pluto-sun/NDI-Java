@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-/** 省市均按本省办理；接口人全国查看，但仅在负责省份、具体组织及未归属记录中认定。 */
+/** 省市可查看本省来源记录；接口人按既有办理范围发起认定。 */
 @Service
 public class RevenueAccessService {
     private final IdentityDirectory identities;
@@ -17,6 +17,9 @@ public class RevenueAccessService {
     public RevenueAccessService(IdentityDirectory identities) {
         this.identities = identities;
     }
+
+    private static final Set<String> PROVINCE_ROLES = Set.of(
+            "PROVINCE_REPORTER", "PROVINCE_DIGITAL_LEADER", "PROVINCE_INTELLIGENT_LEADER");
 
     public record Access(
             ProjectUser user, boolean national, boolean creator, boolean reviewer, boolean local) {
@@ -26,6 +29,10 @@ public class RevenueAccessService {
                             && !organization
                             && local
                             && Objects.equals(user.provinceId(), province);
+        }
+
+        public boolean readsAssignedOrganizations() {
+            return user.provinceId() != null && user.roleCodes().stream().anyMatch(PROVINCE_ROLES::contains);
         }
 
         public boolean recognize(UUID province, boolean organization, String category) {

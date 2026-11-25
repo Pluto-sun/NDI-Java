@@ -1779,6 +1779,46 @@ class ProjectApprovalIT {
         assertThat(new String(csv.getValue(), StandardCharsets.UTF_8)).contains("原项目-2").doesNotContain("原项目-3", "原项目-4", "原项目-5");
     }
 
+    @Test
+    void productMultiSelectUsesCategoryMembershipForListCountAndExport() throws Exception {
+        var first = createProject();
+        var second = createProject();
+        var excluded = createProject();
+        setSignedProject(first, "产品筛选合同");
+        jdbc.update("""
+                INSERT INTO project_category_amount(id,project_id,category_code,expected_amount)
+                VALUES(UUID_TO_BIN(UUID()),UUID_TO_BIN(?),'GEWU',0)
+                """, first.toString());
+        jdbc.update("UPDATE project_category_amount SET category_code='GEWU' WHERE project_id=UUID_TO_BIN(?)",
+                second.toString());
+        jdbc.update("UPDATE project_category_amount SET category_code='WANGWU' WHERE project_id=UUID_TO_BIN(?)",
+                excluded.toString());
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()).param("productCodes", "NETWORK", "GEWU")
+                        .param("size", "1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.items.length()").value(1));
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()).param("productCodes", "NETWORK", "GEWU")
+                        .param("stage", "COLLECTION")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].id").value(first.toString()));
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()).param("productCodes", "unknown"))
+                .andExpect(status().isBadRequest());
+        var accepted = mockMvc.perform(post("/api/v1/projects/exports")
+                        .header("X-NDI-Actor-Id", cityUserId.toString()).contentType("application/json")
+                        .content(json.writeValueAsString(Map.of("productCodes", List.of("NETWORK", "GEWU"),
+                                "fields", List.of("projectName", "currentStageName")))))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+        var task = UUID.fromString(json.readTree(accepted).path("data").path("id").asText());
+        exportWorker.runPending();
+        var csv = ArgumentCaptor.forClass(byte[].class);
+        verify(exportFileDirectory).storeCsv(eq(task), csv.capture());
+        assertThat(exportService.find(cityUserId, task).rowCount()).isEqualTo(2);
+        assertThat(new String(csv.getValue(), StandardCharsets.UTF_8))
+                .contains("待计收", "原项目-2").doesNotContain("原项目-3");
+    }
+
     private void setSignedProject(UUID projectId, String contractNo) {
         jdbc.update("UPDATE project_project SET current_stage_code = 'COLLECTION', contract_no = ?, signed_amount = 80.00, version_no = version_no + 1 WHERE id = UUID_TO_BIN(?)",
                 contractNo, projectId.toString());

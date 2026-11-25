@@ -16,7 +16,7 @@ public final class ProjectImportMappingRules {
             missing.add("至少一项三化预计金额");
         for (var row : rows) {
             String stage = row.get("项目阶段");
-            if ("计收".equals(stage)
+            if (com.pluto.ndi.projects.domain.ProjectStage.COLLECTION.matchesImportValue(stage)
                     || Set.of("签约", "已终止").contains(stage)
                             && (!row.get("合同编号").isBlank() || !row.get("签约金额（万）").isBlank()))
                 for (var field : List.of("合同编号", "签约金额（万）"))

@@ -47,7 +47,7 @@ test('快照导入区分缺失、部分补录、整月完整及当月实时', as
   const row = {
     快照月份: previous,
     系统项目编号: project.projectCode,
-    月末阶段: '招投标',
+    月末阶段: '计收',
     月末归属省分: '本地演示省',
     地市: '本地演示市',
     月末项目总金额: '100',
@@ -81,10 +81,10 @@ test('快照导入区分缺失、部分补录、整月完整及当月实时', as
   await expect(page.getByText(`${previous} 已标记为整月完整。`)).toBeVisible();
   const after = await view();
   expect(after.trend[0].source).toBe('SNAPSHOT');
-  const bidding = after.trend[0].productStages?.find((row) => row.stageCode === 'BIDDING');
-  expect(bidding?.count).toBeGreaterThanOrEqual(1);
-  expect(Number(bidding?.amount)).toBeGreaterThanOrEqual(35);
-  await preview(row);
+  const collection = after.trend[0].productStages?.find((row) => row.stageCode === 'COLLECTION');
+  expect(collection?.count).toBeGreaterThanOrEqual(1);
+  expect(Number(collection?.amount)).toBeGreaterThanOrEqual(35);
+  await preview({ ...row, 月末阶段: '待计收' });
   await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
   await expect(page.getByText(/成功导入 0 行/)).toBeVisible();
 
@@ -104,6 +104,6 @@ test('快照导入区分缺失、部分补录、整月完整及当月实时', as
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   const corrected = await view();
   expect(
-    corrected.trend[0].productStages?.find((item) => item.stageCode === 'BIDDING')?.count ?? 0,
-  ).toBe((bidding?.count ?? 0) - 1);
+    corrected.trend[0].productStages?.find((item) => item.stageCode === 'COLLECTION')?.count ?? 0,
+  ).toBe((collection?.count ?? 0) - 1);
 });

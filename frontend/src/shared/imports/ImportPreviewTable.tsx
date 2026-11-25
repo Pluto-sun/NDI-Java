@@ -2,7 +2,7 @@ import { ListPagination } from '../ui/ListPagination';
 import { useImportWizard } from './context';
 import { useRef, useState } from 'react';
 import type { ImportBatch } from './types';
-import { nameAccepted, rowErrors, sourceCells, type ImportRow } from './importWizard';
+import { canImportRow, nameAccepted, rowErrors, sourceCells, type ImportRow } from './importWizard';
 
 const pageSize = 10;
 /** 按状态筛选后分页；选择集合仍覆盖所有页，原始行号保持不变。 */
@@ -25,7 +25,7 @@ export function ImportPreviewTable({
   const [filter, setFilter] = useState('ALL');
   const [page, setPage] = useState(0);
   const scroll = useRef<HTMLDivElement>(null);
-  const passed = (row: ImportRow) => row.status === 'READY' && nameAccepted(row.nameReview);
+  const passed = canImportRow;
   const passedCount = batch.rows.filter(passed).length;
   const rows = batch.rows.filter(
     (row) => filter === 'ALL' || (filter === 'PASSED' ? passed(row) : !passed(row)),
@@ -98,7 +98,7 @@ export function ImportPreviewTable({
                       type="checkbox"
                       aria-label={`选择第 ${row.rowNumber} 行`}
                       checked={selected.has(row.rowNumber)}
-                      disabled={disabled || row.status !== 'READY'}
+                      disabled={disabled || !canImportRow(row)}
                       onChange={(event) => {
                         const next = new Set(selected);
                         if (event.target.checked) next.add(row.rowNumber);
@@ -111,7 +111,10 @@ export function ImportPreviewTable({
                   <td>
                     <strong className="import-cell-clamp">
                       {(config.rowTitleFields ?? ['项目名称'])
-                        .map((field) => cells[field])
+                        .map(
+                          (field) =>
+                            config.displayCell?.(field, cells[field] ?? '') ?? cells[field],
+                        )
                         .filter((value) =>
                           config.emptyValueLabel
                             ? value?.trim() && value.trim() !== config.emptyValueLabel

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useAnchoredPanel } from './useAnchoredPanel';
 
 export function MultiSelect({
   label,
@@ -13,24 +14,15 @@ export function MultiSelect({
   onChange: (values: string[]) => void;
   disabledReason?: string;
 }) {
-  const root = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLFieldSetElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const optionsId = useId();
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (disabledReason) {
-      setOpen(false);
-      return;
-    }
-    if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOutside, true);
-    return () => document.removeEventListener('pointerdown', closeOutside, true);
-  }, [disabledReason, open]);
-
   const expanded = open && !disabledReason;
+  useEffect(() => {
+    if (disabledReason) setOpen(false);
+  }, [disabledReason]);
+  useAnchoredPanel(expanded, trigger, panel, () => setOpen(false), 190, 240);
   const selection =
     values.length === 0
       ? '全部'
@@ -42,7 +34,6 @@ export function MultiSelect({
     <div className="multi-select-field">
       <span>{label}</span>
       <div
-        ref={root}
         className="multi-select"
         onBlur={(event) => {
           // 点击选项名称时可能短暂失焦，由外部点击和明确的焦点转移负责收起。
@@ -74,7 +65,13 @@ export function MultiSelect({
           {disabledReason || selection}
         </button>
         {expanded && (
-          <fieldset id={optionsId} className="multi-select-options" aria-label={label}>
+          <fieldset
+            ref={panel}
+            id={optionsId}
+            className="multi-select-options"
+            aria-label={label}
+            popover="manual"
+          >
             <button
               type="button"
               className="text-button"

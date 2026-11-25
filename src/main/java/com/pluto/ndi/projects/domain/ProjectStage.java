@@ -5,7 +5,7 @@ public enum ProjectStage {
     SOLUTION_EXCHANGE(0, "方案交流"),
     BIDDING(1, "招投标"),
     SIGNED(2, "签约"),
-    COLLECTION(3, "计收"),
+    COLLECTION(3, "待计收"),
     TERMINATED(-1, "已终止");
 
     private final int forwardOrder;
@@ -18,6 +18,10 @@ public enum ProjectStage {
 
     public String label() {
         return label;
+    }
+
+    public boolean matchesImportValue(String value) {
+        return name().equals(value) || label.equals(value) || this == COLLECTION && "计收".equals(value);
     }
 
     public boolean isBefore(ProjectStage other) {

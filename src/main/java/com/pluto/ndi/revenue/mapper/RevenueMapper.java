@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.service.RevenueAccessService.Access;
 import com.pluto.ndi.revenue.util.RevenueFields.Source;
+import com.pluto.ndi.revenue.util.RevenueOrganizationNames;
 
 import org.springframework.jdbc.core.namedparam.*;
 import org.springframework.stereotype.Repository;
@@ -100,13 +101,31 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
         return DashboardSummary.amounts(List.copyOf(categories.values()), List.copyOf(provinces.values()));
     }
 
+    private static final String ASSIGNED_PROVINCE = """
+            EXISTS(SELECT 1 FROM revenue_organization_province m
+                   WHERE m.organization_key=e.source_organization_key AND m.province_id=UUID_TO_BIN(%s))
+            """;
+
+    private static String provinceScope(String parameter, boolean includeOrganizations) {
+        String sources = "(e.province_id=UUID_TO_BIN(" + parameter + ") AND e.specific_organization=FALSE)";
+        return includeOrganizations ? "(" + sources + " OR " + ASSIGNED_PROVINCE.formatted(parameter) + ")" : sources;
+    }
+
+    public boolean readsAssignedOrganization(UUID entryId, Access access) {
+        if (!access.readsAssignedOrganizations()) return false;
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM revenue_entry e WHERE e.id=UUID_TO_BIN(:id) AND "
+                        + ASSIGNED_PROVINCE.formatted(":province") + ")",
+                Map.of("id", str(entryId), "province", str(access.user().provinceId())), Boolean.class));
+    }
+
     private record Where(String sql, MapSqlParameterSource args) {}
 
     private Where where(Access a, Filter f) {
         var sql = new StringBuilder(" WHERE e.active_key=1");
         var args = new MapSqlParameterSource();
         if (!a.national()) {
-            sql.append(" AND e.province_id=UUID_TO_BIN(:scope) AND e.specific_organization=FALSE");
+            sql.append(" AND ").append(provinceScope(":scope", a.readsAssignedOrganizations()));
             args.addValue("scope", str(a.user().provinceId()));
         }
         if (f.month() != null && !f.month().isBlank()) {
@@ -132,7 +151,7 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
                         "digitalTech",
                         com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
             } else {
-                sql.append(" AND e.province_id=UUID_TO_BIN(:province)");
+                sql.append(" AND ").append(provinceScope(":province", true));
                 args.addValue("province", f.province());
             }
         }
@@ -285,8 +304,8 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
     public void insert(UUID id, UUID actor, Source c, Instant at) {
         jdbc.update(
                 """
-INSERT INTO revenue_entry(id,account_month,province_id,specific_organization,contract_no,clause_no,clause_amount,source_amount,source_fields,created_by,created_at,updated_at)
-VALUES(UUID_TO_BIN(:id),:month,UUID_TO_BIN(:province),:org,:contract,:clause,:amount,:sourceAmount,CAST(:source AS JSON),UUID_TO_BIN(:actor),:at,:at)
+INSERT INTO revenue_entry(id,account_month,province_id,specific_organization,contract_no,clause_no,clause_amount,source_amount,source_fields,source_organization_key,created_by,created_at,updated_at)
+VALUES(UUID_TO_BIN(:id),:month,UUID_TO_BIN(:province),:org,:contract,:clause,:amount,:sourceAmount,CAST(:source AS JSON),:orgKey,UUID_TO_BIN(:actor),:at,:at)
 """,
                 new MapSqlParameterSource("id", str(id))
                         .addValue("month", c.month() + "-01")
@@ -297,6 +316,9 @@ VALUES(UUID_TO_BIN(:id),:month,UUID_TO_BIN(:province),:org,:contract,:clause,:am
                         .addValue("amount", c.clauseAmount())
                         .addValue("sourceAmount", c.sourceAmount())
                         .addValue("source", encode(c.fields()))
+                        .addValue("orgKey", c.organization() && "具体组织".equals(c.fields().get("省份名称"))
+                                ? RevenueOrganizationNames.key(c.fields().get("地市/组织名称")) : null,
+                                Types.BINARY)
                         .addValue("actor", str(actor))
                         .addValue("at", Timestamp.from(at)));
     }

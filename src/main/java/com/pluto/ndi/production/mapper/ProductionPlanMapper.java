@@ -161,13 +161,17 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
     }
 
     public Optional<ProductionPlan> find(UUID id, boolean lock) {
+        return find(id, lock, false);
+    }
+
+    public Optional<ProductionPlan> find(UUID id, boolean lock, boolean writable) {
         var rows =
                 jdbc.query(
                         SELECT
                                 + " WHERE p.id=UUID_TO_BIN(:id) AND p.deleted_at IS NULL"
                                 + (lock ? " FOR UPDATE" : ""),
                         Map.of("id", id.toString()),
-                        (rs, n) -> row(rs, false));
+                        (rs, n) -> row(rs, writable));
         return rows.stream().findFirst();
     }
 

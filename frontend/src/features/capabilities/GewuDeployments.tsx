@@ -1,7 +1,8 @@
+import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { jsonBody, requestAt, type Page } from '../../shared/api/http';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { ImportWizardPage } from '../../shared/imports/ImportWizardPage';
@@ -110,7 +111,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
-  const [editor, setEditor] = useState<Deployment | 'new' | null>(null);
+  const [editor, setEditor] = useState<'new' | null>(null);
   const [deleting, setDeleting] = useState<Deployment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -127,6 +128,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
   const reference = useLiveQuery(loadReference, '组织目录加载失败');
   const data = listing.data;
   const ref = reference.data;
+  const listScroll = useLedgerScroll(!!data);
   const batch = useBatchDelete(admin, 'GEWU', query, data?.items ?? [], async () => {
     if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
     else await listing.refresh();
@@ -220,6 +222,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
           </div>
           {batch.toolbar}
           <div
+            ref={listScroll.table}
             className="table-scroll gewu-scroll sticky-actions-scroll"
             role="region"
             aria-label="格物部署明细横向滚动区域"
@@ -276,14 +279,14 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
                     ))}
                     <td className="sticky-list-action">
                       <div className="gewu-actions">
-                        <button
-                          type="button"
+                        <Link
                           className="secondary-button compact-button"
-                          disabled={!ref}
-                          onClick={() => setEditor(item)}
+                          to={`/capability/gewu/${item.id}`}
+                          state={listScroll.state}
+                          onClick={listScroll.remember}
                         >
-                          编辑
-                        </button>
+                          详情
+                        </Link>
                         {admin && (
                           <button
                             type="button"
@@ -321,7 +324,7 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
       {editor && ref && (
         <DeploymentEditor
           reference={ref}
-          item={editor === 'new' ? null : editor}
+          item={null}
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null);
@@ -367,14 +370,83 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
   );
 }
 
+export function GewuDeploymentDetailPage() {
+  const { id = '' } = useParams();
+  const { state } = useLocation();
+  const [editing, setEditing] = useState<Deployment | null>(null);
+  const load = useCallback((signal: AbortSignal) => api<Deployment>(`/${id}`, { signal }), [id]);
+  const loadReference = useCallback(
+    (signal: AbortSignal) => api<Reference>('/reference-data', { signal }),
+    [],
+  );
+  const result = useLiveQuery(load, '部署详情加载失败');
+  const reference = useLiveQuery(loadReference, '组织目录加载失败');
+  const item = result.data;
+  return (
+    <>
+      <div className="page-heading">
+        <Link
+          className="secondary-button"
+          to={{ pathname: '/capability/gewu', search: state?.listSearch ?? '' }}
+        >
+          返回列表
+        </Link>
+      </div>
+      {(result.error || reference.error) && (
+        <Feedback tone="error">{result.error || reference.error}</Feedback>
+      )}
+      {!item && result.busy && <Loading />}
+      {item && (
+        <section className="panel ledger-detail">
+          <div className="page-heading">
+            <h2>{editing ? '编辑格物部署' : '部署信息'}</h2>
+            {!editing && (
+              <button
+                className="secondary-button"
+                disabled={!reference.data}
+                onClick={() => setEditing(item)}
+              >
+                编辑
+              </button>
+            )}
+          </div>
+          {editing && reference.data ? (
+            <DeploymentEditor
+              reference={reference.data}
+              item={editing}
+              inline
+              onClose={() => setEditing(null)}
+              onSaved={() => {
+                setEditing(null);
+                void result.refresh();
+              }}
+            />
+          ) : (
+            <dl className="facts">
+              {[...primary, ...optional].map((field) => (
+                <div key={field}>
+                  <dt>{field}</dt>
+                  <dd>{item.fields[field] || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
 function DeploymentEditor({
   reference,
   item,
+  inline = false,
   onClose,
   onSaved,
 }: {
   reference: Reference;
   item: Deployment | null;
+  inline?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -423,53 +495,58 @@ function DeploymentEditor({
       </label>
     );
   }
-  return (
-    <Modal title={item ? '编辑格物部署' : '新增格物部署'} onClose={onClose} busy={busy}>
-      <form
-        aria-busy={busy}
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setBusy(true);
-          setError('');
-          try {
-            await api(item ? `/${item.id}` : '', {
-              method: item ? 'PUT' : 'POST',
-              ...jsonBody(item ? { version: item.version, deployment: input } : input),
-            });
-            onSaved();
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : '保存失败');
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <fieldset className="gewu-editor-group">
-          <legend>部署信息</legend>
-          <div className="form-grid">
-            <LocationFields
-              value={input}
-              reference={reference}
-              required
-              onChange={(location) => setInput({ ...input, ...location })}
-            />
-            {primary.filter((field) => field !== '省份' && field !== '地市').map(fieldInput)}
-          </div>
-        </fieldset>
-        <fieldset className="gewu-editor-group">
-          <legend>设备接入和工具包</legend>
-          <div className="form-grid">{optional.map(fieldInput)}</div>
-        </fieldset>
-        {error && <Feedback tone="error">{error}</Feedback>}
-        <div className="dialog-actions">
-          <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>
-            取消
-          </button>
-          <button className="primary-button" disabled={busy}>
-            {busy ? '保存中…' : '保存部署'}
-          </button>
+  const form = (
+    <form
+      aria-busy={busy}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setBusy(true);
+        setError('');
+        try {
+          await api(item ? `/${item.id}` : '', {
+            method: item ? 'PUT' : 'POST',
+            ...jsonBody(item ? { version: item.version, deployment: input } : input),
+          });
+          onSaved();
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : '保存失败');
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <fieldset className="gewu-editor-group">
+        <legend>部署信息</legend>
+        <div className="form-grid">
+          <LocationFields
+            value={input}
+            reference={reference}
+            required
+            onChange={(location) => setInput({ ...input, ...location })}
+          />
+          {primary.filter((field) => field !== '省份' && field !== '地市').map(fieldInput)}
         </div>
-      </form>
+      </fieldset>
+      <fieldset className="gewu-editor-group">
+        <legend>设备接入和工具包</legend>
+        <div className="form-grid">{optional.map(fieldInput)}</div>
+      </fieldset>
+      {error && <Feedback tone="error">{error}</Feedback>}
+      <div className="dialog-actions">
+        <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>
+          取消
+        </button>
+        <button className="primary-button" disabled={busy}>
+          {busy ? '保存中…' : '保存部署'}
+        </button>
+      </div>
+    </form>
+  );
+  return inline ? (
+    form
+  ) : (
+    <Modal title="新增格物部署" onClose={onClose} busy={busy}>
+      {form}
     </Modal>
   );
 }

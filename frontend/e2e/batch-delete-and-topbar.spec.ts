@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
@@ -15,6 +16,7 @@ function registers(prefix: string) {
       '/revenue/entries',
       {
         source: {
+          ...requiredRevenueFields,
           月账期: '202611',
           自然客户名称: '验收客户',
           省份名称: '本地演示省',

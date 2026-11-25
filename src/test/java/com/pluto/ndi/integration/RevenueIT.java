@@ -69,6 +69,7 @@ class RevenueIT {
 
     @Autowired RevenueService service;
     @Autowired RevenueMapper mapper;
+    @Autowired com.pluto.ndi.revenue.service.RevenueOrganizationService organizationAssignments;
     @Autowired RevenueImportService imports;
     @Autowired com.pluto.ndi.production.service.ProductionImportService productionImports;
     @Autowired JdbcTemplate jdbc;
@@ -178,6 +179,9 @@ class RevenueIT {
                                 "业务号码/项目编号",
                                 "000042"));
         result.put("三化分类", "数字化");
+        result.put("产品名称", "验收产品");
+        result.putIfAbsent("费用账期", "202610");
+        result.putIfAbsent("业务号码/项目编号", "000042");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }
@@ -207,8 +211,9 @@ class RevenueIT {
                 """, legacy.id().toString());
         var unrecognized = source();
         unrecognized.put("月账期", "2089-06");
-        unrecognized.put("省份名称", "");
-        service.create(admin, unrecognized);
+        var unassigned = service.create(admin, unrecognized);
+        jdbc.update("UPDATE revenue_entry SET province_id=NULL, source_fields=JSON_REMOVE(source_fields, '$.\"省份名称\"') WHERE id=UUID_TO_BIN(?)",
+                unassigned.id().toString());
         var national = service.dashboard(admin, "2089-06", "2089-06");
         assertThat(national.count()).isEqualTo(2);
         assertThat(national.amount()).isEqualTo("12.34");
@@ -324,50 +329,34 @@ class RevenueIT {
         source.put("费用账期", "2026-08");
         assertThat(service.create(admin, source).id()).isNotEqualTo(september.id());
         source.remove("费用账期");
-        service.create(admin, source);
+        assertThatThrownBy(() -> service.create(admin, source)).hasMessageContaining("费用账期必填");
         source.put("费用账期", " -- ");
         assertThatThrownBy(() -> service.create(admin, source)).isInstanceOf(BusinessException.class);
     }
 
     @Test
-    void unassignedMinimalEntriesRemainNationalAndInterfaceRecognitionIsDirect() {
-        var minimal =
-                new LinkedHashMap<>(
-                        Map.of(
-                                "月账期",
-                                "202611",
-                                "自然客户名称",
-                                "未归属客户-" + UUID.randomUUID(),
-                                "条款金额",
-                                "100",
-                                RevenueFields.SOURCE_AMOUNT,
-                                "0"));
-        minimal.put("三化分类", "数字化");
-        var saved = service.create(admin, minimal);
+    void legacyUnassignedEntriesRemainReadableAndCanBeRecognized() {
+        var values = source();
+        values.put("月账期", "202611");
+        values.put("自然客户名称", "未归属客户-" + UUID.randomUUID());
+        var entry = service.create(admin, values);
+        jdbc.update("""
+                UPDATE revenue_entry SET province_id=NULL, contract_no='', clause_no='',
+                  source_fields=JSON_REMOVE(source_fields, '$."省份名称"', '$."地市/组织名称"', '$."费用账期"',
+                   '$."合同编号"', '$."业务号码/项目编号"', '$."产品名称"')
+                WHERE id=UUID_TO_BIN(?)
+                """, entry.id().toString());
+        var saved = service.detail(admin, entry.id());
         assertThat(saved.provinceId()).isNull();
         assertThat(saved.specificOrganization()).isFalse();
         assertThat(saved.contractNo()).isEmpty();
-        assertThat(saved.clauseNo()).isEmpty();
-        var unassigned =
-                new RevenueMapper.Filter(null, "UNASSIGNED", minimal.get("自然客户名称"), null, 0, 20);
-        assertThat(service.list(admin, unassigned).items())
-                .extracting(Entry::id)
-                .containsExactly(saved.id());
+        var unassigned = new RevenueMapper.Filter(null, "UNASSIGNED", values.get("自然客户名称"), null, 0, 20);
+        assertThat(service.list(admin, unassigned).items()).extracting(Entry::id).containsExactly(saved.id());
         assertThat(service.list(reporter, unassigned).items()).isEmpty();
-
-        assertThat(service.detail(group, saved.id()).canRecognize()).isFalse();
         assertThat(service.detail(reviewer, saved.id()).canRecognize()).isTrue();
         for (var actor : List.of(reporter, cityReporter, outsider))
-            assertThatThrownBy(() -> service.detail(actor, saved.id()))
-                    .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.create(admin, minimal))
-                .isInstanceOf(BusinessException.class);
-        var different = new LinkedHashMap<>(minimal);
-        different.put("合同编号", "新增合同");
-        assertThat(service.create(admin, different).id()).isNotEqualTo(saved.id());
-        var applied = approve(reviewer, saved, value("5"));
-        assertThat(applied.recognition().amount()).isEqualByComparingTo("5");
-        assertThat(service.requests(reviewer, saved.id())).hasSize(1);
+            assertThatThrownBy(() -> service.detail(actor, saved.id())).isInstanceOf(BusinessException.class);
+        assertThat(approve(reviewer, saved, value("5")).recognition().amount()).isEqualByComparingTo("5");
     }
 
     private Entry approve(UUID actor, Entry entry, Recognition value) {
@@ -443,6 +432,59 @@ class RevenueIT {
         assertThatThrownBy(() -> service.detail(cityReporter, entry.id())).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), saved.version(), value("1.001"), group))
                 .hasMessageContaining("两位小数");
+    }
+
+    @Test
+    void organizationAssignmentFollowsExactNormalizedNameWithoutChangingSourceOrRecognition() {
+        var hubei = jdbc.queryForObject("""
+                SELECT BIN_TO_UUID(id) FROM organization_province WHERE province_code='420000'
+                """, (row, index) -> UUID.fromString(row.getString(1)));
+        var hubeiLeader = user("PROVINCE_REPORTER", hubei, null);
+        var hubeiCity = user("CITY_REPORTER", hubei, city(hubei));
+        scope(reviewer, hubei);
+        var values = source();
+        values.put("省份名称", "具体组织");
+        values.put("地市/组织名称", "联通（湖北）产业互联网有限公司");
+        var item = service.create(admin, values);
+        var approved = approve(reviewer, item, new Recognition(new BigDecimal("15"), "组织计收", "已交付", otherProvince));
+        var key = organizationAssignments.list(admin).stream().filter(row -> row.name().equals(values.get("地市/组织名称")))
+                .findFirst().orElseThrow().key();
+        assertThatThrownBy(() -> organizationAssignments.list(reporter)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> organizationAssignments.update(reviewer, key, province)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.detail(hubeiLeader, item.id())).isInstanceOf(BusinessException.class);
+        organizationAssignments.update(admin, key, hubei);
+
+        var later = source();
+        later.put("省份名称", "--");
+        later.put("地市/组织名称", "　联通(湖北)产业互联网有限公司  ");
+        var future = service.importEntry(admin, later);
+        var distinct = source();
+        distinct.put("省份名称", "具体组织");
+        distinct.put("地市/组织名称", "联通(湖北)产业互联网有限公司分部");
+        var different = service.create(admin, distinct);
+        var filter = new RevenueMapper.Filter(null, hubei.toString(), "", "", 0, 20, "产业互联网");
+        for (var actor : List.of(hubeiLeader, reviewer, admin)) {
+            var listing = service.list(actor, filter);
+            assertThat(listing.items()).extracting(Entry::id).containsExactlyInAnyOrder(item.id(), future.id());
+            assertThat(listing.totalElements()).isEqualTo(2);
+            assertThat(listing.summary().recognizedAmount()).isEqualByComparingTo("15");
+        }
+        assertThat(service.detail(hubeiLeader, item.id()).source()).containsEntry("省份名称", "具体组织");
+        assertThat(service.detail(hubeiLeader, item.id()).recognition()).isEqualTo(approved.recognition());
+        assertThat(service.detail(hubeiLeader, item.id()).canRecognize()).isFalse();
+        assertThatThrownBy(() -> service.detail(hubeiCity, item.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.detail(hubeiLeader, different.id())).isInstanceOf(BusinessException.class);
+        organizationAssignments.update(admin, key, otherProvince);
+        assertThat(service.list(reviewer, filter).totalElements()).isZero();
+        assertThatThrownBy(() -> service.detail(hubeiLeader, item.id())).isInstanceOf(BusinessException.class);
+        var otherLeader = user("PROVINCE_REPORTER", otherProvince, null);
+        assertThat(service.detail(otherLeader, item.id()).id()).isEqualTo(item.id());
+        organizationAssignments.update(admin, key, null);
+        assertThatThrownBy(() -> service.detail(otherLeader, item.id())).isInstanceOf(BusinessException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM system_audit_event
+                WHERE event_type='REVENUE_ORGANIZATION_PROVINCE_CHANGED' AND actor_id=UUID_TO_BIN(?)
+                """, Integer.class, admin.toString())).isEqualTo(3);
     }
 
     @Test

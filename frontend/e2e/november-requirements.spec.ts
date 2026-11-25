@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { verifyStickyAction } from './support/stickyActions';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
@@ -153,11 +154,12 @@ test('集团可在不同省份新增和导入项目', async ({ page, request }) 
   await confirm(page, 2);
 });
 
-test('计收只保留完整正金额认定，独立按地市或组织筛选', async ({ page }, testInfo) => {
+test('数字化导入保持未认定，可独立按地市或组织筛选', async ({ page }, testInfo) => {
   await page.goto('/revenue/import');
   await chooseActor(page, group);
   const organization = `部署服务中心-${randomUUID().slice(0, 8)}`;
   const row = {
+    ...requiredRevenueFields,
     月账期: '202611',
     省份名称: '具体组织',
     '地市/组织名称': organization,
@@ -183,11 +185,7 @@ test('计收只保留完整正金额认定，独立按地市或组织筛选', as
   await expect(page.getByRole('combobox', { name: '省份／具体组织', exact: true })).toHaveValue('');
   const table = page.getByRole('table', { name: '计收明细清单', exact: true });
   await expect(table.locator('tbody tr')).toHaveCount(4);
-  const recognized = table.locator('tbody tr').filter({ hasText: '生效通报项目' });
-  await expect(recognized).toHaveCount(1);
-  await expect(recognized).toContainText('已认定');
-  await expect(recognized).toContainText('50.00');
-  await expect(table.locator('tbody tr').filter({ hasText: '未认定' })).toHaveCount(3);
+  await expect(table.locator('tbody tr').filter({ hasText: '未认定' })).toHaveCount(4);
   await page.screenshot({
     path: testInfo.outputPath('revenue-organization-filter.png'),
     fullPage: true,
@@ -258,7 +256,7 @@ test('集团新增和批量登记格物项目，重名失败且地市禁止维�
   await expect(table.locator('tbody tr')).toHaveCount(2);
   await verifyStickyAction(
     page.locator('.gewu-scroll'),
-    table.getByRole('button', { name: '编辑', exact: true }).first(),
+    table.getByRole('link', { name: '详情', exact: true }).first(),
   );
   await expect(table.locator('tbody tr').filter({ hasText: '公有云' })).toContainText('2026-02-10');
   expect(

@@ -113,7 +113,7 @@ public class RevenueService implements RevenueRecordDeletion {
         var e =
                 mapper.find(id, a, lock)
                         .orElseThrow(() -> new BusinessException(RevenueError.notFound()));
-        if (!a.readable(e.provinceId(), e.specificOrganization()))
+        if (!a.readable(e.provinceId(), e.specificOrganization()) && !mapper.readsAssignedOrganization(id, a))
             throw RevenueAccessService.forbidden();
         return e;
     }

@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
@@ -14,6 +15,7 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
       headers: { 'X-NDI-Actor-Id': ids.admin },
       data: {
         source: {
+          ...requiredRevenueFields,
           月账期: '202611',
           省份名称: '本地演示省',
           '地市/组织名称': '工业互联网示范基地运营服务中心',
@@ -108,7 +110,10 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
     .getByRole('form', { name: '计收筛选', exact: true })
     .evaluate((form) =>
       Array.from(form.querySelectorAll('input, select, button, summary'))
-        .filter((control) => control.matches('summary') || !control.closest('details:not([open])'))
+        .filter(
+          (control) =>
+            control.matches('summary') || !control.closest('details:not([open]), [popover]'),
+        )
         .map((control) => {
           const box = control.getBoundingClientRect();
           const name = control.getAttribute('aria-label') ?? control.parentElement?.textContent;

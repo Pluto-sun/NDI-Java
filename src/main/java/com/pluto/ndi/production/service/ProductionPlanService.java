@@ -121,6 +121,16 @@ public class ProductionPlanService implements ProductionRecordDeletion {
                 Map.of("version", old.version(), "projectName", old.projectName()));
     }
 
+    @Transactional(readOnly = true)
+    public ProductionPlan detail(UUID actor, UUID id) {
+        var permission = access.require(actor);
+        var plan = mapper.find(id, false, permission.writable())
+                .orElseThrow(() -> new BusinessException(ProductionError.notFound()));
+        if (!permission.contains(plan.provinceId(), plan.cityId()))
+            throw new BusinessException(ProductionError.forbidden());
+        return plan;
+    }
+
     private ProductionPlan locked(UUID actor, UUID id, long version) {
         var old =
                 mapper.find(id, true)

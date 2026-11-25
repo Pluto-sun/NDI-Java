@@ -70,6 +70,8 @@ public class ProjectImportService {
                     "SIGNED",
                     "计收",
                     "COLLECTION",
+                    "待计收",
+                    "COLLECTION",
                     "已终止",
                     "TERMINATED");
     private final ProjectExcelReader reader;

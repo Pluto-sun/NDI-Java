@@ -1,3 +1,4 @@
+import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { downloadAttachment } from '../../shared/util/downloadAttachment';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
@@ -126,13 +127,14 @@ function RecordList({
 }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
-  const [editor, setEditor] = useState<Entry | 'new' | null>(null);
+  const [editor, setEditor] = useState<'new' | null>(null);
   const load = useCallback(
     (signal: AbortSignal) => requestAt<Page<Entry>>(root(kind), '?' + query, { signal }),
     [kind, query],
   );
   const listing = useLiveQuery(load, '清单加载失败');
   const data = listing.data;
+  const listScroll = useLedgerScroll(!!data);
   const register = {
     wangwu: 'WANGWU',
     'agents-live': 'AGENTS_LIVE',
@@ -240,6 +242,7 @@ function RecordList({
           </div>
           {batch.toolbar}
           <div
+            ref={listScroll.table}
             className="table-scroll gewu-scroll sticky-actions-scroll"
             tabIndex={0}
             role="region"
@@ -293,13 +296,14 @@ function RecordList({
                     </td>
                     <td className="sticky-list-action">
                       <div className="gewu-actions">
-                        <button
-                          type="button"
+                        <Link
                           className="secondary-button compact-button"
-                          onClick={() => setEditor(item)}
+                          to={base(kind) + '/' + item.id}
+                          state={listScroll.state}
+                          onClick={listScroll.remember}
                         >
-                          编辑
-                        </button>
+                          详情
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -324,8 +328,6 @@ function RecordList({
         <RecordEditor
           kind={kind}
           reference={reference}
-          entry={editor === 'new' ? undefined : editor}
-          detailsSearch={query ? '?' + query : ''}
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null);
@@ -344,7 +346,7 @@ function display(field: string, value?: string) {
 function RecordDetail({ kind, reference }: { kind: Kind; reference: Reference }) {
   const { id } = useParams();
   const location = useLocation();
-  const [edit, setEdit] = useState(false);
+  const [edit, setEdit] = useState<Entry | null>(null);
   const load = useCallback(
     (signal: AbortSignal) => requestAt<Entry>(root(kind), '/' + id, { signal }),
     [kind, id],
@@ -365,38 +367,44 @@ function RecordDetail({ kind, reference }: { kind: Kind; reference: Reference })
       {!entry && result.busy && <Loading />}
       {entry && (
         <>
-          <section className="panel">
+          <section className="panel ledger-detail">
             <div className="page-heading">
-              <h2>基本信息</h2>
-              <button className="secondary-button" onClick={() => setEdit(true)}>
-                编辑
-              </button>
+              <h2>{edit ? '编辑记录' : '基本信息'}</h2>
+              {!edit && (
+                <button className="secondary-button" onClick={() => setEdit(entry)}>
+                  编辑
+                </button>
+              )}
             </div>
-            <dl className="facts">
-              {reference.fields.map((field) => (
-                <div key={field}>
-                  <dt>{field}</dt>
-                  <dd>{display(field, entry.fields[field])}</dd>
+            {edit ? (
+              <RecordEditor
+                kind={kind}
+                reference={reference}
+                entry={edit}
+                inline
+                onClose={() => setEdit(null)}
+                onSaved={() => {
+                  setEdit(null);
+                  void result.refresh();
+                }}
+              />
+            ) : (
+              <dl className="facts">
+                {reference.fields.map((field) => (
+                  <div key={field}>
+                    <dt>{field}</dt>
+                    <dd>{display(field, entry.fields[field])}</dd>
+                  </div>
+                ))}
+                <div>
+                  <dt>更新时间（北京时间）</dt>
+                  <dd>{timestamp(entry.updatedAt)}</dd>
                 </div>
-              ))}
-              <div>
-                <dt>更新时间（北京时间）</dt>
-                <dd>{timestamp(entry.updatedAt)}</dd>
-              </div>
-            </dl>
+              </dl>
+            )}
           </section>
-          {kind === 'agents-live' && <TokenPanel agent={entry.id} onUpdated={result.refresh} />}
-          {edit && (
-            <RecordEditor
-              kind={kind}
-              reference={reference}
-              entry={entry}
-              onClose={() => setEdit(false)}
-              onSaved={() => {
-                setEdit(false);
-                void result.refresh();
-              }}
-            />
+          {kind === 'agents-live' && !edit && (
+            <TokenPanel agent={entry.id} onUpdated={result.refresh} />
           )}
         </>
       )}
@@ -408,14 +416,14 @@ function RecordEditor({
   kind,
   reference,
   entry,
-  detailsSearch,
+  inline = false,
   onClose,
   onSaved,
 }: {
   kind: Kind;
   reference: Reference;
   entry?: Entry;
-  detailsSearch?: string;
+  inline?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -441,85 +449,81 @@ function RecordEditor({
       setBusy(false);
     }
   }
-  return (
-    <Modal title={entry ? '编辑记录' : '新增记录'} busy={busy} onClose={onClose}>
-      <form onSubmit={save}>
-        <fieldset className="gewu-editor-group">
-          <legend>{kind === 'wangwu' ? '部署信息' : '智能体信息'}</legend>
-          <div className="form-grid">
-            {reference.fields.map((field) => {
-              const required = reference.required.includes(field);
-              const value = entry?.fields[field] ?? '';
-              return (
-                <label key={field}>
-                  {field}
-                  {field === '省分' ? (
-                    <Select name={field} required defaultValue={entry?.provinceId ?? ''}>
-                      <option value="">请选择</option>
-                      {reference.provinces.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : reference.options[field] ? (
-                    <Select name={field} required={required} defaultValue={value}>
-                      <option value="">请选择</option>
-                      {reference.options[field].map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                    </Select>
-                  ) : field.includes('简述') || field.includes('组件') ? (
-                    <textarea
-                      name={field}
-                      required={required}
-                      defaultValue={value}
-                      maxLength={4000}
-                    />
-                  ) : (
-                    <input
-                      name={field}
-                      required={required}
-                      defaultValue={value}
-                      maxLength={4000}
-                      type={
-                        reference.months.includes(field)
-                          ? 'month'
-                          : field === '版本更新日期'
-                            ? 'date'
-                            : field === '开发进度'
-                              ? 'number'
-                              : 'text'
-                      }
-                      min={field === '开发进度' ? 0 : undefined}
-                      max={field === '开发进度' ? 100 : undefined}
-                      step={field === '开发进度' ? '0.0001' : undefined}
-                    />
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-        {error && <Feedback tone="error">{error}</Feedback>}
-        <div className="dialog-actions">
-          {entry && detailsSearch !== undefined && (
-            <Link
-              className="secondary-button"
-              to={base(kind) + '/' + entry.id}
-              state={{ listSearch: detailsSearch }}
-            >
-              {kind === 'agents-live' ? '月度 Token 记录' : '查看记录'}
-            </Link>
-          )}
-          <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>
-            取消
-          </button>
-          <button className="primary-button" disabled={busy}>
-            保存记录
-          </button>
+  const form = (
+    <form onSubmit={save} aria-busy={busy}>
+      <fieldset className="gewu-editor-group">
+        <legend>{kind === 'wangwu' ? '部署信息' : '智能体信息'}</legend>
+        <div className="form-grid">
+          {reference.fields.map((field) => {
+            const required = reference.required.includes(field);
+            const value = entry?.fields[field] ?? '';
+            return (
+              <label key={field}>
+                {field}
+                {field === '省分' ? (
+                  <Select name={field} required defaultValue={entry?.provinceId ?? ''}>
+                    <option value="">请选择</option>
+                    {reference.provinces.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : reference.options[field] ? (
+                  <Select name={field} required={required} defaultValue={value}>
+                    <option value="">请选择</option>
+                    {reference.options[field].map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </Select>
+                ) : field.includes('简述') || field.includes('组件') ? (
+                  <textarea
+                    name={field}
+                    required={required}
+                    defaultValue={value}
+                    maxLength={4000}
+                  />
+                ) : (
+                  <input
+                    name={field}
+                    required={required}
+                    defaultValue={value}
+                    maxLength={4000}
+                    type={
+                      reference.months.includes(field)
+                        ? 'month'
+                        : field === '版本更新日期'
+                          ? 'date'
+                          : field === '开发进度'
+                            ? 'number'
+                            : 'text'
+                    }
+                    min={field === '开发进度' ? 0 : undefined}
+                    max={field === '开发进度' ? 100 : undefined}
+                    step={field === '开发进度' ? '0.0001' : undefined}
+                  />
+                )}
+              </label>
+            );
+          })}
         </div>
-      </form>
+      </fieldset>
+      {error && <Feedback tone="error">{error}</Feedback>}
+      <div className="dialog-actions">
+        <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>
+          取消
+        </button>
+        <button className="primary-button" disabled={busy}>
+          保存记录
+        </button>
+      </div>
+    </form>
+  );
+  return inline ? (
+    form
+  ) : (
+    <Modal title="新增记录" busy={busy} onClose={onClose}>
+      {form}
     </Modal>
   );
 }

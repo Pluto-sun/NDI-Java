@@ -338,6 +338,13 @@ VALUES(UUID_TO_BIN(:id),UUID_TO_BIN(:province),UUID_TO_BIN(:city),CAST(:fields A
                 Map.of("version", version));
     }
 
+    @Transactional(readOnly = true)
+    public Deployment detail(UUID actor, UUID id) {
+        var deployment = get(id, false);
+        requireScope(actor, deployment.provinceId(), deployment.cityId());
+        return deployment;
+    }
+
     private Deployment get(UUID id, boolean lock) {
         return jdbc
                 .query(

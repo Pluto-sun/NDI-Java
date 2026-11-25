@@ -33,6 +33,9 @@ class RevenueSourceOptionsTest {
                                 RevenueFields.SOURCE_AMOUNT,
                                 "10"));
         result.put("三化分类", "数字化");
+        result.put("产品名称", "验收产品");
+        result.putIfAbsent("费用账期", "202610");
+        result.putIfAbsent("业务号码/项目编号", "000042");
         result.put("自然客户名称", "验收自然客户");
         return result;
     }

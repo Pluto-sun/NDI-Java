@@ -58,6 +58,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
       if (legacyProvince) provinceIds.push(legacyProvince);
     }
     return {
+      productCodes: searchParams.getAll('productCodes'),
       page: Math.max(0, Math.min(100000, Number(searchParams.get('page')) || 0)),
       projectName: searchParams.get('projectName') ?? '',
       stage: searchParams.get('stage') ?? '',
@@ -87,6 +88,9 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     const value = savedDraft?.[key];
     return Array.isArray(value) && value.every((id) => typeof id === 'string') ? value : fallback;
   };
+  const [productCodes, setProductCodes] = useState(
+    draftLocations('productCodes', query.productCodes),
+  );
   const [provinceIds, setProvinceIds] = useState(draftLocations('provinceIds', query.provinceIds));
   const [cityIds, setCityIds] = useState(draftLocations('cityIds', query.cityIds));
   const provinces = reference.provinces.filter((item) =>
@@ -128,6 +132,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     setStage(query.stage);
     setIndustryCode(query.industryCode);
     setProvinceIds(query.provinceIds);
+    setProductCodes(query.productCodes);
     setCityIds(query.cityIds);
     setAdvanced({
       ...emptyAdvanced,
@@ -273,6 +278,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
             stage,
             projectCode,
             industryCode,
+            productCodes,
             provinceIds,
             cityIds: selectedCityIds,
             ...advanced,
@@ -336,6 +342,12 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
           }))}
           onChange={setCityIds}
         />
+        <MultiSelect
+          label="产品类别"
+          values={productCodes}
+          options={reference.categories.map(({ code, label }) => ({ value: code, label }))}
+          onChange={setProductCodes}
+        />
         <div className="inline-actions project-filter-actions">
           <button type="submit" className="primary-button">
             查询
@@ -358,6 +370,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
                 stage: '',
                 projectCode: '',
                 industryCode: '',
+                productCodes: [],
                 provinceIds: [],
                 cityIds: [],
                 ...emptyAdvanced,
@@ -620,6 +633,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
                               stage,
                               projectCode,
                               industryCode,
+                              productCodes,
                               provinceIds,
                               cityIds: selectedCityIds,
                               ...advanced,

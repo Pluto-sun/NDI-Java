@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
@@ -27,6 +28,7 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
   const projectName = '分类测试-' + randomUUID();
   for (const category of ['数字化', '智能化']) {
     const source = {
+      ...requiredRevenueFields,
       月账期: '2026-10',
       项目名称: projectName + category,
       合同编号: projectName + category,
@@ -45,7 +47,7 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
       new URLSearchParams({
         month: '2026-10',
         state: 'UNRECOGNIZED',
-        province: 'UNASSIGNED',
+        province: ids.province,
         search: projectName,
         page: '1',
       }),
@@ -70,7 +72,7 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
       url.searchParams.get('category') === '智能化' &&
       url.searchParams.get('month') === '2026-10' &&
       url.searchParams.get('state') === 'UNRECOGNIZED' &&
-      url.searchParams.get('province') === 'UNASSIGNED' &&
+      url.searchParams.get('province') === ids.province &&
       url.searchParams.get('search') === projectName &&
       !url.searchParams.has('page'),
   );

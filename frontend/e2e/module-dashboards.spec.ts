@@ -1,3 +1,4 @@
+import { requiredRevenueFields } from './support/revenue';
 import { pickMonth } from './support/monthPicker';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -97,6 +98,7 @@ test('计收月账期口径、未认定记录、具体组织与省内权限', as
   const ref = await get<ReferenceData>(request, ids.admin, '/reference-data');
   const province = ref.provinces.find((option) => option.id === ids.province)!.name;
   const source = {
+    ...requiredRevenueFields,
     月账期: month,
     三化分类: '数字化',
     条款金额: '100000',
@@ -104,8 +106,12 @@ test('计收月账期口径、未认定记录、具体组织与省内权限', as
     合同编号: randomUUID(),
   };
   await add(request, revenue, { source: { ...source, 省份名称: province } });
-  await add(request, revenue, { source: { ...source, 合同编号: randomUUID() } });
-  await add(request, revenue, { source: { ...source, 合同编号: randomUUID(), 省份名称: '数科' } });
+  await add(request, revenue, {
+    source: { ...source, 省份名称: '具体组织', 合同编号: randomUUID() },
+  });
+  await add(request, revenue, {
+    source: { ...source, 合同编号: randomUUID(), 省份名称: '数科', '地市/组织名称': '' },
+  });
   await add(request, revenue, {
     source: { ...source, 合同编号: randomUUID(), 月账期: month.replace('-02', '-01') },
   });
@@ -120,7 +126,7 @@ test('计收月账期口径、未认定记录、具体组织与省内权限', as
   await page.goto('/workbench/revenue' + range);
   await chooseActor(page, ids.admin);
   await expect(page.getByTestId('dashboard-total-count')).toHaveText('3');
-  await expect(page.getByRole('rowheader', { name: '未归属', exact: true })).toBeVisible();
+  await expect(page.getByRole('rowheader', { name: '具体组织', exact: true })).toBeVisible();
   await expect(page.getByRole('rowheader', { name: '数科', exact: true })).toBeVisible();
   await checkSticky(page);
   await pickMonth(page.getByLabel('月账期起始月', { exact: true }), month.replace('-02', '-01'));

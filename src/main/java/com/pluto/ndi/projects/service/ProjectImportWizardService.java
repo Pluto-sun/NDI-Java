@@ -191,8 +191,9 @@ public class ProjectImportWizardService {
                             batch);
             batches.flush(); // 后续通过 JDBC 保存外键前，先将预检批次写入数据库。
             batch = result.batchId();
+            if (preview == null || !Objects.equals(config.sheetName(), preview.sheetName())
+                    || !Objects.equals(config.headerRowNo(), preview.headerRowNo())) selection = null;
             preview = config;
-            selection = null;
         }
         if (step == 3 && batch == null) throw conflict();
         if (!com.pluto.ndi.shared.imports.ImportWorkflow.validSelection(selection)) throw conflict();
@@ -296,7 +297,7 @@ public class ProjectImportWizardService {
                             }
                             if (Set.of("合同编号", "签约金额（万）").contains(field)) {
                                 rule = "CONDITIONAL";
-                                hint = "计收阶段必填；签约/终止填写任一项时须成对填写，编号全局唯一";
+                                hint = "待计收阶段必填；签约/终止填写任一项时须成对填写，编号全局唯一";
                             }
                             return new FieldRule(field, rule, hint);
                         })

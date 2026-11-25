@@ -50,7 +50,9 @@ public class RevenueFields {
                     "税率",
                     "产品本月计收不含税额/标品含税收入");
     public static final String SOURCE_AMOUNT = "产品本月计收不含税额/标品含税收入";
-    public static final Set<String> REQUIRED = Set.of("月账期", "条款金额", SOURCE_AMOUNT, "三化分类");
+    public static final Set<String> REQUIRED = Set.of(
+            "月账期", "费用账期", "省份名称", "地市/组织名称", "业务号码/项目编号", "合同编号",
+            "产品名称", "条款金额", SOURCE_AMOUNT, "三化分类");
     private final OrganizationDirectory organizations;
 
     public RevenueFields(OrganizationDirectory organizations) {
@@ -85,21 +87,23 @@ public class RevenueFields {
             // 业务标识的缺失占位符统一为空，省份的旧占位符仍表示具体组织。
             values.put(field, value.equals("--") && !field.equals("省份名称") ? "" : value);
         }
+        var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(values.get("省份名称"));
+        if (fixedOrganization != null && values.get("地市/组织名称").isBlank())
+            values.put("地市/组织名称", fixedOrganization);
         for (var field : FIELDS)
-            if (REQUIRED.contains(field) && values.get(field).isBlank())
+            if (REQUIRED.contains(field) && missingRequired(field, values.get(field)))
                 throw invalid(field + "必填");
         if (!Revenue.CATEGORIES.contains(values.get(Revenue.CATEGORY_FIELD)))
             throw invalid("三化分类须为网络化、数字化或智能化");
         String month = month(values.get("月账期"));
         values.put("月账期", month);
-        if (!values.get("费用账期").isBlank()) values.put("费用账期", month(values.get("费用账期")));
+        values.put("费用账期", month(values.get("费用账期")));
         String province = values.get("省份名称");
         boolean organization =
                 Set.of("--", "具体组织").contains(province)
                         || RevenueSourceOptions.FIXED_ORGANIZATIONS.containsKey(province);
         UUID provinceId = null;
         if (organization) {
-            var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(province);
             if (fixedOrganization != null) {
                 String provided = values.get("地市/组织名称");
                 if (!provided.isBlank() && !provided.equals(fixedOrganization))
@@ -138,6 +142,11 @@ public class RevenueFields {
                 values.get("条款编号"),
                 clause,
                 source);
+    }
+
+    private static boolean missingRequired(String field, String value) {
+        if (field.equals("省份名称") && value.equals("--")) return false;
+        return value.isBlank() || value.matches("[-–—－]+") || value.equalsIgnoreCase("N/A");
     }
 
     public Revenue.Recognition recognition(Revenue.Recognition value) {

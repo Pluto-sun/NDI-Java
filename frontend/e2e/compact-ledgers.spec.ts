@@ -66,11 +66,11 @@ for (const [kind, fields, name] of [
     await expect(longName).toBeFocused();
     await expect(page.locator('.cell-tooltip')).toHaveText(tag + rows[2]);
     await longName.press('Escape');
-    const edit = matched.first().getByRole('button', { name: '编辑', exact: true });
+    const edit = matched.first().getByRole('link', { name: '详情', exact: true });
     await verifyStickyAction(table, edit);
     await page.screenshot({ path: testInfo.outputPath('capability-grid.png') });
     await edit.click();
-    await expect(page.getByRole('dialog', { name: '编辑记录' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '基本信息', exact: true })).toBeVisible();
   });
 }
 
@@ -108,9 +108,9 @@ test('格物部署列表行高统一且操作固定', async ({ page, request }, 
   const table = page.getByRole('region', { name: '格物部署明细横向滚动区域' });
   const matched = table.locator('tbody tr').filter({ hasText: tag });
   await verifyTwoLines(matched);
-  const edit = matched.first().getByRole('button', { name: '编辑', exact: true });
+  const edit = matched.first().getByRole('link', { name: '详情', exact: true });
   await verifyStickyAction(table, edit);
   await page.screenshot({ path: testInfo.outputPath('gewu-grid.png') });
   await edit.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '部署信息', exact: true })).toBeVisible();
 });

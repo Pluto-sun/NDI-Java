@@ -54,6 +54,7 @@ const root = '/api/v1/production/plans';
 const request = <T>(path: string, init?: RequestInit) => requestAt<T>(root, path, init);
 export const productionApi = {
   list: (query: URLSearchParams) => request<Page<Plan>>(`?${query}`),
+  detail: (id: string, signal?: AbortSignal) => request<Plan>(`/${id}`, { signal }),
   reference: () => request<Reference>('/reference-data'),
   create: (plan: PlanValues) => request<Plan>('', { method: 'POST', ...jsonBody(plan) }),
   update: (plan: Plan, values: PlanValues) =>

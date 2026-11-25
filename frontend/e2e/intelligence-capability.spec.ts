@@ -259,19 +259,10 @@ for (const [kind, fields] of [
       await expect(matching.filter({ hasText: '待开发' })).toHaveCount(2);
     }
     await expect(matching.first()).toContainText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
-    const edit = matching.first().getByRole('button', { name: '编辑', exact: true });
-    await verifyStickyAction(page.getByRole('region', { name: '能力指标明细' }), edit);
-    await edit.click();
-    const listEditor = page.getByRole('dialog', { name: '编辑记录' });
-    await expect(listEditor.getByRole('group')).toBeVisible();
-    if (kind !== 'wangwu') {
-      await expect(listEditor.getByRole('textbox', { name: '智能体功能简述' })).toHaveValue(
-        fields.智能体功能简述,
-      );
-    }
-    await listEditor
-      .getByRole('link', { name: kind === 'agents-live' ? '月度 Token 记录' : '查看记录' })
-      .click();
+    const detail = matching.first().getByRole('link', { name: '详情', exact: true });
+    await verifyStickyAction(page.getByRole('region', { name: '能力指标明细' }), detail);
+    await detail.click();
+    await page.reload();
     await expect(page.getByText('更新时间（北京时间）', { exact: true })).toBeVisible();
     if (kind === 'agents-live') {
       await expect(page.getByText('是否在计收表中出现', { exact: true })).toBeVisible();
@@ -281,11 +272,13 @@ for (const [kind, fields] of [
       await expect(summary.locator('dd')).toHaveText(fields.智能体功能简述);
     }
     await page.getByRole('link', { name: '返回列表' }).click();
-    await edit.click();
-    const editor = page.getByRole('dialog', { name: '编辑记录' });
+    await detail.click();
+    await page.getByRole('button', { name: '编辑', exact: true }).click();
+    const editor = page.locator('.ledger-detail');
     await editor.getByLabel('接口人', { exact: true }).fill(reviewer + '-更新');
     await editor.getByRole('button', { name: '保存记录' }).click();
-    await expect(editor).toHaveCount(0);
+    await expect(editor.getByRole('button', { name: '保存记录' })).toHaveCount(0);
+    await page.getByRole('link', { name: '返回列表' }).click();
     await page.getByLabel('接口人', { exact: true }).fill(reviewer + '-更新');
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page.locator('tbody tr').filter({ hasText: reviewer + '-更新' })).toHaveCount(1);

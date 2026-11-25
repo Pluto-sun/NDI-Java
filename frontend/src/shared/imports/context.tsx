@@ -32,11 +32,13 @@ export interface ImportWizardApi {
   failedImportRows?: (id: string) => Promise<Blob>;
 }
 export interface ImportWizardConfig {
+  manualSelectionAfterRepair?: boolean;
   api: ImportWizardApi;
   title: string;
   backTo: string;
   entryHint?: string;
   hiddenRowFields?: string[];
+  displayCell?: (field: string, value: string) => string;
   formatAmount?: (value: string) => string;
   amountFields: string[];
   requireAmountMapping?: boolean;

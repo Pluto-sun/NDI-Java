@@ -44,6 +44,7 @@ export interface ProjectQuery {
   industryCode?: string;
   provinceId?: string;
   cityId?: string;
+  productCodes?: string[];
   provinceIds?: string[];
   cityIds?: string[];
   includeTerminated?: boolean;
