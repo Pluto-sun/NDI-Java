@@ -126,6 +126,7 @@ export interface ProjectDraft {
   updatedAt: string;
 }
 export interface ProjectSummary {
+  version: number;
   responsiblePersons: ProjectResponsiblePerson[];
   provinceId: string;
   cityId: string;
@@ -153,7 +154,7 @@ export interface ProjectResponsiblePerson {
   accountName: string | null;
   accountEnabled: boolean;
 }
-export interface ProjectDetail extends ProjectSummary {
+export interface ProjectDetail extends Omit<ProjectSummary, 'version'> {
   collaborationProvinceId: string | null;
   collaborationProvinceName: string | null;
   supportIndustryExpert: string | null;

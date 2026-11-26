@@ -152,7 +152,7 @@ public class RevenueService implements RevenueRecordDeletion {
         if (network && !access.require(actor).administrator())
             throw new BusinessException(new RevenueError(org.springframework.http.HttpStatus.FORBIDDEN,
                     "REVENUE_NETWORK_IMPORT_FORBIDDEN", "网络化条目仅允许系统管理员导入"));
-        var recognition = network ? importRecognition(values) : null;
+        var recognition = importRecognition(values);
         if (network && recognition == null)
             throw invalid("网络化条目须填写大于 0 的有效认定金额、通报项目名称和对应省分（集成）");
         return new ValidatedImport(source, recognition);
@@ -217,8 +217,21 @@ public class RevenueService implements RevenueRecordDeletion {
         if (entry.pendingRequestId() != null)
             throw new BusinessException(new RevenueError(org.springframework.http.HttpStatus.CONFLICT,
                     "REVENUE_DELETE_PENDING", "存在待审批的计收记录，请先处理审批"));
-        mapper.delete(id, Instant.now(clock));
-        audit.record(actor, "REVENUE_ENTRY", id, "REVENUE_ENTRY_DELETED", Map.of("version", version));
+        deleteChecked(actor, entry);
+    }
+
+    @Override
+    public boolean deleteUnlessPending(UUID actor, UUID id, long version) {
+        var entry = require(actor, id, true);
+        if (mapper.lockPendingRecognition(id)) return false;
+        if (entry.version() != version) throw conflict();
+        deleteChecked(actor, entry);
+        return true;
+    }
+
+    private void deleteChecked(UUID actor, Entry entry) {
+        mapper.delete(entry.id(), Instant.now(clock));
+        audit.record(actor, "REVENUE_ENTRY", entry.id(), "REVENUE_ENTRY_DELETED", Map.of("version", entry.version()));
     }
 
     public record Approver(UUID id, String displayName) {}

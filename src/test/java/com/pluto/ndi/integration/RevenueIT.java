@@ -412,13 +412,20 @@ class RevenueIT {
         imported.put("对应省分（集成）", provinceName);
         var digital = source();
         digital.put(RevenueImport.AMOUNT, "33");
-        digital.put(RevenueImport.PROJECT, "数字化认定须审核");
+        digital.put(RevenueImport.PROJECT, "数字化导入即认定");
+        digital.put(RevenueImport.STATUS, "已上线");
         digital.put(RevenueImport.PROVINCE, provinceName);
         var intelligent = new LinkedHashMap<>(digital);
         intelligent.put("三化分类", "智能化");
+        assertThat(service.validateImport(admin, intelligent).recognition().amount()).isEqualByComparingTo("33");
+        var incomplete = new LinkedHashMap<>(intelligent);
+        incomplete.remove(RevenueImport.PROVINCE);
+        assertThat(service.validateImport(admin, incomplete).recognition()).isNull();
+        intelligent.put(RevenueImport.AMOUNT, "0");
         assertThat(service.validateImport(admin, intelligent).recognition()).isNull();
         var mapping = new LinkedHashMap<String, String>();
         imported.keySet().forEach(field -> mapping.put(field, field));
+        mapping.put(RevenueImport.STATUS, RevenueImport.STATUS);
         var config = new Configuration("来源数据", 1, mapping);
         var groupFile = imports.upload(group, "混合.xlsx", recognitionWorkbook(imported, digital), null, null);
         var groupMapping = imports.save(group, groupFile.id(), groupFile.version(), 2, config, null);
@@ -429,8 +436,11 @@ class RevenueIT {
                 .isInstanceOf(BusinessException.class);
         var groupDone = imports.confirm(group, groupPreview.batch().batchId(), List.of(3));
         var digitalEntry = service.detail(group, groupDone.rows().stream().filter(row -> row.recordId() != null).findFirst().orElseThrow().recordId());
-        assertThat(digitalEntry.state()).isEqualTo("UNRECOGNIZED");
-        assertThat(digitalEntry.recognition()).isNull();
+        assertThat(digitalEntry.state()).isEqualTo("RECOGNIZED");
+        assertThat(digitalEntry.recognition().amount()).isEqualByComparingTo("33");
+        assertThat(digitalEntry.recognition().reportedProjectName()).isEqualTo("数字化导入即认定");
+        assertThat(digitalEntry.recognition().projectStatus()).isEqualTo("已上线");
+        assertThat(digitalEntry.recognition().integratedProvinceId()).isEqualTo(province);
 
         var adminFile = imports.upload(admin, "网络化.xlsx", recognitionWorkbook(imported), null, null);
         var adminMapping = imports.save(admin, adminFile.id(), adminFile.version(), 2, config, null);
@@ -772,7 +782,7 @@ class RevenueIT {
                 var out = new ByteArrayOutputStream()) {
             var sheet = book.getSheetAt(0);
             var header = sheet.getRow(0);
-            for (var field : List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.PROVINCE)) {
+            for (var field : List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE)) {
                 int column = header.getLastCellNum();
                 header.createCell(column).setCellValue(field);
                 for (int i = 0; i < rows.length; i++)

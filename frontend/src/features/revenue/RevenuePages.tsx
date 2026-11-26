@@ -54,10 +54,21 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
-  const batch = useBatchDelete(admin, 'REVENUE', query, data?.items ?? [], () => {
-    if (data?.page && data.items.length) setParams({ ...Object.fromEntries(params), page: '0' });
-    else setReload((value) => value + 1);
-  });
+  const batch = useBatchDelete(
+    admin,
+    'REVENUE',
+    query,
+    data?.items ?? [],
+    () => {
+      if (data?.page && data.items.length) setParams({ ...Object.fromEntries(params), page: '0' });
+      else setReload((value) => value + 1);
+    },
+    {
+      count: loading || error ? 0 : (data?.totalElements ?? 0),
+      filters: ['month', 'province', 'search', 'organization', 'state', 'category'],
+      load: revenueApi.list,
+    },
+  );
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -463,7 +474,7 @@ export function ImportRevenuePage() {
         noDuplicateMessage:
           '月账期、费用账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码七项组合唯一；条款编号、自然客户名称和产品编码留空或 -- 时按空字符串参与判重，同名项目允许多条明细。',
         uploadHint:
-          '网络化仅系统管理员可导入，须填写大于 0 的认定金额、通报项目名称和对应省分（集成）。数字化和智能化按未认定导入，由接口人发起认定。金额单位为元。',
+          '网络化仅系统管理员可导入，须填写大于 0 的认定金额、通报项目名称和对应省分（集成）。数字化和智能化的上述三项填写有效时直接认定，项目状态选填。未认定条目仍可由接口人发起认定。金额单位为元。',
         previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
       }}
     />

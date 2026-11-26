@@ -556,3 +556,37 @@ test('计收工作簿有同名项目列时自动识别表头并可分别映射',
   expect(result.items[0].recognition?.integratedOrganization).toBe('数智');
   expect(result.items[0].recognition?.reportedProjectName).toBe('通报验收项目');
 });
+
+test('集团导入数字化和智能化时四项认定信息直接生效', async ({ page, request }) => {
+  const prefix = 'IMPORT-RECOGNIZED-' + randomUUID();
+  const rows = ['数字化', '智能化'].map((category) => ({
+    ...source(prefix + '-' + category),
+    三化分类: category,
+    认定金额: '23.50',
+    通报项目名称: category + '导入验收',
+    项目状态: '已上线',
+    '对应省分（集成）': '数智',
+  }));
+  await page.goto('/revenue/import');
+  await switchActor(page, group);
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '直接认定.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook(rows),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await page.getByRole('button', { name: '确认导入 2 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  const { items } = await api<{ items: Entry[] }>(request, group, '?search=' + prefix);
+  expect(items).toHaveLength(2);
+  for (const item of items) {
+    expect(item.state).toBe('RECOGNIZED');
+    expect(Number(item.recognition?.amount)).toBe(23.5);
+    expect(item.recognition).toMatchObject({
+      reportedProjectName: item.source['三化分类'] + '导入验收',
+      projectStatus: '已上线',
+      integratedOrganization: '数智',
+    });
+  }
+});

@@ -25,7 +25,8 @@ public record ProjectSummary(
         String provinceLeaderName,
         String signingSubjectCode,
         LocalDate attributionMonth,
-        List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> responsiblePersons
+        List<com.pluto.ndi.projects.domain.ProjectResponsiblePerson> responsiblePersons,
+        long version
 ) {
 
     public ProjectSummary {
@@ -39,7 +40,7 @@ public record ProjectSummary(
             String provinceLeaderName,String signingSubjectCode,LocalDate attributionMonth) {
         this(id,projectCode,projectName,customerName,industryCode,totalAmount,currentStageCode,categoryAmounts,
             createdAt,opportunityDate,importanceCode,provinceId,cityId,provinceLeaderUserId,provinceLeaderName,
-            signingSubjectCode,attributionMonth,List.of());
+            signingSubjectCode,attributionMonth,List.of(),0);
     }
 
     public ProjectSummary(UUID id, String projectCode, String projectName, String customerName, String industryCode,

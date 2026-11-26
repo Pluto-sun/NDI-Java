@@ -4,5 +4,7 @@ import java.util.UUID;
 
 /** 计收记录的版本化删除入口。 */
 public interface RevenueRecordDeletion {
+    boolean deleteUnlessPending(UUID actor, UUID id, long version);
+
     void delete(UUID actor, UUID id, long version);
 }

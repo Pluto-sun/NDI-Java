@@ -135,9 +135,12 @@ public class ProjectMonthlySnapshotRepository {
 
     public List<UUID> projectIdsThrough(YearMonth month) {
         return jdbc.query("""
-                SELECT BIN_TO_UUID(project_id) FROM project_monthly_state_event
-                WHERE baseline = TRUE AND effective_month <= ? ORDER BY project_id
-                """, (rs, rowNum) -> UUID.fromString(rs.getString(1)), date(month));
+                SELECT BIN_TO_UUID(e.project_id) FROM project_monthly_state_event e
+                JOIN project_project p ON p.id=e.project_id
+                WHERE e.baseline=TRUE AND e.effective_month<=?
+                  AND (p.deleted_at IS NULL OR p.deleted_at>=?) ORDER BY e.project_id
+                """, (rs, rowNum) -> UUID.fromString(rs.getString(1)), date(month),
+                Timestamp.from(month.plusMonths(1).atDay(1).atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
     }
 
     public List<Event> eventsThrough(UUID projectId, YearMonth month) {

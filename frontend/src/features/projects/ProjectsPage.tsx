@@ -10,6 +10,7 @@ import { Feedback, Loading } from '../../shared/ui/Feedback';
 import { amount } from '../../shared/ui/format';
 import { ProjectExportFieldPicker } from './ProjectExportFieldPicker';
 import { Modal } from '../../shared/ui/Modal';
+import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { ListPagination } from '../../shared/ui/ListPagination';
 
 const productShortNames: Record<string, string> = {
@@ -27,7 +28,15 @@ const emptyAdvanced = {
   opportunityDateEnd: '',
 };
 
-export function ProjectsPage({ reference, userId }: { reference: ReferenceData; userId: string }) {
+export function ProjectsPage({
+  reference,
+  userId,
+  admin,
+}: {
+  reference: ReferenceData;
+  userId: string;
+  admin: boolean;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const draftKey = `ndi.project-list-draft:${userId}:/projects${location.search}`;
@@ -141,6 +150,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
       ),
     });
   }, [query]);
+  const [reload, setReload] = useState(0);
   const [data, setData] = useState<Page<ProjectSummary> | null>(null);
   const [exportTask, setExportTask] = useState<ExportTask | null>(null);
   const [exportFields, setExportFields] = useState<string[] | null>(null);
@@ -153,6 +163,40 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
   const [exportBusy, setExportBusy] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
+  const batch = useBatchDelete(
+    admin,
+    'PROJECTS',
+    searchParams.toString(),
+    [],
+    () => {
+      if (query.page) setQuery({ ...query, page: 0 });
+      else setReload((value) => value + 1);
+    },
+    {
+      count: busy || error ? 0 : (data?.totalElements ?? 0),
+      filters: [
+        'projectCode',
+        'projectName',
+        'stage',
+        'industryCode',
+        'provinceIds',
+        'provinceId',
+        'cityIds',
+        'cityId',
+        'productCodes',
+        'signingSubjectCode',
+        'responsiblePersonName',
+        'keyword',
+        'opportunityDateStart',
+        'opportunityDateEnd',
+      ],
+      load: (params) =>
+        projectsApi.list(
+          { ...query, page: Number(params.get('page')), includeTerminated: true },
+          Number(params.get('size')),
+        ),
+    },
+  );
   const returnTo = `/projects${location.search}`;
   useLayoutEffect(() => {
     if (busy || !data) return;
@@ -185,7 +229,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
     return () => {
       active = false;
     };
-  }, [query]);
+  }, [query, reload]);
 
   useEffect(() => {
     setExportTask(null);
@@ -524,6 +568,7 @@ export function ProjectsPage({ reference, userId }: { reference: ReferenceData; 
           </button>
         )}
       </div>
+      {batch.toolbar}
       <p className="subtle">导出使用已查询的条件；修改筛选后请先点击“查询”。</p>
       {error && <Feedback tone="error">{error}</Feedback>}
       {busy ? (

@@ -40,7 +40,7 @@ public class GewuContractReport {
                 FROM project_project project
                 JOIN project_category_amount c ON c.project_id=project.id AND c.category_code='GEWU'
                 JOIN organization_province v ON v.id=project.province_id
-                WHERE project.current_stage_code='COLLECTION'
+                WHERE project.deleted_at IS NULL AND project.current_stage_code='COLLECTION'
                 """ + " AND " + month + ">=:start AND " + month + "<:end" + restriction, params,
                 (rs, index) -> new Contract(rs.getString("contract_no"), rs.getString("province_id"),
                         rs.getString("province_name"), rs.getBigDecimal("expected_amount")));

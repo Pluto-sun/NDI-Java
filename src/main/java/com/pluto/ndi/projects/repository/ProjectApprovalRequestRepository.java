@@ -18,6 +18,10 @@ public interface ProjectApprovalRequestRepository extends JpaRepository<ProjectA
         org.springframework.data.jpa.repository.JpaSpecificationExecutor<ProjectApprovalRequestEntity> {
     boolean existsByProjectIdAndStatus(UUID projectId, ApprovalStatus status);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select request from ProjectApprovalRequestEntity request where request.projectId = :projectId and request.status = :status")
+    Optional<ProjectApprovalRequestEntity> findLockedByProjectIdAndStatus(UUID projectId, ApprovalStatus status);
+
     boolean existsByEvidenceDocumentId(UUID evidenceDocumentId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

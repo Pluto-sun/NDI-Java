@@ -129,10 +129,21 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
   const data = listing.data;
   const ref = reference.data;
   const listScroll = useLedgerScroll(!!data);
-  const batch = useBatchDelete(admin, 'GEWU', query, data?.items ?? [], async () => {
-    if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
-    else await listing.refresh();
-  });
+  const batch = useBatchDelete(
+    admin,
+    'GEWU',
+    query,
+    data?.items ?? [],
+    async () => {
+      if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      else await listing.refresh();
+    },
+    {
+      count: listing.busy || listing.error ? 0 : (data?.totalElements ?? 0),
+      filters: ['provinceId', 'cityId', 'search', 'deploymentVersion', 'connected'],
+      load: (params) => api<Page<Deployment>>(`?${params}`),
+    },
+  );
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setParams(

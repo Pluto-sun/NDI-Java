@@ -140,10 +140,24 @@ function RecordList({
     'agents-live': 'AGENTS_LIVE',
     'agents-development': 'AGENTS_DEVELOPMENT',
   } as const;
-  const batch = useBatchDelete(admin, register[kind], query, data?.items ?? [], async () => {
-    if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
-    else await listing.refresh();
-  });
+  const batch = useBatchDelete(
+    admin,
+    register[kind],
+    query,
+    data?.items ?? [],
+    async () => {
+      if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      else await listing.refresh();
+    },
+    {
+      count: listing.busy || listing.error ? 0 : (data?.totalElements ?? 0),
+      filters:
+        kind === 'wangwu'
+          ? ['provinceId', 'reviewer', 'place', 'progress']
+          : ['provinceId', 'reviewer'],
+      load: (params) => requestAt<Page<Entry>>(root(kind), '?' + params),
+    },
+  );
   const listFields = reference.fields.filter((field) => field !== '智能体功能简述');
   return (
     <>

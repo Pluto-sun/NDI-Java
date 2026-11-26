@@ -384,6 +384,13 @@ VALUES(UUID_TO_BIN(:id),:month,UUID_TO_BIN(:province),:org,:contract,:clause,:am
                         .addValue("at", Timestamp.from(at)));
     }
 
+    public boolean lockPendingRecognition(UUID id) {
+        return !jdbc.query("""
+                SELECT BIN_TO_UUID(id) FROM revenue_recognition_request
+                WHERE entry_id=UUID_TO_BIN(:id) AND status='PENDING' FOR UPDATE
+                """, Map.of("id", str(id)), (row, index) -> row.getString(1)).isEmpty();
+    }
+
     public void delete(UUID id, Instant at) {
         jdbc.update(
                 "UPDATE revenue_entry SET deleted_at=:at,updated_at=:at,version_no=version_no+1"

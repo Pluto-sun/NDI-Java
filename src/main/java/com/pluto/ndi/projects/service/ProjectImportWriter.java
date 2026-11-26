@@ -126,7 +126,7 @@ public class ProjectImportWriter {
             nameReviews.verifyLive(row, candidate.cityId(), candidate.projectName());
             var existingNames =
                     jdbc.query(
-                            "SELECT project_name FROM project_project WHERE city_id = ?",
+                            "SELECT project_name FROM project_project WHERE city_id = ? AND deleted_at IS NULL",
                             (result, index) -> result.getString(1),
                             cityKey);
             var nameReview = nameReviews.read(row);

@@ -34,7 +34,7 @@ public class ProjectMapper {
                 categories,
                 project.createdAt(), project.opportunityDate(), project.importanceCode(),
                 project.provinceId(), project.cityId(), project.provinceLeaderUserId(), provinceLeaderName,
-                project.signingSubjectCode(), project.attributionMonth(), people
+                project.signingSubjectCode(), project.attributionMonth(), people, project.versionNo()
         );
     }
 

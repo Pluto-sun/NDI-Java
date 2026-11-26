@@ -18,7 +18,7 @@ public final class ProjectCurrentMetricSql {
                        SUM(CASE WHEN category_code = 'WANGWU' THEN expected_amount ELSE 0 END) wangwu_amount
                 FROM project_category_amount GROUP BY project_id
             ) category ON category.project_id = project.id
-            WHERE 1 = 1
+            WHERE project.deleted_at IS NULL
             """;
 
     /** 升级后的在线记录均有归属；兼容未经过在线创建入口的隔离测试数据。 */

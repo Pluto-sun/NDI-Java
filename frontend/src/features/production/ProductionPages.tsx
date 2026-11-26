@@ -50,10 +50,21 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
       active = false;
     };
   }, [load, query]);
-  const batch = useBatchDelete(admin, 'PRODUCTION', query, result?.items ?? [], async () => {
-    if (result?.page) setParams({ ...Object.fromEntries(params), page: '0' });
-    else await load();
-  });
+  const batch = useBatchDelete(
+    admin,
+    'PRODUCTION',
+    query,
+    result?.items ?? [],
+    async () => {
+      if (result?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      else await load();
+    },
+    {
+      count: loading || error ? 0 : (result?.totalElements ?? 0),
+      filters: ['month', 'provinceId', 'cityId', 'search', 'category'],
+      load: productionApi.list,
+    },
+  );
   const columnWidths = [
     96,
     100,

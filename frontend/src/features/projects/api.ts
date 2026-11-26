@@ -85,8 +85,8 @@ export const projectsApi = {
     request<ProjectUser[]>(
       `/major-change-approvers?provinceId=${encodeURIComponent(provinceId)}&initiatorLevel=${initiatorLevel}`,
     ),
-  list: ({ page, ...filter }: ProjectQuery) => {
-    const query = new URLSearchParams({ page: String(page), size: '20' });
+  list: ({ page, ...filter }: ProjectQuery, size = 20) => {
+    const query = new URLSearchParams({ page: String(page), size: String(size) });
     for (const [key, value] of Object.entries(projectFilterValues(filter))) {
       if (Array.isArray(value)) value.forEach((id) => query.append(key, id));
       else query.set(key, String(value));

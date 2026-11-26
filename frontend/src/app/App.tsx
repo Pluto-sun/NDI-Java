@@ -566,7 +566,13 @@ export function App() {
               )}
               <Route
                 path="/projects"
-                element={<ProjectsPage reference={reference} userId={me.id} />}
+                element={
+                  <ProjectsPage
+                    reference={reference}
+                    userId={me.id}
+                    admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+                  />
+                }
               />
               <Route
                 path="/projects/new"

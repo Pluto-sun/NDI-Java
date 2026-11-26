@@ -38,7 +38,7 @@ public class ProjectDashboardActivityRepository {
                        CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(event.payload, '$.after.totalAmount')),
                            JSON_UNQUOTE(JSON_EXTRACT(event.payload, '$.totalAmount'))) AS DECIMAL(18,2)) after_amount
                 FROM project_change_event event
-                JOIN project_project project ON project.id = event.project_id
+                JOIN project_project project ON project.id = event.project_id AND project.deleted_at IS NULL
                 JOIN organization_province province ON province.id = project.province_id
                 LEFT JOIN project_industry_reference industry ON industry.industry_code = project.industry_code
                 LEFT JOIN identity_user_account leader ON leader.id = project.province_leader_user_id

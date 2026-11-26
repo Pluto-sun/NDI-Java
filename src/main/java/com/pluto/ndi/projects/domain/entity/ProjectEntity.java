@@ -22,6 +22,7 @@ import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "project_project")
+@org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
 public class ProjectEntity {
 
     @Id
@@ -123,6 +124,14 @@ public class ProjectEntity {
 
     @Column(name = "attribution_month")
     private LocalDate attributionMonth;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    public void markDeleted(UUID actorId, Instant at) {
+        deletedAt = at;
+        touch(actorId, at);
+    }
 
     protected ProjectEntity() {
     }

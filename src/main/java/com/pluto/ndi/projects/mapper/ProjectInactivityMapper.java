@@ -36,7 +36,7 @@ public class ProjectInactivityMapper {
             BIN_TO_UUID(p.city_id) city_id, c.activity_revision, c.last_activity_at, c.status,
             c.province_sent_at, c.interface_sent_at, c.group_sent_at, c.created_at, c.closed_at
             """;
-    private static final String FROM = " FROM project_inactivity_case c JOIN project_project p ON p.id = c.project_id ";
+    private static final String FROM = " FROM project_inactivity_case c JOIN project_project p ON p.id = c.project_id AND p.deleted_at IS NULL ";
     private static final String PENDING = """
             EXISTS (SELECT 1 FROM project_inactivity_notice n WHERE n.case_id = c.id
                 AND n.recipient_id = UUID_TO_BIN(:actor) AND n.handled_at IS NULL)
@@ -93,7 +93,7 @@ public class ProjectInactivityMapper {
     public List<Candidate> candidates(Instant cutoff, Instant cursorAt, UUID cursorId, int limit) {
         return jdbc.query("""
                 SELECT BIN_TO_UUID(a.project_id) id, a.last_activity_at FROM project_activity_state a
-                JOIN project_project p ON p.id = a.project_id
+                JOIN project_project p ON p.id = a.project_id AND p.deleted_at IS NULL
                 WHERE p.current_stage_code <> 'TERMINATED' AND a.last_activity_at <= :cutoff
                   AND (a.last_activity_at > :cursorAt OR (a.last_activity_at = :cursorAt AND a.project_id > UUID_TO_BIN(:cursorId)))
                 ORDER BY a.last_activity_at, a.project_id LIMIT :limit

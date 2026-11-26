@@ -214,6 +214,44 @@ class ProjectApprovalIT {
     }
 
     @Test
+    void filteredDeletionSkipsPendingAndPreservesArchivedProjectHistory() throws Exception {
+        var admin = UUID.randomUUID();
+        addUser(admin, "SYSTEM_ADMIN", false);
+        var pending = createProject();
+        var removable = createProject();
+        approvalService.submitMajorChange(cityUserId, pending, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "等待审批", "待审批项目改名", null, null));
+        var prior = approvalService.submitMajorChange(cityUserId, removable, new MajorChangeCommand(
+                MajorChangeType.PROJECT_NAME, ProjectInitiatorLevel.CITY, provinceUserId,
+                "保留审批历史", "历史项目改名", null, null));
+        approvalService.decide(provinceUserId, prior.id(), false, "验收驳回");
+
+        var body = json.writeValueAsString(Map.of("records", List.of(pending, removable).stream()
+                .map(id -> Map.of("id", id, "version", projectRepository.findById(id).orElseThrow().versionNo()))
+                .toList()));
+        mockMvc.perform(post("/api/v1/admin/record-deletions/PROJECTS/filtered")
+                        .header("X-NDI-Actor-Id", cityUserId.toString())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/record-deletions/PROJECTS/filtered")
+                        .header("X-NDI-Actor-Id", admin.toString())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deleted").value(1))
+                .andExpect(jsonPath("$.data.skippedPending").value(1));
+        assertThat(projectRepository.findById(pending)).isPresent();
+        assertThat(projectRepository.findById(removable)).isEmpty();
+        assertThat(approvalRepository.findById(prior.id())).isPresent();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_progress WHERE project_id=UUID_TO_BIN(?)",
+                Integer.class, removable.toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM system_audit_event
+                WHERE resource_id=UUID_TO_BIN(?) AND event_type='PROJECT_DELETED'
+                """, Integer.class, removable.toString())).isEqualTo(1);
+    }
+
+    @Test
     void conflictingNameChangeDoesNotOverwriteExistingProject() {
         var firstId = createProject();
         var secondId = createProject();

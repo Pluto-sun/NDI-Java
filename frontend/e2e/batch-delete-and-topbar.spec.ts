@@ -1,7 +1,7 @@
 import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import { chooseActor, ids } from './support/projects';
+import { chooseActor, createProject, ids, post } from './support/projects';
 
 const api = 'http://127.0.0.1:18080/api/v1';
 const admin = { 'X-NDI-Actor-Id': ids.admin };
@@ -96,6 +96,7 @@ function registers(prefix: string) {
       {
         provinceId: ids.province,
         fields: {
+          接口人: prefix,
           智能体名称: prefix,
           应用项目名称: prefix,
         },
@@ -134,6 +135,105 @@ test('管理员可批量删除六个台账，非管理员与过期版本被拒�
   }
 });
 
+test('按筛选跨页删除排产并保留未命中记录', async ({ page, request }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const prefix = '跨页删除-' + randomUUID();
+  const [, path, input] = registers(prefix)[1];
+  const untouched = await create(request, path, { ...input, projectName: randomUUID() });
+  for (let i = 0; i < 101; i++) {
+    await create(request, path, { ...input, projectName: prefix + '-' + i });
+  }
+  await page.goto('/scheduling');
+  await chooseActor(page, ids.admin);
+  const button = page.getByRole('button', { name: '删除筛选结果' });
+  await expect(button).toBeDisabled();
+  await page.goto('/scheduling?search=' + encodeURIComponent(prefix) + '&page=1');
+  await button.click();
+  const confirmation = page.getByRole('dialog', { name: '确认删除筛选结果' });
+  await expect(confirmation).toContainText('共匹配 101 条记录');
+  await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.getByText('已删除 101 条记录')).toBeVisible();
+  const remaining = await request.get(api + path + '?search=' + encodeURIComponent(prefix), {
+    headers: admin,
+  });
+  expect((await remaining.json()).data.totalElements).toBe(0);
+  expect((await request.get(api + path + '/' + untouched.id, { headers: admin })).ok()).toBe(true);
+});
+
+test('项目与计收保留待审批条目并删除其他筛选结果', async ({ page, request }) => {
+  const prefix = '待审批保留-' + randomUUID();
+  const pending = await createProject(request, prefix + '-待审');
+  const removable = await createProject(request, prefix + '-可删除');
+  await post(request, ids.reporter, `/${pending.id}/major-changes`, {
+    changeType: 'PROJECT_NAME',
+    initiatorLevel: 'CITY',
+    approverId: ids.leader,
+    reason: '验证筛选删除保留待审项目',
+    projectName: prefix + '-调整',
+  });
+  await page.goto('/projects?projectName=' + encodeURIComponent(prefix));
+  await chooseActor(page, ids.admin);
+  const button = page.getByRole('button', { name: '删除筛选结果' });
+  await button.click();
+  const confirmation = page.getByRole('dialog', { name: '确认删除筛选结果' });
+  await expect(confirmation).toContainText('待审批条目将保留');
+  await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.getByText('已删除 1 条记录，保留 1 条待审批记录')).toBeVisible();
+  expect((await request.get(api + '/projects/' + removable.id, { headers: admin })).status()).toBe(
+    404,
+  );
+  expect((await request.get(api + '/projects/' + pending.id, { headers: admin })).ok()).toBe(true);
+
+  const [, path, input] = registers(prefix)[0];
+  const pendingRevenue = await create(request, path, input);
+  const removableRevenue = await create(request, path, {
+    source: { ...input.source, 合同编号: prefix + '-可删除' },
+  });
+  const requestRecognition = await request.post(
+    api + path + '/' + pendingRevenue.id + '/recognition',
+    {
+      headers: { 'X-NDI-Actor-Id': '55555555-5555-4555-8555-555555555555' },
+      data: {
+        version: pendingRevenue.version,
+        approverId: '77777777-7777-4777-8777-777777777777',
+        recognition: { amount: '25', reportedProjectName: prefix },
+      },
+    },
+  );
+  expect(requestRecognition.ok(), await requestRecognition.text()).toBe(true);
+  await page.goto('/revenue?search=' + encodeURIComponent(prefix));
+  await button.click();
+  await expect(confirmation).toContainText('共匹配 2 条记录');
+  await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.getByText('已删除 1 条记录，保留 1 条待审批记录')).toBeVisible();
+  expect(
+    (await request.get(api + path + '/' + removableRevenue.id, { headers: admin })).status(),
+  ).toBe(404);
+  expect((await request.get(api + path + '/' + pendingRevenue.id, { headers: admin })).ok()).toBe(
+    true,
+  );
+});
+
+test('四个能力指标列表沿用各自筛选删除记录', async ({ page, request }) => {
+  const prefix = randomUUID();
+  const entries = registers(prefix).slice(2);
+  const untouched = registers(randomUUID()).slice(2);
+  await page.goto('/capability/gewu');
+  await chooseActor(page, ids.admin);
+  for (const [index, [kind, path, input]] of entries.entries()) {
+    await create(request, path, input);
+    const other = await create(request, path, untouched[index][2]);
+    const url = kind === 'GEWU' ? '/capability/gewu?search=' : path + '?reviewer=';
+    await page.goto(url + prefix);
+    await page.getByRole('button', { name: '删除筛选结果' }).click();
+    const confirmation = page.getByRole('dialog', { name: '确认删除筛选结果' });
+    await expect(confirmation).toContainText('共匹配 1 条记录');
+    await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+    await expect(page.getByText('已删除 1 条记录')).toBeVisible();
+    expect((await request.get(api + path + '/' + other.id, { headers: admin })).ok()).toBe(true);
+  }
+});
+
 test('管理员勾选并删除，项目标题与阶段切换置于固定栏', async ({ page, request }) => {
   const prefix = randomUUID();
   const [, path, input] = registers(prefix)[3];
@@ -147,7 +247,7 @@ test('管理员勾选并删除，项目标题与阶段切换置于固定栏', as
   await page.getByRole('button', { name: '批量删除（1）' }).click();
   await page
     .getByRole('dialog', { name: '确认批量删除' })
-    .getByRole('button', { name: '确认删除' })
+    .getByRole('button', { name: '确认删除', exact: true })
     .click();
   await expect(page.getByText('已删除 1 条记录')).toBeVisible();
   await expect(page.getByText('暂无符合条件的记录')).toBeVisible();
