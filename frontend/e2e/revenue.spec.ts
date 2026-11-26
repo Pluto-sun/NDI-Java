@@ -590,3 +590,37 @@ test('集团导入数字化和智能化时四项认定信息直接生效', async
     });
   }
 });
+
+test('管理员导入网络化时可留空通报项目名称，数字化和智能化直接认定时必填', async ({
+  page,
+  request,
+}) => {
+  const prefix = 'IMPORT-REPORTED-NAME-' + randomUUID();
+  const rows = ['网络化', '数字化', '智能化'].map((category) => ({
+    ...source(prefix + '-' + category),
+    三化分类: category,
+    认定金额: '23.50',
+    '对应省分（集成）': '数智',
+  }));
+  await page.goto('/revenue/import');
+  await switchActor(page, ids.admin);
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '分类通报项目名称.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook(rows),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '映射：通报项目名称', exact: true })).toHaveValue(
+    '',
+  );
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByText('通报项目名称必填', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  const { items } = await api<{ items: Entry[] }>(request, ids.admin, '?search=' + prefix);
+  expect(items).toHaveLength(1);
+  expect(items[0].source['三化分类']).toBe('网络化');
+  expect(items[0].state).toBe('RECOGNIZED');
+  expect(items[0].recognition?.reportedProjectName).toBe('');
+  expect(Number(items[0].recognition?.amount)).toBe(23.5);
+});

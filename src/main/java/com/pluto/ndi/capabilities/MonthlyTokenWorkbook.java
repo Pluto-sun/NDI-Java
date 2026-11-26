@@ -81,10 +81,8 @@ final class MonthlyTokenWorkbook {
                 throw invalid("存在缺少用量列的截图月份");
             var images = embeddedImages(book);
             var result = new ArrayList<Line>();
-            int dataRows = 0;
             for (var row : sheet) {
                 if (row.getRowNum() == 0 || !ExcelWorkbook.hasData(row)) continue;
-                ExcelImportLimits.checkRowCount(++dataRows);
                 for (var entry : amounts.entrySet()) {
                     var amount = get(row, entry.getValue());
                     var shot = get(row, screenshots.get(entry.getKey()));

@@ -1,7 +1,8 @@
+import { revenueAmount, revenueCardAmount } from './format';
 import { CockpitBoard, Panel } from '../../shared/ui/CockpitBoard';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { CockpitMap } from '../scheduling-cockpit/CockpitRegions';
-import { formatMoney, formatRate } from '../scheduling-cockpit/overview';
+import { formatRate } from '../scheduling-cockpit/overview';
 import monitor from '../scheduling-cockpit/assets/monitor.svg';
 import database from '../scheduling-cockpit/assets/database.svg';
 import calendar from './assets/calendar-days.svg';
@@ -15,13 +16,13 @@ import { loadAnnualOverview, type AnnualOverview, type Gewu } from './annualOver
 import './revenue-cockpit.css';
 
 const mapPalette = [
-  { below: 12, label: '< 12', color: '#f8d3d6' },
-  { below: 25, label: '12–25', color: '#f3aab1' },
-  { below: 45, label: '25–45', color: '#e17685' },
-  { below: 70, label: '45–70', color: '#d44358' },
-  { below: Infinity, label: '≥ 70', color: '#b92034' },
+  { below: 120000, label: '< 120,000', color: '#f8d3d6' },
+  { below: 250000, label: '120,000–250,000', color: '#f3aab1' },
+  { below: 450000, label: '250,000–450,000', color: '#e17685' },
+  { below: 700000, label: '450,000–700,000', color: '#d44358' },
+  { below: Infinity, label: '≥ 700,000', color: '#b92034' },
 ];
-const money = (amount: string) => formatMoney(amount);
+
 const count = (value: number) => value.toLocaleString('zh-CN');
 const scope = { NATIONAL: '全国', PROVINCE: '可见省分', CITY: '本账号地市' };
 
@@ -31,21 +32,25 @@ function Metrics({ data }: { data: AnnualOverview }) {
       label: (data.nationalRevenue ? '全国' : '可见范围') + '三化累计计收金额',
       icon: database,
       size: 30,
-      value: money(data.total.total),
+      value: revenueCardAmount(data.total.total),
     },
-    { label: '网络化累计计收金额', icon: network, value: money(data.total.network) },
-    { label: '数字化累计计收金额', icon: digital, value: money(data.total.digital) },
-    { label: '智能化累计计收金额', icon: intelligent, value: money(data.total.intelligent) },
+    { label: '网络化累计计收金额', icon: network, value: revenueCardAmount(data.total.network) },
+    { label: '数字化累计计收金额', icon: digital, value: revenueCardAmount(data.total.digital) },
+    {
+      label: '智能化累计计收金额',
+      icon: intelligent,
+      value: revenueCardAmount(data.total.intelligent),
+    },
     {
       label: '本月计收金额',
       icon: calendar,
-      value: money(data.months[data.currentMonth - 1].money.total),
+      value: revenueCardAmount(data.months[data.currentMonth - 1].money.total),
     },
     { label: '覆盖省份数', icon: provinces, value: count(data.coveredProvinces), unit: '个' },
   ];
   return (
     <section className="sc-metrics" aria-label="年度计收指标">
-      {metrics.map(({ label, icon, value, unit = '亿元', size = 24 }) => (
+      {metrics.map(({ label, icon, value, unit = '千万元', size = 24 }) => (
         <div className="sc-metric" key={label}>
           <div className="sc-metric-icon">
             <img
@@ -83,7 +88,7 @@ function GewuComparisons({ value }: { value: Gewu }) {
       label: '项目金额差距',
       signed: value.signedAmount,
       recognized: value.recognizedAmount,
-      gap: money(value.amountGap),
+      gap: revenueAmount(value.amountGap),
       count: false,
       rate: value.amountGapRate,
     },
@@ -92,7 +97,7 @@ function GewuComparisons({ value }: { value: Gewu }) {
     <div className="rc-gewu">
       {metrics.map((metric) => {
         const maximum = Math.max(1, Number(metric.signed), Number(metric.recognized));
-        const unit = metric.count ? '个' : '亿元';
+        const unit = metric.count ? '个' : '万元';
         return (
           <article key={metric.label}>
             <div className="rc-gewu-series">
@@ -106,7 +111,7 @@ function GewuComparisons({ value }: { value: Gewu }) {
                         <i style={{ width: (Number(amount) / maximum) * 100 + '%' }} />
                       </span>
                       <strong>
-                        {typeof amount === 'number' ? count(amount) : money(amount)}{' '}
+                        {typeof amount === 'number' ? count(amount) : revenueAmount(amount)}{' '}
                         <small>{unit}</small>
                       </strong>
                     </dd>
@@ -148,7 +153,7 @@ export default function RevenueCockpit() {
           <div className="rc-middle">
             <Panel
               title="各省三化累计计收金额分布"
-              note="累计计收金额 · 亿元"
+              note="累计计收金额 · 万元"
               className="rc-map-panel"
             >
               <CockpitMap
@@ -162,11 +167,12 @@ export default function RevenueCockpit() {
                 nationwide={data.nationalRevenue}
                 mapLabel="三化累计计收省分地图"
                 palette={mapPalette}
-                describe={(row) => '累计计收 ' + money(row.total.recognized) + ' 亿元'}
+                mapAmountDivisor={1}
+                describe={(row) => '累计计收 ' + revenueAmount(row.total.recognized) + ' 万元'}
               />
             </Panel>
             <div className="rc-analysis">
-              <Panel title="1–12 月三化计收趋势" note="亿元">
+              <Panel title="1–12 月三化计收趋势" note="万元">
                 <RevenueTrend months={data.months} />
               </Panel>
               <Panel title="格物签约与计收差距分析">
@@ -175,7 +181,7 @@ export default function RevenueCockpit() {
             </div>
           </div>
           <div className="rc-bottom">
-            <Panel title="累计计收金额 TOP 10" note="亿元">
+            <Panel title="累计计收金额 TOP 10" note="万元">
               <RevenueRanking regions={data.regions} />
             </Panel>
             <Panel title="各省各月份计收及格物差距明细">

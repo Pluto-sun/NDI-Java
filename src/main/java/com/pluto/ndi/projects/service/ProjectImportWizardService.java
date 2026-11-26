@@ -1,6 +1,5 @@
 package com.pluto.ndi.projects.service;
 
-import com.pluto.ndi.shared.excel.ExcelImportLimits;
 
 import com.pluto.ndi.documents.service.ImportWorkbookDirectory;
 import com.pluto.ndi.identity.service.IdentityDirectory;
@@ -173,8 +172,6 @@ public class ProjectImportWizardService {
                                 config.fieldMapping(), sourceRows);
                 if (!missing.isEmpty())
                     throw new BusinessException(new ImportMappingError(missing));
-            } catch (ExcelImportLimits.RowLimitExceeded failure) {
-                throw new BusinessException(ProjectErrorCode.IMPORT_TOO_MANY_ROWS);
             } catch (java.io.IOException | IllegalArgumentException failure) {
                 throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
             }

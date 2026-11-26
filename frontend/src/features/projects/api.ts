@@ -1,3 +1,4 @@
+import { importTaskBody } from '../../shared/imports/limits';
 import { jsonBody, request, requestBlob, type Page } from '../../shared/api/http';
 import type {
   AttributionWorkbench,
@@ -219,12 +220,17 @@ export const projectsApi = {
     return request<StageTrendPoint[]>(`/workbench/stage-trend?${query}`);
   },
   importTask: () => request<ImportTask | null>('/imports/task'),
-  uploadImportTask: (file: File, expectedVersion?: number, expectedTaskId?: string) => {
+  uploadImportTask: (
+    file: File,
+    expectedVersion?: number,
+    expectedTaskId?: string,
+    signal?: AbortSignal,
+  ) => {
     const body = new FormData();
     body.append('file', file);
     if (expectedVersion !== undefined) body.append('expectedVersion', String(expectedVersion));
     if (expectedTaskId) body.append('expectedTaskId', expectedTaskId);
-    return request<ImportTask>('/imports/task', { method: 'POST', body });
+    return request<ImportTask>('/imports/task', { method: 'POST', body, signal });
   },
   saveImportTask: (
     expectedTaskId: string,
@@ -232,11 +238,14 @@ export const projectsApi = {
     step: number,
     configuration: ImportConfiguration,
     selectedRowNumbers: number[] | null,
+    signal?: AbortSignal,
   ) =>
     request<ImportTask>('/imports/task', {
       method: 'PUT',
-      keepalive: true,
-      ...jsonBody({ expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers }),
+      ...importTaskBody(
+        { expectedTaskId, expectedVersion, step, configuration, selectedRowNumbers },
+        signal,
+      ),
     }),
   discardImportTask: (expectedVersion: number, expectedTaskId: string) =>
     request<void>(
@@ -249,9 +258,11 @@ export const projectsApi = {
     expectedRevision: number,
     reason: string,
     fingerprint: string,
+    signal?: AbortSignal,
   ) =>
     request<ImportBatch>(`/imports/${id}/rows/${rowNumber}/name-decision`, {
       method: 'PUT',
+      signal,
       ...jsonBody({ expectedRevision, confirmed: true, reason, fingerprint }),
     }),
   importTemplate: () => requestBlob('/imports/template'),
@@ -263,14 +274,17 @@ export const projectsApi = {
     rowNumber: number,
     expectedRevision: number,
     changes: Record<string, string>,
+    signal?: AbortSignal,
   ) =>
     request<ImportBatch>(`/imports/${id}/rows/${rowNumber}`, {
       method: 'PUT',
+      signal,
       ...jsonBody({ expectedRevision, changes }),
     }),
-  confirmImport: (id: string, selectedRowNumbers: number[]) =>
+  confirmImport: (id: string, selectedRowNumbers: number[], signal?: AbortSignal) =>
     request<ImportBatch>(`/imports/${id}/confirm`, {
       method: 'POST',
+      signal,
       ...jsonBody({ selectedRowNumbers }),
     }),
   exportFields: () => request<import('./types').ExportFieldOption[]>('/exports/fields'),

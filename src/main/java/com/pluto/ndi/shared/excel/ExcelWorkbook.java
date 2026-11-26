@@ -129,11 +129,9 @@ public final class ExcelWorkbook {
                     throw new IllegalArgumentException("映射列不存在或重复使用");
             var result = new ArrayList<Line>();
             var formatter = new DataFormatter(Locale.CHINA);
-            int dataRows = 0;
             for (int i = rowNo; i <= sheet.getLastRowNum(); i++) {
                 var dataRow = sheet.getRow(i);
                 if (!hasData(dataRow)) continue;
-                ExcelImportLimits.checkRowCount(++dataRows);
                 var cells = new LinkedHashMap<String, String>();
                 for (var field : fields) {
                     var column = source.get(mapping.getOrDefault(field, ""));
@@ -204,8 +202,7 @@ public final class ExcelWorkbook {
             if (configureDropdowns != null)
                 configureDropdowns.accept(new ExcelDropdowns(wb, sheet, fields));
             var guide = wb.createSheet("填写说明");
-            guide.createRow(0).createCell(0).setCellValue("每次最多导入 2000 行数据，表头不计入。");
-            guide.createRow(1).createCell(0).setCellValue("Excel 文件最大 20 MB。请填写“导入数据”工作表。");
+            guide.createRow(0).createCell(0).setCellValue("Excel 文件最大 20 MB。请填写“导入数据”工作表。");
             guide.setColumnWidth(0, 58 * 256);
             wb.write(out);
             return out.toByteArray();

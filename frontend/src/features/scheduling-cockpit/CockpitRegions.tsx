@@ -33,12 +33,14 @@ export function CockpitMap({
   mapLabel,
   describe = (region) => amountDescription(region.total),
   palette = bands,
+  mapAmountDivisor = 10000,
 }: {
   provinces: MapProvince[];
   nationwide: boolean;
   mapLabel?: string;
   describe?: (region: MapProvince) => string;
   palette?: typeof bands;
+  mapAmountDivisor?: number;
 }) {
   const [shapes, setShapes] = useState<ReturnType<typeof mapShapes>>([]);
   const [boundary, setBoundary] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -77,7 +79,7 @@ export function CockpitMap({
           >
             {shapes.map((shape) => {
               const row = byCode.get(shape.adcode);
-              const amount = Number(row?.total.recognized ?? 0) / 10000;
+              const amount = Number(row?.total.recognized ?? 0) / mapAmountDivisor;
               const accessible = row ? row.name + ' · ' + describe(row) : shape.name;
               return (
                 <path

@@ -335,7 +335,16 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
     }
 
     public Set<Source> existingDuplicates(List<Source> sources) {
-        if (sources.isEmpty()) return Set.of();
+        var duplicates = new HashSet<Source>();
+        // 将判重参数按块发给 MySQL，限制 JSON_TABLE 单次读取的键数量。
+        for (int offset = 0; offset < sources.size(); offset += 500) {
+            var block = sources.subList(offset, Math.min(offset + 500, sources.size()));
+            findExistingDuplicates(block, duplicates);
+        }
+        return duplicates;
+    }
+
+    private void findExistingDuplicates(List<Source> sources, Set<Source> duplicates) {
         var keys = sources.stream().map(Source::businessKey).toList();
         var matched = jdbc.queryForList("""
                 SELECT k.row_no
@@ -357,9 +366,7 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                     AND e.product_code_hash=UNHEX(SHA2(CONVERT(k.product_code USING utf8mb4),256))
                     AND e.fee_month_key=CONVERT(k.fee_month USING utf8mb4) COLLATE utf8mb4_bin
                 """, Map.of("keys", encode(keys)), Integer.class);
-        var duplicates = new HashSet<Source>();
         matched.forEach(index -> duplicates.add(sources.get(index - 1)));
-        return duplicates;
     }
 
     public void insert(UUID id, UUID actor, Source c, Instant at) {

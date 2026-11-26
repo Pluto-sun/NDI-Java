@@ -3,16 +3,22 @@ import type { ImportBatch, ImportConfiguration, ImportTask } from './types';
 
 export interface ImportWizardApi {
   importTask: () => Promise<ImportTask | null>;
-  uploadImportTask: (file: File, version?: number, id?: string) => Promise<ImportTask>;
+  uploadImportTask: (
+    file: File,
+    version?: number,
+    id?: string,
+    signal?: AbortSignal,
+  ) => Promise<ImportTask>;
   saveImportTask: (
     id: string,
     version: number,
     step: number,
     config: ImportConfiguration,
     selected: number[] | null,
+    signal?: AbortSignal,
   ) => Promise<ImportTask>;
   discardImportTask: (version: number, id: string) => Promise<unknown>;
-  confirmImport: (id: string, selected: number[]) => Promise<ImportBatch>;
+  confirmImport: (id: string, selected: number[], signal?: AbortSignal) => Promise<ImportBatch>;
   importTemplate: () => Promise<Blob>;
   importBatch: (id: string) => Promise<ImportBatch>;
   reviseImportRow: (
@@ -20,6 +26,7 @@ export interface ImportWizardApi {
     row: number,
     revision: number,
     changes: Record<string, string>,
+    signal?: AbortSignal,
   ) => Promise<ImportBatch>;
   decideImportName?: (
     id: string,
@@ -27,6 +34,7 @@ export interface ImportWizardApi {
     revision: number,
     reason: string,
     fingerprint: string,
+    signal?: AbortSignal,
   ) => Promise<ImportBatch>;
   originalFailedImportRows?: (id: string) => Promise<Blob>;
   failedImportRows?: (id: string) => Promise<Blob>;

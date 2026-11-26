@@ -118,7 +118,7 @@ public final class ExcelDropdowns {
         var validation =
                 helper.createValidation(
                         helper.createFormulaListConstraint(formula),
-                        new CellRangeAddressList(1, ExcelImportLimits.MAX_ROWS, index(field), index(field)));
+                        new CellRangeAddressList(1, org.apache.poi.ss.SpreadsheetVersion.EXCEL2007.getLastRowIndex(), index(field), index(field)));
         // XSSF 将该开关反向写入 showDropDown，true 表示显示下拉箭头。
         validation.setSuppressDropDownArrow(true);
         validation.setEmptyCellAllowed(true);

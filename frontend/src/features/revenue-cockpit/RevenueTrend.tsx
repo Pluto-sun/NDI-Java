@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatMoney } from '../scheduling-cockpit/overview';
+import { revenueAmount } from './format';
 import type { Month } from './annualOverview';
 
 const series = [
@@ -21,11 +21,16 @@ export function RevenueTrend({ months }: { months: Month[] }) {
     ),
   );
   const magnitude = maximum ? 10 ** Math.floor(Math.log10(maximum / 5)) : 1000;
-  const interval = Math.ceil(maximum / (5 * magnitude)) * magnitude || magnitude;
+  const interval = Math.max(0.01, Math.ceil(maximum / (5 * magnitude)) * magnitude || magnitude);
   const min = Math.min(0, ...months.map(({ money }) => Number(money.total)));
   const floor = Math.floor(min / interval) * interval;
   const ceiling = interval * 5;
-  const x = (index: number) => 54 + index * 77;
+  const ticks = Array.from({ length: 6 }, (_, index) => {
+    const amount = interval * index;
+    return { amount, label: amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) };
+  });
+  const axisLeft = Math.max(54, ...ticks.map(({ label }) => label.length * 6 + 8));
+  const x = (index: number) => axisLeft + ((index + 0.5) * (954 - axisLeft)) / months.length;
   const y = (amount: number) => 146 - ((amount - floor) / (ceiling - floor)) * 126;
   const path = months
     .map(({ occurred, money }, index) =>
@@ -36,7 +41,7 @@ export function RevenueTrend({ months }: { months: Month[] }) {
     .join(' ');
   const detail = (row: Month) =>
     row.occurred
-      ? `${row.month}月 · ${series.map((item) => item.label + ' ' + formatMoney(row.money[item.code])).join(' · ')} · 合计 ${formatMoney(row.money.total)} 亿元`
+      ? `${row.month}月 · ${series.map((item) => item.label + ' ' + revenueAmount(row.money[item.code])).join(' · ')} · 合计 ${revenueAmount(row.money.total)} 万元`
       : `${row.month}月 · 未发生`;
   return (
     <>
@@ -54,11 +59,11 @@ export function RevenueTrend({ months }: { months: Month[] }) {
       </div>
       <div className="rc-trend sc-chart">
         <svg viewBox="0 0 966 176" role="group" aria-label="三化计收堆叠柱与合计折线图">
-          {Array.from({ length: 6 }, (_, i) => interval * i).map((tick) => (
-            <g key={tick}>
-              <line className="sc-gridline" x1={32} x2={954} y1={y(tick)} y2={y(tick)} />
-              <text x={27} y={y(tick) + 3} textAnchor="end">
-                {+(tick / 10000).toPrecision(5)}
+          {ticks.map(({ amount, label }) => (
+            <g key={amount}>
+              <line className="sc-gridline" x1={axisLeft} x2={954} y1={y(amount)} y2={y(amount)} />
+              <text x={axisLeft - 5} y={y(amount) + 3} textAnchor="end">
+                {label}
               </text>
             </g>
           ))}
@@ -128,7 +133,7 @@ export function RevenueTrend({ months }: { months: Month[] }) {
                     textAnchor="middle"
                     className="rc-total-label"
                   >
-                    {formatMoney(row.money.total)}
+                    {revenueAmount(row.money.total)}
                   </text>
                 </g>
               ),

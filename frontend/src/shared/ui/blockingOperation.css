@@ -1,0 +1,55 @@
+.blocking-operation {
+  box-sizing: border-box;
+  inset: 0;
+  margin: auto;
+  max-width: calc(100vw - 32px);
+  width: max-content;
+  padding: 22px 30px 20px;
+  color: #fff;
+  background: #242534;
+  border: 1px solid #ffffff2b;
+  border-radius: 14px;
+  text-align: center;
+  user-select: none;
+  box-shadow: 0 12px 48px #0006;
+}
+.blocking-operation::backdrop {
+  background: #0e1019aa;
+}
+.blocking-operation p {
+  margin: 14px 0 0;
+  font-size: 15px;
+}
+.blocking-operation-logo {
+  position: relative;
+  width: 68px;
+  margin-inline: auto;
+}
+.blocking-operation-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.blocking-operation-logo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  mask: url('/blocking-overlay-logo.png') center / contain no-repeat;
+  background: linear-gradient(115deg, transparent 40%, #fff9 50%, transparent 60%);
+  background-size: 235% 100%;
+  animation: blocking-operation-glint 2.4s ease-in-out infinite;
+}
+@keyframes blocking-operation-glint {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -42% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blocking-operation-logo::after {
+    animation: none;
+    opacity: 0;
+  }
+}

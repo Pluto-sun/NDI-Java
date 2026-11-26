@@ -4,6 +4,22 @@ export function amount(value: number | null | undefined): string {
     : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value);
 }
 
+/** 按万元原始定点数换算，四舍五入到两位，避免大金额转成浮点数。 */
+export function formatCockpitMoney(value: string, scale = 0, minimumDigits = 0): string {
+  const [integer, fraction = ''] = value.split('.');
+  const negative = integer.startsWith('-');
+  const digits = integer.replace(/^-/, '') + fraction;
+  const precisionShift = fraction.length + scale - 2;
+  const base = BigInt(digits);
+  const divisor = 10n ** BigInt(Math.max(0, precisionShift));
+  const cents =
+    precisionShift > 0 ? (base + divisor / 2n) / divisor : base * 10n ** BigInt(-precisionShift);
+  const whole = (cents / 100n).toLocaleString('zh-CN');
+  const decimals = (cents % 100n).toString().padStart(2, '0');
+  const fractionText = decimals.replace(/0+$/, '').padEnd(minimumDigits, '0');
+  return (negative && cents !== 0n ? '-' : '') + whole + (fractionText ? '.' + fractionText : '');
+}
+
 /** 表单金额以分比较，避免浮点数相加产生误判。 */
 export function amountToCents(value: string): bigint | null {
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;

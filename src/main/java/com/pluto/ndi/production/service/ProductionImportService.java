@@ -3,6 +3,7 @@ package com.pluto.ndi.production.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.documents.service.ImportWorkbookDirectory;
 import com.pluto.ndi.organization.service.OrganizationDirectory;
+import com.pluto.ndi.organization.service.OrganizationLocation;
 import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.production.mapper.ProductionImportMapper;
 import com.pluto.ndi.production.util.ProductionRules;
@@ -106,6 +107,32 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
         return plans.validate(actor, command(cells));
     }
 
+    @Override
+    protected java.util.function.Function<Map<String, String>, ProductionPlan.Command> batchValidator(UUID actor) {
+        var scope = access.require(actor);
+        var locations = new HashMap<List<String>, Optional<OrganizationLocation>>();
+        return cells -> {
+            var key = Arrays.asList(cells.get("省分"), cells.get("地市"));
+            var location = locations.computeIfAbsent(key,
+                    names -> organizations.findEnabledLocationByNames(names.getFirst(), names.getLast()))
+                    .orElseThrow(() -> invalid("省分或地市未在系统启用，或地市与省分不匹配"));
+            var command = ProductionRules.validate(command(cells, location));
+            if (!scope.writable() || !scope.contains(command.provinceId(), command.cityId()))
+                throw new BusinessException(ProductionError.forbidden());
+            return command;
+        };
+    }
+
+    @Override
+    protected Set<ProductionPlan.Command> existingDuplicates(List<ProductionPlan.Command> commands) {
+        return plans.existingDuplicates(commands);
+    }
+
+    @Override
+    protected UUID createValidated(UUID actor, Map<String, String> cells, ProductionPlan.Command command) {
+        return plans.createImported(actor, command);
+    }
+
     protected Object duplicateKey(ProductionPlan.Command c) {
         return List.of(
                 c.planMonth(),
@@ -136,6 +163,10 @@ public class ProductionImportService extends TabularImportEngine<ProductionPlan.
                 organizations
                         .findEnabledLocationByNames(c.get("省分"), c.get("地市"))
                         .orElseThrow(() -> invalid("省分或地市未在系统启用，或地市与省分不匹配"));
+        return command(c, location);
+    }
+
+    private ProductionPlan.Command command(Map<String, String> c, OrganizationLocation location) {
         String month =
                 c.getOrDefault("排产月份", "")
                         .strip()

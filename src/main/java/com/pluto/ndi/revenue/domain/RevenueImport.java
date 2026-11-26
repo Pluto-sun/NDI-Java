@@ -37,7 +37,8 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
                                             case "月账期", "费用账期" -> "YYYYMM或YYYY-MM";
                                             case "条款金额", "产品本月计收不含税额/标品含税收入" -> "元，最多两位小数，不进行税额换算";
                                             case STATUS -> "选填；实施中、已交付或已上线，随认定结果导入";
-                                            case AMOUNT, PROJECT, PROVINCE -> "网络化必填；数字化、智能化三项填写有效且认定金额大于零时直接认定";
+                                            case AMOUNT, PROVINCE -> "网络化必填；认定金额须大于零";
+                                            case PROJECT -> "网络化选填；数字化、智能化直接认定时必填";
                                             default -> "";
                                         }))
                 .toList();

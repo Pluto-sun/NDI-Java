@@ -1,3 +1,4 @@
+import { useBlockingOperation } from '../ui/useBlockingOperation';
 import { Select } from '../ui/Select';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -24,6 +25,7 @@ export function ImportRowDialog({
   onClose: () => void;
   onSaved: (batch: ImportBatch) => void;
 }) {
+  const blocking = useBlockingOperation();
   const config = useImportWizard();
   const { api: projectsApi } = config;
   const [cells, setCells] = useState(() => {
@@ -47,36 +49,46 @@ export function ImportRowDialog({
     [error, setError] = useState('');
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      let result: ImportBatch;
-      if (mode === 'name')
-        result = await projectsApi.decideImportName!(
-          batchId,
-          row.rowNumber,
-          row.revisionNo,
-          reason,
-          row.nameReview!.fingerprint,
-        );
-      else {
-        const before = sourceCells(row.sourceCellsJson);
-        const changes = Object.fromEntries(
-          Object.entries(cells).filter(([key, value]) => value !== before[key]),
-        );
-        if (!Object.keys(changes).length) {
-          setError('请先修改至少一个字段。');
-          return;
+    await blocking.run('正在保存修正并重新预检…', async (signal) => {
+      setBusy(true);
+      setError('');
+      try {
+        let result: ImportBatch;
+        if (mode === 'name')
+          result = await projectsApi.decideImportName!(
+            batchId,
+            row.rowNumber,
+            row.revisionNo,
+            reason,
+            row.nameReview!.fingerprint,
+            signal,
+          );
+        else {
+          const before = sourceCells(row.sourceCellsJson);
+          const changes = Object.fromEntries(
+            Object.entries(cells).filter(([key, value]) => value !== before[key]),
+          );
+          if (!Object.keys(changes).length) {
+            setError('请先修改至少一个字段。');
+            return;
+          }
+          result = await projectsApi.reviseImportRow(
+            batchId,
+            row.rowNumber,
+            row.revisionNo,
+            changes,
+            signal,
+          );
         }
-        result = await projectsApi.reviseImportRow(batchId, row.rowNumber, row.revisionNo, changes);
+        onSaved(result);
+        onClose();
+      } catch (cause) {
+        if (signal.reason?.name !== 'AbortError')
+          setError(cause instanceof Error ? cause.message : '保存失败，请重试');
+      } finally {
+        if (signal.reason?.name !== 'AbortError') setBusy(false);
       }
-      onSaved(result);
-      onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '保存失败，请重试');
-    } finally {
-      setBusy(false);
-    }
+    });
   }
   return (
     <Modal
@@ -84,6 +96,7 @@ export function ImportRowDialog({
       busy={busy}
       onClose={onClose}
     >
+      {blocking.overlay}
       <h2 tabIndex={-1}>{mode === 'name' ? '核对相似项目' : '查看与修正导入数据'}</h2>
       <p>
         {cells['项目名称'] || config.emptyValueLabel} · Excel 原行号 {row.rowNumber}

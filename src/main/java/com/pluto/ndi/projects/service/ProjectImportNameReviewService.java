@@ -77,8 +77,8 @@ public class ProjectImportNameReviewService {
             }
             UUID cityId = location.get().cityId();
             var existing = database.computeIfAbsent(cityId, key -> database(key));
-            var matches = new ArrayList<Match>(existing);
-            matches.addAll(prior.getOrDefault(cityId, List.of()));
+            var matches = java.util.stream.Stream.concat(
+                    existing.stream(), prior.getOrDefault(cityId, List.of()).stream());
             var review =
                     build(location.get().provinceId(), cityId, name, matches, read(row), cores);
             row.nameReview(write(review));
@@ -97,11 +97,11 @@ public class ProjectImportNameReviewService {
             UUID province,
             UUID city,
             String name,
-            List<Match> options,
+            java.util.stream.Stream<Match> options,
             ProjectImportNameReview previous,
             Map<String, String> cores) {
         var matches =
-                options.stream()
+                options
                         .map(
                                 p ->
                                         new Match(
@@ -158,7 +158,7 @@ public class ProjectImportNameReviewService {
         var review = read(row);
         if (review == null) return; // 兼容升级前已经预检、正在恢复的批次。
         if (!review.accepted()) throw new IllegalStateException("相似名称尚未确认或缺少差异说明");
-        var latest = build(review.provinceId(), city, name, database(city), null, new HashMap<>());
+        var latest = build(review.provinceId(), city, name, database(city).stream(), null, new HashMap<>());
         if (!review.evidence().containsAll(latest.evidence()))
             throw new IllegalStateException("确认前目标库出现新的相似项目，请用新文件重新预检");
     }

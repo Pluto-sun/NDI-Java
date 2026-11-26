@@ -169,11 +169,9 @@ public class ProjectExcelReader {
                 }
             }
             var result = new ArrayList<ExcelRow>();
-            int dataRows = 0;
             for (int r = headerIndex + 1; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
                 if (!ExcelWorkbook.hasData(row)) continue;
-                ExcelImportLimits.checkRowCount(++dataRows);
                 var cells = new HashMap<String, String>();
                 for (var entry : headers.entrySet()) {
                     cells.put(

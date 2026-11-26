@@ -1,3 +1,4 @@
+import { formatMoney } from '../src/features/scheduling-cockpit/overview';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { requiredRevenueFields } from './support/revenue';
 import { chooseActor, get, ids } from './support/projects';
@@ -246,6 +247,9 @@ test('真实排产汇总驱动六张卡、地图、趋势和表内分页', async
   const january = graph.locator('g[tabindex]').first();
   await january.focus();
   await expect(second.getByRole('tooltip')).toContainText('13,000 万元');
+  expect(formatMoney('150')).toBe('0.02');
+  expect(formatMoney('150.125', '万')).toBe('150.13');
+  expect(formatMoney('-0.001', '万')).toBe('0');
   await january.hover();
   await expect(second.getByRole('tooltip')).toContainText(year + '-01');
 

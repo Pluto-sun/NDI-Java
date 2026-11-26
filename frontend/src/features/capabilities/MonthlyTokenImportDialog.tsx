@@ -1,5 +1,6 @@
+import { useBlockingOperation } from '../../shared/ui/useBlockingOperation';
 import { downloadWorkbook } from '../../shared/imports/importWizard';
-import { MAX_EXCEL_ROWS, validateExcelUpload } from '../../shared/imports/limits';
+import { validateExcelUpload } from '../../shared/imports/limits';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestAt, requestBlobAt } from '../../shared/api/http';
@@ -46,67 +47,86 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
   const [selected, setSelected] = useState<string[]>([]);
   const [filter, setFilter] = useState('ALL');
   const [page, setPage] = useState(0);
+  const blocking = useBlockingOperation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [imported, setImported] = useState<number>();
 
   async function submit(mode: 'preview' | 'confirm' | 'export') {
     if (!file || busy) return;
-    setBusy(true);
-    setError('');
-    setImported(undefined);
-    const form = new FormData();
-    form.append('file', file);
-    form.append('year', year);
-    if (sheet) form.append('sheet', sheet);
-    try {
-      validateExcelUpload(file);
-      if (mode === 'export') {
-        if (!preview) return;
-        form.set('sheet', preview.sheet);
-        form.append('fingerprint', preview.fingerprint);
-        downloadWorkbook(
-          await requestBlobAt(root, '/failed-rows/original', { method: 'POST', body: form }),
-          '月度 Token 导入预检失败原始数据.xlsx',
-        );
-      } else if (mode === 'confirm') {
-        form.append(
-          'selection',
-          new Blob([JSON.stringify(selected)], { type: 'application/json' }),
-        );
-        const saved = await requestAt<number>(root, '/confirm', { method: 'POST', body: form });
-        setImported(saved);
-        setPreview(undefined);
-        setSelected([]);
-        setFile(undefined);
-        setSheet('');
-        setSheets([]);
-      } else {
-        setPreview(undefined);
-        setSelected([]);
-        const result = await requestAt<Preview>(root, '/preview', { method: 'POST', body: form });
-        setPreview(result);
-        setSheets(result.sheets);
-        setSheet(result.sheet);
-        setSelected(
-          result.rows
-            .filter((row) => row.status === 'READY')
-            .slice(0, MAX_EXCEL_ROWS)
-            .map((row) => row.key),
-        );
-        setFilter('ALL');
-        setPage(0);
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : mode === 'export'
-            ? '导出失败，请重试'
-            : '导入失败，请重试',
+    const workbook = file;
+    if (mode === 'export') await perform();
+    else
+      await blocking.run(
+        mode === 'confirm' ? '正在确认导入…' : '正在读取并预检月度 Token…',
+        perform,
       );
-    } finally {
-      setBusy(false);
+
+    async function perform(signal?: AbortSignal) {
+      setBusy(true);
+      setError('');
+      setImported(undefined);
+      const form = new FormData();
+      form.append('file', workbook);
+      form.append('year', year);
+      if (sheet) form.append('sheet', sheet);
+      try {
+        validateExcelUpload(workbook);
+        if (mode === 'export') {
+          if (!preview) return;
+          form.set('sheet', preview.sheet);
+          form.append('fingerprint', preview.fingerprint);
+          downloadWorkbook(
+            await requestBlobAt(root, '/failed-rows/original', {
+              method: 'POST',
+              body: form,
+              signal,
+            }),
+            '月度 Token 导入预检失败原始数据.xlsx',
+          );
+        } else if (mode === 'confirm') {
+          form.append(
+            'selection',
+            new Blob([JSON.stringify(selected)], { type: 'application/json' }),
+          );
+          const saved = await requestAt<number>(root, '/confirm', {
+            method: 'POST',
+            body: form,
+            signal,
+          });
+          setImported(saved);
+          setPreview(undefined);
+          setSelected([]);
+          setFile(undefined);
+          setSheet('');
+          setSheets([]);
+        } else {
+          setPreview(undefined);
+          setSelected([]);
+          const result = await requestAt<Preview>(root, '/preview', {
+            method: 'POST',
+            body: form,
+            signal,
+          });
+          setPreview(result);
+          setSheets(result.sheets);
+          setSheet(result.sheet);
+          setSelected(result.rows.filter((row) => row.status === 'READY').map((row) => row.key));
+          setFilter('ALL');
+          setPage(0);
+        }
+      } catch (cause) {
+        if (signal?.reason?.name === 'AbortError') return;
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : mode === 'export'
+              ? '导出失败，请重试'
+              : '导入失败，请重试',
+        );
+      } finally {
+        if (signal?.reason?.name !== 'AbortError') setBusy(false);
+      }
     }
   }
 
@@ -121,10 +141,11 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         <LiveAgentImportTabs monthly disabled={pending} onChange={onSwitch} />
       )}
     >
+      {blocking.overlay}
       <div className="import-wizard" aria-busy={busy}>
         <p className="subtle">
-          上传原有横表，文件最大 20 MB，最多 2000
-          行数据。填写统计年份。按省分、智能体名称和应用项目名称匹配已有记录，也可在 Excel
+          上传原有横表，文件最大 20
+          MB。填写统计年份。按省分、智能体名称和应用项目名称匹配已有记录，也可在 Excel
           中填写「系统ID」。
         </p>
         {error && <Feedback tone="error">{error}</Feedback>}
@@ -196,11 +217,6 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
         </form>
         {preview && (
           <>
-            {ready.length > MAX_EXCEL_ROWS && (
-              <p className="subtle">
-                一次最多确认 {MAX_EXCEL_ROWS} 条月度记录，已默认勾选前 {MAX_EXCEL_ROWS} 条通过项。
-              </p>
-            )}
             {preview.rows.some((row) => row.status === 'FAILED') && (
               <div className="action-row">
                 <button
@@ -253,11 +269,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
                         <input
                           type="checkbox"
                           aria-label={`第 ${row.sourceRow} 行 ${row.month}`}
-                          disabled={
-                            busy ||
-                            row.status !== 'READY' ||
-                            (!selected.includes(row.key) && selected.length >= MAX_EXCEL_ROWS)
-                          }
+                          disabled={busy || row.status !== 'READY'}
                           checked={selected.includes(row.key)}
                           onChange={(event) =>
                             setSelected(
@@ -294,7 +306,7 @@ export function MonthlyTokenImportDialog({ onSwitch }: { onSwitch: (monthly: boo
               <button
                 type="button"
                 className="primary-button"
-                disabled={busy || selected.length === 0 || selected.length > MAX_EXCEL_ROWS}
+                disabled={busy || selected.length === 0}
                 onClick={() => void submit('confirm')}
               >
                 确认导入 {selected.length} 条

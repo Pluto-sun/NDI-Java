@@ -1,4 +1,5 @@
-import { MAX_EXCEL_ROWS, validateExcelUpload } from './limits';
+import { useBlockingOperation } from '../ui/useBlockingOperation';
+import { validateExcelUpload } from './limits';
 import './importWizard.css';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -41,6 +42,7 @@ export function ImportWizardPage({
   );
 }
 function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) {
+  const blocking = useBlockingOperation();
   const config = useImportWizard();
   const projectsApi = config.api;
   const navigate = useNavigate();
@@ -100,9 +102,15 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     return () => cancelAnimationFrame(frame);
   }, [loading, task?.step, pending?.id, completed?.batchId]);
   // 串行提交小型状态请求，版本号只取最新已保存值；切换页面后请求仍可完成。
-  function persist(config: ImportConfiguration, selection: Set<number>, step?: number) {
+  function persist(
+    config: ImportConfiguration,
+    selection: Set<number>,
+    step?: number,
+    signal?: AbortSignal,
+  ) {
     setSaving((count) => count + 1);
     const job = queue.current.then(async () => {
+      signal?.throwIfAborted();
       const live = current.current;
       if (!live) throw new Error('请先上传文件');
       const result = await projectsApi.saveImportTask(
@@ -111,6 +119,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
         step ?? live.step,
         config,
         Array.from(selection),
+        signal,
       );
       current.current = result;
       saveFailed.current = false;
@@ -138,25 +147,32 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     selectedRef.current = value;
     void persist(configRef.current, value).catch(() => {});
   }
-  async function action(work: () => Promise<void>) {
-    setBusy(true);
-    setError('');
-    try {
-      await queue.current;
-      await work();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '操作失败，请重试');
-    } finally {
-      setBusy(false);
+  async function action(work: (signal?: AbortSignal) => Promise<void>, stage?: string) {
+    if (stage) await blocking.run(stage, perform);
+    else await perform();
+
+    async function perform(signal?: AbortSignal) {
+      setBusy(true);
+      setError('');
+      try {
+        await queue.current;
+        signal?.throwIfAborted();
+        await work(signal);
+      } catch (cause) {
+        if (mounted.current) setError(cause instanceof Error ? cause.message : '操作失败，请重试');
+      } finally {
+        if (mounted.current) setBusy(false);
+      }
     }
   }
   async function upload(file: File) {
-    await action(async () => {
+    await action(async (signal) => {
       validateExcelUpload(file);
       const result = await projectsApi.uploadImportTask(
         file,
         current.current?.version,
         current.current?.id,
+        signal,
       );
       install(result);
       const first = result.inspection.sheets.find((sheet) => sheet.headerCandidates.length);
@@ -164,16 +180,19 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
         const config = chooseSheet(result, first.name);
         setConfiguration(config);
         configRef.current = config;
-        const saved = await persist(config, new Set());
+        const saved = await persist(config, new Set(), undefined, signal);
         setTask(saved);
       }
-    });
+    }, '正在上传 Excel 并识别表头…');
   }
   async function move(step: number) {
-    await action(async () => {
-      const result = await persist(configRef.current, selectedRef.current, step);
-      install(result);
-    });
+    await action(
+      async (signal) => {
+        const result = await persist(configRef.current, selectedRef.current, step, signal);
+        install(result);
+      },
+      step === 3 ? '正在预检 Excel…' : undefined,
+    );
   }
   async function close() {
     await queue.current;
@@ -196,10 +215,11 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
   }
   async function confirm() {
     if (!current.current?.batch) return;
-    await action(async () => {
+    await action(async (signal) => {
       const result = await projectsApi.confirmImport(
         current.current!.batch!.batchId,
         Array.from(selectedRef.current),
+        signal,
       );
       if (result.status === 'COMPLETED') {
         setCompleted(result);
@@ -209,7 +229,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
         setError('导入仍在处理中，请刷新任务查看结果。');
         setTask((live) => (live ? { ...live, batch: result } : live));
       }
-    });
+    }, '正在确认导入…');
   }
   function batchUpdated(batch: ImportBatch) {
     const live = current.current;
@@ -218,9 +238,9 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     current.current = updated;
     setTask(updated);
     const next = new Set(
-      Array.from(selectedRef.current).filter((number) =>
-        batch.rows.some((row) => row.rowNumber === number && canImportRow(row)),
-      ),
+      batch.rows
+        .filter((row) => selectedRef.current.has(row.rowNumber) && canImportRow(row))
+        .map((row) => row.rowNumber),
     );
     const edited = editor && batch.rows.find((row) => row.rowNumber === editor.row.rowNumber);
     if (!config.manualSelectionAfterRepair && edited && canImportRow(edited))
@@ -237,10 +257,10 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
     !!batch &&
     batch.status === 'PREVIEWED' &&
     selected.size > 0 &&
-    selected.size <= MAX_EXCEL_ROWS &&
     batch.rows.filter((row) => selected.has(row.rowNumber)).every(canImportRow);
   return (
     <section className="import-entry">
+      {blocking.overlay}
       <h1>{config.title}导入</h1>
       <p>{config.entryHint ?? `从${config.title}新增页面开始导入 Excel。`}</p>
       <Modal
@@ -406,9 +426,7 @@ function ImportWizardBody({ renderHeading }: { renderHeading?: ImportHeading }) 
                       下载导入模板
                     </button>
                   </div>
-                  <p className="subtle">
-                    支持 .xlsx，文件最大 20 MB，每次最多 {MAX_EXCEL_ROWS} 行。{config.uploadHint}
-                  </p>
+                  <p className="subtle">支持 .xlsx，文件最大 20 MB。{config.uploadHint}</p>
                   {task && (
                     <>
                       <p>

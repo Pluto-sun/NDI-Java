@@ -2,7 +2,6 @@ package com.pluto.ndi.shared.imports;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pluto.ndi.shared.excel.ExcelImportLimits;
 
 import java.util.*;
 
@@ -16,8 +15,7 @@ public final class ImportWorkflow {
 
     public static boolean validSelection(List<Integer> selection) {
         return selection == null
-                || selection.size() <= ExcelImportLimits.MAX_ROWS
-                        && new HashSet<>(selection).size() == selection.size()
+                || new HashSet<>(selection).size() == selection.size()
                         && selection.stream().allMatch(n -> n != null && n > 0);
     }
 

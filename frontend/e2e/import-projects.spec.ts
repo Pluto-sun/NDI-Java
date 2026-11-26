@@ -98,7 +98,15 @@ test('从创建页进入三步导入，修正合同后一次完成，下一次�
   );
   await editor.getByLabel('合同编号', { exact: true }).fill(contract);
   await editor.getByLabel('签约金额（万）', { exact: true }).fill('80.50');
+  await page.route('**/projects/imports/*/rows/3', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
   await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '正在处理' })).toContainText(
+    '正在保存修正并重新预检…',
+  );
+  await page.keyboard.press('Enter');
   await expect(editor).toHaveCount(0);
   await page.getByRole('checkbox', { name: '选择第 3 行', exact: true }).check();
   const result = await finish(page, 1);

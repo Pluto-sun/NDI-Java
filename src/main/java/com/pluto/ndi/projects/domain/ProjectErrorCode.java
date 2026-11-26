@@ -168,8 +168,6 @@ public enum ProjectErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST, "PROJECT_EXPORT_TOO_LARGE", "导出数据过多", "导出结果不得超过1000条，请缩小筛选范围"),
     EXPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_EXPORT_NOT_FOUND", "导出任务不存在", "未找到指定的项目导出任务"),
     EXPORT_NOT_READY(HttpStatus.CONFLICT, "PROJECT_EXPORT_NOT_READY", "导出文件尚未就绪", "请在任务完成后下载导出文件"),
-    IMPORT_TOO_MANY_ROWS(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_TOO_MANY_ROWS",
-            "Excel 数据行超限", "一次最多导入 2000 行数据，表头不计入"),
     IMPORT_INVALID_FILE(
             HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_INVALID_FILE", "导入文件无效", "请检查模板、文件大小和工作表内容"),
     IMPORT_NO_FAILED_ROWS(HttpStatus.BAD_REQUEST, "PROJECT_IMPORT_NO_FAILED_ROWS",
@@ -188,7 +186,7 @@ public enum ProjectErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "PROJECT_IMPORT_SELECTION_INVALID",
             "导入行选择无效",
-            "只能选择当前批次中通过预检的 1 至 2000 行"),
+            "请至少选择一条当前批次中通过预检的记录"),
     IMPORT_ROW_INVALID(
             HttpStatus.BAD_REQUEST,
             "PROJECT_IMPORT_ROW_INVALID",

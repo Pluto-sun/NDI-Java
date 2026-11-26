@@ -1,3 +1,4 @@
+import { useBlockingOperation } from './useBlockingOperation';
 import { useState } from 'react';
 import { jsonBody, requestAt, type Page } from '../api/http';
 import { Feedback } from './Feedback';
@@ -37,6 +38,7 @@ export function useBatchDelete(
   reload: () => Promise<void> | void,
   filtered?: FilteredList,
 ) {
+  const blocking = useBlockingOperation();
   const selectable = admin && register !== 'PROJECTS';
   const [selection, setSelection] = useState<{ query: string; records: RecordVersion[] }>({
     query,
@@ -73,30 +75,42 @@ export function useBatchDelete(
   const toRemove = confirm === 'filtered' ? filteredRecords : records;
   async function remove() {
     if (!toRemove.length) return;
-    setBusy(true);
-    setError('');
-    setNotice('');
-    try {
-      const result = await requestAt<number | { deleted: number; skippedPending: number }>(
-        '/api/v1/admin/record-deletions',
-        `/${register}${confirm === 'filtered' ? '/filtered' : ''}`,
-        {
-          method: 'POST',
-          ...jsonBody({ records: toRemove }),
-        },
-      );
-      select([]);
-      setConfirm(null);
-      const { deleted, skippedPending } =
-        typeof result === 'number' ? { deleted: result, skippedPending: 0 } : result;
-      setNotice(
-        `已删除 ${deleted} 条记录${skippedPending ? `，保留 ${skippedPending} 条待审批记录` : ''}`,
-      );
-      await reload();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '批量删除失败，请重试');
-    } finally {
-      setBusy(false);
+    let removed = false;
+    await blocking.run('正在批量删除记录…', async (signal) => {
+      setBusy(true);
+      setError('');
+      setNotice('');
+      try {
+        const result = await requestAt<number | { deleted: number; skippedPending: number }>(
+          '/api/v1/admin/record-deletions',
+          `/${register}${confirm === 'filtered' ? '/filtered' : ''}`,
+          {
+            method: 'POST',
+            signal,
+            ...jsonBody({ records: toRemove }),
+          },
+        );
+        select([]);
+        setConfirm(null);
+        const { deleted, skippedPending } =
+          typeof result === 'number' ? { deleted: result, skippedPending: 0 } : result;
+        setNotice(
+          `已删除 ${deleted} 条记录${skippedPending ? `，保留 ${skippedPending} 条待审批记录` : ''}`,
+        );
+        removed = true;
+      } catch (cause) {
+        if (signal.reason?.name !== 'AbortError')
+          setError(cause instanceof Error ? cause.message : '批量删除失败，请重试');
+      } finally {
+        if (signal.reason?.name !== 'AbortError') setBusy(false);
+      }
+    });
+    if (removed) {
+      try {
+        await reload();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : '删除完成，列表刷新失败');
+      }
     }
   }
 
@@ -133,6 +147,7 @@ export function useBatchDelete(
     );
   const toolbar = admin && (
     <div className="batch-delete-toolbar">
+      {blocking.overlay}
       {selectable && (
         <button
           type="button"

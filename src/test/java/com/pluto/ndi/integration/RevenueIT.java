@@ -408,7 +408,7 @@ class RevenueIT {
         assertThatThrownBy(() -> service.validateImport(admin, network)).hasMessageContaining("大于 0");
         var imported = new LinkedHashMap<>(network);
         imported.put("认定金额", "33");
-        imported.put("通报项目名称", "网络化验收");
+        imported.put(RevenueImport.PROJECT, " ");
         imported.put("对应省分（集成）", provinceName);
         var digital = source();
         digital.put(RevenueImport.AMOUNT, "33");
@@ -418,6 +418,10 @@ class RevenueIT {
         var intelligent = new LinkedHashMap<>(digital);
         intelligent.put("三化分类", "智能化");
         assertThat(service.validateImport(admin, intelligent).recognition().amount()).isEqualByComparingTo("33");
+        var digitalWithoutName = new LinkedHashMap<>(digital);
+        digitalWithoutName.remove(RevenueImport.PROJECT);
+        var intelligentWithoutName = new LinkedHashMap<>(intelligent);
+        intelligentWithoutName.put(RevenueImport.PROJECT, "  ");
         var incomplete = new LinkedHashMap<>(intelligent);
         incomplete.remove(RevenueImport.PROVINCE);
         assertThat(service.validateImport(admin, incomplete).recognition()).isNull();
@@ -427,11 +431,13 @@ class RevenueIT {
         imported.keySet().forEach(field -> mapping.put(field, field));
         mapping.put(RevenueImport.STATUS, RevenueImport.STATUS);
         var config = new Configuration("来源数据", 1, mapping);
-        var groupFile = imports.upload(group, "混合.xlsx", recognitionWorkbook(imported, digital), null, null);
+        var groupFile = imports.upload(group, "混合.xlsx", recognitionWorkbook(imported, digital, digitalWithoutName, intelligentWithoutName), null, null);
         var groupMapping = imports.save(group, groupFile.id(), groupFile.version(), 2, config, null);
         var groupPreview = imports.save(group, groupFile.id(), groupMapping.version(), 3, config, null);
         assertThat(groupPreview.batch().rows().getFirst().errorsJson()).contains("仅允许系统管理员导入");
         assertThat(groupPreview.batch().validRows()).isEqualTo(1);
+        assertThat(groupPreview.batch().rows().get(2).errorsJson()).contains("通报项目名称必填");
+        assertThat(groupPreview.batch().rows().get(3).errorsJson()).contains("通报项目名称必填");
         assertThatThrownBy(() -> imports.confirm(group, groupPreview.batch().batchId(), List.of(2)))
                 .isInstanceOf(BusinessException.class);
         var groupDone = imports.confirm(group, groupPreview.batch().batchId(), List.of(3));
@@ -450,6 +456,7 @@ class RevenueIT {
         var entry = service.detail(admin, done.rows().getFirst().recordId());
         assertThat(entry.state()).isEqualTo("RECOGNIZED");
         assertThat(entry.recognition().amount()).isEqualByComparingTo("33");
+        assertThat(entry.recognition().reportedProjectName()).isEmpty();
         assertThat(service.detail(reviewer, entry.id()).canRecognize()).isFalse();
         assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), entry.version(), value("1"), group))
                 .isInstanceOf(BusinessException.class);

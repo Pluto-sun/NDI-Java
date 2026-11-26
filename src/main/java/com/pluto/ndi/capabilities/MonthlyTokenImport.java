@@ -2,7 +2,6 @@ package com.pluto.ndi.capabilities;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pluto.ndi.shared.excel.ExcelImportLimits;
 import com.pluto.ndi.shared.excel.ExcelWorkbook;
 import com.pluto.ndi.shared.imports.ImportWorkflow;
 
@@ -33,6 +32,7 @@ class MonthlyTokenImport {
     private record Checked(Row row, UUID agent, UUID existing, MonthlyTokenWorkbook.Image image,
             List<String> failureReasons) {}
     private record AgentMonth(UUID agent, String month) {}
+    private record AgentMatch(String province, String name, String project, String systemId) {}
 
     @Transactional(readOnly = true)
     public Preview preview(UUID actor, byte[] file, String sheet, int year) {
@@ -83,9 +83,9 @@ class MonthlyTokenImport {
     @Transactional
     public int confirm(UUID actor, byte[] file, String sheet, int year, List<String> selection) {
         agents.scope(actor);
-        if (selection == null || selection.isEmpty() || selection.size() > ExcelImportLimits.MAX_ROWS
+        if (selection == null || selection.isEmpty()
                 || new HashSet<>(selection).size() != selection.size())
-            throw invalid("请选择 1 至 2000 条通过预检的记录");
+            throw invalid("请至少选择一条通过预检的记录");
         var selected = Set.copyOf(selection);
         var rows = check(actor, workbook(file, sheet, year), year).stream()
                 .filter(row -> selected.contains(row.row().key()) && row.row().status().equals("READY"))
@@ -93,22 +93,29 @@ class MonthlyTokenImport {
                 .toList();
         if (rows.size() != selected.size())
             throw failure(HttpStatus.CONFLICT, "所选记录已变化，请重新预检");
+        // 同一智能体的月度变更共用锁和历史读取，维持智能体锁的固定顺序。
+        var byAgent = new LinkedHashMap<UUID, List<IntelligenceService.ImportedToken>>();
         for (var item : rows) {
             var image = item.image();
-            agents.importToken(actor, item.agent(), item.row().month(), item.row().amount(),
-                    item.existing(), image == null ? null : image.type(), image == null ? null : image.data());
+            byAgent.computeIfAbsent(item.agent(), ignored -> new ArrayList<>())
+                    .add(new IntelligenceService.ImportedToken(item.row().month(), item.row().amount(),
+                            item.existing(), image == null ? null : image.type(), image == null ? null : image.data()));
         }
+        byAgent.forEach((agent, updates) -> agents.importTokens(actor, agent, updates));
         return rows.size();
     }
 
     private List<Checked> check(UUID actor, MonthlyTokenWorkbook.Content workbook, int year) {
-        var matches = new HashMap<Integer, List<IntelligenceService.Entry>>();
+        var matches = new HashMap<AgentMatch, List<IntelligenceService.Entry>>();
         var history = new HashMap<UUID, List<IntelligenceService.Token>>();
         var counts = new HashMap<AgentMonth, Integer>();
         var result = new ArrayList<Checked>();
         for (var line : workbook.lines()) {
-            var choices = matches.computeIfAbsent(line.row(), row ->
-                    agents.matchTokenAgents(actor, line.province(), line.agent(), line.project(), line.systemId()));
+            var keyForAgent = line.systemId().isBlank()
+                    ? new AgentMatch(line.province(), line.agent(), line.project(), "")
+                    : new AgentMatch("", "", "", line.systemId());
+            var choices = matches.computeIfAbsent(keyForAgent, key ->
+                    agents.matchTokenAgents(actor, key.province(), key.name(), key.project(), key.systemId()));
             String month = "%04d-%02d".formatted(year, line.month());
             var agent = choices.size() == 1 ? choices.getFirst() : null;
             UUID agentId = agent == null ? null : agent.id();

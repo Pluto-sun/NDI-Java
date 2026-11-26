@@ -151,7 +151,14 @@ test('按筛选跨页删除排产并保留未命中记录', async ({ page, reque
   await button.click();
   const confirmation = page.getByRole('dialog', { name: '确认删除筛选结果' });
   await expect(confirmation).toContainText('共匹配 101 条记录');
+  await page.route('**/admin/record-deletions/PRODUCTION/filtered', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
   await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '正在处理' })).toContainText('正在批量删除记录…');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '正在处理' })).toBeVisible();
   await expect(page.getByText('已删除 101 条记录')).toBeVisible();
   const remaining = await request.get(api + path + '?search=' + encodeURIComponent(prefix), {
     headers: admin,

@@ -19,7 +19,6 @@ import com.pluto.ndi.projects.repository.ProjectImportRowRevisionRepository;
 import com.pluto.ndi.projects.repository.ProjectIndustryReferenceRepository;
 import com.pluto.ndi.projects.repository.ProjectRepository;
 import com.pluto.ndi.projects.util.ProjectExcelReader;
-import com.pluto.ndi.shared.excel.ExcelImportLimits;
 import com.pluto.ndi.projects.util.ProjectImportWorkbookWriter;
 import com.pluto.ndi.projects.util.ProjectNameMatcher;
 import com.pluto.ndi.projects.util.ProjectNarrativeText;
@@ -191,8 +190,6 @@ public class ProjectImportService {
         List<ProjectExcelReader.ExcelRow> source;
         try {
             source = reader.read(bytes, sheetName, headerRowNo, fieldMapping);
-        } catch (ExcelImportLimits.RowLimitExceeded exception) {
-            throw new BusinessException(ProjectErrorCode.IMPORT_TOO_MANY_ROWS);
         } catch (IOException | RuntimeException exception) {
             throw new BusinessException(ProjectErrorCode.IMPORT_INVALID_FILE);
         }
@@ -556,7 +553,7 @@ public class ProjectImportService {
                                     selectedRowNumbers == null
                                             ? ready
                                             : new HashSet<>(selectedRowNumbers);
-                            if (selected.isEmpty() || selected.size() > ExcelImportLimits.MAX_ROWS
+                            if (selected.isEmpty()
                                     || selectedRowNumbers != null
                                             && (selected.size() != selectedRowNumbers.size()
                                                     || !ready.containsAll(selected))) {

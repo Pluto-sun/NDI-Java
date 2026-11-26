@@ -1,3 +1,4 @@
+import { revenueAmount, revenueCardAmount } from '../src/features/revenue-cockpit/format';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { chooseActor, get, ids } from './support/projects';
@@ -110,12 +111,26 @@ async function addRecognition(
   expect(approved.ok(), await approved.text()).toBe(true);
 }
 
-test('年度快照在四种视口完整展示，明细翻页与组织行正常', async ({ page, request }, info) => {
+test('年度快照在四种视口完整展示，明细内部滚动与组织行正常', async ({ page, request }, info) => {
   const before = await request.get(root + '/annual-overview', auth());
   expect(before.ok(), await before.text()).toBe(true);
   const prior: AnnualOverview = (await before.json()).data;
   const ref = await get<ReferenceData>(request, ids.admin, '/reference-data');
-  const names = ['广东', '湖北', '江苏', '四川', '山东', '河南'];
+  const names = [
+    '广东',
+    '湖北',
+    '江苏',
+    '四川',
+    '山东',
+    '河南',
+    '浙江',
+    '安徽',
+    '福建',
+    '江西',
+    '云南',
+    '湖南',
+    '河北',
+  ];
   for (const [index, name] of names.entries()) {
     const province = ref.provinces.find((option) => option.name.startsWith(name))!;
     await addRecognition(
@@ -127,7 +142,7 @@ test('年度快照在四种视口完整展示，明细翻页与组织行正常',
     );
   }
   for (const [index, org] of ['数科', '数智'].entries()) {
-    await addRecognition(request, prior.year, prior.currentMonth, index + 6, null, org);
+    await addRecognition(request, prior.year, prior.currentMonth, index + names.length, null, org);
   }
 
   await page.goto(path);
@@ -135,12 +150,13 @@ test('年度快照在四种视口完整展示，明细翻页与组织行正常',
   const board = page.getByTestId('revenue-board');
   const metrics = page.getByRole('region', { name: '年度计收指标' });
   await expect(metrics.getByRole('heading')).toHaveCount(6);
-  await expect(metrics.getByText('6', { exact: true })).toBeVisible();
+  await expect(metrics.getByText('13', { exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: '三化累计计收省分地图' })).toBeVisible();
   const ranking = page.getByRole('region', { name: '累计计收金额 TOP 10' });
   for (const org of ['数科', '数智'])
     await expect(ranking.getByRole('rowheader', { name: org })).toBeVisible();
   const details = page.getByRole('region', { name: '各省各月份计收及格物差距明细' });
+  const scroll = details.getByRole('region', { name: '计收明细滚动区域' });
   const organization = details
     .getByRole('row')
     .filter({ has: page.getByRole('rowheader', { name: '数智', exact: true }) });
@@ -166,7 +182,9 @@ test('年度快照在四种视口完整展示，明细翻页与组织行正常',
         document.documentElement.scrollHeight,
       ]),
     ).toEqual([width, height]);
-    await expect(details.getByRole('button', { name: '下一页' })).toBeInViewport();
+    expect(await scroll.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+      true,
+    );
     for (const table of await board.locator('table').all()) {
       expect(
         await table.evaluate(
@@ -176,11 +194,50 @@ test('年度快照在四种视口完整展示，明细翻页与组织行正常',
     }
     await page.screenshot({ path: info.outputPath(`revenue-${width}x${height}.png`) });
   }
-  await details.getByRole('button', { name: '下一页' }).click();
-  await expect(details.getByText('2 / 2')).toBeVisible();
+  await expect(details.getByRole('button', { name: '下一页' })).toHaveCount(0);
+  const bounds = (await scroll.boundingBox())!;
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height * 0.8;
+  if (info.project.name === 'small-screen') {
+    const device = await page.context().newCDPSession(page);
+    await device.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await device.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let step = 1; step <= 5; step++) {
+      await device.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x, y: y - (step * bounds.height) / 10 }],
+      });
+    }
+    await device.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await device.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await device.detach();
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.wheel(0, 70);
+  }
+  await expect.poll(async () => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const header = scroll.getByRole('columnheader', { name: '1月', exact: true });
+  const position = (await header.boundingBox())!.y;
+  await scroll.focus();
+  await page.keyboard.press('End');
+  await expect
+    .poll(async () =>
+      scroll.evaluate((element) => element.scrollHeight - element.scrollTop - element.clientHeight),
+    )
+    .toBeLessThan(2);
+  expect((await header.boundingBox())!.y).toBeCloseTo(position, 0);
+  await expect(scroll.locator('tbody tr').last().getByRole('rowheader')).toBeInViewport();
+  await expect(metrics.getByText('千万元', { exact: true })).toHaveCount(5);
+  await expect(details.getByText('三化计收（万元）', { exact: true })).toBeVisible();
+  expect(revenueCardAmount('12345')).toBe('12.35');
+  expect(revenueCardAmount('-12345.5')).toBe('-12.35');
+  expect(revenueCardAmount('0.000001')).toBe('0');
+  expect(revenueAmount('12345')).toBe('12,345');
+  expect(revenueAmount('9023372036854775807.125')).toBe('9,023,372,036,854,775,807.13');
   const trend = page.getByRole('region', { name: '1–12 月三化计收趋势' });
   await trend.locator('g[tabindex]').first().focus();
   await expect(trend.getByRole('tooltip')).toContainText('1月');
+  await expect(trend.getByRole('tooltip')).toContainText('万元');
   await page.reload();
   await expect(metrics.getByRole('heading')).toHaveCount(6);
   expect([401, 403]).toContain((await request.get(root + '/annual-overview')).status());

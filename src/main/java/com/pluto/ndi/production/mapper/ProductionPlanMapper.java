@@ -216,6 +216,35 @@ SELECT COUNT(*) FROM production_plan WHERE deleted_at IS NULL AND plan_month=:mo
                 > 0;
     }
 
+    public Set<ProductionPlan.Command> existingDuplicates(List<ProductionPlan.Command> commands) {
+        var result = new HashSet<ProductionPlan.Command>();
+        for (int start = 0; start < commands.size(); start += 500) {
+            var block = commands.subList(start, Math.min(start + 500, commands.size()));
+            var keys = block.stream().map(c -> List.of(c.planMonth() + "-01",
+                    c.provinceId().toString(), c.cityId().toString(),
+                    ProductionRules.normalize(c.projectName()), ProductionRules.normalize(c.customerName()))).toList();
+            String encoded;
+            try {
+                encoded = json.writeValueAsString(keys);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+                throw new IllegalStateException("无法构造排产判重参数", failure);
+            }
+            var found = jdbc.queryForList("""
+                    SELECT k.row_no FROM JSON_TABLE(:keys, '$[*]' COLUMNS (
+                        row_no FOR ORDINALITY, plan_month DATE PATH '$[0]',
+                        province VARCHAR(36) PATH '$[1]', city VARCHAR(36) PATH '$[2]',
+                        project_name VARCHAR(300) PATH '$[3]', customer_name VARCHAR(300) PATH '$[4]'
+                    )) k
+                    JOIN production_plan p ON p.active_slot=1 AND p.plan_month=k.plan_month
+                        AND p.province_id=UUID_TO_BIN(k.province) AND p.city_id=UUID_TO_BIN(k.city)
+                        AND p.normalized_project=CONVERT(k.project_name USING utf8mb4) COLLATE utf8mb4_bin
+                        AND p.normalized_customer=CONVERT(k.customer_name USING utf8mb4) COLLATE utf8mb4_bin
+                    """, Map.of("keys", encoded), Integer.class);
+            found.forEach(index -> result.add(block.get(index - 1)));
+        }
+        return result;
+    }
+
     public void save(UUID id, UUID actor, ProductionPlan.Command c, boolean create, Instant now) {
         var args =
                 new MapSqlParameterSource("id", id.toString())

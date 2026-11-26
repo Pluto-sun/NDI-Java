@@ -150,11 +150,16 @@ public class RevenueFields {
     }
 
     public Revenue.Recognition recognition(Revenue.Recognition value) {
+        return recognition(value, false);
+    }
+
+    public Revenue.Recognition recognition(Revenue.Recognition value, boolean allowEmptyName) {
         if (value == null || value.amount() == null) throw invalid("认定金额必填");
         var amount = amount(value.amount().toString(), "认定金额", false);
         if (amount.signum() <= 0) throw invalid("认定金额须大于零");
         String name = Objects.toString(value.reportedProjectName(), "").strip();
-        if (name.isEmpty() || name.length() > 300) throw invalid("通报项目名称须为1至300字");
+        if (!allowEmptyName && name.isEmpty()) throw invalid("通报项目名称必填");
+        if (name.length() > 300) throw invalid("通报项目名称不能超过300字");
         String status = Objects.toString(value.projectStatus(), "").strip();
         if (!status.isBlank() && !Revenue.PROJECT_STATUSES.contains(status))
             throw invalid("项目状态须为实施中、已交付或已上线");

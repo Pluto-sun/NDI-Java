@@ -97,9 +97,11 @@ export async function requestAt<T>(
   try {
     response = await fetch(`${root}${path}`, { ...init, headers, credentials: 'same-origin' });
   } catch {
+    init.signal?.throwIfAborted();
     throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
   }
   const body = (await response.json().catch(() => null)) as (ApiEnvelope<T> & ProblemBody) | null;
+  init.signal?.throwIfAborted();
   if (!response.ok || !body || body.code !== 'OK') {
     if (sessionMode && mutating && retryCsrf && body?.code === 'AUTH_CSRF_INVALID') {
       clearCsrfToken();
@@ -134,6 +136,7 @@ export async function requestBlobAt(
   try {
     response = await fetch(`${root}${path}`, { ...init, headers, credentials: 'same-origin' });
   } catch {
+    init.signal?.throwIfAborted();
     throw new ApiError('NETWORK_ERROR', '无法连接 Java 服务，请确认 8080 端口已启动。', 0);
   }
   if (!response.ok) {

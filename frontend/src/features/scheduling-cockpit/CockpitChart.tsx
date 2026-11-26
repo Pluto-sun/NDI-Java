@@ -13,7 +13,7 @@ function tickStep(span: number) {
   const ideal = span / ticks;
   const magnitude = 10 ** Math.floor(Math.log10(ideal));
   const step = [1, 2, 2.5, 5, 10].find((factor) => factor * magnitude >= ideal) ?? 10;
-  return step * magnitude;
+  return Math.max(0.01, step * magnitude);
 }
 
 export function CockpitChart({
@@ -116,7 +116,7 @@ export function CockpitChart({
                   className={Math.abs(value / step) < 0.00001 ? 'sc-zero-line' : 'sc-gridline'}
                 />
                 <text x={left - 6} y={y(value) + 3} textAnchor="end">
-                  {+value.toPrecision(5)}
+                  {value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                 </text>
               </g>
             ))}
@@ -141,9 +141,15 @@ export function CockpitChart({
             {points.map(({ row, planned, recognized, rate }, i) => {
               const x = left + slot * (i + 0.5);
               const bars = [
-                { value: planned, x: x - bar - 1, color: 'sc-series-plan' },
+                {
+                  value: planned,
+                  amount: row.amounts.planned,
+                  x: x - bar - 1,
+                  color: 'sc-series-plan',
+                },
                 {
                   value: recognized,
+                  amount: row.amounts.recognized,
                   x: x + 1,
                   color: increments ? 'sc-series-rate' : 'sc-series-revenue',
                 },
@@ -167,7 +173,7 @@ export function CockpitChart({
                     fillOpacity={0.55}
                     className="sc-chart-hit"
                   />
-                  {bars.map(({ value, x: barX, color }) => (
+                  {bars.map(({ value, amount, x: barX, color }) => (
                     <g key={color} pointerEvents="none">
                       <rect
                         x={barX}
@@ -184,7 +190,7 @@ export function CockpitChart({
                           y={yZero - 11}
                           textAnchor="middle"
                         >
-                          {value.toFixed(2)}
+                          {formatMoney(amount)}
                         </text>
                       )}
                     </g>

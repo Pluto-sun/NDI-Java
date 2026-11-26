@@ -55,7 +55,7 @@ class ProjectImportWorkbookWriterTest {
                 assertThat(validation.getSuppressDropDownArrow()).isTrue();
                 var area = validation.getRegions().getCellRangeAddresses()[0];
                 assertThat(area.getFirstRow()).isEqualTo(1);
-                assertThat(area.getLastRow()).isEqualTo(2000);
+                assertThat(area.getLastRow()).isEqualTo(org.apache.poi.ss.SpreadsheetVersion.EXCEL2007.getLastRowIndex());
             }
             for (var rule : sheet.getCTWorksheet().getDataValidations().getDataValidationArray())
                 assertThat(rule.getShowDropDown()).isFalse();

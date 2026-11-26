@@ -1,6 +1,5 @@
 package com.pluto.ndi.shared.imports;
 
-import com.pluto.ndi.shared.excel.ExcelImportLimits;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.shared.audit.AuditWriter;
@@ -49,6 +48,14 @@ public abstract class TabularImportEngine<C> {
     protected abstract List<String> missing(Map<String, String> mapping);
 
     protected abstract C validate(UUID actor, Map<String, String> cells);
+
+    protected java.util.function.Function<Map<String, String>, C> batchValidator(UUID actor) {
+        return cells -> validate(actor, cells);
+    }
+
+    protected UUID createValidated(UUID actor, Map<String, String> cells, C command) {
+        return create(actor, cells);
+    }
 
     protected abstract Object duplicateKey(C value);
 
@@ -296,11 +303,11 @@ public abstract class TabularImportEngine<C> {
         if (old.step() != 3
                 || selection == null
                 || selection.isEmpty()
-                || selection.size() > ExcelImportLimits.MAX_ROWS
                 || new HashSet<>(selection).size() != selection.size())
-            throw invalid("请选择 1 至 " + ExcelImportLimits.MAX_ROWS + " 条通过预检的记录");
+            throw invalid("请至少选择一条通过预检的记录");
         // 确认时重查范围和库内重复；所有选中行在同一事务完成，避免一项任务产生可续导的半成品。
-        var fresh = validateRows(actor, batch, old.batch().rows());
+        var checked = checkRows(actor, batch, old.batch().rows());
+        var fresh = checked.batch();
         var byNumber = new HashMap<Integer, Row>();
         fresh.rows().forEach(row -> byNumber.put(row.rowNumber(), row));
         if (selection.stream()
@@ -311,7 +318,7 @@ public abstract class TabularImportEngine<C> {
         var result = new ArrayList<Row>();
         for (var row : fresh.rows()) {
             if (selectedRows.contains(row.rowNumber())) {
-                var recordId = create(actor, cells(row));
+                var recordId = createValidated(actor, cells(row), checked.commands().get(row.rowNumber()));
                 result.add(
                         new Row(
                                 row.rowNumber(),
@@ -368,7 +375,14 @@ public abstract class TabularImportEngine<C> {
         return completed;
     }
 
+    private record Validation<C>(Batch batch, Map<Integer, C> commands) {}
+
     private Batch validateRows(UUID actor, UUID batch, List<Row> source) {
+        return checkRows(actor, batch, source).batch();
+    }
+
+    private Validation<C> checkRows(UUID actor, UUID batch, List<Row> source) {
+        var validator = batchValidator(actor);
         var result = new ArrayList<Row>();
         var seen = new HashSet<Object>();
         var commands = new HashMap<Integer, C>();
@@ -376,7 +390,7 @@ public abstract class TabularImportEngine<C> {
         for (var row : source) {
             var errors = new ArrayList<String>();
             try {
-                var command = validate(actor, cells(row));
+                var command = validator.apply(cells(row));
                 var key = duplicateKey(command);
                 if (key != null && !seen.add(key)) errors.add("与文件内前序记录重复：业务唯一键相同");
                 commands.put(row.rowNumber(), command);
@@ -402,7 +416,7 @@ public abstract class TabularImportEngine<C> {
                             row.revisionNo(),
                             null));
         }
-        return new Batch(
+        return new Validation<>(new Batch(
                 batch,
                 "PREVIEWED",
                 result.size(),
@@ -411,7 +425,7 @@ public abstract class TabularImportEngine<C> {
                 0,
                 0,
                 null,
-                result);
+                result), commands);
     }
 
     private ImportTaskStore.Stored require(UUID actor, UUID id, long version) {

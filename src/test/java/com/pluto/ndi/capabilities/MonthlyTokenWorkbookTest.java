@@ -95,8 +95,7 @@ class MonthlyTokenWorkbookTest {
         var accepted = MonthlyTokenWorkbook.read(content, null);
         assertThat(accepted.lines()).hasSize(2001);
         assertThat(accepted.lines().getFirst().image().data()).hasSize(11 * 1024 * 1024);
-        assertThatThrownBy(() -> MonthlyTokenWorkbook.read(tokenWorkbook(2001, false), null))
-                .hasMessageContaining("2000");
+        assertThat(MonthlyTokenWorkbook.read(tokenWorkbook(2001, false), null).lines()).hasSize(2002);
     }
 
     private static byte[] tokenWorkbook(int rows, boolean withImage) throws Exception {

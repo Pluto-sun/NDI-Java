@@ -353,11 +353,15 @@ version_updated_date=:date,details=CAST(:details AS JSON),updated_at=:at,version
 
     public List<Token> tokens(UUID actor, UUID agent) {
         detail(actor, IntelligenceKind.AGENTS_LIVE, agent, false);
+        return tokens(agent, false);
+    }
+
+    private List<Token> tokens(UUID agent, boolean lock) {
         return jdbc.query(
                 """
 SELECT BIN_TO_UUID(id),metric_month,amount,BIN_TO_UUID(screenshot_id)
 FROM intelligence_token WHERE agent_id=UUID_TO_BIN(:agent) ORDER BY metric_month DESC
-""",
+""" + (lock ? " FOR UPDATE" : ""),
                 Map.of("agent", agent.toString()),
                 (rs, i) ->
                         new Token(
@@ -394,23 +398,41 @@ FROM intelligence_token WHERE agent_id=UUID_TO_BIN(:agent) ORDER BY metric_month
         return jdbc.query(SELECT + where + " LIMIT 2", args, this::row);
     }
 
-    @Transactional
-    public void importToken(UUID actor, UUID agent, String month, String amount,
-            UUID expected, String imageType, byte[] image) {
+    record ImportedToken(String month, String amount, UUID expected, String imageType, byte[] image) {}
+
+    void importTokens(UUID actor, UUID agent, List<ImportedToken> rows) {
         detail(actor, IntelligenceKind.AGENTS_LIVE, agent, true);
-        var old = tokens(actor, agent).stream().filter(t -> t.month().equals(month)).findFirst().orElse(null);
-        if (old != null && (!old.id().equals(expected) || old.screenshotId() != null
-                || image == null || decimal(old.amount(), "Token 量").compareTo(decimal(amount, "Token 量")) != 0)
-                || old == null && expected != null)
-            throw failure(HttpStatus.CONFLICT, "月度记录已变化，请重新预检");
-        var id = old == null ? saveToken(actor, agent, null, month, amount) : old.id();
-        if (image != null) {
-            var document = documents.storeImage(SCREENSHOT, id, actor, imageType, image);
-            jdbc.update(
-                    "UPDATE intelligence_token SET screenshot_id=UUID_TO_BIN(:document) WHERE id=UUID_TO_BIN(:id)",
-                    Map.of("document", document.toString(), "id", id.toString()));
-            touch(agent);
+        var history = new HashMap<String, Token>();
+        tokens(agent, true).forEach(token -> history.put(token.month(), token));
+        int increments = 0;
+        for (var row : rows) {
+            var old = history.get(row.month());
+            var amount = decimal(row.amount(), "Token 量");
+            if (old != null && (!old.id().equals(row.expected()) || old.screenshotId() != null
+                    || row.image() == null || decimal(old.amount(), "Token 量").compareTo(amount) != 0)
+                    || old == null && row.expected() != null)
+                throw failure(HttpStatus.CONFLICT, "月度记录已变化，请重新预检");
+
+            var id = old == null ? UUID.randomUUID() : old.id();
+            if (old == null) {
+                try {
+                    jdbc.update("""
+                            INSERT INTO intelligence_token(id,agent_id,metric_month,amount)
+                            VALUES(UUID_TO_BIN(:id),UUID_TO_BIN(:agent),:month,:amount)
+                            """, Map.of("id", id.toString(), "agent", agent.toString(), "month", row.month(), "amount", amount));
+                } catch (org.springframework.dao.DuplicateKeyException conflict) {
+                    throw failure(HttpStatus.CONFLICT, "月度记录已变化，请重新预检");
+                }
+                increments++;
+            }
+            if (row.image() != null) {
+                var document = documents.storeImage(SCREENSHOT, id, actor, row.imageType(), row.image());
+                jdbc.update("UPDATE intelligence_token SET screenshot_id=UUID_TO_BIN(:document) WHERE id=UUID_TO_BIN(:id)",
+                        Map.of("document", document.toString(), "id", id.toString()));
+                increments++;
+            }
         }
+        touch(agent, increments);
     }
 
     public UUID saveToken(UUID actor, UUID agent, UUID id, String month, String amount) {
@@ -489,9 +511,13 @@ FROM intelligence_token WHERE agent_id=UUID_TO_BIN(:agent) ORDER BY metric_month
     }
 
     private void touch(UUID agent) {
+        touch(agent, 1);
+    }
+
+    private void touch(UUID agent, int increments) {
         jdbc.update(
-                "UPDATE intelligence_capability SET updated_at=:at,version_no=version_no+1 WHERE"
+                "UPDATE intelligence_capability SET updated_at=:at,version_no=version_no+:increments WHERE"
                     + " id=UUID_TO_BIN(:id)",
-                Map.of("at", Timestamp.from(clock.instant()), "id", agent.toString()));
+                Map.of("at", Timestamp.from(clock.instant()), "id", agent.toString(), "increments", increments));
     }
 }

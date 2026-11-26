@@ -1,12 +1,10 @@
-import { useState } from 'react';
-import { formatMoney } from '../scheduling-cockpit/overview';
+import { revenueAmount } from './format';
 import type { AnnualOverview, Region } from './annualOverview';
 
-const pageSize = 6;
 const metrics = ['签约数', '计收数', '数量差距', '签约金额', '计收金额', '金额差距'];
 
 function Amount({ value }: { value: string }) {
-  return <td title={formatMoney(value, '万') + ' 万元'}>{formatMoney(value)}</td>;
+  return <td title={revenueAmount(value) + ' 万元'}>{revenueAmount(value)}</td>;
 }
 
 export function RevenueRanking({ regions }: { regions: Region[] }) {
@@ -30,14 +28,14 @@ export function RevenueRanking({ regions }: { regions: Region[] }) {
             <th scope="row" title={row.name}>
               {row.name}
             </th>
-            <td title={formatMoney(row.total.total, '万') + ' 万元'}>
+            <td title={revenueAmount(row.total.total) + ' 万元'}>
               <div className="rc-rank-value">
                 <span className="rc-rank-track" aria-hidden="true">
                   <i
                     style={{ width: Math.max(0, (Number(row.total.total) / maximum) * 100) + '%' }}
                   />
                 </span>
-                <span>{formatMoney(row.total.total)}</span>
+                <span>{revenueAmount(row.total.total)}</span>
               </div>
             </td>
           </tr>
@@ -53,12 +51,8 @@ export function RevenueRanking({ regions }: { regions: Region[] }) {
 }
 
 export function RevenueDetails({ data }: { data: AnnualOverview }) {
-  const [page, setPage] = useState(0);
-  const pages = Math.max(1, Math.ceil(data.regions.length / pageSize));
-  const active = Math.min(page, pages - 1);
-  const visible = data.regions.slice(active * pageSize, (active + 1) * pageSize);
   return (
-    <>
+    <div className="rc-detail-scroll" role="region" aria-label="计收明细滚动区域" tabIndex={0}>
       <table className="sc-data rc-details">
         <thead>
           <tr>
@@ -66,10 +60,10 @@ export function RevenueDetails({ data }: { data: AnnualOverview }) {
               省分 / 组织
             </th>
             <th colSpan={13} scope="colgroup">
-              三化计收（亿元）
+              三化计收（万元）
             </th>
             <th colSpan={6} scope="colgroup">
-              格物签约与计收差距（个 / 亿元）
+              格物签约与计收差距（个 / 万元）
             </th>
           </tr>
           <tr>
@@ -87,7 +81,7 @@ export function RevenueDetails({ data }: { data: AnnualOverview }) {
           </tr>
         </thead>
         <tbody>
-          {visible.map((row) => (
+          {data.regions.map((row) => (
             <tr key={row.key}>
               <th scope="row" title={row.name}>
                 {row.name}
@@ -116,39 +110,13 @@ export function RevenueDetails({ data }: { data: AnnualOverview }) {
               )}
             </tr>
           ))}
-          {!visible.length && (
+          {!data.regions.length && (
             <tr>
               <td colSpan={20}>当前可见范围内暂无年度数据</td>
             </tr>
           )}
         </tbody>
       </table>
-      {pages > 1 && (
-        <div className="sc-table-footer">
-          <span>{data.regions.length} 个归属</span>
-          <nav aria-label="计收明细分页">
-            <button
-              type="button"
-              aria-label="上一页"
-              disabled={active === 0}
-              onClick={() => setPage(active - 1)}
-            >
-              ‹
-            </button>
-            <span aria-live="polite">
-              {active + 1} / {pages}
-            </span>
-            <button
-              type="button"
-              aria-label="下一页"
-              disabled={active === pages - 1}
-              onClick={() => setPage(active + 1)}
-            >
-              ›
-            </button>
-          </nav>
-        </div>
-      )}
-    </>
+    </div>
   );
 }

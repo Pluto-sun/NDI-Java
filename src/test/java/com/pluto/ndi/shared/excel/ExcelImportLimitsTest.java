@@ -19,17 +19,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExcelImportLimitsTest {
     @Test
-    void readersCountDataRowsWithoutCountingHeaders() throws Exception {
-        var allowed = workbook(2000);
-        var rejected = workbook(2001);
-        var reader = new ProjectExcelReader();
-        assertThat(reader.read(allowed)).hasSize(2000);
-        assertThatThrownBy(() -> reader.read(rejected)).hasMessageContaining("2000");
+    void readersAcceptWorkbooksBeyondTheFormerRowLimit() throws Exception {
         var mapping = Map.of("项目名称", "项目名称");
-        var fields = List.of("项目名称");
-        assertThat(ExcelWorkbook.read(allowed, "导入数据", 1, mapping, fields)).hasSize(2000);
-        assertThatThrownBy(() -> ExcelWorkbook.read(rejected, "导入数据", 1, mapping, fields))
-                .hasMessageContaining("2000");
+        for (int count : List.of(2001, 4200)) {
+            var bytes = workbook(count);
+            assertThat(new ProjectExcelReader().read(bytes)).hasSize(count);
+            assertThat(ExcelWorkbook.read(bytes, "导入数据", 1, mapping, List.of("项目名称"))).hasSize(count);
+        }
     }
 
     @Test

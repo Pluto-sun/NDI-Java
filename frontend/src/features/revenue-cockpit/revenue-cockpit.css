@@ -214,3 +214,34 @@
   background: linear-gradient(90deg, #eb7989, #b92034);
   border-radius: 2px;
 }
+
+.rc-detail-scroll {
+  overflow: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.rc-detail-scroll thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.rc-detail-scroll:focus-visible {
+  outline-offset: -2px;
+}
+.rc-details td {
+  font-size: 10px;
+}
+.rc-rank-value {
+  grid-template-columns: minmax(0, 1fr) 83px;
+}
+.rc-board .sc-metric-reading strong {
+  font-size: 29px;
+}
+.rc-gap strong {
+  font-size: 16px;
+}
+.rc-gewu dd strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

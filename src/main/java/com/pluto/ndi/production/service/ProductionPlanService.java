@@ -95,6 +95,17 @@ public class ProductionPlanService implements ProductionRecordDeletion {
         return mapper.duplicate(c, new UUID(0, 0));
     }
 
+    Set<ProductionPlan.Command> existingDuplicates(List<ProductionPlan.Command> commands) {
+        return mapper.existingDuplicates(commands);
+    }
+
+    UUID createImported(UUID actor, ProductionPlan.Command validated) {
+        var id = UUID.randomUUID();
+        // 确认前已在当前导入事务中校验，数据库唯一约束继续防止并发重复。
+        store(id, actor, validated, true);
+        return id;
+    }
+
     public ProductionPlan create(UUID actor, ProductionPlan.Command input) {
         var c = validate(actor, input);
         var id = UUID.randomUUID();
@@ -142,6 +153,10 @@ public class ProductionPlanService implements ProductionRecordDeletion {
 
     private void write(UUID id, UUID actor, ProductionPlan.Command c, boolean create) {
         if (mapper.duplicate(c, id)) throw new BusinessException(ProductionError.conflict());
+        store(id, actor, c, create);
+    }
+
+    private void store(UUID id, UUID actor, ProductionPlan.Command c, boolean create) {
         try {
             mapper.save(id, actor, c, create, Instant.now(clock));
         } catch (DataIntegrityViolationException e) {
