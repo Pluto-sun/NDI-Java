@@ -94,7 +94,8 @@ public abstract class TabularImportEngine<C> {
     @Transactional
     public Task current(UUID actor) {
         authorize(actor);
-        return tasks.find(actor).map(ImportTaskStore.Stored::task).orElse(null);
+        // 暂存任务恢复时使用当前字段说明，与服务端映射校验保持一致。
+        return tasks.find(actor).map(stored -> stored.task().withFieldRules(rules())).orElse(null);
     }
 
     public Task upload(UUID actor, String fileName, byte[] data, Long version, UUID expected) {
@@ -193,7 +194,7 @@ public abstract class TabularImportEngine<C> {
                         selected,
                         batch,
                         Instant.now(clock),
-                        old.fieldRules());
+                        rules());
         tasks.save(actor, with(stored, next));
         return next;
     }
@@ -291,7 +292,7 @@ public abstract class TabularImportEngine<C> {
                                 old.selectedRows(),
                                 nextBatch,
                                 Instant.now(clock),
-                                old.fieldRules())));
+                                rules())));
         return nextBatch;
     }
 

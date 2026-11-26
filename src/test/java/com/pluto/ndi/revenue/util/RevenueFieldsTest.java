@@ -49,7 +49,7 @@ class RevenueFieldsTest {
         assertThat(result.fields()).containsEntry("条款编号", "");
         assertThat(RevenueImport.REQUIRED)
                 .containsExactlyInAnyOrder("月账期", "费用账期", "省份名称", "地市/组织名称",
-                        "业务号码/项目编号", "合同编号", "产品名称", "条款金额", RevenueFields.SOURCE_AMOUNT, "三化分类");
+                        "业务号码/项目编号", "产品名称", "条款金额", RevenueFields.SOURCE_AMOUNT, "三化分类");
         assertThat(RevenueImport.rules().stream().filter(r -> r.name().equals("条款编号")).findFirst())
                 .isPresent();
         for (String blank : new String[] {"", "   "}) {
@@ -67,6 +67,21 @@ class RevenueFieldsTest {
         assertThat(fields.normalize(input).fields()).containsEntry("项目名称", "");
         input.put("合同编号", "--");
         assertThatThrownBy(() -> fields.normalize(input)).hasMessageContaining("合同编号必填");
+        for (var category : new String[] {"数字化", "智能化"}) {
+            input.put("三化分类", category);
+            assertThatThrownBy(() -> fields.normalizeImport(input)).hasMessageContaining("合同编号必填");
+        }
+        input.put("三化分类", "网络化");
+        for (var value : new String[] {"", "   ", "--", "—", "N/A"}) {
+            input.put("合同编号", value);
+            assertThat(fields.normalizeImport(input).contractNo()).isEmpty();
+        }
+        input.put("合同编号", "00042");
+        assertThat(fields.normalizeImport(input).contractNo()).isEqualTo("00042");
+        assertThat(RevenueImport.rules()).anySatisfy(rule -> {
+            assertThat(rule.name()).isEqualTo("合同编号");
+            assertThat(rule.requirement()).isEqualTo("CONDITIONAL");
+        });
         var missingAmount = source();
         missingAmount.put("条款金额", "--");
         assertThatThrownBy(() -> fields.normalize(missingAmount)).hasMessageContaining("条款金额必填");

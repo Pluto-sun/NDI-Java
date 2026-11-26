@@ -453,7 +453,7 @@ test('数字条款归一后四字段查重，创建与导入支持常见审签�
   expect(list.items[0].source['审签日期']).toBe('2026-07-20');
 });
 
-test('六个来源字段在新增、映射和预检中必填，可修正后导入', async ({ page, request }) => {
+test('计收新增校验六个必填来源字段，导入可修正缺失的产品名称', async ({ page, request }) => {
   const contract = 'REQUIRED-' + randomUUID();
   await page.goto('/revenue/new');
   await switchActor(page, ids.admin);
@@ -591,13 +591,11 @@ test('集团导入数字化和智能化时四项认定信息直接生效', async
   }
 });
 
-test('管理员导入网络化时可留空通报项目名称，数字化和智能化直接认定时必填', async ({
-  page,
-  request,
-}) => {
-  const prefix = 'IMPORT-REPORTED-NAME-' + randomUUID();
+test('网络化导入允许取消合同编号映射，其他分类预检报错', async ({ page, request }) => {
+  const prefix = 'IMPORT-NO-CONTRACT-' + randomUUID();
   const rows = ['网络化', '数字化', '智能化'].map((category) => ({
     ...source(prefix + '-' + category),
+    '业务号码/项目编号': prefix + '-' + category,
     三化分类: category,
     认定金额: '23.50',
     '对应省分（集成）': '数智',
@@ -605,7 +603,7 @@ test('管理员导入网络化时可留空通报项目名称，数字化和智�
   await page.goto('/revenue/import');
   await switchActor(page, ids.admin);
   await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
-    name: '分类通报项目名称.xlsx',
+    name: '分类合同编号.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: importWorkbook(rows),
   });
@@ -613,14 +611,18 @@ test('管理员导入网络化时可留空通报项目名称，数字化和智�
   await expect(page.getByRole('combobox', { name: '映射：通报项目名称', exact: true })).toHaveValue(
     '',
   );
+  const contract = page.getByRole('combobox', { name: '映射：合同编号', exact: true });
+  await expect(page.getByText('网络化可留空，数字化、智能化必填')).toBeVisible();
+  await contract.selectOption('');
   await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
-  await expect(page.getByText('通报项目名称必填', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('合同编号必填', { exact: true })).toHaveCount(2);
   await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
   await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
   const { items } = await api<{ items: Entry[] }>(request, ids.admin, '?search=' + prefix);
   expect(items).toHaveLength(1);
   expect(items[0].source['三化分类']).toBe('网络化');
   expect(items[0].state).toBe('RECOGNIZED');
+  expect(items[0].contractNo).toBe('');
   expect(items[0].recognition?.reportedProjectName).toBe('');
   expect(Number(items[0].recognition?.amount)).toBe(23.5);
 });

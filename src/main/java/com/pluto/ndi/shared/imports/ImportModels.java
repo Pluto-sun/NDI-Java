@@ -44,5 +44,10 @@ public class ImportModels {
             List<Integer> selectedRows,
             Batch batch,
             Instant updatedAt,
-            List<Rule> fieldRules) {}
+            List<Rule> fieldRules) {
+        public Task withFieldRules(List<Rule> rules) {
+            return new Task(id, version, step, fileName, inspection, configuration,
+                    selectedRows, batch, updatedAt, rules);
+        }
+    }
 }

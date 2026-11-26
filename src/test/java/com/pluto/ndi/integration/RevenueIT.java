@@ -448,15 +448,24 @@ class RevenueIT {
         assertThat(digitalEntry.recognition().projectStatus()).isEqualTo("已上线");
         assertThat(digitalEntry.recognition().integratedProvinceId()).isEqualTo(province);
 
-        var adminFile = imports.upload(admin, "网络化.xlsx", recognitionWorkbook(imported), null, null);
-        var adminMapping = imports.save(admin, adminFile.id(), adminFile.version(), 2, config, null);
-        var adminPreview = imports.save(admin, adminFile.id(), adminMapping.version(), 3, config, null);
+        mapping.remove("合同编号");
+        var noContract = new Configuration("来源数据", 1, mapping);
+        var adminFile = imports.upload(admin, "网络化.xlsx", recognitionWorkbook(imported, digital, intelligent), null, null);
+        var adminMapping = imports.save(admin, adminFile.id(), adminFile.version(), 2, noContract, null);
+        var adminPreview = imports.save(admin, adminFile.id(), adminMapping.version(), 3, noContract, null);
+        assertThat(adminPreview.batch().rows().get(1).errorsJson()).contains("合同编号必填");
+        assertThat(adminPreview.batch().rows().get(2).errorsJson()).contains("合同编号必填");
         assertThat(adminPreview.batch().validRows()).isEqualTo(1);
         var done = imports.confirm(admin, adminPreview.batch().batchId(), List.of(2));
         var entry = service.detail(admin, done.rows().getFirst().recordId());
         assertThat(entry.state()).isEqualTo("RECOGNIZED");
         assertThat(entry.recognition().amount()).isEqualByComparingTo("33");
         assertThat(entry.recognition().reportedProjectName()).isEmpty();
+        assertThat(entry.contractNo()).isEmpty();
+        imported.put("合同编号", "--");
+        var duplicate = service.validateImport(admin, imported).source();
+        assertThat(duplicate.contractNo()).isEmpty();
+        assertThat(service.duplicate(duplicate)).isTrue();
         assertThat(service.detail(reviewer, entry.id()).canRecognize()).isFalse();
         assertThatThrownBy(() -> service.recognize(reviewer, entry.id(), entry.version(), value("1"), group))
                 .isInstanceOf(BusinessException.class);

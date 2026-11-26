@@ -147,7 +147,8 @@ public class RevenueService implements RevenueRecordDeletion {
     public ValidatedImport validateImport(UUID actor, Map<String, String> values) {
         var sourceValues = new LinkedHashMap<>(values);
         sourceValues.keySet().removeAll(List.of(RevenueImport.AMOUNT, RevenueImport.PROJECT, RevenueImport.STATUS, RevenueImport.PROVINCE));
-        var source = validate(actor, sourceValues);
+        access.create(actor);
+        var source = fields.normalizeImport(sourceValues);
         var network = Revenue.NETWORK.equals(source.fields().get(Revenue.CATEGORY_FIELD));
         if (network && !access.require(actor).administrator())
             throw new BusinessException(new RevenueError(org.springframework.http.HttpStatus.FORBIDDEN,

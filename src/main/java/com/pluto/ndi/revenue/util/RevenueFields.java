@@ -78,6 +78,14 @@ public class RevenueFields {
     }
 
     public Source normalize(Map<String, String> input) {
+        return normalize(input, false);
+    }
+
+    public Source normalizeImport(Map<String, String> input) {
+        return normalize(input, true);
+    }
+
+    private Source normalize(Map<String, String> input, boolean importing) {
         if (input == null || !FIELDS.containsAll(input.keySet()))
             throw invalid("来源字段无效，不允许创建时写入认定字段");
         var values = new LinkedHashMap<String, String>();
@@ -90,8 +98,12 @@ public class RevenueFields {
         var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(values.get("省份名称"));
         if (fixedOrganization != null && values.get("地市/组织名称").isBlank())
             values.put("地市/组织名称", fixedOrganization);
+        boolean networkImport = importing && Revenue.NETWORK.equals(values.get(Revenue.CATEGORY_FIELD));
+        if (networkImport && missingRequired("合同编号", values.get("合同编号")))
+            values.put("合同编号", "");
         for (var field : FIELDS)
-            if (REQUIRED.contains(field) && missingRequired(field, values.get(field)))
+            if (REQUIRED.contains(field) && (!networkImport || !field.equals("合同编号"))
+                    && missingRequired(field, values.get(field)))
                 throw invalid(field + "必填");
         if (!Revenue.CATEGORIES.contains(values.get(Revenue.CATEGORY_FIELD)))
             throw invalid("三化分类须为网络化、数字化或智能化");

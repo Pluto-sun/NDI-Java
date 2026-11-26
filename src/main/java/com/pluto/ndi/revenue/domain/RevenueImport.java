@@ -9,6 +9,7 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
     public static final List<String> REQUIRED =
             com.pluto.ndi.revenue.util.RevenueFields.FIELDS.stream()
                     .filter(com.pluto.ndi.revenue.util.RevenueFields.REQUIRED::contains)
+                    .filter(field -> !field.equals("合同编号"))
                     .toList();
 
     public static final String AMOUNT = "认定金额";
@@ -28,9 +29,10 @@ public final class RevenueImport extends com.pluto.ndi.shared.imports.ImportMode
                         field ->
                                 new Rule(
                                         field,
-                                        REQUIRED.contains(field) ? "REQUIRED" : "OPTIONAL",
+                                        REQUIRED.contains(field) ? "REQUIRED" : field.equals("合同编号") ? "CONDITIONAL" : "OPTIONAL",
                                         switch (field) {
                                             case "省份名称" -> "必填；标准省份、具体组织或数科；旧模板的 -- 按具体组织处理";
+                                            case "合同编号" -> "网络化可留空，数字化、智能化必填";
                                             case "条款编号" -> "选填；留空或--统一为空，纯数字整数去除前导零（002→2）";
                                             case "地市/组织名称" -> "必填；数科自动使用联通数字科技有限公司本部";
                                             case "审签日期" -> "选填，支持横线或斜线日期及日期时间；--表示无日期";
