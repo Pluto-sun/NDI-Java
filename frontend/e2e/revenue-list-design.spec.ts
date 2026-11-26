@@ -67,7 +67,7 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
       }
     }
   }
-  const listUrl = `/revenue?month=2026-11&search=${encodeURIComponent(prefix)}`;
+  const listUrl = `/revenue?month=2026-09&search=${encodeURIComponent(prefix)}`;
   await page.goto(listUrl);
   await chooseActor(page, ids.admin);
   const table = page.getByRole('table', { name: '计收明细清单', exact: true });
@@ -142,7 +142,7 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
   await detail.click();
   await page.getByRole('link', { name: '返回计收列表', exact: true }).click();
   await expect(page.getByLabel('项目／客户／合同／条款', { exact: true })).toHaveValue(prefix);
-  await expect(page.getByLabel('月账期', { exact: true })).toHaveText('2026-11');
+  await expect(page.getByLabel('费用账期', { exact: true })).toHaveText('2026-09');
   const state = page.getByRole('combobox', { name: '办理状态', exact: true });
   await state.selectOption('RECOGNIZED');
   await page.getByRole('button', { name: '查询', exact: true }).click();

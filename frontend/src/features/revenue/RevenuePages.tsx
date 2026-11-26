@@ -28,7 +28,7 @@ const message = (e: unknown) => (e instanceof Error ? e.message : '操作失败�
 
 /** 表头、列宽与金额对齐使用同一份定义，避免调整列顺序时错位。 */
 const revenueListColumns: { label: string; width: number; numeric?: boolean }[] = [
-  { label: '月账期', width: 90 },
+  { label: '费用账期', width: 90 },
   { label: '省份', width: 90 },
   { label: '地市／组织', width: 150 },
   { label: '来源项目', width: 240 },
@@ -96,7 +96,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
     <>
       <div className="page-heading revenue-list-heading">
         <div>
-          <p>按账期查看来源明细与认定结果，金额单位：元。</p>
+          <p>按费用账期查看来源明细与认定结果，金额单位：元。</p>
         </div>
         {reference?.canCreate && (
           <div className="inline-actions">
@@ -125,9 +125,9 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
         }}
       >
         <div className="month-filter-field">
-          月账期
+          费用账期
           <MonthPicker
-            aria-label="月账期"
+            aria-label="费用账期"
             value={draft.month ?? ''}
             onChange={(selectedMonth) => change('month', selectedMonth)}
           />
@@ -275,7 +275,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
                   {data.items.map((e) => (
                     <tr key={e.id}>
                       {batch.cell(e)}
-                      <td>{e.month}</td>
+                      <td>{revenueText(e.feeMonth)}</td>
                       <td title={!e.source['省份名称'] ? '未归属' : undefined}>
                         {revenueText(e.source['省份名称'])}
                       </td>
@@ -302,7 +302,7 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
                       <td className="sticky-list-action">
                         <Link
                           className="secondary-button compact-button"
-                          title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.month}`}
+                          title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.feeMonth || '未填写费用账期'}`}
                           to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
                         >
                           详情

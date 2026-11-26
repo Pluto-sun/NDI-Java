@@ -7,7 +7,7 @@ import { pickMonth } from './support/monthPicker';
 test('排产和计收筛选月可选择、清空并恢复', async ({ page }) => {
   for (const [path, label] of [
     ['/scheduling', '排产月份'],
-    ['/revenue', '月账期'],
+    ['/revenue', '费用账期'],
   ]) {
     await page.goto(path);
     if (path === '/scheduling') await chooseActor(page, ids.admin);
@@ -26,12 +26,17 @@ test('排产和计收筛选月可选择、清空并恢复', async ({ page }) => 
 test('计收分类和现有筛选组合，明细与汇总一致，详情返回恢复', async ({ page, request }) => {
   const root = 'http://127.0.0.1:18080/api/v1/revenue/entries';
   const projectName = '分类测试-' + randomUUID();
-  for (const category of ['数字化', '智能化']) {
+  for (const [category, accountMonth, feeMonth] of [
+    ['数字化', '2026-10', '2026-09'],
+    ['智能化', '2026-10', '2026-09'],
+    ['智能化', '2026-09', '2026-10'],
+  ]) {
     const source = {
       ...requiredRevenueFields,
-      月账期: '2026-10',
-      项目名称: projectName + category,
-      合同编号: projectName + category,
+      月账期: accountMonth,
+      费用账期: feeMonth,
+      项目名称: projectName + category + feeMonth,
+      合同编号: projectName + category + feeMonth,
       三化分类: category,
       条款金额: '100',
       '产品本月计收不含税额/标品含税收入': '20',
@@ -45,7 +50,7 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
   await page.goto(
     '/revenue?' +
       new URLSearchParams({
-        month: '2026-10',
+        month: '2026-09',
         state: 'UNRECOGNIZED',
         province: ids.province,
         search: projectName,
@@ -70,14 +75,18 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
   await expect(page).toHaveURL(
     (url) =>
       url.searchParams.get('category') === '智能化' &&
-      url.searchParams.get('month') === '2026-10' &&
+      url.searchParams.get('month') === '2026-09' &&
       url.searchParams.get('state') === 'UNRECOGNIZED' &&
       url.searchParams.get('province') === ids.province &&
       url.searchParams.get('search') === projectName &&
       !url.searchParams.has('page'),
   );
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(1);
-  await expect(page.getByRole('table')).toContainText(projectName + '智能化');
+  const table = page.getByRole('table');
+  await expect(table).toContainText(projectName + '智能化2026-09');
+  await expect(table.getByRole('columnheader', { name: '费用账期' })).toBeVisible();
+  await expect(table.getByRole('cell', { name: '2026-09', exact: true })).toBeVisible();
+  await expect(table.getByRole('cell', { name: '2026-10', exact: true })).toHaveCount(0);
   await expect(
     page.getByRole('region', { name: '当前筛选汇总' }).getByText('明细数').locator('..'),
   ).toHaveText('明细数1');

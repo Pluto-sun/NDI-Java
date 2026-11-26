@@ -35,6 +35,7 @@ public final class Revenue {
             UUID id,
             long version,
             String month,
+            String feeMonth,
             UUID provinceId,
             boolean specificOrganization,
             String contractNo,

@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pluto.ndi.revenue.domain.Revenue.*;
 import com.pluto.ndi.revenue.service.RevenueAccessService.Access;
+import com.pluto.ndi.revenue.util.RevenueFields;
 import com.pluto.ndi.revenue.util.RevenueFields.Source;
 import com.pluto.ndi.revenue.util.RevenueOrganizationNames;
 
@@ -38,7 +39,12 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
 """;
 
     public record Filter(
-            String month, String province, String search, String state, int page, int size, String organization, String category) {
+            String month, String province, String search, String state, int page, int size,
+            String organization, String category, String feeMonth) {
+        public Filter(String month, String province, String search, String state, int page, int size,
+                String organization, String category) {
+            this(month, province, search, state, page, size, organization, category, null);
+        }
         public Filter(String month, String province, String search, String state, int page, int size, String organization) {
             this(month, province, search, state, page, size, organization, null);
         }
@@ -193,6 +199,10 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             sql.append(" AND e.account_month=:month");
             args.addValue("month", f.month() + "-01");
         }
+        if (f.feeMonth() != null && !f.feeMonth().isBlank()) {
+            sql.append(" AND e.fee_month_key=:feeMonth");
+            args.addValue("feeMonth", RevenueFields.month(f.feeMonth().strip()));
+        }
         if (f.province() != null && !f.province().isBlank()) {
             if (f.province().equals("UNASSIGNED")) {
                 sql.append(" AND e.province_id IS NULL AND e.specific_organization=FALSE");
@@ -318,6 +328,7 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                 uuid(r.getString("eid")),
                 r.getLong("version_no"),
                 r.getDate("account_month").toLocalDate().toString().substring(0, 7),
+                r.getString("fee_month_key"),
                 province,
                 org,
                 r.getString("contract_no"),

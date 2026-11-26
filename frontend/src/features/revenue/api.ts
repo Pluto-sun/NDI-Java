@@ -11,6 +11,7 @@ export interface Entry {
   id: string;
   version: number;
   month: string;
+  feeMonth: string;
   provinceId: string | null;
   specificOrganization: boolean;
   contractNo: string;
@@ -89,7 +90,14 @@ export const revenueApi = {
   counts: (signal?: AbortSignal) =>
     request<{ unread: number; pending: number }>('/counts', { signal }),
   reference: () => request<Reference>('/reference-data'),
-  list: (query: URLSearchParams) => request<Listing>(`?${query}`),
+  list: (query: URLSearchParams) => {
+    const filters = new URLSearchParams(query);
+    const month = filters.get('month');
+    // 列表沿用原 URL 键，统一向接口传费用账期。
+    if (month) filters.set('feeMonth', month);
+    filters.delete('month');
+    return request<Listing>(`?${filters}`);
+  },
   detail: (id: string) => request<Entry>(`/${id}`),
   create: (source: Record<string, string>) =>
     request<Entry>('', { method: 'POST', ...jsonBody({ source }) }),

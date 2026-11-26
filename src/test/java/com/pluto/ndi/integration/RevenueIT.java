@@ -483,11 +483,23 @@ class RevenueIT {
         var s = source();
         var e = service.create(group, s);
         assertThat(e.month()).isEqualTo("2026-10");
+        assertThat(e.feeMonth()).isEqualTo("2026-09");
         assertThat(e.source().get("费用账期")).isEqualTo("2026-09");
         assertThat(e.source().get("业务号码/项目编号")).isEqualTo("000042");
         assertThatThrownBy(() -> service.create(ds, s)).isInstanceOf(BusinessException.class);
         s.put("月账期", "202611");
-        assertThat(service.create(ds, s).id()).isNotEqualTo(e.id());
+        var otherAccountMonth = service.create(ds, s);
+        assertThat(otherAccountMonth.id()).isNotEqualTo(e.id());
+        var otherFeeMonth = source();
+        otherFeeMonth.put("月账期", "202609");
+        otherFeeMonth.put("费用账期", "202610");
+        service.create(admin, otherFeeMonth);
+        var filter = new RevenueMapper.Filter(null, province.toString(), null, null, 0, 1, null, null, "202609");
+        var listed = service.list(admin, filter);
+        assertThat(listed.items()).extracting(Entry::id).containsExactly(otherAccountMonth.id());
+        assertThat(listed.totalElements()).isEqualTo(2);
+        assertThat(listed.totalPages()).isEqualTo(2);
+        assertThat(listed.summary().total()).isEqualTo(2);
         for (var actor : List.of(reviewer, reporter, cityReporter))
             assertThatThrownBy(() -> service.create(actor, source()))
                     .isInstanceOf(BusinessException.class);

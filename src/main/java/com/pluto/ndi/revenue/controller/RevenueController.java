@@ -46,6 +46,7 @@ public class RevenueController {
     public ApiResponse<RevenueMapper.Listing> list(
             Authentication auth,
             @RequestParam(required = false) String month,
+            @RequestParam(required = false) String feeMonth,
             @RequestParam(required = false) String province,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "") String organization,
@@ -56,7 +57,7 @@ public class RevenueController {
         return responses.success(
                 service.list(
                         actor(auth),
-                        new RevenueMapper.Filter(month, province, search, state, page, size, organization, category)));
+                        new RevenueMapper.Filter(month, province, search, state, page, size, organization, category, feeMonth)));
     }
 
     @GetMapping("/reference-data")

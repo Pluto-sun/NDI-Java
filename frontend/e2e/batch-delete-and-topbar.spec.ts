@@ -196,6 +196,9 @@ test('项目与计收保留待审批条目并删除其他筛选结果', async ({
   const removableRevenue = await create(request, path, {
     source: { ...input.source, 合同编号: prefix + '-可删除' },
   });
+  const otherFeeMonth = await create(request, path, {
+    source: { ...input.source, 合同编号: prefix + '-其他费用账期', 费用账期: '2026-10' },
+  });
   const requestRecognition = await request.post(
     api + path + '/' + pendingRevenue.id + '/recognition',
     {
@@ -208,7 +211,7 @@ test('项目与计收保留待审批条目并删除其他筛选结果', async ({
     },
   );
   expect(requestRecognition.ok(), await requestRecognition.text()).toBe(true);
-  await page.goto('/revenue?search=' + encodeURIComponent(prefix));
+  await page.goto('/revenue?month=2026-09&search=' + encodeURIComponent(prefix));
   await button.click();
   await expect(confirmation).toContainText('共匹配 2 条记录');
   await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
@@ -217,6 +220,9 @@ test('项目与计收保留待审批条目并删除其他筛选结果', async ({
     (await request.get(api + path + '/' + removableRevenue.id, { headers: admin })).status(),
   ).toBe(404);
   expect((await request.get(api + path + '/' + pendingRevenue.id, { headers: admin })).ok()).toBe(
+    true,
+  );
+  expect((await request.get(api + path + '/' + otherFeeMonth.id, { headers: admin })).ok()).toBe(
     true,
   );
 });
