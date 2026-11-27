@@ -1,3 +1,4 @@
+import { PersonalizedTable } from '../../shared/list-columns/PersonalizedTable';
 import { MultiSelect } from '../../shared/ui/MultiSelect';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { Select } from '../../shared/ui/Select';
@@ -579,122 +580,139 @@ export function ProjectsPage({
             <strong>项目清单</strong>
             <span>共 {data?.totalElements ?? 0} 个项目</span>
           </div>
-          <div
-            className="table-scroll sticky-actions-scroll"
-            tabIndex={0}
-            role="region"
-            aria-label="项目清单表格，可横向滚动"
-          >
-            <table className="project-list-table" aria-label="项目清单">
-              <colgroup>
-                {[280, 190, 170, 100, 140, 110, 112, 175, 120, 165, 76].map((width, index) => (
-                  <col key={index} style={{ width }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">项目名称</th>
-                  <th scope="col">归属</th>
-                  <th scope="col">客户</th>
-                  <th scope="col">阶段</th>
-                  <th scope="col">类别</th>
-                  <th scope="col">签约主体</th>
-                  <th scope="col">预计总金额</th>
-                  <th scope="col">项目负责人</th>
-                  <th scope="col">项目所属月份</th>
-                  <th scope="col">行业</th>
-                  <th scope="col" className="sticky-list-action">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.items.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <TruncatedText text={project.projectName} />
-                    </td>
-                    <td>
-                      <TruncatedText
-                        text={`${reference.provinces.find((item) => item.id === project.provinceId)?.name ?? '未匹配省分'} / ${reference.cities.find((item) => item.id === project.cityId)?.name ?? '未匹配地市'}`}
-                      />
-                    </td>
-                    <td>
-                      <TruncatedText text={project.customerName || '未填写'} />
-                    </td>
-                    <td>
-                      <span className={`stage stage-${project.currentStageCode.toLowerCase()}`}>
-                        {label(project.currentStageCode)}
-                      </span>
-                    </td>
-                    <td>
-                      <TruncatedText
-                        text={
-                          project.categoryAmounts
-                            .map(
-                              ({ categoryCode }) => productShortNames[categoryCode] ?? categoryCode,
-                            )
-                            .join('、') || '—'
-                        }
-                      />
-                    </td>
-                    <td>{project.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</td>
-                    <td className="number">
-                      <TruncatedText text={amount(project.totalAmount)} />
-                    </td>
-                    <td>
-                      <TruncatedText
-                        text={
-                          project.responsiblePersons?.map((person) => person.name).join('；') || '—'
-                        }
-                      />
-                    </td>
-                    <td>{project.attributionMonth?.slice(0, 7) ?? '—'}</td>
-                    <td>
-                      <TruncatedText
-                        text={
-                          reference.industries.find((item) => item.code === project.industryCode)
-                            ?.label ??
-                          project.industryCode ??
-                          '未填写'
-                        }
-                      />
-                    </td>
-                    <td className="sticky-list-action">
-                      <Link
-                        className="secondary-button compact-button"
-                        aria-label={`详情：${project.projectName}`}
-                        to={`/projects/${project.id}`}
-                        state={{ projectListReturnTo: returnTo }}
-                        onClick={() => {
-                          sessionStorage.setItem(
-                            `ndi.project-list-scroll:${returnTo}`,
-                            String(window.scrollY),
-                          );
-                          sessionStorage.setItem(
-                            draftKey,
-                            JSON.stringify({
-                              projectName: name,
-                              stage,
-                              projectCode,
-                              industryCode,
-                              productCodes,
-                              provinceIds,
-                              cityIds: selectedCityIds,
-                              ...advanced,
-                              advancedOpen,
-                            }),
-                          );
-                        }}
-                      >
-                        详情
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PersonalizedTable
+            list="PROJECTS"
+            accountId={userId}
+            label="项目清单"
+            className="project-list-table"
+            scrollLabel="项目清单表格，可横向滚动"
+            rows={data?.items ?? []}
+            columns={[
+              {
+                id: 'name',
+                label: '项目名称',
+                width: 280,
+                cell: (project) => <TruncatedText text={project.projectName} />,
+              },
+              {
+                id: 'location',
+                label: '归属',
+                width: 190,
+                cell: (project) => (
+                  <TruncatedText
+                    text={`${reference.provinces.find((item) => item.id === project.provinceId)?.name ?? '未匹配省分'} / ${reference.cities.find((item) => item.id === project.cityId)?.name ?? '未匹配地市'}`}
+                  />
+                ),
+              },
+              {
+                id: 'customer',
+                label: '客户',
+                width: 170,
+                cell: (project) => <TruncatedText text={project.customerName || '未填写'} />,
+              },
+              {
+                id: 'stage',
+                label: '阶段',
+                width: 100,
+                cell: (project) => (
+                  <span className={`stage stage-${project.currentStageCode.toLowerCase()}`}>
+                    {label(project.currentStageCode)}
+                  </span>
+                ),
+              },
+              {
+                id: 'category',
+                label: '类别',
+                width: 140,
+                cell: (project) => (
+                  <TruncatedText
+                    text={
+                      project.categoryAmounts
+                        .map(({ categoryCode }) => productShortNames[categoryCode] ?? categoryCode)
+                        .join('、') || '—'
+                    }
+                  />
+                ),
+              },
+              {
+                id: 'signing-subject',
+                label: '签约主体',
+                width: 110,
+                cell: (project) =>
+                  project.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约',
+              },
+              {
+                id: 'total',
+                label: '预计总金额',
+                width: 112,
+                cellClassName: 'number',
+                cell: (project) => <TruncatedText text={amount(project.totalAmount)} />,
+              },
+              {
+                id: 'owners',
+                label: '项目负责人',
+                width: 175,
+                cell: (project) => (
+                  <TruncatedText
+                    text={
+                      project.responsiblePersons?.map((person) => person.name).join('；') || '—'
+                    }
+                  />
+                ),
+              },
+              {
+                id: 'month',
+                label: '项目所属月份',
+                width: 120,
+                cell: (project) => project.attributionMonth?.slice(0, 7) ?? '—',
+              },
+              {
+                id: 'industry',
+                label: '行业',
+                width: 165,
+                cell: (project) => (
+                  <TruncatedText
+                    text={
+                      reference.industries.find((item) => item.code === project.industryCode)
+                        ?.label ??
+                      project.industryCode ??
+                      '未填写'
+                    }
+                  />
+                ),
+              },
+            ]}
+            actions={(project) => (
+              <Link
+                className="secondary-button compact-button"
+                aria-label={`详情：${project.projectName}`}
+                to={`/projects/${project.id}`}
+                state={{ projectListReturnTo: returnTo }}
+                onClick={() => {
+                  sessionStorage.setItem(
+                    `ndi.project-list-scroll:${returnTo}`,
+                    String(window.scrollY),
+                  );
+                  sessionStorage.setItem(
+                    draftKey,
+                    JSON.stringify({
+                      projectName: name,
+                      stage,
+                      projectCode,
+                      industryCode,
+                      productCodes,
+                      provinceIds,
+                      cityIds: selectedCityIds,
+                      ...advanced,
+                      advancedOpen,
+                    }),
+                  );
+                }}
+              >
+                详情
+              </Link>
+            )}
+          />
           {data?.items.length === 0 && <div className="empty-state">暂无符合条件的项目</div>}
           <ListPagination
             label="项目列表"

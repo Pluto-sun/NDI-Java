@@ -1,3 +1,7 @@
+import {
+  PersonalizedTable,
+  type BusinessColumn,
+} from '../../shared/list-columns/PersonalizedTable';
 import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
@@ -107,7 +111,7 @@ function LocationFields({
   );
 }
 
-export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
+export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
@@ -232,91 +236,56 @@ export function GewuDeploymentsPage({ admin }: { admin: boolean }) {
             <span>左右滚动查看设备和工具包信息</span>
           </div>
           {batch.toolbar}
-          <div
-            ref={listScroll.table}
-            className="table-scroll gewu-scroll sticky-actions-scroll"
-            role="region"
-            aria-label="格物部署明细横向滚动区域"
-            tabIndex={0}
-          >
-            <table className="two-line-register" aria-label={title}>
-              <colgroup>
-                {admin && <col style={{ width: 44 }} />}
-                {columns.map((field) => (
-                  <col
-                    key={field}
-                    style={{
-                      width:
-                        field === '项目名称'
-                          ? 220
-                          : field === '客户名称' || field === '备注'
-                            ? 190
-                            : field === '省份' || field === '地市' || field === '接口人'
-                              ? 100
-                              : 150,
+          <PersonalizedTable
+            list="GEWU"
+            accountId={accountId}
+            label={title}
+            className="two-line-register"
+            scrollRef={listScroll.table}
+            scrollClassName="gewu-scroll"
+            scrollLabel="格物部署明细横向滚动区域"
+            rows={data.items}
+            actionWidth={admin ? 128 : 76}
+            selection={admin ? batch : undefined}
+            columns={columns.map<BusinessColumn<Deployment>>((field) => ({
+              id: field,
+              label: field,
+              width:
+                field === '项目名称'
+                  ? 220
+                  : field === '客户名称' || field === '备注'
+                    ? 190
+                    : field === '省份' || field === '地市' || field === '接口人'
+                      ? 100
+                      : 150,
+              className: counters.includes(field) ? 'gewu-numeric' : undefined,
+              cell: (item) => <TruncatedText twoLines text={item.fields[field] || '—'} />,
+            }))}
+            actions={(item) => (
+              <div className="gewu-actions">
+                <Link
+                  className="secondary-button compact-button"
+                  to={`/capability/gewu/${item.id}`}
+                  state={listScroll.state}
+                  onClick={listScroll.remember}
+                >
+                  详情
+                </Link>
+                {admin && (
+                  <button
+                    type="button"
+                    className="secondary-button compact-button danger"
+                    onClick={() => {
+                      setError('');
+                      setDeleting(item);
                     }}
-                  />
-                ))}
-                <col style={{ width: admin ? 128 : 76 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {batch.head}
-                  {columns.map((field) => (
-                    <th
-                      scope="col"
-                      className={counters.includes(field) ? 'gewu-numeric' : undefined}
-                      key={field}
-                    >
-                      {field}
-                    </th>
-                  ))}
-                  <th scope="col" className="sticky-list-action">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((item) => (
-                  <tr key={item.id}>
-                    {batch.cell(item)}
-                    {columns.map((field) => (
-                      <td
-                        key={field}
-                        className={counters.includes(field) ? 'gewu-numeric' : undefined}
-                      >
-                        <TruncatedText twoLines text={item.fields[field] || '—'} />
-                      </td>
-                    ))}
-                    <td className="sticky-list-action">
-                      <div className="gewu-actions">
-                        <Link
-                          className="secondary-button compact-button"
-                          to={`/capability/gewu/${item.id}`}
-                          state={listScroll.state}
-                          onClick={listScroll.remember}
-                        >
-                          详情
-                        </Link>
-                        {admin && (
-                          <button
-                            type="button"
-                            className="secondary-button compact-button danger"
-                            onClick={() => {
-                              setError('');
-                              setDeleting(item);
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  >
+                    删除
+                  </button>
+                )}
+              </div>
+            )}
+          />
           {!data.items.length && <p className="empty-state">暂无符合筛选条件的部署记录</p>}
           <ListPagination
             label={title}

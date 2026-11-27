@@ -1,6 +1,7 @@
 package com.pluto.ndi.production.service;
 
 import com.pluto.ndi.identity.service.*;
+import com.pluto.ndi.production.ProductionListAccess;
 import com.pluto.ndi.production.domain.ProductionError;
 import com.pluto.ndi.shared.web.BusinessException;
 
@@ -10,7 +11,7 @@ import java.util.*;
 
 /** 排产权限复用账号组织目录，不使用文本接口人字段授权。 */
 @Service
-public class ProductionAccessService {
+public class ProductionAccessService implements ProductionListAccess {
     private final IdentityDirectory identities;
 
     public ProductionAccessService(IdentityDirectory identities) {
@@ -25,6 +26,11 @@ public class ProductionAccessService {
                 case CITY -> scope.organizationId().equals(cityId);
             };
         }
+    }
+
+    @Override
+    public void requireListRead(UUID actor) {
+        require(actor);
     }
 
     public Access require(UUID actorId) {

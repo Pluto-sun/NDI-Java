@@ -1,3 +1,7 @@
+import {
+  PersonalizedTable,
+  type BusinessColumn,
+} from '../../shared/list-columns/PersonalizedTable';
 import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
 import { downloadAttachment } from '../../shared/util/downloadAttachment';
@@ -60,15 +64,12 @@ const dateFormat = new Intl.DateTimeFormat('sv-SE', {
 });
 const timestamp = (value: string) => dateFormat.format(new Date(value));
 
-export function IntelligencePages({
-  kind,
-  mode,
-  admin = false,
-}: {
-  kind: Kind;
-  mode: 'list' | 'detail' | 'import';
-  admin?: boolean;
-}) {
+export function IntelligencePages(
+  props: { kind: Kind } & (
+    { mode: 'list'; accountId: string; admin: boolean } | { mode: 'detail' | 'import' }
+  ),
+) {
+  const { kind, mode } = props;
   const [params, setParams] = useSearchParams();
   const showMonthlyImport = kind === 'agents-live' && params.get('type') === 'monthly-token';
   const switchImport = (monthly: boolean) =>
@@ -113,17 +114,23 @@ export function IntelligencePages({
       />
     );
   if (mode === 'detail') return <RecordDetail kind={kind} reference={ref} />;
-  return <RecordList kind={kind} reference={ref} admin={admin} />;
+  if (props.mode === 'list')
+    return (
+      <RecordList kind={kind} reference={ref} admin={props.admin} accountId={props.accountId} />
+    );
+  return null;
 }
 
 function RecordList({
   kind,
   reference,
   admin,
+  accountId,
 }: {
   kind: Kind;
   reference: Reference;
   admin: boolean;
+  accountId: string;
 }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
@@ -255,76 +262,50 @@ function RecordList({
             <span>左右滚动查看完整字段</span>
           </div>
           {batch.toolbar}
-          <div
-            ref={listScroll.table}
-            className="table-scroll gewu-scroll sticky-actions-scroll"
-            tabIndex={0}
-            role="region"
-            aria-label="能力指标明细"
-          >
-            <table className="two-line-register" aria-label={intelligenceTitles[kind]}>
-              <colgroup>
-                {admin && <col style={{ width: 44 }} />}
-                {listFields.map((field) => (
-                  <col
-                    key={field}
-                    style={{
-                      width: ['具体名称', '智能体名称', '应用项目名称', '最终客户名称'].includes(
-                        field,
-                      )
-                        ? 220
-                        : field.length > 8
-                          ? 180
-                          : 128,
-                    }}
-                  />
-                ))}
-                <col style={{ width: 180 }} />
-                <col style={{ width: 72 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {batch.head}
-                  {listFields.map((field) => (
-                    <th key={field} scope="col">
-                      {field}
-                    </th>
-                  ))}
-                  <th scope="col">更新时间</th>
-                  <th scope="col" className="sticky-list-action">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((item) => (
-                  <tr key={item.id}>
-                    {batch.cell(item)}
-                    {listFields.map((field) => (
-                      <td key={field}>
-                        <TruncatedText twoLines text={display(field, item.fields[field])} />
-                      </td>
-                    ))}
-                    <td>
-                      <TruncatedText twoLines text={timestamp(item.updatedAt)} />
-                    </td>
-                    <td className="sticky-list-action">
-                      <div className="gewu-actions">
-                        <Link
-                          className="secondary-button compact-button"
-                          to={base(kind) + '/' + item.id}
-                          state={listScroll.state}
-                          onClick={listScroll.remember}
-                        >
-                          详情
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PersonalizedTable
+            list={register[kind]}
+            accountId={accountId}
+            label={intelligenceTitles[kind]}
+            className="two-line-register"
+            scrollRef={listScroll.table}
+            scrollClassName="gewu-scroll"
+            scrollLabel="能力指标明细"
+            rows={data.items}
+            actionWidth={72}
+            selection={admin ? batch : undefined}
+            columns={[
+              ...listFields.map<BusinessColumn<Entry>>((field) => ({
+                id: field,
+                label: field,
+                width: ['具体名称', '智能体名称', '应用项目名称', '最终客户名称'].includes(field)
+                  ? 220
+                  : field.length > 8
+                    ? 180
+                    : 128,
+                cell: (item) => (
+                  <TruncatedText twoLines text={display(field, item.fields[field])} />
+                ),
+              })),
+              {
+                id: 'updated-at',
+                label: '更新时间',
+                width: 180,
+                cell: (item) => <TruncatedText twoLines text={timestamp(item.updatedAt)} />,
+              },
+            ]}
+            actions={(item) => (
+              <div className="gewu-actions">
+                <Link
+                  className="secondary-button compact-button"
+                  to={base(kind) + '/' + item.id}
+                  state={listScroll.state}
+                  onClick={listScroll.remember}
+                >
+                  详情
+                </Link>
+              </div>
+            )}
+          />
           {!data.items.length && <p className="empty-state">暂无符合条件的记录</p>}
           <ListPagination
             label={intelligenceTitles[kind]}

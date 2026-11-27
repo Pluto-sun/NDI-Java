@@ -35,6 +35,9 @@ import {
 import { RevenueCategoryTabs } from '../features/revenue/RevenueCategoryTabs';
 import { DashboardControls, ModuleDashboard } from '../features/module-dashboards/ModuleDashboard';
 
+const ListColumnAdministrationPage = lazy(
+  () => import('../features/admin/ListColumnAdministrationPage'),
+);
 const GewuDeploymentDetailPage = lazy(() =>
   import('../features/capabilities/GewuDeployments').then((m) => ({
     default: m.GewuDeploymentDetailPage,
@@ -436,6 +439,16 @@ export function App() {
                 </>
               )}
               <Route
+                path="/admin/list-columns"
+                element={
+                  me.roleCodes.includes('SYSTEM_ADMIN') ? (
+                    <ListColumnAdministrationPage />
+                  ) : (
+                    <Navigate to="/projects" replace />
+                  )
+                }
+              />
+              <Route
                 path="/admin/backups"
                 element={
                   me.roleCodes.includes('SYSTEM_ADMIN') ? (
@@ -509,7 +522,12 @@ export function App() {
               />
               <Route
                 path="/revenue"
-                element={<RevenueListPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+                element={
+                  <RevenueListPage
+                    accountId={me.id}
+                    admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+                  />
+                }
               />
               <Route
                 path="/revenue/organizations"
@@ -526,7 +544,12 @@ export function App() {
               <Route path="/revenue/:id" element={<RevenueDetailPage me={me} />} />
               <Route
                 path="/scheduling"
-                element={<ProductionListPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+                element={
+                  <ProductionListPage
+                    accountId={me.id}
+                    admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+                  />
+                }
               />
               <Route path="/scheduling/new" element={<NewProductionPage />} />
               <Route path="/scheduling/import" element={<ImportProductionPage />} />
@@ -534,7 +557,12 @@ export function App() {
               <Route path="/capability" element={<Navigate replace to="/capability/gewu" />} />
               <Route
                 path="/capability/gewu"
-                element={<GewuDeploymentsPage admin={me.roleCodes.includes('SYSTEM_ADMIN')} />}
+                element={
+                  <GewuDeploymentsPage
+                    accountId={me.id}
+                    admin={me.roleCodes.includes('SYSTEM_ADMIN')}
+                  />
+                }
               />
               <Route path="/capability/gewu/import" element={<ImportGewuDeploymentsPage />} />
               <Route path="/capability/gewu/:id" element={<GewuDeploymentDetailPage />} />
@@ -548,6 +576,7 @@ export function App() {
                         key={kind}
                         kind={kind}
                         mode="list"
+                        accountId={me.id}
                         admin={me.roleCodes.includes('SYSTEM_ADMIN')}
                       />
                     }

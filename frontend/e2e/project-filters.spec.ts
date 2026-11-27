@@ -69,8 +69,14 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   expect(box!.x + box!.width - resetBox!.x - resetBox!.width).toBeLessThan(21);
   expect(cityBox!.width).toBeLessThanOrEqual(169);
   if (testInfo.project.name !== 'small-screen') {
-    expect(queryBox!.x).toBeGreaterThan(cityBox!.x + cityBox!.width);
-    expect(queryBox!.y + queryBox!.height).toBeCloseTo(cityBox!.y + cityBox!.height, 0);
+    const productBox = await filters.getByRole('button', { name: '产品类别' }).boundingBox();
+    const actionsShareRow = queryBox!.y < productBox!.y + productBox!.height;
+    if (actionsShareRow) {
+      expect(queryBox!.x).toBeGreaterThan(productBox!.x + productBox!.width);
+      expect(queryBox!.y + queryBox!.height).toBeCloseTo(productBox!.y + productBox!.height, 0);
+    } else {
+      expect(queryBox!.y).toBeGreaterThan(productBox!.y + productBox!.height);
+    }
   } else {
     const provinceBox = await filters.getByRole('button', { name: '归属省分' }).boundingBox();
     expect(provinceBox!.y).toBeCloseTo(cityBox!.y, 0);

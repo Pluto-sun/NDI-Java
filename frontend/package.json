@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
+    "@tanstack/react-table": "8.21.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"

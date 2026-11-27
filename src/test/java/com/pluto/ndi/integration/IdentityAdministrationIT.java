@@ -97,6 +97,49 @@ class IdentityAdministrationIT {
         assertThat(admin.list(administrator, other.loginName(), null, 0, 20).getContent().getFirst().displayName()).isEqualTo("测试负责人");
     }
 
+    @Test void fixedListColumnsAreOrderedAuditedAndRestrictedToAdministrators() throws Exception {
+        admin.create(administrator, command(phone, "CITY_REPORTER", province, city), password);
+        var reader = loginCookie(phone, password);
+        var manager = loginCookie("admin-test", "admin-test-password");
+        String manage = "/api/v1/admin/list-columns";
+        String list = "/api/v1/list-columns/REVENUE";
+        mvc.perform(get(manage).cookie(reader)).andExpect(status().isForbidden());
+        mvc.perform(get(manage).cookie(manager)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lists.length()").value(7));
+        mvc.perform(get(list)).andExpect(status().isUnauthorized());
+        mvc.perform(csrf(put(manage + "/REVENUE")).cookie(reader).contentType("application/json")
+                .content("{\"fixedFields\":[\"fee-month\"]}")).andExpect(status().isForbidden());
+        for (String identity : List.of("NOT_A_LIST", "REVENUE")) {
+            mvc.perform(csrf(put(manage + "/" + identity)).cookie(manager).contentType("application/json")
+                    .content("{\"fixedFields\":[\"details\"]}")).andExpect(status().isBadRequest());
+        }
+        mvc.perform(csrf(put(manage + "/REVENUE")).cookie(manager).contentType("application/json")
+                .content("{\"fixedFields\":[\"fee-month\",\"fee-month\"]}")).andExpect(status().isBadRequest());
+        mvc.perform(csrf(put(manage + "/REVENUE")).cookie(manager).contentType("application/json")
+                .content("{\"fixedFields\":[\"fee-month\",\"source-project\"]}")).andExpect(status().isOk());
+        mvc.perform(get(list).cookie(reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fixedFields[0]").value("fee-month"))
+                .andExpect(jsonPath("$.data.fixedFields[1]").value("source-project"))
+                .andExpect(jsonPath("$.data.fields").doesNotExist());
+        mvc.perform(get("/api/v1/list-columns/PROJECTS").cookie(reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fixedFields.length()").value(0));
+        mvc.perform(csrf(put(manage + "/REVENUE")).cookie(manager).contentType("application/json")
+                .content("{\"fixedFields\":[\"source-project\",\"fee-month\"]}")).andExpect(status().isOk());
+        mvc.perform(get(list).cookie(reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fixedFields[0]").value("source-project"));
+        jdbc.update("UPDATE list_column_configuration SET fixed_fields=JSON_ARRAY('source-project','old-field','fee-month') WHERE list_id='REVENUE'");
+        mvc.perform(get(list).cookie(reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fixedFields.length()").value(2));
+        mvc.perform(csrf(put(manage + "/REVENUE")).cookie(manager).contentType("application/json")
+                .content("{\"fixedFields\":[]}")).andExpect(status().isOk());
+        mvc.perform(get(list).cookie(reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fixedFields.length()").value(0));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM system_audit_event WHERE event_type='LIST_FIXED_COLUMNS_UPDATED'
+                    AND actor_id=UUID_TO_BIN(?) AND JSON_VALUE(detail,'$.listId')='REVENUE'
+                """, Integer.class, administrator.toString())).isEqualTo(3);
+    }
+
     @Test void requiresCurrentVersionAndDoesNotOverwriteConcurrentPersonalEdits() {
         var user = admin.create(administrator, command(phone, "CITY_REPORTER", province, city), password);
         profiles.update(user.id(), "本人已更新", null);

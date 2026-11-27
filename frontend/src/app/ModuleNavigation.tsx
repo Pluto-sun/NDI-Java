@@ -88,6 +88,7 @@ export function ModuleNavigation({
         {admin && (
           <>
             <NavLink to="/admin/accounts">账号与组织</NavLink>
+            <NavLink to="/admin/list-columns">列表列配置</NavLink>
             <NavLink to="/admin/reviewer-provinces">接口人范围</NavLink>
             <NavLink to="/admin/inactivity">督办管理</NavLink>
             <NavLink to="/admin/backups">备份管理</NavLink>

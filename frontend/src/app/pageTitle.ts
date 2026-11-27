@@ -27,6 +27,7 @@ const pageTitles: Record<string, string> = {
   '/notifications': '消息通知',
   '/account': '个人设置',
   '/admin/accounts': '账号与组织',
+  '/admin/list-columns': '列表列配置',
   '/admin/backups': '备份管理',
   '/admin/inactivity': '督办管理',
   '/admin/reviewer-provinces': '接口人范围',

@@ -240,7 +240,7 @@ for (const [kind, fields] of [
     await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
     await expect(page.getByRole('heading', { name: '导入任务已完成' })).toBeVisible();
     await page.goto('/capability/' + kind);
-    await page.getByLabel('接口人', { exact: true }).fill(reviewer);
+    await page.getByRole('textbox', { name: '接口人', exact: true }).fill(reviewer);
     if (kind === 'wangwu') {
       await page.getByRole('textbox', { name: '部署地点', exact: true }).fill('广东省');
     }
@@ -279,7 +279,7 @@ for (const [kind, fields] of [
     await editor.getByRole('button', { name: '保存记录' }).click();
     await expect(editor.getByRole('button', { name: '保存记录' })).toHaveCount(0);
     await page.getByRole('link', { name: '返回列表' }).click();
-    await page.getByLabel('接口人', { exact: true }).fill(reviewer + '-更新');
+    await page.getByRole('textbox', { name: '接口人', exact: true }).fill(reviewer + '-更新');
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page.locator('tbody tr').filter({ hasText: reviewer + '-更新' })).toHaveCount(1);
     if (kind === 'wangwu')

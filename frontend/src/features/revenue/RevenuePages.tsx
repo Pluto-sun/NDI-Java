@@ -1,3 +1,4 @@
+import { PersonalizedTable } from '../../shared/list-columns/PersonalizedTable';
 import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { revenueText } from './format';
@@ -26,26 +27,7 @@ import { ListPagination } from '../../shared/ui/ListPagination';
 export { RevenueDetailPage } from './RevenueDetailPage';
 const message = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试');
 
-/** 表头、列宽与金额对齐使用同一份定义，避免调整列顺序时错位。 */
-const revenueListColumns: { label: string; width: number; numeric?: boolean }[] = [
-  { label: '费用账期', width: 90 },
-  { label: '省份', width: 90 },
-  { label: '地市／组织', width: 150 },
-  { label: '来源项目', width: 240 },
-  { label: '三化分类', width: 88 },
-  { label: '客户', width: 160 },
-  { label: '合同编号', width: 150 },
-  { label: '条款编号', width: 72 },
-  { label: '条款金额（元）', width: 200, numeric: true },
-  { label: '来源本月计收（元）', width: 200, numeric: true },
-  { label: '认定金额（元）', width: 200, numeric: true },
-  { label: '通报项目名称', width: 220 },
-  { label: '对应省分（集成）', width: 135 },
-  { label: '办理状态', width: 120 },
-  { label: '操作', width: 76 },
-];
-
-export function RevenueListPage({ admin }: { admin: boolean }) {
+export function RevenueListPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
@@ -229,90 +211,123 @@ export function RevenueListPage({ admin }: { admin: boolean }) {
               </span>
             </div>
             {batch.toolbar}
-            <div
-              className="table-scroll revenue-list-scroll sticky-actions-scroll"
-              role="region"
-              aria-label="计收明细横向滚动区域"
-              tabIndex={0}
-            >
-              <table
-                className="revenue-list-table"
-                aria-label="计收明细清单"
-                style={{
-                  minWidth: revenueListColumns.reduce(
-                    (total, column) => total + column.width,
-                    admin ? 44 : 0,
+            <PersonalizedTable
+              list="REVENUE"
+              accountId={accountId}
+              label="计收明细清单"
+              className="revenue-list-table"
+              scrollClassName="revenue-list-scroll"
+              scrollLabel="计收明细横向滚动区域"
+              rows={data.items}
+              selection={admin ? batch : undefined}
+              columns={[
+                {
+                  id: 'fee-month',
+                  label: '费用账期',
+                  width: 90,
+                  cell: (e) => revenueText(e.feeMonth),
+                },
+                {
+                  id: 'province',
+                  label: '省份',
+                  width: 90,
+                  cell: (e) => revenueText(e.source['省份名称']),
+                  title: (e) => (!e.source['省份名称'] ? '未归属' : undefined),
+                },
+                {
+                  id: 'city',
+                  label: '地市／组织',
+                  width: 150,
+                  cell: (e) => revenueText(e.source['地市/组织名称']),
+                },
+                {
+                  id: 'source-project',
+                  label: '来源项目',
+                  width: 240,
+                  cellClassName: 'revenue-project-name',
+                  cell: (e) => revenueText(e.source['项目名称']),
+                },
+                {
+                  id: 'category',
+                  label: '三化分类',
+                  width: 88,
+                  cell: (e) => revenueText(e.source['三化分类']),
+                },
+                {
+                  id: 'customer',
+                  label: '客户',
+                  width: 160,
+                  cell: (e) => revenueText(e.source['客户名称'] || e.source['自然客户名称']),
+                },
+                {
+                  id: 'contract',
+                  label: '合同编号',
+                  width: 150,
+                  cell: (e) => revenueText(e.contractNo),
+                },
+                {
+                  id: 'clause',
+                  label: '条款编号',
+                  width: 72,
+                  cell: (e) => revenueText(e.clauseNo),
+                },
+                {
+                  id: 'clause-amount',
+                  label: '条款金额（元）',
+                  width: 200,
+                  className: 'revenue-numeric',
+                  cell: (e) => money(e.clauseAmount),
+                },
+                {
+                  id: 'source-amount',
+                  label: '来源本月计收（元）',
+                  width: 200,
+                  className: 'revenue-numeric',
+                  cell: (e) => money(e.sourceAmount),
+                },
+                {
+                  id: 'recognized-amount',
+                  label: '认定金额（元）',
+                  width: 200,
+                  className: 'revenue-numeric',
+                  cellClassName: 'revenue-recognized-amount',
+                  cell: (e) => money(e.recognition?.amount),
+                },
+                {
+                  id: 'reported-project',
+                  label: '通报项目名称',
+                  width: 220,
+                  cell: (e) => revenueText(e.recognition?.reportedProjectName),
+                },
+                {
+                  id: 'integrated-province',
+                  label: '对应省分（集成）',
+                  width: 135,
+                  cell: (e) => revenueText(integratedAreaName(e.recognition, reference)),
+                },
+                {
+                  id: 'state',
+                  label: '办理状态',
+                  width: 120,
+                  cell: (e) => (
+                    <span
+                      className={`status-badge revenue-state revenue-state-${e.state.toLowerCase()}`}
+                    >
+                      {stateLabels[e.state]}
+                    </span>
                   ),
-                }}
-              >
-                <colgroup>
-                  {admin && <col style={{ width: 44 }} />}
-                  {revenueListColumns.map((column) => (
-                    <col key={column.label} style={{ width: column.width }} />
-                  ))}
-                </colgroup>
-                <thead>
-                  <tr>
-                    {batch.head}
-                    {revenueListColumns.map((column) => (
-                      <th
-                        key={column.label}
-                        scope="col"
-                        className={
-                          column.label === '操作'
-                            ? 'sticky-list-action'
-                            : column.numeric
-                              ? 'revenue-numeric'
-                              : undefined
-                        }
-                      >
-                        {column.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((e) => (
-                    <tr key={e.id}>
-                      {batch.cell(e)}
-                      <td>{revenueText(e.feeMonth)}</td>
-                      <td title={!e.source['省份名称'] ? '未归属' : undefined}>
-                        {revenueText(e.source['省份名称'])}
-                      </td>
-                      <td>{revenueText(e.source['地市/组织名称'])}</td>
-                      <td className="revenue-project-name">{revenueText(e.source['项目名称'])}</td>
-                      <td>{revenueText(e.source['三化分类'])}</td>
-                      <td>{revenueText(e.source['客户名称'] || e.source['自然客户名称'])}</td>
-                      <td>{revenueText(e.contractNo)}</td>
-                      <td>{revenueText(e.clauseNo)}</td>
-                      <td className="revenue-numeric">{money(e.clauseAmount)}</td>
-                      <td className="revenue-numeric">{money(e.sourceAmount)}</td>
-                      <td className="revenue-numeric revenue-recognized-amount">
-                        {money(e.recognition?.amount)}
-                      </td>
-                      <td>{revenueText(e.recognition?.reportedProjectName)}</td>
-                      <td>{revenueText(integratedAreaName(e.recognition, reference))}</td>
-                      <td>
-                        <span
-                          className={`status-badge revenue-state revenue-state-${e.state.toLowerCase()}`}
-                        >
-                          {stateLabels[e.state]}
-                        </span>
-                      </td>
-                      <td className="sticky-list-action">
-                        <Link
-                          className="secondary-button compact-button"
-                          title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.feeMonth || '未填写费用账期'}`}
-                          to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
-                        >
-                          详情
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                },
+              ]}
+              actions={(e) => (
+                <Link
+                  className="secondary-button compact-button"
+                  title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.feeMonth || '未填写费用账期'}`}
+                  to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
+                >
+                  详情
+                </Link>
+              )}
+            />
             {data.items.length === 0 && (
               <div className="empty-state">
                 <strong>暂无符合条件的计收明细</strong>

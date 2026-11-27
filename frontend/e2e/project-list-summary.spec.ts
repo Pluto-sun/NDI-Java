@@ -43,14 +43,13 @@ test('项目列表展示归属、类别、签约主体、负责人和唯一所�
   for (const text of [
     '本地演示省',
     '本地演示市',
-    '5G工业专网',
-    '格物工业互联网平台',
     '数科签约',
     '演示省分负责人',
     project.attributionMonth.slice(0, 7),
   ]) {
     await expect(row).toContainText(text);
   }
+  await expect(row.locator('[data-column-id="category"]')).toHaveText(/^(5G、格物|格物、5G)$/);
   const scroller = page.getByRole('region', { name: '项目清单表格，可横向滚动', exact: true });
   await scroller.focus();
   await page.keyboard.press('ArrowRight');

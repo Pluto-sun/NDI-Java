@@ -1,0 +1,154 @@
+.column-table-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 16px;
+}
+.column-table-tools [role='alert'] {
+  margin: 0 auto 0 0;
+}
+.personalized-table th {
+  position: relative;
+}
+.personalized-table th .column-heading {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-inline-end: 4px;
+}
+.personalized-table :is(th, td).sticky-business-column,
+.personalized-selection :is(th, td):first-child {
+  position: sticky;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: inset -1px 0 var(--line);
+}
+.personalized-selection :is(th, td):first-child {
+  inset-inline-start: 0;
+}
+.personalized-table th.sticky-business-column,
+.personalized-selection th:first-child {
+  z-index: 3;
+  background: #fdfafb;
+}
+.sticky-actions-scroll .personalized-table .sticky-list-action {
+  z-index: 4;
+}
+.sticky-actions-scroll .personalized-table th.sticky-list-action {
+  z-index: 5;
+}
+.personalized-table .column-resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 9px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.column-resize:hover,
+.column-resize:focus-visible {
+  box-shadow: inset -2px 0 var(--red);
+}
+.column-resize-guide {
+  position: fixed;
+  z-index: 20;
+  width: 2px;
+  background: var(--red);
+  pointer-events: none;
+}
+.column-settings-help {
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.column-section-title {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.column-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.column-choices li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+  min-height: 40px;
+}
+.column-choices li + li {
+  border-top: 1px solid var(--line);
+}
+.column-choices li.column-choice-dragging {
+  background: #f8e9ed;
+}
+.column-choices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+}
+.column-choices label input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  flex: 0 0 16px;
+  margin: 0;
+  accent-color: var(--red);
+}
+.column-drag {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 19px;
+  user-select: none;
+}
+.column-choice-actions {
+  display: flex;
+  gap: 3px;
+}
+.column-choice-actions .text-button {
+  padding: 3px 5px;
+}
+.column-fixed-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.column-settings-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0 2px;
+  background: var(--surface);
+}
+.column-settings-actions .text-button:first-child {
+  margin-inline-end: auto;
+}
+.list-column-admin {
+  display: grid;
+  gap: 14px;
+}
+.list-column-admin .column-admin-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+.list-column-admin .column-choices {
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+}
+.list-column-admin .column-list-select {
+  width: min(100%, 380px);
+}

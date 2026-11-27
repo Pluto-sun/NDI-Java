@@ -11,7 +11,8 @@ test('排产和计收筛选月可选择、清空并恢复', async ({ page }) => 
   ]) {
     await page.goto(path);
     if (path === '/scheduling') await chooseActor(page, ids.admin);
-    const month = page.getByLabel(label, { exact: true });
+    const form = page.getByRole('form', { name: path === '/scheduling' ? '排产筛选' : '计收筛选' });
+    const month = form.getByLabel(label, { exact: true });
     await pickMonth(month, '2026-10');
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page).toHaveURL(/month=2026-10/);

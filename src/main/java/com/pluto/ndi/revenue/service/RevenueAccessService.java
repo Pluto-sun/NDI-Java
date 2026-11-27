@@ -1,6 +1,7 @@
 package com.pluto.ndi.revenue.service;
 
 import com.pluto.ndi.identity.service.*;
+import com.pluto.ndi.revenue.RevenueListAccess;
 import com.pluto.ndi.revenue.domain.Revenue;
 import com.pluto.ndi.revenue.domain.RevenueError;
 import com.pluto.ndi.shared.web.BusinessException;
@@ -11,7 +12,7 @@ import java.util.*;
 
 /** 省市可查看本省来源记录；接口人按既有办理范围发起认定。 */
 @Service
-public class RevenueAccessService {
+public class RevenueAccessService implements RevenueListAccess {
     private final IdentityDirectory identities;
 
     public RevenueAccessService(IdentityDirectory identities) {
@@ -47,6 +48,11 @@ public class RevenueAccessService {
         public boolean administrator() {
             return user.roleCodes().contains("SYSTEM_ADMIN");
         }
+    }
+
+    @Override
+    public void requireListRead(UUID actor) {
+        require(actor);
     }
 
     public Access require(UUID actor) {

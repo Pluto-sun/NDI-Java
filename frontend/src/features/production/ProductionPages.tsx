@@ -1,3 +1,7 @@
+import {
+  PersonalizedTable,
+  type BusinessColumn,
+} from '../../shared/list-columns/PersonalizedTable';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { MonthPicker } from '../../shared/ui/MonthPicker';
@@ -15,7 +19,7 @@ import { productionApi, productionImportApi, categories, type Plan, type Referen
 import { PlanForm } from './PlanForm';
 import { expandScientificAmount, plainAmount } from './amounts';
 
-export function ProductionListPage({ admin }: { admin: boolean }) {
+export function ProductionListPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
   const [draft, setDraft] = useState(() => Object.fromEntries(params));
   const [reference, setReference] = useState<Reference | null>(null),
@@ -65,22 +69,6 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
       load: productionApi.list,
     },
   );
-  const columnWidths = [
-    96,
-    100,
-    120,
-    300,
-    112,
-    140,
-    140,
-    140,
-    140,
-    100,
-    240,
-    200,
-    reference?.writable ? 128 : 72,
-  ];
-  const tableWidth = columnWidths.reduce((total, width) => total + width, admin ? 44 : 0);
   function change(key: string, value: string) {
     setDraft((old) => ({ ...old, [key]: value, ...(key === 'provinceId' ? { cityId: '' } : {}) }));
   }
@@ -222,107 +210,121 @@ export function ProductionListPage({ admin }: { admin: boolean }) {
             <span>左右滚动查看全部字段（金额单位：万元）</span>
           </div>
           {batch.toolbar}
-          <div
-            ref={listScroll.table}
-            className="table-scroll production-list-scroll sticky-actions-scroll"
-            role="region"
-            aria-label="排产明细横向滚动区域"
-            tabIndex={0}
-          >
-            <table
-              className="production-table"
-              aria-label="排产计划清单"
-              style={{
-                width: tableWidth,
-                minWidth: tableWidth,
-              }}
-            >
-              <colgroup>
-                {admin && <col style={{ width: 44 }} />}
-                {columnWidths.map((width, index) => (
-                  <col key={index} style={{ width }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
-                  {batch.head}
-                  <th>接口人</th>
-                  <th>排产月份</th>
-                  <th>省份 / 地市</th>
-                  <th>项目名称 / 客户名称</th>
-                  <th>三化类别</th>
-                  {categories.map((c) => (
-                    <th key={c.code} className="numeric">
-                      {c.label}
-                      <small>总排产金额（万元）</small>
-                    </th>
-                  ))}
-                  <th>项目状态</th>
-                  <th>产品简介</th>
-                  <th>备注</th>
-                  <th className="sticky-list-action">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result?.items.map((plan) => (
-                  <tr key={plan.id}>
-                    {batch.cell(plan)}
-                    <td>{plan.reviewerName}</td>
-                    <td className="production-month">{plan.planMonth}</td>
-                    <td>
-                      {plan.provinceName}
-                      <small>{plan.cityName}</small>
-                    </td>
-                    <td>
-                      <strong>{plan.projectName}</strong>
-                      {plan.customerName && <small>{plan.customerName}</small>}
-                    </td>
-                    <td>
-                      <div className="production-tags">
-                        {categories
-                          .filter((c) => plan.categories.includes(c.code))
-                          .map((c) => (
-                            <span key={c.code}>{c.label}</span>
-                          ))}
-                      </div>
-                    </td>
-                    {categories.map((c) => (
-                      <td key={c.code} className="numeric">
-                        {plainAmount(plan[c.amount] ?? '—')}
-                      </td>
-                    ))}
-                    <td>{plan.projectStatus || '—'}</td>
-                    <td className="production-remark">{plan.productIntroduction || '—'}</td>
-                    <td className="production-remark">{plan.remark || '—'}</td>
-                    <td className="sticky-list-action">
-                      <div className="admin-row-actions">
-                        <Link
-                          className="secondary-button compact-button"
-                          to={`/scheduling/${plan.id}`}
-                          state={listScroll.state}
-                          onClick={listScroll.remember}
-                        >
-                          详情
-                        </Link>
-                        {reference?.writable && (
-                          <button
-                            type="button"
-                            className="secondary-button compact-button danger"
-                            onClick={() => {
-                              setError('');
-                              setAction(plan);
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PersonalizedTable
+            list="PRODUCTION"
+            accountId={accountId}
+            label="排产计划清单"
+            className="production-table"
+            scrollRef={listScroll.table}
+            scrollClassName="production-list-scroll"
+            scrollLabel="排产明细横向滚动区域"
+            rows={result?.items ?? []}
+            actionWidth={reference?.writable ? 128 : 72}
+            selection={admin ? batch : undefined}
+            columns={[
+              { id: 'reviewer', label: '接口人', width: 96, cell: (plan) => plan.reviewerName },
+              {
+                id: 'month',
+                label: '排产月份',
+                width: 100,
+                cellClassName: 'production-month',
+                cell: (plan) => plan.planMonth,
+              },
+              {
+                id: 'location',
+                label: '省份 / 地市',
+                width: 120,
+                cell: (plan) => (
+                  <>
+                    {plan.provinceName}
+                    <small>{plan.cityName}</small>
+                  </>
+                ),
+              },
+              {
+                id: 'project',
+                label: '项目名称 / 客户名称',
+                width: 300,
+                cell: (plan) => (
+                  <>
+                    <strong>{plan.projectName}</strong>
+                    {plan.customerName && <small>{plan.customerName}</small>}
+                  </>
+                ),
+              },
+              {
+                id: 'category',
+                label: '三化类别',
+                width: 112,
+                cell: (plan) => (
+                  <div className="production-tags">
+                    {categories
+                      .filter((c) => plan.categories.includes(c.code))
+                      .map((c) => (
+                        <span key={c.code}>{c.label}</span>
+                      ))}
+                  </div>
+                ),
+              },
+              ...categories.map<BusinessColumn<Plan>>((c) => ({
+                id: c.code,
+                label: c.label,
+                width: 140,
+                className: 'numeric',
+                heading: (
+                  <>
+                    {c.label}
+                    <small>总排产金额（万元）</small>
+                  </>
+                ),
+                cell: (plan) => plainAmount(plan[c.amount] ?? '—'),
+              })),
+              {
+                id: 'state',
+                label: '项目状态',
+                width: 100,
+                cell: (plan) => plan.projectStatus || '—',
+              },
+              {
+                id: 'introduction',
+                label: '产品简介',
+                width: 240,
+                cellClassName: 'production-remark',
+                cell: (plan) => plan.productIntroduction || '—',
+              },
+              {
+                id: 'remark',
+                label: '备注',
+                width: 200,
+                cellClassName: 'production-remark',
+                cell: (plan) => plan.remark || '—',
+              },
+            ]}
+            actions={(plan) => (
+              <div className="admin-row-actions">
+                <Link
+                  className="secondary-button compact-button"
+                  to={`/scheduling/${plan.id}`}
+                  state={listScroll.state}
+                  onClick={listScroll.remember}
+                >
+                  详情
+                </Link>
+                {reference?.writable && (
+                  <button
+                    type="button"
+                    className="secondary-button compact-button danger"
+                    onClick={() => {
+                      setError('');
+                      setAction(plan);
+                    }}
+                  >
+                    删除
+                  </button>
+                )}
+              </div>
+            )}
+          />
           {!result?.items.length && (
             <div className="empty-state">暂无排产记录，调整筛选条件或新增排产。</div>
           )}
