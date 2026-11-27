@@ -1,3 +1,4 @@
+import { downloadBlob } from '../../shared/util/downloadAttachment';
 import { PersonalizedTable } from '../../shared/list-columns/PersonalizedTable';
 import { MultiSelect } from '../../shared/ui/MultiSelect';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
@@ -53,6 +54,10 @@ export function ProjectsPage({
   });
   const draftString = (key: string, fallback: string) =>
     typeof savedDraft?.[key] === 'string' ? String(savedDraft[key]) : fallback;
+  const legacyCityId = searchParams.get('cityId')?.split(',').find(Boolean);
+  const legacyProvinceId = legacyCityId
+    ? reference.cities.find((city) => city.id === legacyCityId)?.provinceId
+    : undefined;
   const query = useMemo(() => {
     const selected = (field: string, legacy: string) => [
       ...new Set(
@@ -63,10 +68,7 @@ export function ProjectsPage({
     ];
     const provinceIds = selected('provinceIds', 'provinceId');
     const cityIds = selected('cityIds', 'cityId');
-    if (!provinceIds.length && searchParams.has('cityId')) {
-      const legacyProvince = reference.cities.find((city) => city.id === cityIds[0])?.provinceId;
-      if (legacyProvince) provinceIds.push(legacyProvince);
-    }
+    if (!provinceIds.length && legacyProvinceId) provinceIds.push(legacyProvinceId);
     return {
       productCodes: searchParams.getAll('productCodes'),
       page: Math.max(0, Math.min(100000, Number(searchParams.get('page')) || 0)),
@@ -80,7 +82,7 @@ export function ProjectsPage({
         Object.keys(emptyAdvanced).map((key) => [key, searchParams.get(key) ?? '']),
       ) as typeof emptyAdvanced),
     };
-  }, [searchParams, reference.cities]);
+  }, [searchParams, legacyProvinceId]);
   function setQuery(value: typeof query | ((current: typeof query) => typeof query)) {
     const next = typeof value === 'function' ? value(query) : value;
     const params = new URLSearchParams();
@@ -289,11 +291,11 @@ export function ProjectsPage({
     const appliedQuery = query;
     const appliedFields = exportFields;
     try {
-      const result = await projectsApi.exportDownload(exportTask.id);
+      const file = await projectsApi.exportDownload(exportTask.id);
       if (currentQuery.current === appliedQuery && currentFields.current === appliedFields)
-        window.location.assign(result.url);
+        downloadBlob(file, `projects-${exportTask.id}.csv`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '下载链接获取失败');
+      setError(cause instanceof Error ? cause.message : 'CSV 下载失败');
     }
   }
 

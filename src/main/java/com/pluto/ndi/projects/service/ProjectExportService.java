@@ -92,9 +92,8 @@ public class ProjectExportService {
         if (task.status() != ProjectExportStatus.COMPLETED) {
             throw new BusinessException(ProjectErrorCode.EXPORT_NOT_READY);
         }
-        var url = files.signCsvDownload(exportId);
         downloadRepository.save(ProjectExportDownloadEntity.create(exportId, actorId, Instant.now(clock)));
-        return new ProjectExportDownload(url, "projects-" + exportId + ".csv");
+        return new ProjectExportDownload(() -> files.openCsv(exportId), "projects-" + exportId + ".csv");
     }
 
     @Transactional

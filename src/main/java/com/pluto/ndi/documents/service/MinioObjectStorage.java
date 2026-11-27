@@ -169,8 +169,18 @@ class MinioObjectStorage implements ObjectStorage, ExportFileDirectory {
     }
 
     @Override
-    public String signCsvDownload(UUID exportId) {
-        return signDownload(properties.bucket(), exportKey(exportId));
+    public java.io.InputStream openCsv(UUID exportId) {
+        try {
+            return internalClient.getObject(GetObjectArgs.builder()
+                    .bucket(properties.bucket()).object(exportKey(exportId)).build());
+        } catch (ErrorResponseException exception) {
+            if ("NoSuchKey".equals(exception.errorResponse().code())) {
+                throw new BusinessException(DocumentErrorCode.NOT_AVAILABLE);
+            }
+            throw storageFailure(exception);
+        } catch (MinioException exception) {
+            throw storageFailure(exception);
+        }
     }
 
     private String exportKey(UUID exportId) {

@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -84,6 +86,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1243,11 +1246,17 @@ class ProjectApprovalIT {
         verify(exportFileDirectory).storeCsv(eq(taskId), csvBytes.capture());
         assertThat(new String(csvBytes.getValue(), StandardCharsets.UTF_8)).contains("原项目");
 
-        when(exportFileDirectory.signCsvDownload(taskId)).thenReturn("https://storage.example/export");
+        var input = spy(new java.io.ByteArrayInputStream(csvBytes.getValue()));
+        when(exportFileDirectory.openCsv(taskId)).thenReturn(input);
         mockMvc.perform(get("/api/v1/projects/exports/{exportId}/download", taskId)
                         .header("X-NDI-Actor-Id", cityUserId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.url").value("https://storage.example/export"));
+                .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"projects-" + taskId + ".csv\""))
+                .andExpect(header().doesNotExist("Location"))
+                .andExpect(content().bytes(csvBytes.getValue()));
+        verify(input).close();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM project_export_download WHERE export_id = UUID_TO_BIN(?)",
                 Integer.class, taskId.toString())).isEqualTo(1);
         mockMvc.perform(get("/api/v1/projects/exports/{exportId}/download", taskId)

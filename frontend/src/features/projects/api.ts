@@ -294,8 +294,7 @@ export const projectsApi = {
       ...jsonBody({ ...projectFilterValues(filter), ...(fields ? { fields } : {}) }),
     }),
   exportTask: (id: string) => request<ExportTask>(`/exports/${id}`),
-  exportDownload: (id: string) =>
-    request<{ url: string; fileName: string }>(`/exports/${id}/download`),
+  exportDownload: (id: string) => requestBlob(`/exports/${id}/download`),
   documents: (id: string) => request<ProjectDocument[]>(`/${id}/documents`),
   beginUpload: (
     id: string,

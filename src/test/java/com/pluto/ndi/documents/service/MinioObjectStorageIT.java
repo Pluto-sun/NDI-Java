@@ -1,6 +1,7 @@
 package com.pluto.ndi.documents.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.net.URI;
@@ -86,19 +87,19 @@ class MinioObjectStorageIT {
     }
 
     @Test
-    void storesServerGeneratedCsvAndSignsDownload() throws Exception {
+    void readsServerGeneratedCsvThroughInternalEndpoint() throws Exception {
         var endpoint = "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000);
         var storage = new MinioObjectStorage(new StorageProperties(
-                endpoint, endpoint, "ndi_minio_test", "ndi_minio_test_password", "ndi-it-exports", true, null));
+                endpoint, "http://127.0.0.1:1", "ndi_minio_test", "ndi_minio_test_password", "ndi-it-exports", true, null));
         var exportId = UUID.randomUUID();
         var content = "\uFEFF项目编号\r\nNDI-1\r\n".getBytes(StandardCharsets.UTF_8);
 
         storage.storeCsv(exportId, content);
-        var response = HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create(storage.signCsvDownload(exportId))).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray());
-
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).isEqualTo(content);
+        try (var stream = storage.openCsv(exportId)) {
+            assertThat(stream.readAllBytes()).isEqualTo(content);
+        }
+        assertThatThrownBy(() -> storage.openCsv(UUID.randomUUID()))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.errorCode()).isEqualTo(DocumentErrorCode.NOT_AVAILABLE));
     }
 }

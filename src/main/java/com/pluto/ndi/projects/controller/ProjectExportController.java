@@ -1,9 +1,10 @@
 package com.pluto.ndi.projects.controller;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
-import com.pluto.ndi.projects.service.ProjectExportDownload;
 import com.pluto.ndi.projects.service.ProjectExportService;
 import com.pluto.ndi.projects.service.ProjectExportSummary;
 import com.pluto.ndi.shared.security.ActorPrincipal;
@@ -11,7 +12,13 @@ import com.pluto.ndi.shared.web.ApiResponse;
 import com.pluto.ndi.shared.web.ApiResponseFactory;
 import com.pluto.ndi.shared.web.BusinessException;
 import jakarta.validation.Valid;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,8 +59,16 @@ public class ProjectExportController {
     }
 
     @GetMapping("/{exportId}/download")
-    public ApiResponse<ProjectExportDownload> download(Authentication authentication, @PathVariable UUID exportId) {
-        return responses.success(service.download(actorId(authentication), exportId));
+    public ResponseEntity<InputStreamResource> download(Authentication authentication, @PathVariable UUID exportId)
+            throws IOException {
+        var file = service.download(actorId(authentication), exportId);
+        var content = new InputStreamResource(file.content().getInputStream());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(file.fileName())
+                        .build().toString())
+                .body(content);
     }
 
     private UUID actorId(Authentication authentication) {
