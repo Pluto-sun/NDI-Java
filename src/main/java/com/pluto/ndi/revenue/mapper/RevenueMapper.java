@@ -75,12 +75,12 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
         var sql = new StringBuilder(base.sql());
         var args = base.args().addValue("digitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
         if (months.from() != null) {
-            sql.append(" AND e.account_month>=:start");
-            args.addValue("start", months.from());
+            sql.append(" AND e.fee_month_key>=:start");
+            args.addValue("start", months.from().substring(0, 7));
         }
         if (months.to() != null) {
-            sql.append(" AND e.account_month<=:finish");
-            args.addValue("finish", months.to());
+            sql.append(" AND e.fee_month_key<=:finish");
+            args.addValue("finish", months.to().substring(0, 7));
         }
         var provinces = new HashMap<String, Metric>();
         var categories = new TreeMap<String, Metric>();

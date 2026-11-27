@@ -96,7 +96,11 @@ function GewuComparisons({ value }: { value: Gewu }) {
   return (
     <div className="rc-gewu">
       {metrics.map((metric) => {
-        const maximum = Math.max(1, Number(metric.signed), Number(metric.recognized));
+        const maximum = Math.max(
+          1,
+          Math.abs(Number(metric.signed)),
+          Math.abs(Number(metric.recognized)),
+        );
         const unit = metric.count ? '个' : '万元';
         return (
           <article key={metric.label}>
@@ -108,7 +112,10 @@ function GewuComparisons({ value }: { value: Gewu }) {
                     <dt>{index === 0 ? '格物签约' : '格物计收'}</dt>
                     <dd>
                       <span className="rc-gewu-track" aria-hidden="true">
-                        <i style={{ width: (Number(amount) / maximum) * 100 + '%' }} />
+                        <i
+                          className={Number(amount) < 0 ? 'rc-offset-bar' : undefined}
+                          style={{ width: (Math.abs(Number(amount)) / maximum) * 100 + '%' }}
+                        />
                       </span>
                       <strong>
                         {typeof amount === 'number' ? count(amount) : revenueAmount(amount)}{' '}

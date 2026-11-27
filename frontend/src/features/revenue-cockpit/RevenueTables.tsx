@@ -11,7 +11,7 @@ export function RevenueRanking({ regions }: { regions: Region[] }) {
   const ranked = regions
     .filter((row) => row.hasRevenue && (row.geographic || row.organization))
     .slice(0, 10);
-  const maximum = Math.max(1, ...ranked.map((row) => Number(row.total.total)));
+  const maximum = Math.max(1, ...ranked.map((row) => Math.abs(Number(row.total.total))));
   return (
     <table className="sc-data rc-ranking">
       <thead>
@@ -32,7 +32,8 @@ export function RevenueRanking({ regions }: { regions: Region[] }) {
               <div className="rc-rank-value">
                 <span className="rc-rank-track" aria-hidden="true">
                   <i
-                    style={{ width: Math.max(0, (Number(row.total.total) / maximum) * 100) + '%' }}
+                    className={Number(row.total.total) < 0 ? 'rc-offset-bar' : undefined}
+                    style={{ width: (Math.abs(Number(row.total.total)) / maximum) * 100 + '%' }}
                   />
                 </span>
                 <span>{revenueAmount(row.total.total)}</span>

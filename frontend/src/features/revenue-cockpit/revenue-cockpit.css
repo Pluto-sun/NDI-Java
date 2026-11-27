@@ -215,6 +215,12 @@
   border-radius: 2px;
 }
 
+.rc-ranking .rc-offset-bar,
+.rc-gewu dl .rc-offset-bar {
+  margin-left: auto;
+  background: #7195bc;
+}
+
 .rc-detail-scroll {
   overflow: auto;
   min-height: 0;

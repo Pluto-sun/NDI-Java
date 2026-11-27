@@ -468,14 +468,14 @@ export function ImportRevenuePage() {
               : sourceFieldOptions(field, values, reference),
         changeRowField: (values, field, value) =>
           changeSourceField(values, field, value, reference),
-        amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入'],
+        amountFields: ['条款金额', '产品本月计收不含税额/标品含税收入', '认定金额'],
         rowTitleFields: ['项目名称', '自然客户名称', '合同编号', '条款编号'],
         rowLocationFields: ['省份名称', '地市/组织名称'],
         noDuplicateMessage:
           '月账期、费用账期、合同编号、条款编号、业务号码/项目编号、自然客户名称、产品编码七项组合唯一；条款编号、自然客户名称和产品编码留空或 -- 时按空字符串参与判重，同名项目允许多条明细。',
         uploadHint:
-          '网络化仅系统管理员可导入，须填写大于 0 的认定金额及对应省分（集成），合同编号和通报项目名称可留空。数字化和智能化须填合同编号，直接认定时还须填通报项目名称。项目状态选填，金额单位为元。',
-        previewHint: '重复唯一键须修正；确认只导入选中的通过行，其余放弃并结束任务。',
+          '金额以元填写，系统四舍五入到两位小数，负金额可用于冲减。网络化仅管理员可导入，须填写舍入后非零的认定金额和对应省分（集成）；合同编号、通报项目名称可留空。标准省份的网络化可留空地市，具体组织须填组织全称。数字化和智能化直接认定时须填写通报项目名称。',
+        previewHint: '金额依次显示条款金额、来源计收金额和认定金额，入库时四舍五入到分。',
       }}
     />
   );

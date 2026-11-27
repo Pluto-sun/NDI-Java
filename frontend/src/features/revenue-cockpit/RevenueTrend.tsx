@@ -11,22 +11,31 @@ const lineColor = '#193954';
 
 export function RevenueTrend({ months }: { months: Month[] }) {
   const [active, setActive] = useState<number | null>(null);
-  const maximum = Math.max(
-    0,
-    ...months.map(({ money }) =>
-      Math.max(
-        Number(money.total),
-        series.reduce((sum, item) => sum + Number(money[item.code]), 0),
-      ),
-    ),
-  );
-  const magnitude = maximum ? 10 ** Math.floor(Math.log10(maximum / 5)) : 1000;
-  const interval = Math.max(0.01, Math.ceil(maximum / (5 * magnitude)) * magnitude || magnitude);
-  const min = Math.min(0, ...months.map(({ money }) => Number(money.total)));
-  const floor = Math.floor(min / interval) * interval;
-  const ceiling = interval * 5;
-  const ticks = Array.from({ length: 6 }, (_, index) => {
-    const amount = interval * index;
+  const stacks = months.map((row) => {
+    let positive = 0;
+    let negative = 0;
+    const bars = series.map((item) => {
+      const value = Number(row.money[item.code]);
+      const from = value < 0 ? negative : positive;
+      const to = from + value;
+      if (value < 0) negative = to;
+      else positive = to;
+      return { item, from, to };
+    });
+    const total = Number(row.money.total);
+    return { bars, minimum: Math.min(negative, total), maximum: Math.max(positive, total) };
+  });
+  const minimum = Math.min(0, ...stacks.map((stack) => stack.minimum));
+  const maximum = Math.max(0, ...stacks.map((stack) => stack.maximum));
+  const span = maximum - minimum;
+  const magnitude = span ? 10 ** Math.floor(Math.log10(span / 5)) : 1000;
+  const interval = Math.max(0.01, Math.ceil(span / (5 * magnitude)) * magnitude || magnitude);
+  const firstTick = Math.floor(minimum / interval);
+  const lastTick = span ? Math.ceil(maximum / interval) : 5;
+  const floor = firstTick * interval;
+  const ceiling = lastTick * interval;
+  const ticks = Array.from({ length: lastTick - firstTick + 1 }, (_, index) => {
+    const amount = interval * (firstTick + index);
     return { amount, label: amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) };
   });
   const axisLeft = Math.max(54, ...ticks.map(({ label }) => label.length * 6 + 8));
@@ -61,61 +70,59 @@ export function RevenueTrend({ months }: { months: Month[] }) {
         <svg viewBox="0 0 966 176" role="group" aria-label="三化计收堆叠柱与合计折线图">
           {ticks.map(({ amount, label }) => (
             <g key={amount}>
-              <line className="sc-gridline" x1={axisLeft} x2={954} y1={y(amount)} y2={y(amount)} />
+              <line
+                className={amount === 0 ? 'sc-zero-line' : 'sc-gridline'}
+                x1={axisLeft}
+                x2={954}
+                y1={y(amount)}
+                y2={y(amount)}
+              />
               <text x={axisLeft - 5} y={y(amount) + 3} textAnchor="end">
                 {label}
               </text>
             </g>
           ))}
-          {months.map((row, index) => {
-            let bottom = 0;
-            return (
-              <g
-                key={row.month}
-                tabIndex={0}
-                aria-label={detail(row)}
-                onFocus={() => setActive(index)}
-                onBlur={() => setActive(null)}
-                onPointerEnter={() => setActive(index)}
-                onPointerLeave={() => setActive(null)}
+          {months.map((row, index) => (
+            <g
+              key={row.month}
+              tabIndex={0}
+              aria-label={detail(row)}
+              onFocus={() => setActive(index)}
+              onBlur={() => setActive(null)}
+              onPointerEnter={() => setActive(index)}
+              onPointerLeave={() => setActive(null)}
+            >
+              <rect
+                className="sc-chart-hit"
+                x={x(index) - 29}
+                y={15}
+                width={58}
+                height={152}
+                fill={active === index ? '#e7edf8' : 'transparent'}
+              />
+              {row.occurred &&
+                stacks[index].bars.map(({ item, from, to }) => (
+                  <rect
+                    key={item.code}
+                    data-series={item.code}
+                    x={x(index) - 13}
+                    width={26}
+                    y={Math.min(y(from), y(to))}
+                    height={Math.abs(y(from) - y(to))}
+                    fill={item.color}
+                    pointerEvents="none"
+                  />
+                ))}
+              <text
+                x={x(index)}
+                y={163}
+                textAnchor="middle"
+                className={row.occurred ? '' : 'rc-future'}
               >
-                <rect
-                  className="sc-chart-hit"
-                  x={x(index) - 29}
-                  y={15}
-                  width={58}
-                  height={152}
-                  fill={active === index ? '#e7edf8' : 'transparent'}
-                />
-                {row.occurred &&
-                  series.map((item) => {
-                    const value = Number(row.money[item.code]);
-                    const top = bottom + value;
-                    const rect = (
-                      <rect
-                        key={item.code}
-                        x={x(index) - 13}
-                        width={26}
-                        y={Math.min(y(top), y(bottom))}
-                        height={Math.abs(y(bottom) - y(top))}
-                        fill={item.color}
-                        pointerEvents="none"
-                      />
-                    );
-                    bottom = top;
-                    return rect;
-                  })}
-                <text
-                  x={x(index)}
-                  y={163}
-                  textAnchor="middle"
-                  className={row.occurred ? '' : 'rc-future'}
-                >
-                  {row.month}月
-                </text>
-              </g>
-            );
-          })}
+                {row.month}月
+              </text>
+            </g>
+          ))}
           <path d={path} className="sc-rate-line rc-total-line" pointerEvents="none" />
           {months.map(
             (row, i) =>

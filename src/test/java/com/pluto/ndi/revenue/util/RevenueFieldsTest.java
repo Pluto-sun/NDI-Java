@@ -48,7 +48,7 @@ class RevenueFieldsTest {
         assertThat(result.clauseNo()).isEmpty();
         assertThat(result.fields()).containsEntry("条款编号", "");
         assertThat(RevenueImport.REQUIRED)
-                .containsExactlyInAnyOrder("月账期", "费用账期", "省份名称", "地市/组织名称",
+                .containsExactlyInAnyOrder("月账期", "费用账期", "省份名称",
                         "业务号码/项目编号", "产品名称", "条款金额", RevenueFields.SOURCE_AMOUNT, "三化分类");
         assertThat(RevenueImport.rules().stream().filter(r -> r.name().equals("条款编号")).findFirst())
                 .isPresent();
@@ -99,6 +99,30 @@ class RevenueFieldsTest {
                 assertThatThrownBy(() -> fields.normalize(missing)).hasMessageContaining(field + "必填");
             }
         }
+    }
+
+    @Test
+    void importsHalfUpAfterParsingAndEnforcesRequiredSourceAmounts() {
+        for (var field : new String[] {"条款金额", RevenueFields.SOURCE_AMOUNT, RevenueImport.AMOUNT}) {
+            assertThat(RevenueFields.importAmount("1,012.345", field)).isEqualByComparingTo("1012.35");
+            assertThat(RevenueFields.importAmount("-12.345", field)).isEqualByComparingTo("-12.35");
+            assertThat(RevenueFields.importAmount("0.005", field)).isEqualByComparingTo("0.01");
+            assertThat(RevenueFields.importAmount("-0.005", field)).isEqualByComparingTo("-0.01");
+            assertThat(RevenueFields.importAmount("-0.0049", field)).isEqualByComparingTo("0.00");
+            assertThat(RevenueFields.importAmount("1E-2147483647", field)).isEqualByComparingTo("0.00");
+            assertThatThrownBy(() -> RevenueFields.importAmount("-9999999999999999.995", field))
+                    .hasMessageContaining("金额超出范围");
+            assertThatThrownBy(() -> RevenueFields.importAmount("abc", field)).hasMessageContaining("须为有效金额");
+        }
+        for (var field : new String[] {"条款金额", RevenueFields.SOURCE_AMOUNT}) {
+            var input = source();
+            input.put(field, "");
+            assertThatThrownBy(() -> fields.normalizeImport(input)).hasMessageContaining(field + "必填");
+            input.put(field, "-12.345");
+            assertThat(fields.normalizeImport(input).fields()).containsEntry(field, "-12.35");
+            assertThatThrownBy(() -> fields.normalize(input)).hasMessageContaining("最多两位小数");
+        }
+        assertThatThrownBy(() -> RevenueFields.amount("-1", "条款金额", true)).hasMessageContaining("超出范围");
     }
 
     @Test

@@ -242,3 +242,65 @@ test('年度快照在四种视口完整展示，明细内部滚动与组织行�
   await expect(metrics.getByRole('heading')).toHaveCount(6);
   expect([401, 403]).toContain((await request.get(root + '/annual-overview')).status());
 });
+
+test('计收趋势按零线绘制冲减，混合月份保留正净额', async ({ page, request }, info) => {
+  const response = await request.get(root + '/annual-overview', auth());
+  expect(response.ok()).toBe(true);
+  const result = await response.json();
+  const annual: AnnualOverview = result.data;
+  const mixed = { network: '-20', digital: '50', intelligent: '0', total: '30' };
+  const negative = { network: '-25', digital: '0', intelligent: '0', total: '-25' };
+  const empty = { network: '0', digital: '0', intelligent: '0', total: '0' };
+  annual.months = annual.months.map(({ month }) => ({
+    month,
+    occurred: month <= 2,
+    money: month === 1 ? mixed : month === 2 ? negative : empty,
+  }));
+  annual.currentMonth = 2;
+  annual.total = { ...mixed, network: '-45', total: '5' };
+  annual.regions = [
+    {
+      key: '440000',
+      adcode: '440000',
+      name: '广东省',
+      geographic: true,
+      organization: false,
+      hasRevenue: true,
+      total: negative,
+      months: annual.months.map((month) => ({
+        ...month,
+        money: month.month === 2 ? negative : empty,
+      })),
+      gewu: null,
+    },
+  ];
+  await page.route('**/revenue/entries/annual-overview', (route) =>
+    route.fulfill({ json: result }),
+  );
+  await page.goto(path);
+  await chooseActor(page, ids.admin);
+  const trend = page.getByRole('region', { name: '1–12 月三化计收趋势' });
+  const graph = trend.getByRole('group', { name: '三化计收堆叠柱与合计折线图' });
+  const baseline = Number(await graph.locator('.sc-zero-line').getAttribute('y1'));
+  const jan = graph.locator('g[tabindex]').first();
+  const feb = graph.locator('g[tabindex]').nth(1);
+  const networkBar = jan.locator('rect[data-series="network"]');
+  const digitalBar = jan.locator('rect[data-series="digital"]');
+  expect(Number(await networkBar.getAttribute('y'))).toBeCloseTo(baseline);
+  expect(Number(await networkBar.getAttribute('height'))).toBeGreaterThan(0);
+  expect(Number(await digitalBar.getAttribute('y'))).toBeLessThan(baseline);
+  const totals = graph.locator('circle');
+  expect(Number(await totals.first().getAttribute('cy'))).toBeLessThan(baseline);
+  expect(Number(await totals.nth(1).getAttribute('cy'))).toBeGreaterThan(baseline);
+  await feb.focus();
+  await expect(trend.getByRole('tooltip')).toContainText('合计 -25 万元');
+  await expect(page.getByText('负值（冲减）', { exact: true })).toBeVisible();
+  const detail = page.getByRole('region', { name: '计收明细滚动区域' });
+  await expect(
+    detail
+      .getByRole('row', { name: /^广东省/ })
+      .getByText('-25')
+      .first(),
+  ).toBeVisible();
+  await page.screenshot({ path: info.outputPath('revenue-negative-trend.png') });
+});

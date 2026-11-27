@@ -155,7 +155,7 @@ public class RevenueService implements RevenueRecordDeletion {
                     "REVENUE_NETWORK_IMPORT_FORBIDDEN", "网络化条目仅允许系统管理员导入"));
         var recognition = importRecognition(values, network);
         if (network && recognition == null)
-            throw invalid("网络化条目须填写大于 0 的有效认定金额和对应省分（集成）");
+            throw invalid("网络化条目须填写有效的非零认定金额和对应省分（集成）");
         return new ValidatedImport(source, recognition);
     }
 
@@ -168,22 +168,17 @@ public class RevenueService implements RevenueRecordDeletion {
         String amountText = importValue(values, RevenueImport.AMOUNT);
         String name = importValue(values, RevenueImport.PROJECT);
         String province = importValue(values, RevenueImport.PROVINCE);
-        if (amountText.isEmpty() || province.isEmpty()) return null;
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(amountText.replace(",", ""));
-        } catch (NumberFormatException failure) {
-            return null;
-        }
-        if (amount.signum() <= 0) return null;
+        if (amountText.isEmpty()) return null;
+        BigDecimal amount = RevenueFields.importAmount(amountText, RevenueImport.AMOUNT);
+        if (amount.signum() == 0 || province.isEmpty()) return null;
         String status = importValue(values, RevenueImport.STATUS);
         if (Revenue.INTEGRATED_ORGANIZATIONS.contains(province))
-            return fields.recognition(new Recognition(amount, name, status, null, province), network);
+            return fields.importRecognition(new Recognition(amount, name, status, null, province), network);
         var integratedProvince = organizations.findEnabledProvinceByName(province)
                 .or(() -> organizations.findEnabledProvinces().stream()
                         .filter(item -> item.id().toString().equals(province)).findFirst())
                 .orElseThrow(() -> invalid("对应省分（集成）未匹配启用的省份、数科或数智"));
-        return fields.recognition(new Recognition(amount, name, status, integratedProvince.id()), network);
+        return fields.importRecognition(new Recognition(amount, name, status, integratedProvince.id()), network);
     }
 
     private static String importValue(Map<String, String> values, String field) {

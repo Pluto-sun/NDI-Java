@@ -39,20 +39,23 @@ export function CockpitChart({
   const top = increments ? 14 : 24;
   const bottom = height - 29;
   const limits = points.reduce(
-    ({ min, max, rate }, point) => ({
+    ({ min, max, minRate, maxRate }, point) => ({
       min: Math.min(min, point.planned, point.recognized),
       max: Math.max(max, point.planned, point.recognized),
-      rate: Math.max(rate, point.rate ?? 0),
+      minRate: Math.min(minRate, point.rate ?? 0),
+      maxRate: Math.max(maxRate, point.rate ?? 0),
     }),
-    { min: 0, max: 0, rate: 100 },
+    { min: 0, max: 0, minRate: 0, maxRate: 100 },
   );
   const { min: rawMin, max: rawMax } = limits;
   const step = tickStep(rawMax - rawMin);
   const min = Math.floor(rawMin / step) * step;
   const max = rawMax || rawMin ? Math.ceil(rawMax / step) * step : step;
-  const rateMax = Math.ceil(limits.rate / 25) * 25;
+  const rateMin = Math.floor(limits.minRate / 25) * 25;
+  const rateMax = Math.ceil(limits.maxRate / 25) * 25;
   const y = (amount: number) => bottom - ((amount - min) / (max - min)) * (bottom - top);
-  const rateY = (rate: number) => bottom - (rate / rateMax) * (bottom - top);
+  const rateY = (rate: number) =>
+    bottom - ((rate - rateMin) / (rateMax - rateMin)) * (bottom - top);
   const slot = (right - left) / Math.max(1, points.length);
   const bar = Math.min(slot * 0.31, increments ? 20 : 22);
   const chartTicks = Array.from(
@@ -121,11 +124,13 @@ export function CockpitChart({
               </g>
             ))}
             {!increments &&
-              Array.from({ length: 6 }, (_, i) => (i * rateMax) / 5).map((value) => (
-                <text key={value} x={right + 7} y={rateY(value) + 3}>
-                  {+value.toFixed(1)}%
-                </text>
-              ))}
+              Array.from({ length: 6 }, (_, i) => rateMin + (i * (rateMax - rateMin)) / 5).map(
+                (value) => (
+                  <text key={value} x={right + 7} y={rateY(value) + 3}>
+                    {+value.toFixed(1)}%
+                  </text>
+                ),
+              )}
             {!increments && (
               <path
                 d={points
@@ -207,7 +212,7 @@ export function CockpitChart({
                         <text
                           className="sc-rate-label"
                           x={x}
-                          y={Math.min(rateY(rate) - 10, yZero - 25)}
+                          y={rate < 0 ? rateY(rate) - 10 : Math.min(rateY(rate) - 10, yZero - 25)}
                           textAnchor="middle"
                         >
                           {formatRate(row.amounts.rate)}

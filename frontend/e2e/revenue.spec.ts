@@ -626,3 +626,120 @@ test('网络化导入允许取消合同编号映射，其他分类预检报错',
   expect(items[0].recognition?.reportedProjectName).toBe('');
   expect(Number(items[0].recognition?.amount)).toBe(23.5);
 });
+
+test('混合工作簿预检按归属和分类校验地市，并导入负金额冲减', async ({ page, request }, info) => {
+  const prefix = 'IMPORT-OFFSET-' + randomUUID();
+  const row = (index: number, category: string, province: string, city: string) => ({
+    ...source(prefix + '-' + index),
+    费用账期: '2097-02',
+    省份名称: province,
+    '地市/组织名称': city,
+    三化分类: category,
+    条款金额: '-12.345',
+    '产品本月计收不含税额/标品含税收入': '12.345',
+    认定金额: '-123450.345',
+    通报项目名称: category === '网络化' ? '' : '冲减验收',
+    '对应省分（集成）': '数智',
+  });
+  await page.goto('/revenue/import');
+  await switchActor(page, ids.admin);
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '计收冲减及归属.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook([
+      row(1, '网络化', '本地演示省', ''),
+      row(2, '网络化', '本地演示省', '--'),
+      row(3, '数字化', '本地演示省', '  '),
+      row(4, '智能化', '本地演示省', '--'),
+      row(5, '网络化', '具体组织', '--'),
+      row(6, '智能化', '数科', ''),
+    ]),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  const city = page.getByRole('combobox', { name: '映射：地市/组织名称', exact: true });
+  await expect(page.getByRole('row').filter({ has: city })).toContainText('条件必填');
+  await page.screenshot({ path: info.outputPath('revenue-offset-mapping.png') });
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await expect(page.getByText('地市/组织名称必填', { exact: true })).toHaveCount(2);
+  await expect(
+    page.getByText('地市/组织名称必填，请填写具体组织全称', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '查看／修正第 5 行', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '修正第 5 行', exact: true });
+  await editor
+    .getByRole('combobox', { name: '地市/组织名称', exact: true })
+    .selectOption('本地演示市');
+  await editor.getByRole('button', { name: '保存并重新校验', exact: true }).click();
+  await expect(page.getByText('地市/组织名称必填', { exact: true })).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath('revenue-offset-preview.png') });
+  await page.getByRole('button', { name: '确认导入 4 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  const { items, summary } = await api<{ items: Entry[]; summary: { recognizedAmount: string } }>(
+    request,
+    ids.admin,
+    '?search=' + prefix + '&feeMonth=2097-02',
+  );
+  expect(items).toHaveLength(4);
+  expect(Number(summary.recognizedAmount)).toBe(-493801.4);
+  for (const item of items) {
+    expect(item.state).toBe('RECOGNIZED');
+    expect(item.source['条款金额']).toBe('-12.35');
+    expect(item.source['产品本月计收不含税额/标品含税收入']).toBe('12.35');
+    expect(Number(item.recognition?.amount)).toBe(-123450.35);
+    if (item.source['三化分类'] === '网络化') expect(item.source['地市/组织名称']).toBe('');
+    if (item.source['省份名称'] === '数科')
+      expect(item.source['地市/组织名称']).toBe('联通数字科技有限公司本部');
+  }
+
+  const plan = await request.post('http://127.0.0.1:18080/api/v1/production/plans', {
+    headers: { 'X-NDI-Actor-Id': ids.admin },
+    data: {
+      reviewerName: '冲减验收',
+      planMonth: '2097-02',
+      provinceId: ids.province,
+      cityId: ids.city,
+      projectName: prefix,
+      networkOrderAmount: 100,
+    },
+  });
+  expect(plan.ok(), await plan.text()).toBe(true);
+  await page.goto('/workbench/scheduling?from=2097-02&to=2097-02');
+  const trend = page.getByRole('region', { name: '月度排产与计收趋势' });
+  const graph = trend.getByRole('group', { name: '月度金额柱状图与兑现率折线图' });
+  await graph.locator('g[tabindex]').first().focus();
+  await expect(trend.getByRole('tooltip')).toContainText('计收 -49.38 万元');
+  await expect(trend.getByRole('tooltip')).toContainText('兑现率 -49.4%');
+  const point = graph.locator('circle.sc-rate-point');
+  await expect(point).toHaveCount(1);
+  const ratePosition = Number(await point.getAttribute('cy'));
+  expect(ratePosition).toBeGreaterThan(24);
+  expect(ratePosition).toBeLessThan(289);
+  await page.screenshot({ path: info.outputPath('scheduling-negative-trend.png') });
+});
+
+test('标准省份网络化记录无需映射地市即可确认导入', async ({ page, request }) => {
+  const contract = 'IMPORT-NO-CITY-' + randomUUID();
+  await page.goto('/revenue/import');
+  await switchActor(page, ids.admin);
+  await page.getByLabel('Excel 文件', { exact: true }).setInputFiles({
+    name: '网络化未映射地市.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: importWorkbook([
+      {
+        ...source(contract),
+        三化分类: '网络化',
+        认定金额: '-0.005',
+        '对应省分（集成）': '数智',
+      },
+    ]),
+  });
+  await page.getByRole('button', { name: '下一步：字段映射', exact: true }).click();
+  await page.getByRole('combobox', { name: '映射：地市/组织名称', exact: true }).selectOption('');
+  await page.getByRole('button', { name: '下一步：开始预检', exact: true }).click();
+  await page.getByRole('button', { name: '确认导入 1 行并结束任务', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导入任务已完成', exact: true })).toBeVisible();
+  const { items } = await api<{ items: Entry[] }>(request, ids.admin, '?search=' + contract);
+  expect(items).toHaveLength(1);
+  expect(items[0].source['地市/组织名称']).toBe('');
+  expect(Number(items[0].recognition?.amount)).toBe(-0.01);
+});

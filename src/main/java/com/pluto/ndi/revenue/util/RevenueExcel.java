@@ -4,6 +4,7 @@ import com.pluto.ndi.revenue.service.RevenueService.Reference;
 import com.pluto.ndi.shared.excel.*;
 
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.*;
@@ -38,7 +39,7 @@ public final class RevenueExcel {
         }
         return switch (field) {
             case "条款金额", RevenueFields.SOURCE_AMOUNT, "认定金额" ->
-                    BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+                    ((XSSFCell) cell).getRawValue();
             default -> null;
         };
     }
@@ -85,15 +86,15 @@ public final class RevenueExcel {
             var notes = book.createSheet("填写说明");
             var lines =
                     List.of(
-                            "来源金额单位：元，最多两位小数；不能把空值或--自动当作0。",
-                            "必填：月账期、费用账期、省份名称、地市/组织名称、业务号码/项目编号、产品名称、三化分类、条款金额、产品本月计收不含税额/标品含税收入。",
+                            "三项金额均以元填写，允许负数，四舍五入至两位小数。两项来源金额必填，允许明确填写0。",
+                            "必填：月账期、费用账期、省份名称、业务号码/项目编号、产品名称、三化分类、条款金额、产品本月计收不含税额/标品含税收入。",
                             "月账期、费用账期支持YYYYMM或YYYY-MM；审签日期选填，支持Excel日期、横线或斜线日期、日期时间以及--（无日期）。",
                             "条款编号选填；留空或--统一为空，仅纯数字条款编号去除前导零（002与2均保存为2），混合编号保留。",
                             "月账期＋费用账期＋合同编号＋条款编号＋业务号码/项目编号＋自然客户名称＋产品编码全局唯一；条款编号、自然客户名称和产品编码留空或--时按空字符串参与判重。",
                             "合同编号：网络化可留空，数字化和智能化必填。空合同编号按空字符串参与判重。",
-                            "具体组织填写组织全称；标准省份下地市仍为文本。",
+                            "地市/组织名称为条件必填。标准省份的网络化可留空或填--；数字化和智能化须填。具体组织须填组织全称。",
                             "省份名称选择数科时，组织名称仅允许联通数字科技有限公司本部；未填时系统自动补齐。",
-                            "网络化须填大于零的认定金额和对应省分（集成），通报项目名称选填。数字化、智能化未提供正数金额或对应省分（集成）时按未认定导入，两项均提供时还须填写通报项目名称。项目状态选填，随已认定结果保存。",
+                            "网络化须填舍入后非零的认定金额及对应省分（集成）。数字化和智能化直接认定时还须填通报项目名称，金额为零或未填认定金额、集成省分时按未认定导入。项目状态选填。",
                             "合同编号和业务号码等请用文本保存以保留前导零；纯数字条款编号按整数归一；文件不超过20 MB。");
             for (int i = 0; i < lines.size(); i++)
                 notes.createRow(i).createCell(0).setCellValue(lines.get(i));

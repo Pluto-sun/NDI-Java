@@ -67,6 +67,9 @@ export function CockpitMap({
   const offMap = provinces.filter(
     (row) => !row.adcode || (boundary === 'ready' && !represented.has(row.adcode)),
   );
+  const displayedBands = provinces.some((row) => Number(row.total.recognized) < 0)
+    ? [{ below: 0, label: '负值（冲减）', color: '#7195bc' }, ...palette]
+    : palette;
   const label = active ? active.name + ' · ' + describe(active) : '';
   return (
     <>
@@ -89,7 +92,7 @@ export function CockpitMap({
                   tabIndex={row ? 0 : undefined}
                   fill={
                     row || nationwide
-                      ? palette.find((band) => amount < band.below)?.color
+                      ? displayedBands.find((band) => amount < band.below)?.color
                       : '#e5ebf4'
                   }
                   fillRule="evenodd"
@@ -137,7 +140,7 @@ export function CockpitMap({
       </div>
       <div className="sc-map-legend">
         <strong>累计计收金额</strong>
-        {palette.map((band) => (
+        {displayedBands.map((band) => (
           <span key={band.label}>
             <i style={{ background: band.color }} />
             {band.label}

@@ -371,7 +371,7 @@ class RevenueIT {
     @Test
     void dashboardCountsHistoricalUnclassifiedAndOnlyEffectiveRecognition() {
         var source = source();
-        source.put("月账期", "2089-06");
+        source.put("费用账期", "2089-06");
         var legacy = service.create(admin, source);
         var applied = approve(reviewer, legacy, value("12.34"));
         service.recognize(reviewer, legacy.id(), applied.version(), value("99"), group);
@@ -380,7 +380,7 @@ class RevenueIT {
                 WHERE id=UUID_TO_BIN(?)
                 """, legacy.id().toString());
         var unrecognized = source();
-        unrecognized.put("月账期", "2089-06");
+        unrecognized.put("费用账期", "2089-06");
         var unassigned = service.create(admin, unrecognized);
         jdbc.update("UPDATE revenue_entry SET province_id=NULL, source_fields=JSON_REMOVE(source_fields, '$.\"省份名称\"') WHERE id=UUID_TO_BIN(?)",
                 unassigned.id().toString());
@@ -405,7 +405,7 @@ class RevenueIT {
         var network = source();
         network.put("三化分类", "网络化");
         assertThatThrownBy(() -> service.create(admin, network)).hasMessageContaining("仅允许系统管理员通过 Excel");
-        assertThatThrownBy(() -> service.validateImport(admin, network)).hasMessageContaining("大于 0");
+        assertThatThrownBy(() -> service.validateImport(admin, network)).hasMessageContaining("非零");
         var imported = new LinkedHashMap<>(network);
         imported.put("认定金额", "33");
         imported.put(RevenueImport.PROJECT, " ");
@@ -476,6 +476,106 @@ class RevenueIT {
         assertThat(list.totalElements()).isEqualTo(1);
         assertThat(list.summary().total()).isEqualTo(1);
         assertThat(list.summary().recognizedAmount()).isEqualByComparingTo("33");
+    }
+
+    @Test
+    void importsSignedRoundedAmountsAndKeepsOriginalFailuresAndFeeMonthTotals() throws Exception {
+        var offset = source();
+        offset.put("三化分类", "网络化");
+        offset.put("费用账期", "2097-02");
+        offset.put("地市/组织名称", "--");
+        offset.put("合同编号", "");
+        offset.put("条款金额", "-12.345");
+        offset.put(RevenueFields.SOURCE_AMOUNT, "12.345");
+        offset.put(RevenueImport.AMOUNT, "-25.005");
+        offset.put(RevenueImport.PROVINCE, provinceName);
+
+        var credit = source();
+        credit.put("费用账期", "2097-01");
+        credit.put("地市/组织名称", "   ");
+        credit.put("条款金额", "12.345");
+        credit.put(RevenueFields.SOURCE_AMOUNT, "-0.005");
+        credit.put(RevenueImport.AMOUNT, "50.005");
+        credit.put(RevenueImport.PROJECT, "正向验收");
+        credit.put(RevenueImport.PROVINCE, provinceName);
+
+        var mixedOffset = new LinkedHashMap<>(offset);
+        mixedOffset.put("费用账期", "2097-01");
+        mixedOffset.put("地市/组织名称", "");
+        mixedOffset.put(RevenueImport.AMOUNT, "-20.005");
+
+        var unmapped = new LinkedHashMap<>(offset);
+        unmapped.put("费用账期", "2097-03");
+        unmapped.put(RevenueImport.AMOUNT, "-0.004");
+        var unmappedConfig = new LinkedHashMap<String, String>();
+        RevenueImport.fields().forEach(field -> unmappedConfig.put(field, field));
+        unmappedConfig.remove("地市/组织名称");
+        var config = new Configuration("来源数据", 1, unmappedConfig);
+        byte[] bytes;
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(recognitionWorkbook(offset, credit, mixedOffset, unmapped)));
+                var out = new ByteArrayOutputStream()) {
+            var numeric = book.getSheetAt(0).getRow(1);
+            numeric.getCell(RevenueFields.FIELDS.indexOf("条款金额")).setCellValue(-12.345);
+            numeric.getCell(RevenueFields.FIELDS.indexOf(RevenueFields.SOURCE_AMOUNT)).setCellValue(12.345);
+            numeric.getCell(RevenueImport.fields().indexOf(RevenueImport.AMOUNT)).setCellValue(-25.005);
+            book.write(out);
+            bytes = out.toByteArray();
+        }
+        var task = imports.upload(admin, "冲减.xlsx", bytes, null, null);
+        var mapped = imports.save(admin, task.id(), task.version(), 2, config, null);
+        var preview = imports.save(admin, task.id(), mapped.version(), 3, config, null);
+        assertThat(preview.batch().validRows()).isEqualTo(2);
+        assertThat(preview.batch().rows().get(1).errorsJson()).contains("地市/组织名称必填");
+        assertThat(preview.batch().rows().get(3).errorsJson()).contains("非零");
+
+        unmappedConfig.put("地市/组织名称", "地市/组织名称");
+        config = new Configuration("来源数据", 1, unmappedConfig);
+        var remapped = imports.save(admin, task.id(), preview.version(), 2, config, null);
+        preview = imports.save(admin, task.id(), remapped.version(), 3, config, null);
+        var batch = preview.batch().batchId();
+        var revised = imports.revise(admin, batch, 3, 0, Map.of("地市/组织名称", "验收组织"));
+        assertThat(revised.validRows()).isEqualTo(3);
+        var exported = imports.originalFailedRows(admin, batch);
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(exported))) {
+            var sheet = book.getSheetAt(0);
+            assertThat(sheet.getLastRowNum()).isEqualTo(1);
+            var amountCol = RevenueImport.fields().indexOf(RevenueImport.AMOUNT);
+            assertThat(sheet.getRow(1).getCell(amountCol).getStringCellValue()).isEqualTo("-0.004");
+            assertThat(sheet.getRow(1).getCell(RevenueImport.fields().size()).getStringCellValue()).contains("非零");
+        }
+        var done = imports.confirm(admin, batch, List.of(2, 3, 4));
+        assertThat(done.importedRows()).isEqualTo(3);
+        var negative = service.detail(admin, done.rows().getFirst().recordId());
+        assertThat(negative.state()).isEqualTo("RECOGNIZED");
+        assertThat(negative.source()).containsEntry("地市/组织名称", "")
+                .containsEntry("条款金额", "-12.35").containsEntry(RevenueFields.SOURCE_AMOUNT, "12.35");
+        assertThat(negative.recognition().amount()).isEqualByComparingTo("-25.01");
+        var positive = service.detail(admin, done.rows().get(1).recordId());
+        assertThat(positive.source()).containsEntry("条款金额", "12.35").containsEntry(RevenueFields.SOURCE_AMOUNT, "-0.01");
+        assertThat(positive.recognition().amount()).isEqualByComparingTo("50.01");
+
+        var list = service.list(reporter, new RevenueMapper.Filter(null, province.toString(),
+                "", "RECOGNIZED", 0, 5, null, "网络化", "2097-02"));
+        assertThat(list.summary().recognizedAmount()).isEqualByComparingTo("-25.01");
+        assertThat(service.dashboard(admin, "2097-02", "2097-02").amount()).isEqualTo("-25.01");
+        var fixed = java.time.Clock.fixed(java.time.Instant.parse("2097-02-06T00:00:00Z"), java.time.ZoneOffset.UTC);
+        var annual = new RevenueAnnualOverviewService(revenueAccess, mapper, gewuContracts, regionAdcodes, fixed).load(admin);
+        assertThat(annual.months().get(0).money().network()).isEqualByComparingTo("-0.002001");
+        assertThat(annual.months().get(0).money().digital()).isEqualByComparingTo("0.005001");
+        assertThat(annual.months().get(0).money().total()).isEqualByComparingTo("0.003");
+        assertThat(annual.months().get(1).money().total()).isEqualByComparingTo("-0.002501");
+        assertThat(schedulingOverview.load(admin, "2097-02", "2097-02").total().recognized()).isEqualTo("-0.002501");
+
+        var invalid = new LinkedHashMap<>(credit);
+        invalid.put("地市/组织名称", "验收组织");
+        invalid.put(RevenueImport.AMOUNT, "错误金额");
+        assertThatThrownBy(() -> service.validateImport(admin, invalid)).hasMessageContaining("认定金额须为有效金额");
+        invalid.put(RevenueImport.AMOUNT, "9999999999999999.995");
+        assertThatThrownBy(() -> service.validateImport(admin, invalid)).hasMessageContaining("认定金额超出范围");
+        invalid.put(RevenueImport.AMOUNT, "-0.004");
+        assertThat(service.validateImport(admin, invalid).recognition()).isNull();
+        invalid.put(RevenueImport.AMOUNT, "-0.005");
+        assertThat(service.validateImport(admin, invalid).recognition().amount()).isEqualByComparingTo("-0.01");
     }
 
     @Test

@@ -95,25 +95,28 @@ public class RevenueFields {
             // 业务标识的缺失占位符统一为空，省份的旧占位符仍表示具体组织。
             values.put(field, value.equals("--") && !field.equals("省份名称") ? "" : value);
         }
-        var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(values.get("省份名称"));
-        if (fixedOrganization != null && values.get("地市/组织名称").isBlank())
-            values.put("地市/组织名称", fixedOrganization);
+        String province = values.get("省份名称");
+        String cityField = "地市/组织名称";
+        var fixedOrganization = RevenueSourceOptions.FIXED_ORGANIZATIONS.get(province);
+        boolean organization = Set.of("--", "具体组织").contains(province) || fixedOrganization != null;
+        if (fixedOrganization != null && values.get(cityField).isBlank())
+            values.put(cityField, fixedOrganization);
         boolean networkImport = importing && Revenue.NETWORK.equals(values.get(Revenue.CATEGORY_FIELD));
-        if (networkImport && missingRequired("合同编号", values.get("合同编号")))
-            values.put("合同编号", "");
-        for (var field : FIELDS)
-            if (REQUIRED.contains(field) && (!networkImport || !field.equals("合同编号"))
-                    && missingRequired(field, values.get(field)))
-                throw invalid(field + "必填");
+        var optional = networkImport
+                ? (organization ? Set.of("合同编号") : Set.of("合同编号", cityField))
+                : Set.<String>of();
+        for (var field : FIELDS) {
+            if (!REQUIRED.contains(field) || !missingRequired(field, values.get(field))) continue;
+            if (optional.contains(field)) values.put(field, "");
+            else if (importing && field.equals(cityField) && organization && fixedOrganization == null)
+                throw invalid("地市/组织名称必填，请填写具体组织全称");
+            else throw invalid(field + "必填");
+        }
         if (!Revenue.CATEGORIES.contains(values.get(Revenue.CATEGORY_FIELD)))
             throw invalid("三化分类须为网络化、数字化或智能化");
         String month = month(values.get("月账期"));
         values.put("月账期", month);
         values.put("费用账期", month(values.get("费用账期")));
-        String province = values.get("省份名称");
-        boolean organization =
-                Set.of("--", "具体组织").contains(province)
-                        || RevenueSourceOptions.FIXED_ORGANIZATIONS.containsKey(province);
         UUID provinceId = null;
         if (organization) {
             if (fixedOrganization != null) {
@@ -123,7 +126,6 @@ public class RevenueFields {
                 values.put("地市/组织名称", fixedOrganization);
             } else {
                 values.put("省份名称", "具体组织");
-                if (values.get("地市/组织名称").isBlank()) throw invalid("具体组织必须填写地市/组织名称全称");
             }
         } else if (!province.isBlank()) {
             var found = organizations.findEnabledProvinceByName(province)
@@ -140,8 +142,10 @@ public class RevenueFields {
         for (var field : List.of("合同编号", "条款编号"))
             if (values.get(field).length() > 200) throw invalid(field + "不得超过200字");
         values.put("条款编号", RevenueSourceNormalizer.clauseNumber(values.get("条款编号")));
-        var clause = amount(values.get("条款金额"), "条款金额", true);
-        var source = amount(values.get(SOURCE_AMOUNT), SOURCE_AMOUNT, false);
+        var clause = importing ? importAmount(values.get("条款金额"), "条款金额")
+                : amount(values.get("条款金额"), "条款金额", true);
+        var source = importing ? importAmount(values.get(SOURCE_AMOUNT), SOURCE_AMOUNT)
+                : amount(values.get(SOURCE_AMOUNT), SOURCE_AMOUNT, false);
         values.put("条款金额", clause.toPlainString());
         values.put(SOURCE_AMOUNT, source.toPlainString());
         values.put("审签日期", RevenueSourceNormalizer.signatureDate(values.get("审签日期")));
@@ -162,13 +166,18 @@ public class RevenueFields {
     }
 
     public Revenue.Recognition recognition(Revenue.Recognition value) {
-        return recognition(value, false);
-    }
-
-    public Revenue.Recognition recognition(Revenue.Recognition value, boolean allowEmptyName) {
         if (value == null || value.amount() == null) throw invalid("认定金额必填");
         var amount = amount(value.amount().toString(), "认定金额", false);
         if (amount.signum() <= 0) throw invalid("认定金额须大于零");
+        return recognition(value, amount, false);
+    }
+
+    public Revenue.Recognition importRecognition(Revenue.Recognition value, boolean allowEmptyName) {
+        return recognition(value, value.amount(), allowEmptyName);
+    }
+
+    private Revenue.Recognition recognition(
+            Revenue.Recognition value, BigDecimal amount, boolean allowEmptyName) {
         String name = Objects.toString(value.reportedProjectName(), "").strip();
         if (!allowEmptyName && name.isEmpty()) throw invalid("通报项目名称必填");
         if (name.length() > 300) throw invalid("通报项目名称不能超过300字");
@@ -198,15 +207,30 @@ public class RevenueFields {
         }
     }
 
+    private static final BigDecimal AMOUNT_LIMIT = new BigDecimal("10000000000000000");
+    private static final BigDecimal HALF_CENT = new BigDecimal("0.005");
+
     public static BigDecimal amount(String raw, String field, boolean nonnegative) {
+        return amount(raw, field, nonnegative, RoundingMode.UNNECESSARY);
+    }
+
+    public static BigDecimal importAmount(String raw, String field) {
+        return amount(raw, field, false, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal amount(String raw, String field, boolean nonnegative, RoundingMode rounding) {
         try {
-            var number = new BigDecimal(raw.replace(",", "")).setScale(2, RoundingMode.UNNECESSARY);
-            if (nonnegative && number.signum() < 0
-                    || number.abs().compareTo(new BigDecimal("10000000000000000")) >= 0)
-                throw invalid(field + "金额超出范围");
+            var value = new BigDecimal(raw.replace(",", ""));
+            if (rounding == RoundingMode.HALF_UP && value.abs().compareTo(AMOUNT_LIMIT) >= 0)
+                throw invalid(field + (field.endsWith("金额") ? "超出范围" : "金额超出范围"));
+            // 极小的科学计数法金额直接归零，避免为舍入构造巨大整数。
+            var number = rounding == RoundingMode.HALF_UP && value.abs().compareTo(HALF_CENT) < 0
+                    ? BigDecimal.ZERO.setScale(2) : value.setScale(2, rounding);
+            if ((nonnegative && number.signum() < 0) || number.abs().compareTo(AMOUNT_LIMIT) >= 0)
+                throw invalid(field + (field.endsWith("金额") ? "超出范围" : "金额超出范围"));
             return number;
         } catch (NumberFormatException | ArithmeticException e) {
-            throw invalid(field + "须为金额（元），最多两位小数");
+            throw invalid(field + (rounding == RoundingMode.HALF_UP ? "须为有效金额（元）" : "须为金额（元），最多两位小数"));
         }
     }
 
