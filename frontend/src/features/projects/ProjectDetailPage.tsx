@@ -32,10 +32,12 @@ export function ProjectDetailPage({
   const location = useLocation();
   const candidateReturnTo = (location.state as { projectListReturnTo?: unknown } | null)
     ?.projectListReturnTo;
+  const listSearch = new URLSearchParams(location.search).get('from');
   const returnTo =
     typeof candidateReturnTo === 'string' && /^\/projects(?:\?|$)/.test(candidateReturnTo)
       ? candidateReturnTo
-      : '/projects';
+      : '/projects' + (listSearch?.startsWith('?') ? listSearch : '');
+  const [pageActions, setPageActions] = useState<HTMLDivElement | null>(null);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [progress, setProgress] = useState<ProjectProgress[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
@@ -124,323 +126,331 @@ export function ProjectDetailPage({
   const canProgress = canCollaborate && detail?.currentStageCode !== 'TERMINATED';
   const titleBar = document.getElementById('project-detail-title');
   return (
-    <section className="project-detail-page">
-      <div className="page-heading">
+    <section className="ledger-detail-page project-detail-page">
+      <div className="page-heading ledger-detail-actions">
         <div>
           <Link className="secondary-button" to={returnTo}>
             ← 返回项目列表
           </Link>
           <p>{detail?.projectCode ?? '主档、进展和里程碑'}</p>
         </div>
+        <div ref={setPageActions} className="project-detail-page-actions inline-actions" />
       </div>
-      {detail &&
-        titleBar &&
-        createPortal(
-          <>
-            <h1>
-              <TruncatedText text={detail.projectName} />
-            </h1>
-            <span
-              className={`stage project-detail-stage stage-${detail.currentStageCode.toLowerCase()}`}
-            >
-              <span aria-hidden="true">◆</span> {label(detail.currentStageCode)}
-            </span>
-          </>,
-          titleBar,
-        )}
-      {error && <Feedback tone="error">{error}</Feedback>}
-      {notice && <Feedback tone="success">{notice}</Feedback>}
-      {loading ? (
-        <Loading />
-      ) : (
-        detail && (
-          <>
-            <ProjectPeoplePanel project={detail} editable={!!canProgress} onSaved={setDetail} />
-            <div className="panel project-detail-overview">
-              <h2>项目主档</h2>
-              <dl className="facts">
-                <div>
-                  <dt>客户名称</dt>
-                  <dd>{detail.customerName || '未填写'}</dd>
-                </div>
-                <div>
-                  <dt>项目日期（Asia/Shanghai）</dt>
-                  <dd>
-                    {detail.opportunityDate
-                      ? dateTime(detail.opportunityDate, 'Asia/Shanghai')
-                      : '旧日期待核对，未纳入日期范围查询'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>所属行业</dt>
-                  <dd>
-                    {reference.industries.find((item) => item.code === detail.industryCode)
-                      ?.label ??
-                      detail.industryCode ??
-                      '未填写'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{assignedProvince?.municipality ? '归属区县' : '归属地市'}</dt>
-                  <dd>
-                    {assignedCity?.legacyMunicipalityCity
-                      ? '未细分区县'
-                      : (assignedCity?.name ?? '—')}
-                  </dd>
-                </div>
-                <div>
-                  <dt>协作省份</dt>
-                  <dd>{detail.collaborationProvinceName ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>项目总金额</dt>
-                  <dd>{amount(detail.totalAmount)} 万元</dd>
-                </div>
-                <div>
-                  <dt>项目所属月份</dt>
-                  <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>拟招标月份</dt>
-                  <dd>{detail.plannedBidMonth?.slice(0, 7) ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>应用场景</dt>
-                  <dd>
-                    {detail.applicationScenarioCodes
-                      ?.map(
-                        (code) =>
-                          reference.applicationScenarios.find((item) => item.code === code)
-                            ?.label ?? code,
-                      )
-                      .join('、') || '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>签约主体</dt>
-                  <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
-                </div>
-                <div>
-                  <dt>合同编号</dt>
-                  <dd>{detail.contractNo ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>签约金额</dt>
-                  <dd>
-                    {detail.signedAmount == null ? '—' : `${amount(detail.signedAmount)} 万元`}
-                  </dd>
-                </div>
-              </dl>
-              <section className="project-category-summary" aria-label="三化分类金额">
-                <h3>
-                  三化分类金额 <small>万元</small>
-                </h3>
-                <dl className="project-category-cards">
-                  {detail.categoryAmounts.map((item) => (
-                    <div key={item.categoryCode}>
-                      <dt>
-                        {reference.categories.find(
-                          (category) => category.code === item.categoryCode,
-                        )?.label ?? item.categoryCode}
-                      </dt>
-                      <dd>{amount(item.expectedAmount)}</dd>
-                    </div>
-                  ))}
+      <div className="ledger-detail-body">
+        {detail &&
+          titleBar &&
+          createPortal(
+            <>
+              <h1>
+                <TruncatedText text={detail.projectName} />
+              </h1>
+              <span
+                className={`stage project-detail-stage stage-${detail.currentStageCode.toLowerCase()}`}
+              >
+                <span aria-hidden="true">◆</span> {label(detail.currentStageCode)}
+              </span>
+            </>,
+            titleBar,
+          )}
+        {error && <Feedback tone="error">{error}</Feedback>}
+        {notice && <Feedback tone="success">{notice}</Feedback>}
+        {loading ? (
+          <Loading />
+        ) : (
+          detail && (
+            <>
+              <ProjectPeoplePanel project={detail} editable={!!canProgress} onSaved={setDetail} />
+              <div className="panel project-detail-overview">
+                <h2>项目主档</h2>
+                <dl className="facts">
+                  <div>
+                    <dt>客户名称</dt>
+                    <dd>{detail.customerName || '未填写'}</dd>
+                  </div>
+                  <div>
+                    <dt>项目日期（Asia/Shanghai）</dt>
+                    <dd>
+                      {detail.opportunityDate
+                        ? dateTime(detail.opportunityDate, 'Asia/Shanghai')
+                        : '旧日期待核对，未纳入日期范围查询'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>所属行业</dt>
+                    <dd>
+                      {reference.industries.find((item) => item.code === detail.industryCode)
+                        ?.label ??
+                        detail.industryCode ??
+                        '未填写'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{assignedProvince?.municipality ? '归属区县' : '归属地市'}</dt>
+                    <dd>
+                      {assignedCity?.legacyMunicipalityCity
+                        ? '未细分区县'
+                        : (assignedCity?.name ?? '—')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>协作省份</dt>
+                    <dd>{detail.collaborationProvinceName ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>项目总金额</dt>
+                    <dd>{amount(detail.totalAmount)} 万元</dd>
+                  </div>
+                  <div>
+                    <dt>项目所属月份</dt>
+                    <dd>{detail.attributionMonth?.slice(0, 7) ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>拟招标月份</dt>
+                    <dd>{detail.plannedBidMonth?.slice(0, 7) ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>应用场景</dt>
+                    <dd>
+                      {detail.applicationScenarioCodes
+                        ?.map(
+                          (code) =>
+                            reference.applicationScenarios.find((item) => item.code === code)
+                              ?.label ?? code,
+                        )
+                        .join('、') || '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>签约主体</dt>
+                    <dd>{detail.signingSubjectCode === 'DS_SIGN' ? '数科签约' : '省分签约'}</dd>
+                  </div>
+                  <div>
+                    <dt>合同编号</dt>
+                    <dd>{detail.contractNo ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>签约金额</dt>
+                    <dd>
+                      {detail.signedAmount == null ? '—' : `${amount(detail.signedAmount)} 万元`}
+                    </dd>
+                  </div>
                 </dl>
-              </section>
-              <div className="content-block">
-                <strong>客户需求</strong>
-                <p>{detail.customerNeed}</p>
-              </div>
-              {detail.remark && (
+                <section className="project-category-summary" aria-label="三化分类金额">
+                  <h3>
+                    三化分类金额 <small>万元</small>
+                  </h3>
+                  <dl className="project-category-cards">
+                    {detail.categoryAmounts.map((item) => (
+                      <div key={item.categoryCode}>
+                        <dt>
+                          {reference.categories.find(
+                            (category) => category.code === item.categoryCode,
+                          )?.label ?? item.categoryCode}
+                        </dt>
+                        <dd>{amount(item.expectedAmount)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
                 <div className="content-block">
-                  <strong>备注</strong>
-                  <p>{detail.remark}</p>
+                  <strong>客户需求</strong>
+                  <p>{detail.customerNeed}</p>
                 </div>
+                {detail.remark && (
+                  <div className="content-block">
+                    <strong>备注</strong>
+                    <p>{detail.remark}</p>
+                  </div>
+                )}
+                <p className="subtle project-detail-meta">
+                  版本 {detail.versionNo} · 更新于 {dateTime(detail.updatedAt)}
+                </p>
+              </div>
+              {canProgress && (
+                <ProjectProfileForm
+                  project={detail}
+                  reference={reference}
+                  onSaved={(project) => {
+                    setDetail(project);
+                    refreshNotificationCounts();
+                  }}
+                />
               )}
-              <p className="subtle project-detail-meta">
-                版本 {detail.versionNo} · 更新于 {dateTime(detail.updatedAt)}
-              </p>
-            </div>
-            {canProgress && (
-              <ProjectProfileForm
-                project={detail}
-                reference={reference}
-                onSaved={(project) => {
-                  setDetail(project);
-                  refreshNotificationCounts();
-                }}
-              />
-            )}
-            <div className="detail-grid">
-              <div className="panel">
-                <h2>项目进展</h2>
-                {canProgress && (
-                  <form className="inline-form" onSubmit={append}>
-                    {correcting && (
-                      <Feedback>
-                        正在更正 {dateTime(correcting.occurredAt)}{' '}
-                        的进展。原记录保留，新记录会关联原记录。
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setCorrecting(null);
-                            setContent('');
-                            setNextAction('');
-                            setProgressDate('');
-                            setOwnerName('');
-                            setDueDate('');
-                          }}
-                        >
-                          取消更正
-                        </button>
-                      </Feedback>
-                    )}
-                    <label>
-                      进展内容
-                      <textarea
-                        required
-                        rows={3}
-                        value={content}
-                        onChange={(event) => setContent(event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      下一步动作
-                      <textarea
-                        required
-                        rows={2}
-                        value={nextAction}
-                        onChange={(event) => setNextAction(event.target.value)}
-                      />
-                    </label>
-                    <div className="form-grid">
-                      <label>
-                        进展发生日期（选填）
-                        <input
-                          type="date"
-                          value={progressDate}
-                          onChange={(event) => setProgressDate(event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        负责人（选填）
-                        <input
-                          type="text"
-                          maxLength={100}
-                          value={ownerName}
-                          onChange={(event) => setOwnerName(event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        计划完成日期（选填）
-                        <input
-                          type="date"
-                          value={dueDate}
-                          onChange={(event) => setDueDate(event.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <p className="subtle">发生日期不填则按提交当天记录；记录写入时间另行保留。</p>
-                    <button type="submit" className="primary-button" disabled={saving}>
-                      {saving ? '保存中…' : correcting ? '提交更正' : '追加进展'}
-                    </button>
-                  </form>
-                )}
-                {detail.currentStageCode === 'TERMINATED' && (
-                  <Feedback>项目已终止，历史进展只读。</Feedback>
-                )}
-                <div className="timeline">
-                  {progress.length ? (
-                    progress.map((item) => (
-                      <article key={item.id}>
-                        <time>进展日期：{item.progressDate ?? businessDate(item.occurredAt)}</time>
-                        <p>{item.progressContent}</p>
-                        <small>下一步：{item.nextAction}</small>
-                        {(item.ownerName || item.dueDate) && (
-                          <small className="table-subtitle">
-                            {item.ownerName && `负责人：${item.ownerName}`}
-                            {item.ownerName && item.dueDate && ' · '}
-                            {item.dueDate && `计划完成：${item.dueDate}`}
-                          </small>
-                        )}
-                        <small className="table-subtitle">记录于 {dateTime(item.occurredAt)}</small>
-                        {item.correctsProgressId && (
-                          <small className="table-subtitle">
-                            更正记录，关联原进展 {item.correctsProgressId}
-                          </small>
-                        )}
-                        {canProgress && (
+              <div className="detail-grid">
+                <div className="panel">
+                  <h2>项目进展</h2>
+                  {canProgress && (
+                    <form className="inline-form" onSubmit={append}>
+                      {correcting && (
+                        <Feedback>
+                          正在更正 {dateTime(correcting.occurredAt)}{' '}
+                          的进展。原记录保留，新记录会关联原记录。
                           <button
                             type="button"
                             className="text-button"
                             onClick={() => {
-                              setCorrecting(item);
-                              setContent(item.progressContent);
-                              setNextAction(item.nextAction);
-                              setProgressDate(item.progressDate ?? businessDate(item.occurredAt));
-                              setOwnerName(item.ownerName ?? '');
-                              setDueDate(item.dueDate ?? '');
-                              setNotice('');
+                              setCorrecting(null);
+                              setContent('');
+                              setNextAction('');
+                              setProgressDate('');
+                              setOwnerName('');
+                              setDueDate('');
                             }}
                           >
-                            更正此条
+                            取消更正
                           </button>
-                        )}
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-state">暂无进展</div>
+                        </Feedback>
+                      )}
+                      <label>
+                        进展内容
+                        <textarea
+                          required
+                          rows={3}
+                          value={content}
+                          onChange={(event) => setContent(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        下一步动作
+                        <textarea
+                          required
+                          rows={2}
+                          value={nextAction}
+                          onChange={(event) => setNextAction(event.target.value)}
+                        />
+                      </label>
+                      <div className="form-grid">
+                        <label>
+                          进展发生日期（选填）
+                          <input
+                            type="date"
+                            value={progressDate}
+                            onChange={(event) => setProgressDate(event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          负责人（选填）
+                          <input
+                            type="text"
+                            maxLength={100}
+                            value={ownerName}
+                            onChange={(event) => setOwnerName(event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          计划完成日期（选填）
+                          <input
+                            type="date"
+                            value={dueDate}
+                            onChange={(event) => setDueDate(event.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <p className="subtle">发生日期不填则按提交当天记录；记录写入时间另行保留。</p>
+                      <button type="submit" className="primary-button" disabled={saving}>
+                        {saving ? '保存中…' : correcting ? '提交更正' : '追加进展'}
+                      </button>
+                    </form>
                   )}
+                  {detail.currentStageCode === 'TERMINATED' && (
+                    <Feedback>项目已终止，历史进展只读。</Feedback>
+                  )}
+                  <div className="timeline">
+                    {progress.length ? (
+                      progress.map((item) => (
+                        <article key={item.id}>
+                          <time>
+                            进展日期：{item.progressDate ?? businessDate(item.occurredAt)}
+                          </time>
+                          <p>{item.progressContent}</p>
+                          <small>下一步：{item.nextAction}</small>
+                          {(item.ownerName || item.dueDate) && (
+                            <small className="table-subtitle">
+                              {item.ownerName && `负责人：${item.ownerName}`}
+                              {item.ownerName && item.dueDate && ' · '}
+                              {item.dueDate && `计划完成：${item.dueDate}`}
+                            </small>
+                          )}
+                          <small className="table-subtitle">
+                            记录于 {dateTime(item.occurredAt)}
+                          </small>
+                          {item.correctsProgressId && (
+                            <small className="table-subtitle">
+                              更正记录，关联原进展 {item.correctsProgressId}
+                            </small>
+                          )}
+                          {canProgress && (
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={() => {
+                                setCorrecting(item);
+                                setContent(item.progressContent);
+                                setNextAction(item.nextAction);
+                                setProgressDate(item.progressDate ?? businessDate(item.occurredAt));
+                                setOwnerName(item.ownerName ?? '');
+                                setDueDate(item.dueDate ?? '');
+                                setNotice('');
+                              }}
+                            >
+                              更正此条
+                            </button>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <div className="empty-state">暂无进展</div>
+                    )}
+                  </div>
+                </div>
+                <div className="panel">
+                  <h2>阶段里程碑</h2>
+                  <div className="timeline">
+                    {milestones.length ? (
+                      milestones.map((item) => (
+                        <article key={item.id}>
+                          <time>{dateTime(item.occurredAt)}</time>
+                          <p>{label(item.stageCode)}</p>
+                          <small>{item.descriptionText || '阶段记录'}</small>
+                        </article>
+                      ))
+                    ) : (
+                      <div className="empty-state">暂无里程碑</div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="panel">
-                <h2>阶段里程碑</h2>
-                <div className="timeline">
-                  {milestones.length ? (
-                    milestones.map((item) => (
-                      <article key={item.id}>
-                        <time>{dateTime(item.occurredAt)}</time>
-                        <p>{label(item.stageCode)}</p>
-                        <small>{item.descriptionText || '阶段记录'}</small>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-state">暂无里程碑</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className={canCollaborate ? 'detail-grid' : undefined}>
-              <ProjectDocuments
-                projectId={detail.id}
-                readOnly={!canCollaborate || detail.currentStageCode === 'TERMINATED'}
-                onChanged={() => setDocumentsVersion((value) => value + 1)}
-              />
-              {canCollaborate && (
-                <ProjectRequests
-                  project={detail}
-                  me={me}
-                  reference={reference}
-                  documentsVersion={documentsVersion}
+              <div className={canCollaborate ? 'detail-grid' : undefined}>
+                <ProjectDocuments
+                  projectId={detail.id}
+                  readOnly={!canCollaborate || detail.currentStageCode === 'TERMINATED'}
+                  onChanged={() => setDocumentsVersion((value) => value + 1)}
                 />
-              )}
-            </div>
-            <ProjectHistory projectId={detail.id} me={me} reference={reference} />
-            <ProjectOperationAuditPanel
-              key={`operation-${detail.id}`}
-              projectId={detail.id}
-              revision={progress.length + detail.versionNo}
-            />
-            <ProjectInactivityAuditPanel
-              key={detail.id}
-              projectId={detail.id}
-              revision={progress.length + detail.versionNo}
-            />
-          </>
-        )
-      )}
+                {canCollaborate && (
+                  <ProjectRequests
+                    project={detail}
+                    me={me}
+                    reference={reference}
+                    documentsVersion={documentsVersion}
+                    pageActions={pageActions}
+                  />
+                )}
+              </div>
+              <ProjectHistory projectId={detail.id} me={me} reference={reference} />
+              <ProjectOperationAuditPanel
+                key={`operation-${detail.id}`}
+                projectId={detail.id}
+                revision={progress.length + detail.versionNo}
+              />
+              <ProjectInactivityAuditPanel
+                key={detail.id}
+                projectId={detail.id}
+                revision={progress.length + detail.versionNo}
+              />
+            </>
+          )
+        )}
+      </div>
     </section>
   );
 }

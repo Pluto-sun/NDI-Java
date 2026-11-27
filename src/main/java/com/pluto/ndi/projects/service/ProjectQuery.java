@@ -11,6 +11,7 @@ import com.pluto.ndi.projects.domain.ProjectStage;
 import com.pluto.ndi.projects.domain.ProjectCategory;
 import com.pluto.ndi.projects.domain.ProjectErrorCode;
 import com.pluto.ndi.shared.web.BusinessException;
+import com.pluto.ndi.shared.filter.ListFilters;
 
 /** 项目列表与导出共用的筛选条件。 */
 public record ProjectQuery(
@@ -31,7 +32,10 @@ public record ProjectQuery(
         String responsiblePersonName,
         List<UUID> provinceIds,
         List<UUID> cityIds,
-        List<String> productCodes
+        List<String> productCodes,
+        List<ProjectStage> stages,
+        List<String> industryCodes,
+        List<String> signingSubjectCodes
 ) {
 
     public ProjectQuery {
@@ -51,6 +55,14 @@ public record ProjectQuery(
         projectName = normalize(projectName, false);
         industryCode = normalize(industryCode, true);
         signingSubjectCode = normalize(signingSubjectCode, true);
+        stages = merge(stage, stages);
+        industryCodes = merge(industryCode, ListFilters.values(industryCodes).stream()
+                .map(value -> normalize(value, true)).toList());
+        if (industryCodes.stream().anyMatch(value -> value.length() > 3))
+            throw ListFilters.invalid();
+        signingSubjectCodes = ListFilters.choices(
+                merge(signingSubjectCode, ListFilters.values(signingSubjectCodes)),
+                Set.of("PROVINCE_SIGN", "DS_SIGN"));
         provinceLeaderName = normalize(provinceLeaderName, false);
         cityAccountManagerName = normalize(cityAccountManagerName, false);
         productSupportExpertName = normalize(productSupportExpertName, false);
@@ -64,6 +76,27 @@ public record ProjectQuery(
         if (signingSubjectCode != null && !Set.of("PROVINCE_SIGN", "DS_SIGN").contains(signingSubjectCode)) {
             throw new BusinessException(ProjectErrorCode.INVALID_SIGNING_SUBJECT);
         }
+    }
+
+    private static <T> List<T> merge(T legacy, List<T> values) {
+        var result = new LinkedHashSet<T>();
+        if (legacy != null) result.add(legacy);
+        if (values != null) {
+            if (values.size() > 500 || values.stream().anyMatch(java.util.Objects::isNull)) throw ListFilters.invalid();
+            result.addAll(values);
+        }
+        return List.copyOf(result);
+    }
+
+    public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,
+            UUID provinceId, UUID cityId, boolean includeTerminated, String signingSubjectCode,
+            String provinceLeaderName, String cityAccountManagerName, String productSupportExpertName, String keyword,
+            LocalDate opportunityDateStart, LocalDate opportunityDateEnd, String responsiblePersonName,
+            List<UUID> provinceIds, List<UUID> cityIds, List<String> productCodes) {
+        this(projectCode, projectName, stage, industryCode, provinceId, cityId, includeTerminated,
+                signingSubjectCode, provinceLeaderName, cityAccountManagerName, productSupportExpertName,
+                keyword, opportunityDateStart, opportunityDateEnd, responsiblePersonName,
+                provinceIds, cityIds, productCodes, null, null, null);
     }
 
     public ProjectQuery(String projectCode, String projectName, ProjectStage stage, String industryCode,

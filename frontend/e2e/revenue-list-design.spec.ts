@@ -1,3 +1,4 @@
+import { chooseListOptions } from './support/listFilters';
 import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
@@ -145,12 +146,12 @@ test('计收列表长文本、金额对齐、横向滚动、筛选返回和空�
   await expect(
     page.getByRole('form', { name: '计收筛选' }).getByLabel('费用账期', { exact: true }),
   ).toHaveText('2026-09');
-  const state = page.getByRole('combobox', { name: '办理状态', exact: true });
-  await state.selectOption('RECOGNIZED');
+  const state = page.getByRole('button', { name: '办理状态', exact: true });
+  await chooseListOptions(page, '办理状态', ['已认定']);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(table.locator('tbody tr')).toHaveCount(1);
   await page.goBack();
-  await expect(state).toHaveValue('');
+  await expect(state).toHaveText('全部');
   await expect(table.locator('tbody tr')).toHaveCount(3);
   await page
     .getByLabel('项目／客户／合同／条款', { exact: true })

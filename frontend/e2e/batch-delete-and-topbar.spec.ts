@@ -1,3 +1,4 @@
+import { chooseListOptions } from './support/listFilters';
 import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -281,13 +282,16 @@ test('管理员勾选并删除，项目标题与阶段切换置于固定栏', as
   ]) {
     await page.goto(url);
     await expect(header.getByRole('heading', { name: title })).toBeVisible();
-    const stages = header.getByRole('group', { name: '项目阶段快捷筛选' });
-    await stages.getByRole('button', { name: '招投标' }).click();
+    if (url === '/projects') {
+      await chooseListOptions(page, '当前阶段', ['招投标']);
+      await page.getByRole('button', { name: '查询', exact: true }).click();
+    } else {
+      await header
+        .getByRole('group', { name: '项目阶段快捷筛选' })
+        .getByRole('button', { name: '招投标' })
+        .click();
+    }
     await expect(page).toHaveURL(/stage=BIDDING/);
-    await expect(stages.getByRole('button', { name: '招投标' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
     await page.evaluate(() => {
       const spacer = document.createElement('div');
       spacer.style.height = '200vh';

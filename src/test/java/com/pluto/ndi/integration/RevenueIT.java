@@ -344,7 +344,7 @@ class RevenueIT {
         assertThat(scoped.months().get(1).recognizedIncrease()).isEqualTo("-3");
         var interfaceView = schedulingOverview.load(reviewer, "2090-01", "2090-02");
         assertThat(interfaceView.total().planned()).isEqualTo("3");
-        assertThat(interfaceView.total().recognized()).isEqualTo("10");
+        assertThat(interfaceView.total().recognized()).isEqualTo("4");
         assertThat(schedulingOverview.load(admin, "2090-09", "2090-09").empty()).isTrue();
         assertThatThrownBy(() -> schedulingOverview.load(UUID.randomUUID(), "2090-01", "2090-02"))
                 .isInstanceOf(BusinessException.class);
@@ -612,7 +612,8 @@ class RevenueIT {
         bad.put("月账期", "202613");
         assertThatThrownBy(() -> service.create(admin, bad)).hasMessageContaining("账期");
         assertThat(service.detail(cityReporter, e.id()).id()).isEqualTo(e.id());
-        assertThat(service.detail(otherReviewer, e.id()).canRecognize()).isFalse();
+        assertThatThrownBy(() -> service.detail(otherReviewer, e.id()))
+                .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.detail(outsider, e.id()))
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.recognize(admin, e.id(), e.version(), value("1"), group))
@@ -793,6 +794,56 @@ class RevenueIT {
                 SELECT COUNT(*) FROM system_audit_event
                 WHERE event_type='REVENUE_ORGANIZATION_PROVINCE_CHANGED' AND actor_id=UUID_TO_BIN(?)
                 """, Integer.class, admin.toString())).isEqualTo(3);
+    }
+
+    @Test
+    void interfaceReadsAndProcessesOnlyItsSourceScopeEvenWithAnIndependentNationalRole() {
+        var standard = entry();
+        var foreign = source();
+        foreign.put("省份名称", jdbc.queryForObject(
+                "SELECT province_name FROM organization_province WHERE id=UUID_TO_BIN(?)",
+                String.class, otherProvince.toString()));
+        foreign.put("费用账期", "2087-02");
+        var foreignEntry = service.create(admin, foreign);
+        assertThat(service.detail(reviewer, standard.id()).canRecognize()).isTrue();
+        assertThatThrownBy(() -> service.detail(reviewer, foreignEntry.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.approvers(reviewer, foreignEntry.id(), foreignEntry.version()))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.recognize(reviewer, foreignEntry.id(), foreignEntry.version(), value("1"), group))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.approvers(reviewer, standard.id(), standard.version() + 1))
+                .isInstanceOf(BusinessException.class);
+        assertThat(service.approvers(reviewer, standard.id(), standard.version())).anyMatch(user -> user.id().equals(group));
+
+        var org = source();
+        org.put("省份名称", "具体组织");
+        org.put("地市/组织名称", "范围验收 " + UUID.randomUUID());
+        org.put("费用账期", "2087-01");
+        var orgEntry = service.create(admin, org);
+        assertThat(service.detail(reviewer, orgEntry.id()).canRecognize()).isTrue();
+        approve(reviewer, orgEntry, value("5"));
+        var key = organizationAssignments.list(admin).stream().filter(row -> row.name().equals(org.get("地市/组织名称")))
+                .findFirst().orElseThrow().key();
+
+        var filter = new RevenueMapper.Filter(List.of(), List.of("ORGANIZATION", otherProvince.toString()), "",
+                List.of("RECOGNIZED", "UNRECOGNIZED"), 0, 20, "", List.of("数字化", "智能化"), List.of("208701", "2087-02"));
+        assertThat(service.list(reviewer, filter).items()).extracting(Entry::id).containsExactly(orgEntry.id());
+        assertThat(service.list(reviewer, filter).summary().recognizedAmount()).isEqualByComparingTo("5");
+        assertThat(service.notices(reviewer)).anyMatch(notice -> notice.entryId().equals(orgEntry.id()));
+
+        organizationAssignments.update(admin, key, otherProvince);
+        assertThat(service.list(reviewer, filter).totalElements()).isZero();
+        assertThat(service.list(otherReviewer, filter).items()).extracting(Entry::id)
+                .containsExactlyInAnyOrder(orgEntry.id(), foreignEntry.id());
+        assertThat(service.notices(reviewer)).noneMatch(notice -> notice.entryId().equals(orgEntry.id()));
+        assertThatThrownBy(() -> service.history(reviewer, orgEntry.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.requests(reviewer, orgEntry.id())).isInstanceOf(BusinessException.class);
+
+        jdbc.update("INSERT INTO identity_user_role VALUES(UUID_TO_BIN(?),'GROUP_REVIEWER')", reviewer.toString());
+        assertThat(service.detail(reviewer, orgEntry.id()).canRecognize()).isFalse();
+        assertThat(service.detail(reviewer, foreignEntry.id()).canRecognize()).isFalse();
+        organizationAssignments.update(admin, key, null);
+        assertThat(service.detail(reviewer, orgEntry.id()).canRecognize()).isTrue();
     }
 
     @Test

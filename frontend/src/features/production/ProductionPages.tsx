@@ -1,10 +1,11 @@
+import { MonthMultiSelect, MultiSelect } from '../../shared/ui/MultiSelect';
+import { filterPage, useLedgerFilterDraft, locationOptions } from '../../shared/ui/ledgerFilters';
 import {
   PersonalizedTable,
   type BusinessColumn,
 } from '../../shared/list-columns/PersonalizedTable';
 import { useLiveQuery } from '../../shared/api/useLiveQuery';
 import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
-import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import './production.css';
 import { ListPagination } from '../../shared/ui/ListPagination';
@@ -12,7 +13,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { Select } from '../../shared/ui/Select';
 import { Modal } from '../../shared/ui/Modal';
 import { ImportWizardPage } from '../../shared/imports/ImportWizardPage';
 import { productionApi, productionImportApi, categories, type Plan, type Reference } from './api';
@@ -21,7 +21,6 @@ import { expandScientificAmount, plainAmount } from './amounts';
 
 export function ProductionListPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
-  const [draft, setDraft] = useState(() => Object.fromEntries(params));
   const [reference, setReference] = useState<Reference | null>(null),
     [result, setResult] = useState<Page<Plan> | null>(null);
   const [error, setError] = useState(''),
@@ -30,6 +29,9 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
     [busy, setBusy] = useState(false);
   const [action, setAction] = useState<Plan | null>(null);
   const query = params.toString();
+  const draft = useLedgerFilterDraft(query);
+  const cities = reference?.cities ?? [];
+  const cityFilter = locationOptions(draft.values('provinceId'), cities, draft.values('cityId'));
   const listScroll = useLedgerScroll(!loading && !!result);
   const load = useCallback(async () => {
     const request = new URLSearchParams(query);
@@ -42,7 +44,6 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setDraft(Object.fromEntries(new URLSearchParams(query)));
     load()
       .catch((c) => {
         if (active) setError(c.message);
@@ -60,7 +61,7 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
     query,
     result?.items ?? [],
     async () => {
-      if (result?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      if (result?.page) setParams(filterPage(params, 0));
       else await load();
     },
     {
@@ -69,13 +70,8 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
       load: productionApi.list,
     },
   );
-  function change(key: string, value: string) {
-    setDraft((old) => ({ ...old, [key]: value, ...(key === 'provinceId' ? { cityId: '' } : {}) }));
-  }
   function paginate(page: number) {
-    const next = new URLSearchParams(params);
-    next.set('page', String(page));
-    setParams(next);
+    setParams(filterPage(params, page));
   }
   async function remove() {
     if (!action) return;
@@ -119,65 +115,37 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
         aria-label="排产筛选"
         onSubmit={(e) => {
           e.preventDefault();
-          const next = new URLSearchParams();
-          Object.entries(draft)
-            .filter(([key, value]) => key !== 'page' && value)
-            .forEach(([key, value]) => next.set(key, value));
-          setParams(next);
+          setParams(draft.apply());
         }}
       >
-        <div className="month-filter-field">
-          排产月份
-          <MonthPicker
-            aria-label="排产月份"
-            value={draft.month ?? ''}
-            onChange={(selectedMonth) => change('month', selectedMonth)}
-          />
-        </div>
-        <label>
-          省份
-          <Select
-            value={draft.provinceId ?? ''}
-            onChange={(e) => change('provinceId', e.target.value)}
-          >
-            <option value="">全部省份</option>
-            {reference?.provinces.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label>
-          地市
-          <Select value={draft.cityId ?? ''} onChange={(e) => change('cityId', e.target.value)}>
-            <option value="">全部地市</option>
-            {reference?.cities
-              .filter((c) => !draft.provinceId || c.provinceId === draft.provinceId)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-          </Select>
-        </label>
-        <label>
-          三化类别
-          <Select value={draft.category ?? ''} onChange={(e) => change('category', e.target.value)}>
-            <option value="">全部类别</option>
-            {categories.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.label}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <MonthMultiSelect
+          label="排产月份"
+          values={draft.values('month')}
+          onChange={(values) => draft.change('month', values)}
+        />
+        <MultiSelect
+          label="省份"
+          values={draft.values('provinceId')}
+          options={(reference?.provinces ?? []).map(({ id, name }) => ({ value: id, label: name }))}
+          onChange={(values) => draft.provinces(values, cities)}
+        />
+        <MultiSelect
+          label="地市"
+          {...cityFilter}
+          onChange={(values) => draft.change('cityId', values)}
+        />
+        <MultiSelect
+          label="三化类别"
+          values={draft.values('category')}
+          options={categories.map(({ code, label }) => ({ value: code, label }))}
+          onChange={(values) => draft.change('category', values)}
+        />
         <label className="production-search">
           项目 / 客户 / 接口人
           <input
-            value={draft.search ?? ''}
+            value={draft.text('search')}
             maxLength={300}
-            onChange={(e) => change('search', e.target.value)}
+            onChange={(e) => draft.change('search', e.target.value)}
             placeholder="输入关键词"
           />
         </label>
@@ -189,7 +157,7 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
             type="button"
             className="secondary-button"
             onClick={() => {
-              setDraft({});
+              draft.reset();
               setParams({});
             }}
           >
@@ -304,13 +272,19 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
               <div className="admin-row-actions">
                 <Link
                   className="secondary-button compact-button"
-                  to={`/scheduling/${plan.id}`}
+                  to={{
+                    pathname: `/scheduling/${plan.id}`,
+                    search: new URLSearchParams({
+                      ...(query ? { from: query } : {}),
+                      ...(plan.writable ? { mode: 'edit' } : {}),
+                    }).toString(),
+                  }}
                   state={listScroll.state}
                   onClick={listScroll.remember}
                 >
-                  详情
+                  {plan.writable ? '编辑' : '详情'}
                 </Link>
-                {reference?.writable && (
+                {plan.writable && (
                   <button
                     type="button"
                     className="secondary-button compact-button danger"
@@ -359,21 +333,53 @@ export function ProductionListPage({ admin, accountId }: { admin: boolean; accou
 }
 function useProductionListReturn() {
   const { state } = useLocation();
-  return typeof state?.listSearch === 'string' && state.listSearch
-    ? '/scheduling?' + state.listSearch.replace(/^\?/, '')
+  const [params] = useSearchParams();
+  const listSearch = params.get('from') ?? state?.listSearch;
+  return typeof listSearch === 'string' && listSearch
+    ? '/scheduling?' + listSearch.replace(/^\?/, '')
     : '/scheduling';
 }
 
 export function ProductionDetailPage() {
   const { id = '' } = useParams();
   const backTo = useProductionListReturn();
-  const [editing, setEditing] = useState<Plan | null>(null);
+  const [params, setParams] = useSearchParams();
+  const [editSnapshot, setEditSnapshot] = useState<Plan | null>(null);
+  const editMode = params.get('mode') === 'edit';
+  const setMode = useCallback(
+    (edit: boolean) => {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (edit) next.set('mode', 'edit');
+          else next.delete('mode');
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
+  function endEdit() {
+    setEditSnapshot(null);
+    setMode(false);
+  }
   const [notice, setNotice] = useState('');
   const load = useCallback((signal: AbortSignal) => productionApi.detail(id, signal), [id]);
   const loadReference = useCallback(() => productionApi.reference(), []);
   const result = useLiveQuery(load, '排产详情加载失败');
-  const reference = useLiveQuery(loadReference, '排产组织目录加载失败', !!editing);
   const plan = result.data;
+  const editing = editMode && plan?.writable ? (editSnapshot ?? plan) : null;
+  const reference = useLiveQuery(loadReference, '排产组织目录加载失败', !!editing);
+  useEffect(() => {
+    if (!editMode) {
+      setEditSnapshot(null);
+    } else if (plan?.writable) {
+      setEditSnapshot((current) => current ?? plan);
+    } else if (plan) {
+      setMode(false);
+    }
+  }, [editMode, plan, setMode]);
   const basic = plan && [
     ['接口人', plan.reviewerName],
     ['排产月份', plan.planMonth],
@@ -384,105 +390,108 @@ export function ProductionDetailPage() {
     ['项目状态', plan.projectStatus],
   ];
   return (
-    <>
-      <div className="page-heading">
+    <section className="ledger-detail-page">
+      <div className="page-heading ledger-detail-actions">
         <Link className="secondary-button" to={backTo}>
           返回列表
         </Link>
+        {plan?.writable && !editing && (
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setNotice('');
+              setEditSnapshot(plan);
+              setMode(true);
+            }}
+          >
+            编辑
+          </button>
+        )}
       </div>
-      {result.error && <Feedback tone="error">{result.error}</Feedback>}
-      {notice && <Feedback tone="success">{notice}</Feedback>}
-      {!plan && result.busy && <Loading />}
-      {plan && basic && (
-        <section className="panel ledger-detail">
-          <div className="page-heading">
-            <h2>{editing ? '编辑排产' : '基本信息'}</h2>
-            {plan.writable && !editing && (
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  setNotice('');
-                  setEditing(plan);
-                }}
-              >
-                编辑
-              </button>
-            )}
-          </div>
-          {editing ? (
-            reference.error ? (
-              <>
-                <Feedback tone="error">{reference.error}</Feedback>
-                <button type="button" className="secondary-button" onClick={() => setEditing(null)}>
-                  取消
-                </button>
-              </>
-            ) : reference.data ? (
-              <PlanForm
-                reference={reference.data}
-                initial={editing}
-                onCancel={() => setEditing(null)}
-                onSave={async (values) => {
-                  await productionApi.update(editing, values);
-                  await result.refresh();
-                  setEditing(null);
-                  setNotice('排产记录已更新');
-                }}
-              />
+      <div className="ledger-detail-body">
+        {result.error && <Feedback tone="error">{result.error}</Feedback>}
+        {notice && <Feedback tone="success">{notice}</Feedback>}
+        {!plan && result.busy && <Loading />}
+        {plan && basic && (
+          <section className="panel ledger-detail">
+            <div className="page-heading">
+              <h2>{editing ? '编辑排产' : '基本信息'}</h2>
+            </div>
+            {editing ? (
+              reference.error ? (
+                <>
+                  <Feedback tone="error">{reference.error}</Feedback>
+                  <button type="button" className="secondary-button" onClick={endEdit}>
+                    取消
+                  </button>
+                </>
+              ) : reference.data ? (
+                <PlanForm
+                  reference={reference.data}
+                  initial={editing}
+                  onCancel={endEdit}
+                  onSave={async (values) => {
+                    await productionApi.update(editing, values);
+                    await result.refresh();
+                    endEdit();
+                    setNotice('排产记录已更新');
+                  }}
+                />
+              ) : (
+                <Loading />
+              )
             ) : (
-              <Loading />
-            )
-          ) : (
-            <>
-              <dl className="facts">
-                {basic.map(([label, value]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{value || '—'}</dd>
-                  </div>
-                ))}
-              </dl>
-              <section className="production-amount-section" aria-label="产品金额">
-                <h3>产品金额（万元）</h3>
-                <div className="production-product-amounts">
-                  {categories.map((product) => (
-                    <section key={product.code} className="production-product-amount">
-                      <h4>{product.label}</h4>
-                      <dl className="production-product-facts">
-                        {product.fields.map((key) => (
-                          <div key={key}>
-                            <dt>
-                              {key.endsWith('OrderAmount')
-                                ? '政企运营平台预计下单金额'
-                                : '数智业务管理系统预计计收金额'}
-                            </dt>
-                            <dd>{plainAmount(plan[key] ?? '—')}</dd>
-                          </div>
-                        ))}
-                        <div className="production-product-total">
-                          <dt>总排产金额</dt>
-                          <dd>{plainAmount(plan[product.amount] ?? '—')}</dd>
-                        </div>
-                      </dl>
-                    </section>
+              <>
+                <dl className="facts">
+                  {basic.map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value || '—'}</dd>
+                    </div>
                   ))}
-                </div>
-              </section>
-              <dl className="facts production-supplemental">
-                <div>
-                  <dt>产品简介</dt>
-                  <dd>{plan.productIntroduction || '—'}</dd>
-                </div>
-                <div>
-                  <dt>备注</dt>
-                  <dd>{plan.remark || '—'}</dd>
-                </div>
-              </dl>
-            </>
-          )}
-        </section>
-      )}
-    </>
+                </dl>
+                <section className="production-amount-section" aria-label="产品金额">
+                  <h3>产品金额（万元）</h3>
+                  <div className="production-product-amounts">
+                    {categories.map((product) => (
+                      <section key={product.code} className="production-product-amount">
+                        <h4>{product.label}</h4>
+                        <dl className="production-product-facts">
+                          {product.fields.map((key) => (
+                            <div key={key}>
+                              <dt>
+                                {key.endsWith('OrderAmount')
+                                  ? '政企运营平台预计下单金额'
+                                  : '数智业务管理系统预计计收金额'}
+                              </dt>
+                              <dd>{plainAmount(plan[key] ?? '—')}</dd>
+                            </div>
+                          ))}
+                          <div className="production-product-total">
+                            <dt>总排产金额</dt>
+                            <dd>{plainAmount(plan[product.amount] ?? '—')}</dd>
+                          </div>
+                        </dl>
+                      </section>
+                    ))}
+                  </div>
+                </section>
+                <dl className="facts production-supplemental">
+                  <div>
+                    <dt>产品简介</dt>
+                    <dd>{plan.productIntroduction || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>备注</dt>
+                    <dd>{plan.remark || '—'}</dd>
+                  </div>
+                </dl>
+              </>
+            )}
+          </section>
+        )}
+      </div>
+    </section>
   );
 }
 

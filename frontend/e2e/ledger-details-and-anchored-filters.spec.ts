@@ -1,3 +1,4 @@
+import { chooseListOptions } from './support/listFilters';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
 import { chooseActor, ids, post } from './support/projects';
@@ -91,22 +92,18 @@ test('产品筛选按 OR 去重，保存到列表 URL 并交给导出', async ({
   }
   await page.goto('/projects?projectName=' + tag);
   await chooseActor(page, ids.admin);
-  await expect(
-    page.getByRole('combobox', { name: '当前阶段' }).locator('option[value="COLLECTION"]'),
-  ).toHaveText('待计收');
+  await chooseListOptions(page, '当前阶段', ['待计收']);
+  await chooseListOptions(page, '当前阶段', [], true);
   const products = page.getByRole('button', { name: '产品类别', exact: true });
-  await products.click();
-  await page.getByRole('checkbox', { name: /5G.*工业专网/ }).check();
-  await page.getByRole('checkbox', { name: '格物工业互联网平台' }).check();
-  await products.press('Escape');
+  await chooseListOptions(page, '产品类别', ['5G工业专网', '格物工业互联网平台']);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page).toHaveURL((url) => url.searchParams.getAll('productCodes').length === 2);
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(1);
   await page.getByRole('link', { name: /^详情：/ }).click();
   await page.goBack();
-  await expect(products).toHaveText('已选 2 项');
+  await expect(products).toHaveText('5G工业专网；格物工业互联网平台');
   await page.reload();
-  await expect(products).toHaveText('已选 2 项');
+  await expect(products).toHaveText('5G工业专网；格物工业互联网平台');
   await page.screenshot({ path: info.outputPath('product-filters.png'), fullPage: false });
   const exporting = page.waitForResponse(
     (response) =>
@@ -127,19 +124,21 @@ test('下拉随页面及嵌套滚动对齐，选项可独立滚动，锚点离�
   await page.goto('/revenue');
   await chooseActor(page, ids.admin);
   const region = page.getByRole('form', { name: '计收筛选' });
-  const trigger = region.getByRole('combobox', { name: '省份／具体组织' });
-  const panel = page.getByRole('listbox', { name: '可选项' });
-  await expect(trigger.locator('option').filter({ hasText: '广东省' })).toHaveCount(1);
-  await page.getByRole('main').evaluate((element) => {
+  const trigger = region.getByRole('button', { name: '省份／具体组织' });
+  const panel = page.getByRole('group', { name: '省份／具体组织', exact: true });
+  const choices = panel.getByRole('dialog', { name: '省份／具体组织选项', exact: true });
+  await expect(trigger).toBeVisible();
+  await page.locator('#main-content').evaluate((element) => {
     element.style.minHeight = '200vh';
   });
   await trigger.click();
   await expect(panel).toBeVisible();
   await expect.poll(() => gap(trigger, panel)).toBeLessThanOrEqual(6);
-  await panel.evaluate((element) => {
+  await expect(choices.getByRole('checkbox', { name: '广东省', exact: true })).toHaveCount(1);
+  await choices.evaluate((element) => {
     element.scrollTop = 120;
   });
-  await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => choices.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.evaluate(() => window.scrollBy(0, 30));
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
   await expect.poll(() => gap(trigger, panel)).toBeLessThanOrEqual(6);
@@ -328,9 +327,8 @@ test('详情定时刷新后，编辑仍使用开始编辑时的版本', async ({
   };
   const { id } = await add(request, '/production/plans', plan);
   const endpoint = api + '/production/plans/' + id;
-  await page.goto('/scheduling/' + id);
+  await page.goto('/scheduling/' + id + '?mode=edit');
   await chooseActor(page, ids.admin);
-  await page.getByRole('button', { name: '编辑', exact: true }).click();
   const remark = page.getByLabel('备注（选填）', { exact: true });
   await remark.fill('详情里的修改');
   const changed = await request.put(endpoint, {

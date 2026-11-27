@@ -45,13 +45,13 @@ public class RevenueController {
     @GetMapping
     public ApiResponse<RevenueMapper.Listing> list(
             Authentication auth,
-            @RequestParam(required = false) String month,
-            @RequestParam(required = false) String feeMonth,
-            @RequestParam(required = false) String province,
+            @RequestParam(required = false) List<String> month,
+            @RequestParam(required = false) List<String> feeMonth,
+            @RequestParam(required = false) List<String> province,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "") String organization,
-            @RequestParam(defaultValue = "") String state,
-            @RequestParam(required = false) String category,
+            @RequestParam(required = false) List<String> state,
+            @RequestParam(required = false) List<String> category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
@@ -80,8 +80,9 @@ public class RevenueController {
     public record Recognize(@Min(0) long version, @NotNull Recognition recognition, @NotNull UUID approverId) {}
 
     @GetMapping("/{id}/recognition-approvers")
-    public ApiResponse<List<RevenueService.Approver>> approvers(Authentication auth, @PathVariable UUID id) {
-        return responses.success(service.approvers(actor(auth), id));
+    public ApiResponse<List<RevenueService.Approver>> approvers(Authentication auth, @PathVariable UUID id,
+            @RequestParam(required = false) Long version) {
+        return responses.success(service.approvers(actor(auth), id, version));
     }
 
     @PostMapping("/{id}/recognition")

@@ -1,3 +1,4 @@
+import { chooseListOptions } from './support/listFilters';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
@@ -57,7 +58,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     page.getByRole('heading', { name: '阶段分布概览（项目数／金额）', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: '近期项目变动情况', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: `详情：${name}`, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -123,7 +124,7 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
     ['SOLUTION_EXCHANGE', '方案交流'],
     ['BIDDING', '招投标'],
     ['SIGNED', '签约'],
-    ['COLLECTION', '计收'],
+    ['COLLECTION', '待计收'],
   ]) {
     const loaded = page.waitForResponse(
       (response) =>
@@ -172,30 +173,12 @@ test('驾驶舱五阶段、真实统计、产品筛选与项目清单即时筛�
   await page.screenshot({ path: testInfo.outputPath('dashboard-solution.png'), fullPage: true });
   await page.getByRole('link', { name: '查看项目清单', exact: true }).click();
   await expect(page.getByRole('heading', { name: '项目列表', exact: true })).toBeVisible();
-  const listTabs = page.getByRole('group', { name: '项目阶段快捷筛选', exact: true });
-  await expect(
-    page.getByRole('banner').getByRole('group', { name: '项目阶段快捷筛选', exact: true }),
-  ).toBeVisible();
-  await expect(listTabs.getByRole('button', { name: '方案交流', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  const listRequest = page.waitForRequest(
-    (req) => /\/api\/v1\/projects\?/.test(req.url()) && req.url().includes('stage=BIDDING'),
-  );
-  await listTabs.getByRole('button', { name: '招投标', exact: true }).click();
-  await listRequest;
-  await expect(listTabs.getByRole('button', { name: '招投标', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  const allRequest = page.waitForRequest(
-    (req) => /\/api\/v1\/projects\?/.test(req.url()) && !req.url().includes('stage='),
-  );
-  await listTabs.getByRole('button', { name: '全部', exact: true }).click();
-  await allRequest;
-  await expect(listTabs.getByRole('button', { name: '全部', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  const stages = page.getByRole('button', { name: '当前阶段', exact: true });
+  await expect(stages).toHaveText('方案交流');
+  await chooseListOptions(page, '当前阶段', ['招投标'], true);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(page).toHaveURL(/stage=BIDDING/);
+  await chooseListOptions(page, '当前阶段', [], true);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(page).not.toHaveURL(/stage=/);
 });

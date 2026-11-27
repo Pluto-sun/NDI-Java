@@ -1,3 +1,4 @@
+import { submitRecognition } from './support/listFilters';
 import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
@@ -85,7 +86,7 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
     .getByRole('combobox', { name: '对应省分（集成）', exact: true })
     .selectOption('数科');
   await recognition.getByRole('combobox', { name: '集团审核人' }).selectOption(group);
-  await recognition.getByRole('button', { name: '提交审核', exact: true }).click();
+  await submitRecognition(recognition);
   await expect(recognition).toHaveCount(0);
   await expect(
     page.getByRole('heading', { name: '当前生效认定', exact: true }).locator('..'),
@@ -114,7 +115,7 @@ test('计收列表创建、认定审核、修改撤销和生效历史', async ({
   const edit = page.getByRole('dialog', { name: '修改认定', exact: true });
   await edit.getByLabel('认定金额（元）', { exact: true }).fill('90');
   await edit.getByRole('combobox', { name: '集团审核人' }).selectOption(group);
-  await edit.getByRole('button', { name: '提交审核', exact: true }).click();
+  await submitRecognition(edit);
   await expect(edit).toHaveCount(0);
   await expect(current).toContainText('180.00');
   await page.getByRole('button', { name: '撤销申请', exact: true }).click();
@@ -210,10 +211,10 @@ test('具体组织由集团审核，省分不能因集成省分而取得权限',
   await dialog
     .getByRole('combobox', { name: '对应省分（集成）', exact: true })
     .selectOption(ids.province);
-  await dialog.getByRole('button', { name: '提交审核', exact: true }).click();
+  await dialog.getByRole('button', { name: '提交认定申请', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('认定金额须大于零');
   await dialog.getByLabel('认定金额（元）', { exact: true }).fill('101');
-  await dialog.getByRole('button', { name: '提交审核', exact: true }).click();
+  await submitRecognition(dialog);
   await expect(dialog).toHaveCount(0);
   const pending = await api<Entry>(request, reviewer, '/' + entry.id);
   expect(pending.recognition).toBeNull();

@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.documents.service.*;
 import com.pluto.ndi.shared.excel.ExcelWorkbook;
@@ -44,14 +46,14 @@ public abstract class IntelligenceController extends ImportControllerBase {
     @GetMapping
     public ApiResponse<IntelligenceService.Listing> list(
             Authentication auth,
-            @RequestParam(required = false) UUID provinceId,
+            @RequestParam(required = false) List<String> provinceId,
             @RequestParam(defaultValue = "") String reviewer,
             @RequestParam(defaultValue = "") String place,
-            @RequestParam(defaultValue = "") String progress,
+            @RequestParam(required = false) List<String> progress,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
-                service.list(actor(auth), kind, provinceId, reviewer, place, progress, page, size));
+                service.list(actor(auth), kind, ListFilters.ids(provinceId), reviewer, place, progress, page, size));
     }
 
     @GetMapping("/reference-data")

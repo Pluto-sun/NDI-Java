@@ -80,8 +80,11 @@ test('排产新增、筛选、编辑和删除保持金额零值及空值区分',
     return element.scrollLeft;
   });
   expect(scrollLeft).toBeGreaterThan(0);
-  await row.getByRole('link', { name: '详情', exact: true }).click();
+  await row.getByRole('link', { name: '编辑', exact: true }).click();
+  await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'edit');
   await page.reload();
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page).not.toHaveURL(/mode=edit/);
   await expect(page.getByRole('heading', { name: '产品金额（万元）' })).toBeVisible();
   await page.getByRole('button', { name: '编辑', exact: true }).click();
   await expect(amount('格物工业互联网平台', order)).toHaveValue('20');
@@ -312,4 +315,45 @@ test('管理员可批量删除带两个格物分项的排产记录', async ({ pa
     .click();
   await expect(page.getByText('已删除 2 条记录')).toBeVisible();
   await expect(page.getByRole('row').filter({ hasText: name })).toHaveCount(0);
+});
+
+test('只读账号从排产列表进入详情，直达编辑地址与写请求均不能编辑', async ({ page, request }) => {
+  const unique = randomUUID();
+  const response = await request.post('http://127.0.0.1:18080/api/v1/admin/users', {
+    headers: { 'X-NDI-Actor-Id': ids.admin },
+    data: {
+      account: {
+        loginName: '13911112222',
+        email: 'production-readonly@example.test',
+        displayName: '排产只读验收',
+        roleCodes: ['DS_INTELLIGENCE'],
+      },
+      password: 'E2eOnly-Readonly123',
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const reader = (await response.json()).data.id as string;
+  const draft = {
+    reviewerName: '排产接口人',
+    planMonth: '2026-10',
+    provinceId: ids.province,
+    cityId: ids.city,
+    projectName: '排产只读验收-' + unique,
+    gewuOrderAmount: '20',
+  };
+  const plan = await call<{ id: string; version: number }>(request, '', 'POST', draft);
+  await page.goto('/scheduling?search=' + encodeURIComponent(unique));
+  await chooseActor(page, reader);
+  const row = page.getByRole('row').filter({ hasText: draft.projectName });
+  await expect(row.getByRole('link', { name: '编辑', exact: true })).toHaveCount(0);
+  await row.getByRole('link', { name: '详情', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '基本信息', exact: true })).toBeVisible();
+  await page.goto('/scheduling/' + plan.id + '?mode=edit');
+  await expect(page).not.toHaveURL(/mode=edit/);
+  await expect(page.getByRole('button', { name: '编辑', exact: true })).toHaveCount(0);
+  const denied = await request.put(root + '/' + plan.id, {
+    headers: { 'X-NDI-Actor-Id': reader },
+    data: { version: plan.version, plan: draft },
+  });
+  expect(denied.status()).toBe(403);
 });

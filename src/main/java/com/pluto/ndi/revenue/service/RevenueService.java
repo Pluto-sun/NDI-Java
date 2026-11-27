@@ -60,7 +60,13 @@ public class RevenueService implements RevenueRecordDeletion {
             List<String> fields,
             List<String> required,
             boolean canCreate,
-            Map<String, String> fixedOrganizations) {
+            Map<String, String> fixedOrganizations,
+            List<ProvinceOption> filterProvinces,
+            boolean specialSources) {
+        public Reference(List<ProvinceOption> provinces, List<CityOption> cities,
+                List<String> fields, List<String> required, boolean canCreate, Map<String, String> fixedOrganizations) {
+            this(provinces, cities, fields, required, canCreate, fixedOrganizations, provinces, true);
+        }
         @com.fasterxml.jackson.annotation.JsonProperty
         public List<String> integratedOrganizations() {
             return Revenue.INTEGRATED_ORGANIZATIONS;
@@ -69,13 +75,15 @@ public class RevenueService implements RevenueRecordDeletion {
 
     @Transactional(readOnly = true)
     public Reference reference(UUID actor) {
-        return new Reference(
-                organizations.findEnabledProvinces(),
-                organizations.findEnabledCities(),
-                RevenueFields.FIELDS,
+        var rights = access.require(actor);
+        var provinces = organizations.findEnabledProvinces();
+        var filterProvinces = rights.national() ? provinces : provinces.stream().filter(province ->
+                rights.reviewer() && rights.user().reviewerProvinceIds().contains(province.id())
+                || rights.local() && province.id().equals(rights.user().provinceId())).toList();
+        return new Reference(provinces, organizations.findEnabledCities(), RevenueFields.FIELDS,
                 RevenueFields.FIELDS.stream().filter(RevenueFields.REQUIRED::contains).toList(),
-                access.require(actor).creator(),
-                RevenueSourceOptions.FIXED_ORGANIZATIONS);
+                rights.creator(), RevenueSourceOptions.FIXED_ORGANIZATIONS,
+                filterProvinces, rights.national() || rights.reviewer());
     }
 
     @Transactional(readOnly = true)
@@ -86,20 +94,6 @@ public class RevenueService implements RevenueRecordDeletion {
                 || f.size() > 100
                 || f.search() != null && f.search().length() > 300
                 || f.organization() != null && f.organization().length() > 300) throw invalid("查询条件无效");
-        if (f.category() != null && !f.category().isEmpty() && !Revenue.CATEGORIES.contains(f.category()))
-            throw invalid("三化分类筛选无效");
-        if (f.month() != null && !f.month().isBlank()) RevenueFields.month(f.month());
-        if (f.state() != null
-                && !Set.of("", "UNRECOGNIZED", "PENDING", "RECOGNIZED", "CHANGE_PENDING")
-                        .contains(f.state())) throw invalid("办理状态无效");
-        if (f.province() != null
-                && !f.province().isBlank()
-                && !Set.of("ORGANIZATION", "DS_TECH", "UNASSIGNED").contains(f.province()))
-            try {
-                UUID.fromString(f.province());
-            } catch (IllegalArgumentException e) {
-                throw invalid("省份筛选无效");
-            }
         return mapper.list(access.require(actor), f);
     }
 
@@ -113,8 +107,6 @@ public class RevenueService implements RevenueRecordDeletion {
         var e =
                 mapper.find(id, a, lock)
                         .orElseThrow(() -> new BusinessException(RevenueError.notFound()));
-        if (!a.readable(e.provinceId(), e.specificOrganization()) && !mapper.readsAssignedOrganization(id, a))
-            throw RevenueAccessService.forbidden();
         return e;
     }
 
@@ -234,29 +226,34 @@ public class RevenueService implements RevenueRecordDeletion {
 
     @Transactional(readOnly = true)
     public List<Approver> approvers(UUID actor, UUID id) {
+        return approvers(actor, id, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Approver> approvers(UUID actor, UUID id, Long version) {
         var entry = require(actor, id, false);
-        requireRecognitionScope(actor, entry);
+        requireRecognitionScope(entry);
+        if (version != null && !com.pluto.ndi.shared.approval.ApprovalWorkflow.sameVersion(entry.version(), version)) throw conflict();
         return identities.findEnabledProjectUsers().stream()
                 .filter(user -> !user.id().equals(actor) && user.roleCodes().contains("GROUP_REVIEWER"))
                 .map(user -> new Approver(user.id(), user.displayName()))
                 .toList();
     }
 
-    private void requireRecognitionScope(UUID actor, Entry entry) {
-        if (!access.require(actor).recognize(entry.provinceId(), entry.specificOrganization(),
-                entry.source().get(Revenue.CATEGORY_FIELD)))
-            throw RevenueAccessService.forbidden();
+    private void requireRecognitionScope(Entry entry) {
+        if (!entry.canRecognize()) throw RevenueAccessService.forbidden();
     }
 
     public Entry recognize(UUID actor, UUID id, long version, Recognition input, UUID approver) {
         var e = require(actor, id, true);
-        requireRecognitionScope(actor, e);
         com.pluto.ndi.shared.approval.ApprovalWorkflow.requireNoPending(
                 e.pendingRequestId() != null, RevenueService::conflict);
+        requireRecognitionScope(e);
         if (!com.pluto.ndi.shared.approval.ApprovalWorkflow.sameVersion(e.version(), version))
             throw conflict();
         if (approver == null || approver.equals(actor) || identities.findProjectUser(approver)
-                .filter(user -> user.roleCodes().contains("GROUP_REVIEWER")).isEmpty())
+                .filter(user -> user.roleCodes().contains("GROUP_REVIEWER")).isEmpty()
+                || identities.findProjectActor(approver).filter(com.pluto.ndi.identity.service.ProjectActor::enabled).isEmpty())
             throw invalid("请选择一名已启用的集团审核人，且不能选择本人");
         var value = fields.recognition(input);
         var at = Instant.now(clock);
@@ -377,18 +374,7 @@ public class RevenueService implements RevenueRecordDeletion {
 
     @Transactional(readOnly = true)
     public List<Notice> notices(UUID actor) {
-        var a = access.require(actor);
-        return mapper.notices(actor).stream()
-                .filter(
-                        n ->
-                                mapper.find(n.entryId(), a, false)
-                                        .filter(
-                                                e ->
-                                                        a.readable(
-                                                                e.provinceId(),
-                                                                e.specificOrganization()))
-                                        .isPresent())
-                .toList();
+        return mapper.notices(access.require(actor));
     }
 
     @Transactional(readOnly = true)
@@ -397,8 +383,7 @@ public class RevenueService implements RevenueRecordDeletion {
     }
 
     public void read(UUID actor, UUID notice) {
-        access.require(actor);
-        mapper.read(actor, notice, Instant.now(clock));
+        mapper.read(access.require(actor), notice, Instant.now(clock));
     }
 
     private static BusinessException invalid(String text) {

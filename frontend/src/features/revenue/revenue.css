@@ -53,22 +53,25 @@
 }
 .filter-bar.revenue-list-filters {
   display: grid;
-  grid-template-columns:
-    160px minmax(115px, 1fr) minmax(130px, 1.2fr) minmax(115px, 1fr) minmax(170px, 1.5fr)
-    auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
   gap: 12px;
   padding: 16px;
 }
 .revenue-list-filters label,
-.filter-bar.revenue-list-filters > .month-filter-field {
+.filter-bar.revenue-list-filters > .multi-select-field {
   min-width: 0;
 }
 .revenue-list-filters input,
 .revenue-list-filters select {
   min-width: 0;
 }
+.revenue-list-filters .revenue-search {
+  grid-column: span 2;
+}
 .revenue-filter-actions {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
 }
@@ -196,12 +199,9 @@
   font-size: 12px;
   line-height: 1.7;
 }
-@media (max-width: 1200px) {
+@media (max-width: 1020px) {
   .filter-bar.revenue-list-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .revenue-list-filters .revenue-search {
-    grid-column: span 2;
   }
   .revenue-filter-actions {
     justify-content: flex-end;
@@ -228,9 +228,6 @@
   }
   .revenue-list-filters .revenue-search,
   .revenue-filter-actions {
-    grid-column: 1 / -1;
-  }
-  .revenue-list-filters > .month-filter-field {
     grid-column: 1 / -1;
   }
 }

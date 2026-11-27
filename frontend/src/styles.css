@@ -640,10 +640,6 @@ label,
   flex: 1 1 180px;
   min-width: min(100%, 180px);
 }
-.project-list-filters > .project-signing-subject {
-  flex: 0 1 132px;
-  min-width: min(100%, 132px);
-}
 .project-list-filters > .multi-select-field {
   flex: 0 1 168px;
   min-width: min(100%, 168px);
@@ -662,9 +658,6 @@ label,
   }
   .project-list-filters > :is(label, .multi-select-field) {
     min-width: 0;
-  }
-  .project-list-filters > .project-signing-subject {
-    width: min(100%, 132px);
   }
   .project-list-filters
     > :is(.project-name-filter, .project-filter-actions, .project-advanced-filters) {
@@ -2168,4 +2161,133 @@ select:disabled {
   .revenue-organization-panel table :is(td, th):last-child {
     width: 74px;
   }
+}
+
+/* 筛选下拉与主表滚动区分别定位，搜索词和已选项各自清空。 */
+.multi-select .multi-select-selection {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.multi-select-options.searchable-options {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  overflow: hidden;
+}
+.multi-select-options.searchable-options:not(:popover-open) {
+  display: none;
+}
+.multi-select-options [role='dialog'] {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.multi-select-search-row,
+.multi-select-selection-bar {
+  flex: 0 0 auto;
+}
+.multi-select-search-row,
+.multi-select-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.multi-select-search-row input {
+  min-width: 0;
+  flex: 1;
+}
+.multi-select-selection-bar {
+  justify-content: space-between;
+  padding: 6px 3px;
+}
+.multi-select-selection-bar > span {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+}
+.multi-select-options .multi-select-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 33px;
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.multi-select-option.selected {
+  background: #fcebed;
+  color: var(--red);
+}
+.multi-select-option.active,
+.multi-select-option:hover,
+.multi-select-option:focus-within {
+  box-shadow: inset 0 0 0 1px #dfadb2;
+}
+.multi-select-tick {
+  margin-inline-start: auto;
+  color: var(--red);
+}
+.multi-select-empty {
+  margin: 6px;
+  color: var(--muted);
+}
+.filter-bar > .multi-select-field {
+  min-width: 0;
+}
+.filter-bar.gewu-filters > .multi-select-field {
+  flex: 1 1 148px;
+}
+
+.content:has(> .ledger-detail-page) {
+  padding-bottom: 14px;
+}
+.ledger-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: calc(100dvh - 112px);
+  min-width: 0;
+}
+.ledger-detail-page .ledger-detail-actions {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+.ledger-detail-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 4px 16px 1px;
+  scrollbar-gutter: stable;
+}
+.recognition-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.recognition-confirmation {
+  margin: 14px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fdfafb;
+}
+.project-detail-page-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.project-detail-page-actions .request-level {
+  display: flex;
+  align-items: center;
+  max-width: none;
+  white-space: nowrap;
+}
+.project-detail-page-actions .request-level select {
+  width: 86px;
 }

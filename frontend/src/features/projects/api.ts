@@ -41,8 +41,10 @@ export interface ProjectQuery {
   page: number;
   projectName?: string;
   stage?: string;
+  stages?: string[];
   projectCode?: string;
   industryCode?: string;
+  industryCodes?: string[];
   provinceId?: string;
   cityId?: string;
   productCodes?: string[];
@@ -50,6 +52,7 @@ export interface ProjectQuery {
   cityIds?: string[];
   includeTerminated?: boolean;
   signingSubjectCode?: string;
+  signingSubjectCodes?: string[];
   provinceLeaderName?: string;
   cityAccountManagerName?: string;
   productSupportExpertName?: string;
@@ -72,6 +75,15 @@ function projectFilterValues(
   return values;
 }
 
+export function projectFilterKey(key: string) {
+  const aliases: Record<string, string> = {
+    stages: 'stage',
+    industryCodes: 'industryCode',
+    signingSubjectCodes: 'signingSubjectCode',
+  };
+  return aliases[key] ?? key;
+}
+
 export const projectsApi = {
   operationAudit: (id: string, page: number) =>
     request<Page<ProjectOperationAudit>>(`/${id}/operation-audit?page=${page}&size=20`),
@@ -89,7 +101,7 @@ export const projectsApi = {
   list: ({ page, ...filter }: ProjectQuery, size = 20) => {
     const query = new URLSearchParams({ page: String(page), size: String(size) });
     for (const [key, value] of Object.entries(projectFilterValues(filter))) {
-      if (Array.isArray(value)) value.forEach((id) => query.append(key, id));
+      if (Array.isArray(value)) value.forEach((id) => query.append(projectFilterKey(key), id));
       else query.set(key, String(value));
     }
     return request<Page<ProjectSummary>>(`?${query}`);

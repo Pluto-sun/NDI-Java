@@ -22,7 +22,7 @@ import {
 } from './api';
 import './revenue.css';
 const message = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试');
-function RecognitionForm({
+export function RecognitionForm({
   entry,
   reference,
   onSaved,
@@ -44,10 +44,12 @@ function RecognitionForm({
     [error, setError] = useState('');
   const [approvers, setApprovers] = useState<{ id: string; displayName: string }[] | null>(null);
   const [approverId, setApproverId] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const inFlight = useRef(false);
   useEffect(() => {
     let active = true;
     revenueApi
-      .approvers(entry.id)
+      .approvers(entry.id, entry.version)
       .then((users) => {
         if (active) setApprovers(users);
       })
@@ -57,7 +59,7 @@ function RecognitionForm({
     return () => {
       active = false;
     };
-  }, [entry.id]);
+  }, [entry.id, entry.version]);
   async function save(e: FormEvent) {
     e.preventDefault();
     const amount = Number(value.amount.replaceAll(',', ''));
@@ -66,6 +68,12 @@ function RecognitionForm({
       return;
     }
     setError('');
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const { integratedTarget, ...recognition } = value;
@@ -83,7 +91,9 @@ function RecognitionForm({
       onSaved();
     } catch (e) {
       setError(message(e));
+      setConfirming(false);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -96,78 +106,91 @@ function RecognitionForm({
           指定集团审核人，审核通过前保留当前认定结果。
         </p>
         {approvers?.length === 0 && <Feedback tone="error">当前没有可选的集团审核人。</Feedback>}
-        <div className="form-grid">
-          <label>
-            集团审核人
-            <Select
-              required
-              disabled={!approvers?.length}
-              value={approverId}
-              onChange={(event) => setApproverId(event.target.value)}
-            >
-              <option value="">请选择集团审核人</option>
-              {approvers?.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            认定金额（元）
-            <input
-              required
-              inputMode="decimal"
-              value={value.amount}
-              onChange={(e) => setValue({ ...value, amount: e.target.value })}
-            />
-          </label>
-          <label>
-            通报项目名称
-            <input
-              required
-              maxLength={300}
-              value={value.reportedProjectName}
-              placeholder="--"
-              onChange={(e) => setValue({ ...value, reportedProjectName: e.target.value })}
-            />
-          </label>
-          <label>
-            项目状态
-            <Select
-              value={value.projectStatus}
-              onChange={(e) => setValue({ ...value, projectStatus: e.target.value })}
-            >
-              <option value="">--</option>
-              {revenueProjectStatuses.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            对应省分（集成）
-            <Select
-              value={value.integratedTarget}
-              onChange={(e) => setValue({ ...value, integratedTarget: e.target.value })}
-            >
-              <option value="">--</option>
-              {reference.provinces.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-              {reference.integratedOrganizations.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </Select>
-          </label>
-        </div>
+        <fieldset className="recognition-fields" disabled={confirming}>
+          <div className="form-grid">
+            <label>
+              集团审核人
+              <Select
+                required
+                disabled={!approvers?.length}
+                value={approverId}
+                onChange={(event) => setApproverId(event.target.value)}
+              >
+                <option value="">请选择集团审核人</option>
+                {approvers?.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              认定金额（元）
+              <input
+                required
+                inputMode="decimal"
+                value={value.amount}
+                onChange={(e) => setValue({ ...value, amount: e.target.value })}
+              />
+            </label>
+            <label>
+              通报项目名称
+              <input
+                required
+                maxLength={300}
+                value={value.reportedProjectName}
+                placeholder="--"
+                onChange={(e) => setValue({ ...value, reportedProjectName: e.target.value })}
+              />
+            </label>
+            <label>
+              项目状态
+              <Select
+                value={value.projectStatus}
+                onChange={(e) => setValue({ ...value, projectStatus: e.target.value })}
+              >
+                <option value="">--</option>
+                {revenueProjectStatuses.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              对应省分（集成）
+              <Select
+                value={value.integratedTarget}
+                onChange={(e) => setValue({ ...value, integratedTarget: e.target.value })}
+              >
+                <option value="">--</option>
+                {reference.provinces.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+                {reference.integratedOrganizations.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </Select>
+            </label>
+          </div>
+        </fieldset>
+        {confirming && (
+          <p className="recognition-confirmation" role="status">
+            确认将 {money(value.amount)} 元的认定申请提交给
+            {approvers?.find(({ id }) => id === approverId)?.displayName}审核？
+          </p>
+        )}
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>
-            取消
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={confirming ? () => setConfirming(false) : onClose}
+          >
+            {confirming ? '返回修改' : '取消'}
           </button>
           <button className="primary-button" disabled={busy || !approverId}>
-            提交审核
+            {busy ? '提交中…' : confirming ? '确认提交' : '提交认定申请'}
           </button>
         </div>
       </form>
@@ -261,8 +284,8 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
     setDecision({ request, kind });
   };
   return (
-    <div className="form-page">
-      <div className="page-heading">
+    <section className="ledger-detail-page">
+      <div className="page-heading ledger-detail-actions">
         <div className="inline-actions">
           <Link className="secondary-button" to={back?.startsWith('/revenue?') ? back : '/revenue'}>
             返回计收列表
@@ -274,127 +297,129 @@ export function RevenueDetailPage({ me }: { me: ProjectUser }) {
           )}
         </div>
       </div>
-      {error && !decision && <Feedback tone="error">{error}</Feedback>}
-      {notice && <Feedback tone="success">{notice}</Feedback>}
-      {entry && reference ? (
-        <>
-          <section className="panel form-panel">
-            <h2>来源信息</h2>
-            <p>
-              月账期 {entry.month} · {stateLabels[entry.state]} · 金额单位：元
-            </p>
-            <dl className="revenue-detail">
-              {reference.fields.map((f) => (
-                <div key={f}>
-                  <dt>{f}</dt>
-                  <dd>{revenueText(entry.source[f])}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-          <section className="panel form-panel">
-            <h2>当前生效认定</h2>
-            <RecognitionValue value={entry.recognition} reference={reference} />
-            {entry.recognizedAt && (
-              <p className="subtle">生效时间：{dateTime(entry.recognizedAt)}</p>
-            )}
-          </section>
-          <section className="panel form-panel">
-            <h2>审核申请</h2>
-            {requests.length === 0 && <p>暂无审核申请</p>}
-            {requests.map((r) => (
-              <article className="revenue-request" key={r.id}>
-                <h3>
-                  {statusLabels[r.status]} · {r.initiatorName} → {r.approverName}
-                </h3>
-                <p className="subtle">提交时间 {dateTime(r.createdAt)}</p>
-                <RecognitionValue value={r.proposed} reference={reference} />
-                {r.opinion && <p>审核意见：{r.opinion}</p>}
-                {r.status === 'PENDING' && (
-                  <div className="inline-actions">
-                    {r.initiatorId === me.id && (
-                      <button
-                        className="secondary-button"
-                        onClick={() => openDecision(r, 'WITHDRAWN')}
-                      >
-                        撤销申请
-                      </button>
-                    )}
-                    {r.approverId === me.id &&
-                      me.roleCodes.includes('GROUP_REVIEWER') &&
-                      r.initiatorId !== me.id && (
-                        <>
-                          <button
-                            className="primary-button"
-                            onClick={() => openDecision(r, 'APPROVED')}
-                          >
-                            通过
-                          </button>
-                          <button
-                            className="secondary-button"
-                            onClick={() => openDecision(r, 'REJECTED')}
-                          >
-                            驳回
-                          </button>
-                        </>
-                      )}
+      <div className="ledger-detail-body">
+        {error && !decision && <Feedback tone="error">{error}</Feedback>}
+        {notice && <Feedback tone="success">{notice}</Feedback>}
+        {entry && reference ? (
+          <>
+            <section className="panel form-panel">
+              <h2>来源信息</h2>
+              <p>
+                月账期 {entry.month} · {stateLabels[entry.state]} · 金额单位：元
+              </p>
+              <dl className="revenue-detail">
+                {reference.fields.map((f) => (
+                  <div key={f}>
+                    <dt>{f}</dt>
+                    <dd>{revenueText(entry.source[f])}</dd>
                   </div>
-                )}
-              </article>
-            ))}
-          </section>
-          <section className="panel form-panel">
-            <h2>认定修改历史</h2>
-            {history.length === 0 && <p>暂无生效历史</p>}
-            {history.map((h) => (
-              <article className="revenue-request" key={h.id}>
-                <h3>
-                  {h.actorName} · {dateTime(h.occurredAt)}
-                </h3>
-                <p>修改前</p>
-                <RecognitionValue value={h.beforeValue} reference={reference} />
-                <p>生效后</p>
-                <RecognitionValue value={h.afterValue} reference={reference} />
-              </article>
-            ))}
-          </section>
-          {editing && (
-            <RecognitionForm
-              entry={entry}
-              reference={reference}
-              onClose={() => setEditing(false)}
-              onSaved={() => {
-                setEditing(false);
-                setNotice('认定申请已提交');
-                void load().catch((e) => setError(message(e)));
-              }}
-            />
-          )}
-          {decision && (
-            <ApprovalDecisionDialog
-              title={
-                decision.kind === 'WITHDRAWN'
-                  ? '撤销计收认定申请'
-                  : decision.kind === 'APPROVED'
-                    ? '通过计收认定申请'
-                    : '驳回计收认定申请'
-              }
-              description="待审值只有审核通过后才会替换当前认定结果。"
-              busy={busy}
-              error={error}
-              onClose={() => setDecision(null)}
-              onConfirm={decide}
-              opinion={{
-                value: opinion,
-                onChange: setOpinion,
-                required: decision.kind === 'REJECTED',
-              }}
-            />
-          )}
-        </>
-      ) : (
-        !error && <Loading />
-      )}
-    </div>
+                ))}
+              </dl>
+            </section>
+            <section className="panel form-panel">
+              <h2>当前生效认定</h2>
+              <RecognitionValue value={entry.recognition} reference={reference} />
+              {entry.recognizedAt && (
+                <p className="subtle">生效时间：{dateTime(entry.recognizedAt)}</p>
+              )}
+            </section>
+            <section className="panel form-panel">
+              <h2>审核申请</h2>
+              {requests.length === 0 && <p>暂无审核申请</p>}
+              {requests.map((r) => (
+                <article className="revenue-request" key={r.id}>
+                  <h3>
+                    {statusLabels[r.status]} · {r.initiatorName} → {r.approverName}
+                  </h3>
+                  <p className="subtle">提交时间 {dateTime(r.createdAt)}</p>
+                  <RecognitionValue value={r.proposed} reference={reference} />
+                  {r.opinion && <p>审核意见：{r.opinion}</p>}
+                  {r.status === 'PENDING' && (
+                    <div className="inline-actions">
+                      {r.initiatorId === me.id && (
+                        <button
+                          className="secondary-button"
+                          onClick={() => openDecision(r, 'WITHDRAWN')}
+                        >
+                          撤销申请
+                        </button>
+                      )}
+                      {r.approverId === me.id &&
+                        me.roleCodes.includes('GROUP_REVIEWER') &&
+                        r.initiatorId !== me.id && (
+                          <>
+                            <button
+                              className="primary-button"
+                              onClick={() => openDecision(r, 'APPROVED')}
+                            >
+                              通过
+                            </button>
+                            <button
+                              className="secondary-button"
+                              onClick={() => openDecision(r, 'REJECTED')}
+                            >
+                              驳回
+                            </button>
+                          </>
+                        )}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </section>
+            <section className="panel form-panel">
+              <h2>认定修改历史</h2>
+              {history.length === 0 && <p>暂无生效历史</p>}
+              {history.map((h) => (
+                <article className="revenue-request" key={h.id}>
+                  <h3>
+                    {h.actorName} · {dateTime(h.occurredAt)}
+                  </h3>
+                  <p>修改前</p>
+                  <RecognitionValue value={h.beforeValue} reference={reference} />
+                  <p>生效后</p>
+                  <RecognitionValue value={h.afterValue} reference={reference} />
+                </article>
+              ))}
+            </section>
+            {editing && (
+              <RecognitionForm
+                entry={entry}
+                reference={reference}
+                onClose={() => setEditing(false)}
+                onSaved={() => {
+                  setEditing(false);
+                  setNotice('认定申请已提交');
+                  void load().catch((e) => setError(message(e)));
+                }}
+              />
+            )}
+            {decision && (
+              <ApprovalDecisionDialog
+                title={
+                  decision.kind === 'WITHDRAWN'
+                    ? '撤销计收认定申请'
+                    : decision.kind === 'APPROVED'
+                      ? '通过计收认定申请'
+                      : '驳回计收认定申请'
+                }
+                description="待审值只有审核通过后才会替换当前认定结果。"
+                busy={busy}
+                error={error}
+                onClose={() => setDecision(null)}
+                onConfirm={decide}
+                opinion={{
+                  value: opinion,
+                  onChange: setOpinion,
+                  required: decision.kind === 'REJECTED',
+                }}
+              />
+            )}
+          </>
+        ) : (
+          !error && <Loading />
+        )}
+      </div>
+    </section>
   );
 }

@@ -1,5 +1,7 @@
 package com.pluto.ndi.production.mapper;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.shared.reporting.SchedulingOverviewSource;
 import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
@@ -28,14 +30,18 @@ public class ProductionPlanMapper {
         this.json = json;
     }
 
-    public record Filter(
-            String month,
-            UUID provinceId,
-            UUID cityId,
-            String search,
-            String category,
-            int page,
-            int size) {}
+    public record Filter(String search, int page, int size, List<String> months,
+                         List<UUID> provinces, List<UUID> cities, List<String> categories) {
+        public Filter {
+            months = ListFilters.months(months);
+            categories = ListFilters.choices(categories, Set.of("NETWORK", "GEWU", "BIG_DATA", "WANGWU"));
+        }
+
+        public Filter(String month, UUID province, UUID city, String search, String category, int page, int size) {
+            this(search, page, size, ListFilters.one(month), ListFilters.oneId(province),
+                    ListFilters.oneId(city), ListFilters.one(category));
+        }
+    }
 
     public record Result(
             List<ProductionPlan> items, long totalElements, int totalPages, int page, int size) {}
@@ -135,17 +141,17 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
     public Result list(Access access, Filter filter) {
         var args = new MapSqlParameterSource();
         var where = scopeWhere(access, args);
-        if (filter.month() != null && !filter.month().isBlank()) {
-            where.append(" AND p.plan_month=:month");
-            args.addValue("month", filter.month() + "-01");
+        if (!filter.months().isEmpty()) {
+            where.append(" AND p.plan_month IN (:months)");
+            args.addValue("months", filter.months().stream().map(month -> month + "-01").toList());
         }
-        if (filter.provinceId() != null) {
-            where.append(" AND p.province_id=UUID_TO_BIN(:province)");
-            args.addValue("province", filter.provinceId().toString());
+        if (!filter.provinces().isEmpty()) {
+            where.append(" AND BIN_TO_UUID(p.province_id) IN (:provinces)");
+            args.addValue("provinces", filter.provinces().stream().map(UUID::toString).toList());
         }
-        if (filter.cityId() != null) {
-            where.append(" AND p.city_id=UUID_TO_BIN(:city)");
-            args.addValue("city", filter.cityId().toString());
+        if (!filter.cities().isEmpty()) {
+            where.append(" AND BIN_TO_UUID(p.city_id) IN (:cities)");
+            args.addValue("cities", filter.cities().stream().map(UUID::toString).toList());
         }
         if (filter.search() != null && !filter.search().isBlank()) {
             where.append(
@@ -161,9 +167,13 @@ SELECT BIN_TO_UUID(p.id) id,p.*,BIN_TO_UUID(p.province_id) province,BIN_TO_UUID(
                                     .replace("_", "!_")
                             + "%");
         }
-        if (filter.category() != null && !filter.category().isBlank()) {
-            where.append(" AND JSON_CONTAINS(p.categories,JSON_QUOTE(:category))");
-            args.addValue("category", filter.category());
+        if (!filter.categories().isEmpty()) {
+            where.append(" AND JSON_OVERLAPS(p.categories, CAST(:categories AS JSON))");
+            try {
+                args.addValue("categories", json.writeValueAsString(filter.categories()));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+                throw new IllegalStateException("排产分类无法序列化", failure);
+            }
         }
         long count =
                 jdbc.queryForObject(

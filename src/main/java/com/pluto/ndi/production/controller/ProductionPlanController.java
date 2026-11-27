@@ -1,5 +1,7 @@
 package com.pluto.ndi.production.controller;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.production.domain.*;
 import com.pluto.ndi.production.mapper.ProductionPlanMapper;
@@ -44,18 +46,18 @@ public class ProductionPlanController extends com.pluto.ndi.shared.imports.Impor
     @GetMapping
     public ApiResponse<ProductionPlanMapper.Result> list(
             Authentication auth,
-            @RequestParam(required = false) String month,
-            @RequestParam(required = false) UUID provinceId,
-            @RequestParam(required = false) UUID cityId,
+            @RequestParam(required = false) java.util.List<String> month,
+            @RequestParam(required = false) java.util.List<String> provinceId,
+            @RequestParam(required = false) java.util.List<String> cityId,
             @RequestParam(defaultValue = "") String search,
-            @RequestParam(defaultValue = "") String category,
+            @RequestParam(required = false) java.util.List<String> category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
                 plans.list(
                         actor(auth),
                         new ProductionPlanMapper.Filter(
-                                month, provinceId, cityId, search, category, page, size)));
+                                search, page, size, month, ListFilters.ids(provinceId), ListFilters.ids(cityId), category)));
     }
 
     @GetMapping("/reference-data")

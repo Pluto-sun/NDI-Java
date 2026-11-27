@@ -1,5 +1,7 @@
 package com.pluto.ndi.production.service;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.production.ProductionRecordDeletion;
 
@@ -46,12 +48,11 @@ public class ProductionPlanService implements ProductionRecordDeletion {
                 || filter.size() > 100
                 || filter.search() != null && filter.search().length() > 300)
             throw new BusinessException(ProductionError.invalid("分页或查询条件无效"));
-        if (filter.month() != null && !filter.month().isBlank())
-            try {
-                YearMonth.parse(filter.month());
-            } catch (Exception e) {
-                throw new BusinessException(ProductionError.invalid("月份无效"));
-            }
+        if (!filter.cities().isEmpty()) {
+            var locations = organizations.findEnabledCities().stream().collect(
+                    java.util.stream.Collectors.toMap(CityOption::id, CityOption::provinceId));
+            ListFilters.location(filter.provinces(), filter.cities(), locations::get);
+        }
         return mapper.list(access.require(actor), filter);
     }
 

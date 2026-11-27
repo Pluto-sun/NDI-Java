@@ -79,6 +79,7 @@ function ColumnTable<Row extends { id: string }>({
   const { data, error, refresh } = useLiveQuery(load, '无法加载固定列配置');
   const ownScroll = useRef<HTMLDivElement>(null);
   const container = scrollRef ?? ownScroll;
+  const [horizontal, setHorizontal] = useState(0);
   const [viewport, setViewport] = useState(0);
   const [guideAnchor, setGuideAnchor] = useState<{
     x: number;
@@ -91,7 +92,7 @@ function ColumnTable<Row extends { id: string }>({
     const cell = handle.closest('th')?.getBoundingClientRect();
     const frame = container.current?.getBoundingClientRect();
     if (!cell || !frame) return;
-    const top = Math.max(0, cell.top);
+    const top = Math.max(0, frame.top, cell.top);
     setGuideAnchor({
       x: cell.right,
       top,
@@ -103,11 +104,22 @@ function ColumnTable<Row extends { id: string }>({
   useLayoutEffect(() => {
     const element = container.current;
     if (!element) return;
-    const measure = () => setViewport(element.clientWidth);
+    const measure = () => {
+      setViewport(element.clientWidth);
+      const top = Math.max(0, Math.round(element.getBoundingClientRect().top));
+      element.style.setProperty('--ledger-table-top', top + 'px');
+    };
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
     measure();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+    };
   }, [container]);
 
   function save(next: Preferences) {
@@ -185,6 +197,10 @@ function ColumnTable<Row extends { id: string }>({
   }
   const width =
     leftWidth + visible.reduce((sum, column) => sum + column.getSize(), 0) + actionWidth;
+  useLayoutEffect(() => {
+    setHorizontal(container.current?.scrollLeft ?? 0);
+  }, [container, width, viewport]);
+  const maxScroll = Math.max(0, width - viewport);
   const resizeInfo = table.getState().columnSizingInfo;
   const resizing = resizeInfo.isResizingColumn
     ? table.getColumn(resizeInfo.isResizingColumn)
@@ -234,7 +250,8 @@ function ColumnTable<Row extends { id: string }>({
       </div>
       <div
         ref={container}
-        className={`table-scroll sticky-actions-scroll ${scrollClassName ?? ''}`}
+        onScroll={(event) => setHorizontal(event.currentTarget.scrollLeft)}
+        className={`table-scroll sticky-actions-scroll ledger-table-scroll ${scrollClassName ?? ''}`}
         role="region"
         tabIndex={0}
         aria-label={scrollLabel}
@@ -280,6 +297,7 @@ function ColumnTable<Row extends { id: string }>({
                       <button
                         type="button"
                         className="column-resize"
+                        title="拖动或使用左右方向键调整列宽"
                         aria-label={`调整${column.label}列宽`}
                         onMouseDown={(event) => {
                           if (event.button !== 0) return;
@@ -301,7 +319,9 @@ function ColumnTable<Row extends { id: string }>({
                           if (size !== next)
                             save({ ...preferences, widths: { ...preferences.widths, [id]: next } });
                         }}
-                      />
+                      >
+                        <span aria-hidden="true">↔</span>
+                      </button>
                     </th>
                   );
                 })}
@@ -341,6 +361,21 @@ function ColumnTable<Row extends { id: string }>({
           </tbody>
         </table>
       </div>
+      {viewport > 0 && maxScroll > 0 && (
+        <div className="ledger-horizontal-scroll">
+          <input
+            type="range"
+            aria-label="横向滚动表格"
+            min={0}
+            max={maxScroll}
+            value={Math.min(horizontal, maxScroll)}
+            onChange={(event) => {
+              if (container.current)
+                container.current.scrollLeft = event.currentTarget.valueAsNumber;
+            }}
+          />
+        </div>
+      )}
       {resizing &&
         guideAnchor &&
         createPortal(

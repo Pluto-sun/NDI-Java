@@ -32,7 +32,6 @@ import {
   resumeDestination,
   takeLogoutDestination,
 } from './sessionDestination';
-import { RevenueCategoryTabs } from '../features/revenue/RevenueCategoryTabs';
 import { DashboardControls, ModuleDashboard } from '../features/module-dashboards/ModuleDashboard';
 
 const ListColumnAdministrationPage = lazy(
@@ -329,7 +328,7 @@ export function App() {
     /^\/projects\/[^/]+$/.test(location.pathname) &&
     !['/projects/new', '/projects/import'].includes(location.pathname);
   const revenueListRoute = location.pathname === '/revenue' || location.pathname === '/revenue/';
-  const hasStages = ['/projects', '/workbench'].includes(location.pathname);
+  const hasStages = location.pathname === '/workbench';
   const stage = new URLSearchParams(location.search).get('stage') ?? '';
   return (
     <div className="app-shell">
@@ -384,7 +383,6 @@ export function App() {
               />
             )}
           </div>
-          {revenueListRoute && <RevenueCategoryTabs />}
           <div className="account">
             <span>{me.displayName}</span>
             <button

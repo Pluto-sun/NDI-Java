@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import com.pluto.ndi.shared.reporting.DashboardSummary;
 import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -166,11 +168,11 @@ public class GewuDeploymentService {
     @Transactional(readOnly = true)
     public Listing list(
             UUID actor,
-            UUID province,
-            UUID city,
+            List<UUID> provinces,
+            List<UUID> cities,
             String search,
             String version,
-            String connected,
+            List<String> connected,
             int page,
             int size) {
         if (page < 0
@@ -179,16 +181,21 @@ public class GewuDeploymentService {
                 || size > 100
                 || search.length() > 300
                 || version.length() > 100
-                || connected.length() > 10) throw invalid("筛选或分页参数无效");
+               ) throw invalid("筛选或分页参数无效");
         var args = new MapSqlParameterSource();
         var where = restriction(actor, args);
-        if (province != null) {
-            where.append(" AND d.province_id=UUID_TO_BIN(:province)");
-            args.addValue("province", province.toString());
+        if (!cities.isEmpty()) {
+            var locations = organizations.findEnabledCities().stream().collect(
+                    java.util.stream.Collectors.toMap(CityOption::id, CityOption::provinceId));
+            ListFilters.location(provinces, cities, locations::get);
         }
-        if (city != null) {
-            where.append(" AND d.city_id=UUID_TO_BIN(:city)");
-            args.addValue("city", city.toString());
+        if (!provinces.isEmpty()) {
+            where.append(" AND BIN_TO_UUID(d.province_id) IN (:provinces)");
+            args.addValue("provinces", provinces.stream().map(UUID::toString).toList());
+        }
+        if (!cities.isEmpty()) {
+            where.append(" AND BIN_TO_UUID(d.city_id) IN (:cities)");
+            args.addValue("cities", cities.stream().map(UUID::toString).toList());
         }
         if (!search.isBlank()) {
             where.append(
@@ -210,10 +217,11 @@ public class GewuDeploymentService {
             where.append(" AND JSON_UNQUOTE(JSON_EXTRACT(d.details,'$.\"部署版本\"'))=:version");
             args.addValue("version", version.strip());
         }
-        if (!connected.isBlank()) {
+        var connectionStates = ListFilters.choices(connected, List.of("是", "否"));
+        if (!connectionStates.isEmpty()) {
             where.append(
-                    " AND JSON_UNQUOTE(JSON_EXTRACT(d.details,'$.\"上一周期是否已接设备\"'))=:connected");
-            args.addValue("connected", connected);
+                    " AND JSON_UNQUOTE(JSON_EXTRACT(d.details,'$.\"上一周期是否已接设备\"')) IN (:connected)");
+            args.addValue("connected", connectionStates);
         }
         long count =
                 jdbc.queryForObject(

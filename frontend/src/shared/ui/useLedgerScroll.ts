@@ -12,8 +12,8 @@ export function useLedgerScroll(ready: boolean) {
     const saved = sessionStorage.getItem(key);
     if (!saved) return;
     const frame = requestAnimationFrame(() => {
-      const [top, left] = saved.split(',').map(Number);
-      if (table.current) table.current.scrollLeft = left;
+      const [top, left, innerTop = 0] = saved.split(',').map(Number);
+      if (table.current) table.current.scrollTo(left, innerTop);
       window.scrollTo(0, top);
       sessionStorage.removeItem(key);
     });
@@ -23,7 +23,10 @@ export function useLedgerScroll(ready: boolean) {
   return {
     table,
     remember: () =>
-      sessionStorage.setItem(key, `${window.scrollY},${table.current?.scrollLeft ?? 0}`),
+      sessionStorage.setItem(
+        key,
+        `${window.scrollY},${table.current?.scrollLeft ?? 0},${table.current?.scrollTop ?? 0}`,
+      ),
     state: { listSearch: search },
   };
 }

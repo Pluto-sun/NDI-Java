@@ -1,3 +1,5 @@
+import { MultiSelect } from '../../shared/ui/MultiSelect';
+import { filterPage, useLedgerFilterDraft } from '../../shared/ui/ledgerFilters';
 import {
   PersonalizedTable,
   type BusinessColumn,
@@ -134,6 +136,7 @@ function RecordList({
 }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
+  const draft = useLedgerFilterDraft(query);
   const [editor, setEditor] = useState<'new' | null>(null);
   const load = useCallback(
     (signal: AbortSignal) => requestAt<Page<Entry>>(root(kind), '?' + query, { signal }),
@@ -153,7 +156,7 @@ function RecordList({
     query,
     data?.items ?? [],
     async () => {
-      if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      if (data?.page) setParams(filterPage(params, 0));
       else await listing.refresh();
     },
     {
@@ -190,52 +193,47 @@ function RecordList({
         </div>
       </div>
       <form
-        key={query}
         className="filter-bar gewu-filters"
         aria-label={`${intelligenceTitles[kind]}筛选`}
         onSubmit={(event) => {
           event.preventDefault();
-          setParams(
-            Object.fromEntries(
-              [...new FormData(event.currentTarget)]
-                .map(([key, value]) => [key, String(value).trim()])
-                .filter(([, value]) => value),
-            ),
-          );
+          setParams(draft.apply());
         }}
       >
         <label>
           接口人
-          <input name="reviewer" maxLength={300} defaultValue={params.get('reviewer') ?? ''} />
+          <input
+            name="reviewer"
+            maxLength={300}
+            value={draft.text('reviewer')}
+            onChange={(event) => draft.change('reviewer', event.target.value)}
+          />
         </label>
         {kind === 'wangwu' ? (
           <>
             <label>
               部署地点
-              <input name="place" maxLength={4000} defaultValue={params.get('place') ?? ''} />
+              <input
+                name="place"
+                maxLength={4000}
+                value={draft.text('place')}
+                onChange={(event) => draft.change('place', event.target.value)}
+              />
             </label>
-            <label>
-              部署进度
-              <Select name="progress" defaultValue={params.get('progress') ?? ''}>
-                <option value="">全部</option>
-                {reference.options['部署进度'].map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </Select>
-            </label>
+            <MultiSelect
+              label="部署进度"
+              values={draft.values('progress')}
+              options={reference.options['部署进度'].map((label) => ({ value: label, label }))}
+              onChange={(values) => draft.change('progress', values)}
+            />
           </>
         ) : (
-          <label>
-            省分
-            <Select name="provinceId" defaultValue={params.get('provinceId') ?? ''}>
-              <option value="">全部</option>
-              {reference.provinces.map((province) => (
-                <option key={province.id} value={province.id}>
-                  {province.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <MultiSelect
+            label="省分"
+            values={draft.values('provinceId')}
+            options={reference.provinces.map(({ id, name }) => ({ value: id, label: name }))}
+            onChange={(values) => draft.change('provinceId', values)}
+          />
         )}
         <div className="gewu-actions">
           <button className="primary-button">查询</button>
@@ -243,8 +241,8 @@ function RecordList({
             type="button"
             className="secondary-button"
             onClick={() => {
-              if (query) setParams({});
-              else document.querySelector<HTMLFormElement>('.gewu-filters')?.reset();
+              draft.reset();
+              setParams({});
             }}
           >
             重置
@@ -297,7 +295,10 @@ function RecordList({
               <div className="gewu-actions">
                 <Link
                   className="secondary-button compact-button"
-                  to={base(kind) + '/' + item.id}
+                  to={{
+                    pathname: base(kind) + '/' + item.id,
+                    search: query ? new URLSearchParams({ from: query }).toString() : undefined,
+                  }}
                   state={listScroll.state}
                   onClick={listScroll.remember}
                 >
@@ -313,9 +314,7 @@ function RecordList({
             totalPages={data.totalPages}
             totalElements={data.totalElements}
             disabled={listing.busy}
-            onPageChange={(page) =>
-              setParams(new URLSearchParams({ ...Object.fromEntries(params), page: String(page) }))
-            }
+            onPageChange={(page) => setParams(filterPage(params, page))}
           />
         </section>
       )}
@@ -349,61 +348,67 @@ function RecordDetail({ kind, reference }: { kind: Kind; reference: Reference })
   const result = useLiveQuery(load, '详情读取失败');
   const entry = result.data;
   return (
-    <>
-      <div className="page-heading">
+    <section className="ledger-detail-page">
+      <div className="page-heading ledger-detail-actions">
         <Link
           className="secondary-button"
-          to={{ pathname: base(kind), search: location.state?.listSearch ?? '' }}
+          to={{
+            pathname: base(kind),
+            search:
+              new URLSearchParams(location.search).get('from') ?? location.state?.listSearch ?? '',
+          }}
         >
           返回列表
         </Link>
+        {entry && !edit && (
+          <button className="secondary-button" onClick={() => setEdit(entry)}>
+            编辑
+          </button>
+        )}
       </div>
-      {result.error && <Feedback tone="error">{result.error}</Feedback>}
-      {!entry && result.busy && <Loading />}
-      {entry && (
-        <>
-          <section className="panel ledger-detail">
-            <div className="page-heading">
-              <h2>{edit ? '编辑记录' : '基本信息'}</h2>
-              {!edit && (
-                <button className="secondary-button" onClick={() => setEdit(entry)}>
-                  编辑
-                </button>
-              )}
-            </div>
-            {edit ? (
-              <RecordEditor
-                kind={kind}
-                reference={reference}
-                entry={edit}
-                inline
-                onClose={() => setEdit(null)}
-                onSaved={() => {
-                  setEdit(null);
-                  void result.refresh();
-                }}
-              />
-            ) : (
-              <dl className="facts">
-                {reference.fields.map((field) => (
-                  <div key={field}>
-                    <dt>{field}</dt>
-                    <dd>{display(field, entry.fields[field])}</dd>
+      <div className="ledger-detail-body">
+        {result.error && <Feedback tone="error">{result.error}</Feedback>}
+        {!entry && result.busy && <Loading />}
+        {entry && (
+          <>
+            <section className="panel ledger-detail">
+              <div className="page-heading">
+                <h2>{edit ? '编辑记录' : '基本信息'}</h2>
+              </div>
+              {edit ? (
+                <RecordEditor
+                  kind={kind}
+                  reference={reference}
+                  entry={edit}
+                  inline
+                  onClose={() => setEdit(null)}
+                  onSaved={() => {
+                    setEdit(null);
+                    void result.refresh();
+                  }}
+                />
+              ) : (
+                <dl className="facts">
+                  {reference.fields.map((field) => (
+                    <div key={field}>
+                      <dt>{field}</dt>
+                      <dd>{display(field, entry.fields[field])}</dd>
+                    </div>
+                  ))}
+                  <div>
+                    <dt>更新时间（北京时间）</dt>
+                    <dd>{timestamp(entry.updatedAt)}</dd>
                   </div>
-                ))}
-                <div>
-                  <dt>更新时间（北京时间）</dt>
-                  <dd>{timestamp(entry.updatedAt)}</dd>
-                </div>
-              </dl>
+                </dl>
+              )}
+            </section>
+            {kind === 'agents-live' && !edit && (
+              <TokenPanel agent={entry.id} onUpdated={result.refresh} />
             )}
-          </section>
-          {kind === 'agents-live' && !edit && (
-            <TokenPanel agent={entry.id} onUpdated={result.refresh} />
-          )}
-        </>
-      )}
-    </>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 

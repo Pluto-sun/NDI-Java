@@ -2,7 +2,6 @@ package com.pluto.ndi.revenue.service;
 
 import com.pluto.ndi.identity.service.*;
 import com.pluto.ndi.revenue.RevenueListAccess;
-import com.pluto.ndi.revenue.domain.Revenue;
 import com.pluto.ndi.revenue.domain.RevenueError;
 import com.pluto.ndi.shared.web.BusinessException;
 
@@ -24,21 +23,8 @@ public class RevenueAccessService implements RevenueListAccess {
 
     public record Access(
             ProjectUser user, boolean national, boolean creator, boolean reviewer, boolean local) {
-        public boolean readable(UUID province, boolean organization) {
-            return national
-                    || province != null
-                            && !organization
-                            && local
-                            && Objects.equals(user.provinceId(), province);
-        }
-
         public boolean readsAssignedOrganizations() {
             return user.provinceId() != null && user.roleCodes().stream().anyMatch(PROVINCE_ROLES::contains);
-        }
-
-        public boolean recognize(UUID province, boolean organization, String category) {
-            return reviewer && Revenue.REVIEWED_CATEGORIES.contains(Objects.toString(category, ""))
-                    && (organization || province == null || user.reviewerProvinceIds().contains(province));
         }
 
         public boolean groupApprover() {
@@ -77,9 +63,8 @@ public class RevenueAccessService implements RevenueListAccess {
                                         ::contains);
         boolean national =
                 creator
-                        || reviewer
                         || roles.stream().anyMatch(Set.of("DS_INTELLIGENCE", "GD_DPASS")::contains);
-        if (!national && !local) throw forbidden();
+        if (!national && !local && !reviewer) throw forbidden();
         return new Access(user, national, creator, reviewer, local);
     }
 

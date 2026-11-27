@@ -1,3 +1,5 @@
+import { MultiSelect } from '../../shared/ui/MultiSelect';
+import { filterPage, useLedgerFilterDraft, locationOptions } from '../../shared/ui/ledgerFilters';
 import {
   PersonalizedTable,
   type BusinessColumn,
@@ -114,12 +116,11 @@ function LocationFields({
 export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
-  const [draft, setDraft] = useState(() => Object.fromEntries(params));
+  const draft = useLedgerFilterDraft(query);
   const [editor, setEditor] = useState<'new' | null>(null);
   const [deleting, setDeleting] = useState<Deployment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => setDraft(Object.fromEntries(new URLSearchParams(query))), [query]);
   const load = useCallback(
     (signal: AbortSignal) => api<Page<Deployment>>(`?${query}`, { signal }),
     [query],
@@ -132,6 +133,8 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
   const reference = useLiveQuery(loadReference, '组织目录加载失败');
   const data = listing.data;
   const ref = reference.data;
+  const cities = ref?.cities ?? [];
+  const cityFilter = locationOptions(draft.values('provinceId'), cities, draft.values('cityId'));
   const listScroll = useLedgerScroll(!!data);
   const batch = useBatchDelete(
     admin,
@@ -139,7 +142,7 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
     query,
     data?.items ?? [],
     async () => {
-      if (data?.page) setParams({ ...Object.fromEntries(params), page: '0' });
+      if (data?.page) setParams(filterPage(params, 0));
       else await listing.refresh();
     },
     {
@@ -150,11 +153,7 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
   );
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setParams(
-      Object.fromEntries(
-        Object.entries(draft).filter(([key, value]) => key !== 'page' && value.trim()),
-      ),
-    );
+    setParams(draft.apply());
   }
 
   return (
@@ -176,37 +175,38 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
       {listing.error && <Feedback tone="error">{listing.error}</Feedback>}
       {ref && (
         <form className="filter-bar gewu-filters" aria-label="格物部署筛选" onSubmit={submit}>
-          <LocationFields
-            value={{ provinceId: draft.provinceId ?? '', cityId: draft.cityId ?? '' }}
-            reference={ref}
-            onChange={(location) => setDraft((current) => ({ ...current, ...location }))}
+          <MultiSelect
+            label="省分"
+            values={draft.values('provinceId')}
+            options={ref.provinces.map(({ id, name }) => ({ value: id, label: name }))}
+            onChange={(values) => draft.provinces(values, cities)}
+          />
+          <MultiSelect
+            label="地市"
+            {...cityFilter}
+            onChange={(values) => draft.change('cityId', values)}
           />
           <label>
             部署版本
             <input
-              value={draft.deploymentVersion ?? ''}
+              value={draft.text('deploymentVersion')}
               maxLength={100}
-              onChange={(event) => setDraft({ ...draft, deploymentVersion: event.target.value })}
+              onChange={(event) => draft.change('deploymentVersion', event.target.value)}
             />
           </label>
-          <label>
-            上一周期设备接入
-            <Select
-              value={draft.connected ?? ''}
-              onChange={(event) => setDraft({ ...draft, connected: event.target.value })}
-            >
-              <option value="">全部</option>
-              <option>是</option>
-              <option>否</option>
-            </Select>
-          </label>
+          <MultiSelect
+            label="上一周期设备接入"
+            values={draft.values('connected')}
+            options={['是', '否'].map((label) => ({ value: label, label }))}
+            onChange={(values) => draft.change('connected', values)}
+          />
           <label>
             关键词
             <input
               placeholder="项目、客户或接口人"
               maxLength={300}
-              value={draft.search ?? ''}
-              onChange={(event) => setDraft({ ...draft, search: event.target.value })}
+              value={draft.text('search')}
+              onChange={(event) => draft.change('search', event.target.value)}
             />
           </label>
           <div className="gewu-actions">
@@ -217,7 +217,7 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
               type="button"
               className="secondary-button"
               onClick={() => {
-                setDraft({});
+                draft.reset();
                 setParams({});
               }}
             >
@@ -265,7 +265,10 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
               <div className="gewu-actions">
                 <Link
                   className="secondary-button compact-button"
-                  to={`/capability/gewu/${item.id}`}
+                  to={{
+                    pathname: `/capability/gewu/${item.id}`,
+                    search: query ? new URLSearchParams({ from: query }).toString() : undefined,
+                  }}
                   state={listScroll.state}
                   onClick={listScroll.remember}
                 >
@@ -352,7 +355,7 @@ export function GewuDeploymentsPage({ admin, accountId }: { admin: boolean; acco
 
 export function GewuDeploymentDetailPage() {
   const { id = '' } = useParams();
-  const { state } = useLocation();
+  const { state, search } = useLocation();
   const [editing, setEditing] = useState<Deployment | null>(null);
   const load = useCallback((signal: AbortSignal) => api<Deployment>(`/${id}`, { signal }), [id]);
   const loadReference = useCallback(
@@ -363,57 +366,58 @@ export function GewuDeploymentDetailPage() {
   const reference = useLiveQuery(loadReference, '组织目录加载失败');
   const item = result.data;
   return (
-    <>
-      <div className="page-heading">
+    <section className="ledger-detail-page">
+      <div className="page-heading ledger-detail-actions">
         <Link
           className="secondary-button"
-          to={{ pathname: '/capability/gewu', search: state?.listSearch ?? '' }}
+          to={{
+            pathname: '/capability/gewu',
+            search: new URLSearchParams(search).get('from') ?? state?.listSearch ?? '',
+          }}
         >
           返回列表
         </Link>
+        {item && reference.data && !editing && (
+          <button className="secondary-button" onClick={() => setEditing(item)}>
+            编辑
+          </button>
+        )}
       </div>
-      {(result.error || reference.error) && (
-        <Feedback tone="error">{result.error || reference.error}</Feedback>
-      )}
-      {!item && result.busy && <Loading />}
-      {item && (
-        <section className="panel ledger-detail">
-          <div className="page-heading">
-            <h2>{editing ? '编辑格物部署' : '部署信息'}</h2>
-            {!editing && (
-              <button
-                className="secondary-button"
-                disabled={!reference.data}
-                onClick={() => setEditing(item)}
-              >
-                编辑
-              </button>
+      <div className="ledger-detail-body">
+        {(result.error || reference.error) && (
+          <Feedback tone="error">{result.error || reference.error}</Feedback>
+        )}
+        {!item && result.busy && <Loading />}
+        {item && (
+          <section className="panel ledger-detail">
+            <div className="page-heading">
+              <h2>{editing ? '编辑格物部署' : '部署信息'}</h2>
+            </div>
+            {editing && reference.data ? (
+              <DeploymentEditor
+                reference={reference.data}
+                item={editing}
+                inline
+                onClose={() => setEditing(null)}
+                onSaved={() => {
+                  setEditing(null);
+                  void result.refresh();
+                }}
+              />
+            ) : (
+              <dl className="facts">
+                {[...primary, ...optional].map((field) => (
+                  <div key={field}>
+                    <dt>{field}</dt>
+                    <dd>{item.fields[field] || '—'}</dd>
+                  </div>
+                ))}
+              </dl>
             )}
-          </div>
-          {editing && reference.data ? (
-            <DeploymentEditor
-              reference={reference.data}
-              item={editing}
-              inline
-              onClose={() => setEditing(null)}
-              onSaved={() => {
-                setEditing(null);
-                void result.refresh();
-              }}
-            />
-          ) : (
-            <dl className="facts">
-              {[...primary, ...optional].map((field) => (
-                <div key={field}>
-                  <dt>{field}</dt>
-                  <dd>{item.fields[field] || '—'}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </section>
-      )}
-    </>
+          </section>
+        )}
+      </div>
+    </section>
   );
 }
 

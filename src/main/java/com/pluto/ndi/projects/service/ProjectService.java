@@ -309,6 +309,7 @@ public class ProjectService {
                     .map(item -> item.id()).collect(java.util.stream.Collectors.toSet());
             if (!cities.containsAll(query.cityIds())) throw new BusinessException(ProjectErrorCode.INVALID_ORGANIZATION);
         }
+        query.industryCodes().forEach(this::verifyIndustry);
         var leaderIds = query.provinceLeaderName() == null ? null
                 : identityDirectory.findUserIdsByDisplayNameContaining(query.provinceLeaderName());
         return (root, criteria, builder) -> {
@@ -326,8 +327,8 @@ public class ProjectService {
                 conditions.add(builder.or(builder.like(root.get("projectCode"), pattern, '\\'),
                         builder.like(root.get("projectName"), pattern, '\\')));
             }
-            if (query.signingSubjectCode() != null) {
-                conditions.add(builder.equal(root.get("signingSubjectCode"), query.signingSubjectCode()));
+            if (!query.signingSubjectCodes().isEmpty()) {
+                conditions.add(root.get("signingSubjectCode").in(query.signingSubjectCodes()));
             }
             if (leaderIds != null) {
                 conditions.add(leaderIds.isEmpty() ? builder.disjunction() : root.get("provinceLeaderUserId").in(leaderIds));
@@ -360,11 +361,11 @@ public class ProjectService {
                         product.get("categoryCode").in(query.productCodes()));
                 conditions.add(builder.exists(products));
             }
-            if (query.stage() != null) {
-                conditions.add(builder.equal(root.get("currentStageCode"), query.stage().name()));
+            if (!query.stages().isEmpty()) {
+                conditions.add(root.get("currentStageCode").in(query.stages().stream().map(Enum::name).toList()));
             }
-            if (query.industryCode() != null) {
-                conditions.add(builder.equal(root.get("industryCode"), query.industryCode()));
+            if (!query.industryCodes().isEmpty()) {
+                conditions.add(root.get("industryCode").in(query.industryCodes()));
             }
             if (!query.provinceIds().isEmpty()) {
                 conditions.add(root.get("provinceId").in(query.provinceIds()));

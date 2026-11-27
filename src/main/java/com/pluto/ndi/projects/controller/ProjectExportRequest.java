@@ -29,12 +29,16 @@ public record ProjectExportRequest(
         @Size(max=100) String responsiblePersonName,
         @Size(max = 500) List<UUID> provinceIds,
         @Size(max = 500) List<UUID> cityIds,
-        @Size(max = 4) List<String> productCodes
+        @Size(max = 4) List<String> productCodes,
+        List<ProjectStage> stages,
+        List<String> industryCodes,
+        List<String> signingSubjectCodes
 ) {
     public ProjectQuery toQuery() {
         return new ProjectQuery(projectCode, projectName, stage, industryCode,
                 provinceId, cityId, includeTerminated == null || includeTerminated,
                 signingSubjectCode, provinceLeaderName, cityAccountManagerName, productSupportExpertName, keyword,
-                opportunityDateStart, opportunityDateEnd, responsiblePersonName, provinceIds, cityIds, productCodes);
+                opportunityDateStart, opportunityDateEnd, responsiblePersonName, provinceIds, cityIds, productCodes,
+                stages, industryCodes, signingSubjectCodes);
     }
 }

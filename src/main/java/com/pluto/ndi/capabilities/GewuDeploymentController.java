@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import static com.pluto.ndi.capabilities.GewuDeploymentService.*;
 
 import com.pluto.ndi.shared.reporting.DashboardSummary;
@@ -43,18 +45,18 @@ public class GewuDeploymentController extends ImportControllerBase {
     @GetMapping
     public ApiResponse<Listing> list(
             Authentication auth,
-            @RequestParam(required = false) UUID provinceId,
-            @RequestParam(required = false) UUID cityId,
+            @RequestParam(required = false) List<String> provinceId,
+            @RequestParam(required = false) List<String> cityId,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "") String deploymentVersion,
-            @RequestParam(defaultValue = "") String connected,
+            @RequestParam(required = false) List<String> connected,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return responses.success(
                 deployments.list(
                         actor(auth),
-                        provinceId,
-                        cityId,
+                        ListFilters.ids(provinceId),
+                        ListFilters.ids(cityId),
                         search,
                         deploymentVersion,
                         connected,

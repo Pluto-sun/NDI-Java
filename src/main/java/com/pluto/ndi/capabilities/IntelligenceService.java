@@ -1,5 +1,7 @@
 package com.pluto.ndi.capabilities;
 
+import com.pluto.ndi.shared.filter.ListFilters;
+
 import static com.pluto.ndi.capabilities.GewuDeploymentService.*;
 
 import com.pluto.ndi.shared.reporting.DashboardSummary;
@@ -233,10 +235,10 @@ SELECT BIN_TO_UUID(e.id) id,BIN_TO_UUID(e.province_id) province,BIN_TO_UUID(e.ci
     public Listing list(
             UUID actor,
             IntelligenceKind kind,
-            UUID province,
+            List<UUID> provinces,
             String reviewer,
             String place,
-            String progress,
+            List<String> progress,
             int page,
             int size) {
         if (page < 0
@@ -245,12 +247,12 @@ SELECT BIN_TO_UUID(e.id) id,BIN_TO_UUID(e.province_id) province,BIN_TO_UUID(e.ci
                 || size > 100
                 || reviewer.length() > 300
                 || place.length() > 4000
-                || progress.length() > 20) throw invalid("筛选或分页参数无效");
+               ) throw invalid("筛选或分页参数无效");
         var args = new MapSqlParameterSource();
         var where = restriction(actor, kind, args);
-        if (province != null) {
-            where += " AND e.province_id=UUID_TO_BIN(:province)";
-            args.addValue("province", province.toString());
+        if (!provinces.isEmpty()) {
+            where += " AND BIN_TO_UUID(e.province_id) IN (:provinces)";
+            args.addValue("provinces", provinces.stream().map(UUID::toString).toList());
         }
         if (!reviewer.isBlank()) {
             where +=
@@ -269,9 +271,11 @@ SELECT BIN_TO_UUID(e.id) id,BIN_TO_UUID(e.province_id) province,BIN_TO_UUID(e.ci
             where += " AND JSON_UNQUOTE(JSON_EXTRACT(e.details,'$.\"部署地点\"'))=:place";
             args.addValue("place", place.strip());
         }
-        if (kind == IntelligenceKind.WANGWU && !progress.isBlank()) {
-            where += " AND JSON_UNQUOTE(JSON_EXTRACT(e.details,'$.\"部署进度\"'))=:progress";
-            args.addValue("progress", progress);
+        var progressValues = ListFilters.choices(progress, kind == IntelligenceKind.WANGWU
+                ? IntelligenceKind.OPTIONS.get("部署进度") : List.of());
+        if (!progressValues.isEmpty()) {
+            where += " AND JSON_UNQUOTE(JSON_EXTRACT(e.details,'$.\"部署进度\"')) IN (:progress)";
+            args.addValue("progress", progressValues);
         }
         long count =
                 jdbc.queryForObject(

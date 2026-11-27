@@ -1,8 +1,8 @@
+import { chooseListOptions } from './support/listFilters';
 import { requiredRevenueFields } from './support/revenue';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { chooseActor, ids } from './support/projects';
-import { pickMonth } from './support/monthPicker';
 
 test('排产和计收筛选月可选择、清空并恢复', async ({ page }) => {
   for (const [path, label] of [
@@ -13,12 +13,12 @@ test('排产和计收筛选月可选择、清空并恢复', async ({ page }) => 
     if (path === '/scheduling') await chooseActor(page, ids.admin);
     const form = page.getByRole('form', { name: path === '/scheduling' ? '排产筛选' : '计收筛选' });
     const month = form.getByLabel(label, { exact: true });
-    await pickMonth(month, '2026-10');
+    await chooseListOptions(page, label, ['2026-10']);
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page).toHaveURL(/month=2026-10/);
     await page.reload();
     await expect(month).toHaveText('2026-10');
-    await pickMonth(month, '');
+    await chooseListOptions(page, label, [], true);
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page).not.toHaveURL(/month=/);
   }
@@ -59,20 +59,10 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
       }),
   );
   await chooseActor(page, ids.admin);
-  const group = page.getByRole('banner').getByRole('group', { name: '计收三化分类' });
-  const tabs = group.getByRole('button');
-  await expect(tabs).toHaveText(['全部', '网络化', '数字化', '智能化']);
-  await expect(group.getByRole('button', { name: '全部', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page.locator('#main-content').evaluate((content) => {
-    content.style.minHeight = '180vh';
-    window.scrollTo(0, document.body.scrollHeight);
-  });
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
-  for (const tab of await tabs.all()) await expect(tab).toBeInViewport({ ratio: 1 });
-  await group.getByRole('button', { name: '智能化', exact: true }).click();
+  const classification = page.getByRole('button', { name: '三化分类', exact: true });
+  await expect(classification).toHaveText('全部');
+  await chooseListOptions(page, '三化分类', ['智能化']);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page).toHaveURL(
     (url) =>
       url.searchParams.get('category') === '智能化' &&
@@ -93,10 +83,7 @@ test('计收分类和现有筛选组合，明细与汇总一致，详情返回�
   ).toHaveText('明细数1');
   await page.getByRole('link', { name: '详情', exact: true }).click();
   await page.getByRole('link', { name: '返回计收列表' }).click();
-  await expect(group.getByRole('button', { name: '智能化', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(classification).toHaveText('智能化');
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(1);
 });
 
@@ -107,19 +94,13 @@ test('项目省市控件对齐并保留多选联动', async ({ page }) => {
   page.on('pageerror', (error) => errors.push(error.message));
   const province = page.getByRole('button', { name: '归属省分', exact: true });
   const city = page.getByRole('button', { name: '归属地市／区县', exact: true });
-  const stage = page.getByRole('combobox', { name: '当前阶段' });
+  const stage = page.getByRole('button', { name: '当前阶段' });
   await expect(city).toBeDisabled();
-  const signing = page.getByRole('combobox', { name: '签约主体' });
-  for (const control of [province, city]) {
-    expect((await control.boundingBox())!.width).toBeGreaterThan(
-      (await signing.boundingBox())!.width,
-    );
-  }
   const font = (element: Element) => {
     const css = getComputedStyle(element);
     return [css.fontFamily, css.fontSize, css.fontWeight, css.lineHeight, css.color];
   };
-  const stageLabel = await stage.locator('..').evaluate(font);
+  const stageLabel = await stage.locator('../..').locator(':scope > span').evaluate(font);
   for (const label of ['归属省分', '归属地市／区县']) {
     const caption = page.locator('.multi-select-field > span').filter({ hasText: label });
     expect(await caption.evaluate(font)).toEqual(stageLabel);
@@ -162,7 +143,7 @@ test('项目省市控件对齐并保留多选联动', async ({ page }) => {
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page).toHaveURL((url) => url.searchParams.getAll('cityIds').length === 2);
   await page.reload();
-  await expect(city).toHaveText('已选 2 项');
+  await expect(city).toHaveText('广州市；深圳市');
   await province.click();
   await page.getByRole('checkbox', { name: '浙江省', exact: true }).check();
   await province.press('Escape');

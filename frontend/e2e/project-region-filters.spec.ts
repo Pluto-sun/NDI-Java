@@ -31,7 +31,7 @@ test('项目筛选支持多省单省多市，清空无效地市并恢复 URL', a
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page).toHaveURL((url) => url.searchParams.getAll('cityIds').length === 2);
   await page.reload();
-  await expect(city).toHaveText('已选 2 项');
+  await expect(city).toHaveText('广州市；深圳市');
 
   await province.click();
   const other = provinces.getByRole('checkbox', { name: '江西省', exact: true });

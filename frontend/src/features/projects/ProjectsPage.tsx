@@ -1,11 +1,11 @@
+import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
 import { downloadBlob } from '../../shared/util/downloadAttachment';
 import { PersonalizedTable } from '../../shared/list-columns/PersonalizedTable';
 import { MultiSelect } from '../../shared/ui/MultiSelect';
 import { TruncatedText } from '../../shared/ui/TruncatedText';
-import { Select } from '../../shared/ui/Select';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { projectsApi } from './api';
+import { projectFilterKey, projectsApi } from './api';
 import type { ExportTask, ProjectSummary, ReferenceData } from './types';
 import type { Page } from '../../shared/api/http';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
@@ -23,7 +23,6 @@ const productShortNames: Record<string, string> = {
 };
 
 const emptyAdvanced = {
-  signingSubjectCode: '',
   responsiblePersonName: '',
   keyword: '',
   opportunityDateStart: '',
@@ -73,9 +72,10 @@ export function ProjectsPage({
       productCodes: searchParams.getAll('productCodes'),
       page: Math.max(0, Math.min(100000, Number(searchParams.get('page')) || 0)),
       projectName: searchParams.get('projectName') ?? '',
-      stage: searchParams.get('stage') ?? '',
+      stages: selected('stages', 'stage'),
       projectCode: searchParams.get('projectCode') ?? '',
-      industryCode: searchParams.get('industryCode') ?? '',
+      industryCodes: selected('industryCodes', 'industryCode'),
+      signingSubjectCodes: selected('signingSubjectCodes', 'signingSubjectCode'),
       provinceIds,
       cityIds,
       ...(Object.fromEntries(
@@ -87,19 +87,24 @@ export function ProjectsPage({
     const next = typeof value === 'function' ? value(query) : value;
     const params = new URLSearchParams();
     Object.entries(next).forEach(([key, value]) => {
-      if (Array.isArray(value)) value.forEach((id) => params.append(key, id));
+      if (Array.isArray(value)) value.forEach((id) => params.append(projectFilterKey(key), id));
       else if (value !== '' && !(key === 'page' && value === 0)) params.set(key, String(value));
     });
     setSearchParams(params);
   }
   const [name, setName] = useState(draftString('projectName', query.projectName));
-  const [stage, setStage] = useState(draftString('stage', query.stage));
   const [projectCode, setProjectCode] = useState(draftString('projectCode', query.projectCode));
-  const [industryCode, setIndustryCode] = useState(draftString('industryCode', query.industryCode));
   const draftLocations = (key: string, fallback: string[]) => {
     const value = savedDraft?.[key];
     return Array.isArray(value) && value.every((id) => typeof id === 'string') ? value : fallback;
   };
+  const [stages, setStages] = useState(draftLocations('stages', query.stages));
+  const [industryCodes, setIndustryCodes] = useState(
+    draftLocations('industryCodes', query.industryCodes),
+  );
+  const [signingSubjectCodes, setSigningSubjectCodes] = useState(
+    draftLocations('signingSubjectCodes', query.signingSubjectCodes),
+  );
   const [productCodes, setProductCodes] = useState(
     draftLocations('productCodes', query.productCodes),
   );
@@ -129,8 +134,8 @@ export function ProjectsPage({
   const [advancedOpen, setAdvancedOpen] = useState(
     savedDraft?.advancedOpen === true ||
       !!projectCode ||
-      !!industryCode ||
-      Object.entries(advanced).some(([key, value]) => key !== 'signingSubjectCode' && value),
+      industryCodes.length > 0 ||
+      Object.values(advanced).some(Boolean),
   );
   const invalidDateRange =
     !!advanced.opportunityDateStart &&
@@ -141,8 +146,9 @@ export function ProjectsPage({
     lastAppliedQuery.current = query;
     setName(query.projectName);
     setProjectCode(query.projectCode);
-    setStage(query.stage);
-    setIndustryCode(query.industryCode);
+    setStages(query.stages);
+    setIndustryCodes(query.industryCodes);
+    setSigningSubjectCodes(query.signingSubjectCodes);
     setProvinceIds(query.provinceIds);
     setProductCodes(query.productCodes);
     setCityIds(query.cityIds);
@@ -201,14 +207,7 @@ export function ProjectsPage({
     },
   );
   const returnTo = `/projects${location.search}`;
-  useLayoutEffect(() => {
-    if (busy || !data) return;
-    const scrollKey = `ndi.project-list-scroll:${returnTo}`;
-    const savedScroll = sessionStorage.getItem(scrollKey);
-    if (savedScroll === null) return;
-    sessionStorage.removeItem(scrollKey);
-    window.scrollTo(0, Number(savedScroll) || 0);
-  }, [busy, data, returnTo]);
+  const listScroll = useLedgerScroll(!busy && !!data);
 
   useEffect(() => {
     let active = true;
@@ -322,9 +321,10 @@ export function ProjectsPage({
           setQuery({
             page: 0,
             projectName: name,
-            stage,
+            stages,
             projectCode,
-            industryCode,
+            industryCodes,
+            signingSubjectCodes,
             productCodes,
             provinceIds,
             cityIds: selectedCityIds,
@@ -340,30 +340,21 @@ export function ProjectsPage({
             placeholder="输入项目名称"
           />
         </label>
-        <label>
-          当前阶段
-          <Select value={stage} onChange={(event) => setStage(event.target.value)}>
-            <option value="">全部阶段</option>
-            {reference.stages.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="project-signing-subject">
-          签约主体
-          <Select
-            value={advanced.signingSubjectCode}
-            onChange={(event) =>
-              setAdvanced({ ...advanced, signingSubjectCode: event.target.value })
-            }
-          >
-            <option value="">全部签约主体</option>
-            <option value="PROVINCE_SIGN">省分签约</option>
-            <option value="DS_SIGN">数科签约</option>
-          </Select>
-        </label>
+        <MultiSelect
+          label="当前阶段"
+          values={stages}
+          options={reference.stages.map(({ code, label }) => ({ value: code, label }))}
+          onChange={setStages}
+        />
+        <MultiSelect
+          label="签约主体"
+          values={signingSubjectCodes}
+          options={[
+            { value: 'PROVINCE_SIGN', label: '省分签约' },
+            { value: 'DS_SIGN', label: '数科签约' },
+          ]}
+          onChange={setSigningSubjectCodes}
+        />
         <MultiSelect
           label="归属省分"
           values={provinceIds}
@@ -406,17 +397,20 @@ export function ProjectsPage({
               sessionStorage.removeItem(draftKey);
               setName('');
               setProjectCode('');
-              setStage('');
-              setIndustryCode('');
+              setStages([]);
+              setIndustryCodes([]);
+              setSigningSubjectCodes([]);
+              setProductCodes([]);
               setProvinceIds([]);
               setCityIds([]);
               setAdvanced(emptyAdvanced);
               setQuery({
                 page: 0,
                 projectName: '',
-                stage: '',
+                stages: [],
                 projectCode: '',
-                industryCode: '',
+                industryCodes: [],
+                signingSubjectCodes: [],
                 productCodes: [],
                 provinceIds: [],
                 cityIds: [],
@@ -488,20 +482,12 @@ export function ProjectsPage({
                 onChange={(event) => setAdvanced({ ...advanced, keyword: event.target.value })}
               />
             </label>
-            <label>
-              所属行业
-              <Select
-                value={industryCode}
-                onChange={(event) => setIndustryCode(event.target.value)}
-              >
-                <option value="">全部行业</option>
-                {reference.industries.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <MultiSelect
+              label="所属行业"
+              values={industryCodes}
+              options={reference.industries.map(({ code, label }) => ({ value: code, label }))}
+              onChange={setIndustryCodes}
+            />
             <label>
               项目负责人
               <input
@@ -589,6 +575,7 @@ export function ProjectsPage({
             className="project-list-table"
             scrollLabel="项目清单表格，可横向滚动"
             rows={data?.items ?? []}
+            scrollRef={listScroll.table}
             columns={[
               {
                 id: 'name',
@@ -688,20 +675,23 @@ export function ProjectsPage({
               <Link
                 className="secondary-button compact-button"
                 aria-label={`详情：${project.projectName}`}
-                to={`/projects/${project.id}`}
+                to={{
+                  pathname: `/projects/${project.id}`,
+                  search: location.search
+                    ? new URLSearchParams({ from: location.search }).toString()
+                    : undefined,
+                }}
                 state={{ projectListReturnTo: returnTo }}
                 onClick={() => {
-                  sessionStorage.setItem(
-                    `ndi.project-list-scroll:${returnTo}`,
-                    String(window.scrollY),
-                  );
+                  listScroll.remember();
                   sessionStorage.setItem(
                     draftKey,
                     JSON.stringify({
                       projectName: name,
-                      stage,
+                      stages,
                       projectCode,
-                      industryCode,
+                      industryCodes,
+                      signingSubjectCodes,
                       productCodes,
                       provinceIds,
                       cityIds: selectedCityIds,

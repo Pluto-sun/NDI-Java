@@ -1,3 +1,4 @@
+import { filterValues, replaceFilter } from '../../shared/ui/ledgerFilters';
 import { jsonBody, requestAt, type Page } from '../../shared/api/http';
 import { tabularImportApi } from '../../shared/imports/tabularImportApi';
 export interface Recognition {
@@ -33,6 +34,8 @@ export interface Reference {
   fields: string[];
   required: string[];
   canCreate: boolean;
+  filterProvinces?: { id: string; name: string }[];
+  specialSources?: boolean;
 }
 export interface Approval {
   id: string;
@@ -92,17 +95,19 @@ export const revenueApi = {
   reference: () => request<Reference>('/reference-data'),
   list: (query: URLSearchParams) => {
     const filters = new URLSearchParams(query);
-    const month = filters.get('month');
-    // 列表沿用原 URL 键，统一向接口传费用账期。
-    if (month) filters.set('feeMonth', month);
+    const months = [
+      ...new Set([...filterValues(filters, 'month'), ...filterValues(filters, 'feeMonth')]),
+    ];
     filters.delete('month');
-    return request<Listing>(`?${filters}`);
+    return request<Listing>(`?${replaceFilter(filters, 'feeMonth', months)}`);
   },
   detail: (id: string) => request<Entry>(`/${id}`),
   create: (source: Record<string, string>) =>
     request<Entry>('', { method: 'POST', ...jsonBody({ source }) }),
-  approvers: (id: string) =>
-    request<{ id: string; displayName: string }[]>(`/${id}/recognition-approvers`),
+  approvers: (id: string, version: number) =>
+    request<{ id: string; displayName: string }[]>(
+      `/${id}/recognition-approvers?version=${version}`,
+    ),
   recognize: (entry: Entry, recognition: Recognition, approverId: string) =>
     request<Entry>(`/${entry.id}/recognition`, {
       method: 'POST',

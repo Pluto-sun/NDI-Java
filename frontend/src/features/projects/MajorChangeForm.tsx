@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Feedback } from '../../shared/ui/Feedback';
@@ -27,6 +28,7 @@ export function MajorChangeForm({
   reference,
   busy,
   disabled,
+  triggerContainer,
   onBusyChange,
   onSubmitted,
 }: {
@@ -36,6 +38,7 @@ export function MajorChangeForm({
   reference: ReferenceData;
   busy: boolean;
   disabled: boolean;
+  triggerContainer: HTMLDivElement | null;
   onBusyChange: (value: boolean) => void;
   onSubmitted: (id: string) => void;
 }) {
@@ -87,16 +90,20 @@ export function MajorChangeForm({
     }
   }
 
+  const trigger = (
+    <button
+      type="button"
+      className="secondary-button"
+      disabled={disabled}
+      onClick={() => setOpen(true)}
+    >
+      发起重大变更
+    </button>
+  );
+
   return (
     <>
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-      >
-        发起重大变更
-      </button>
+      {triggerContainer ? createPortal(trigger, triggerContainer) : trigger}
       {open && (
         <Modal title="重大变更申请" busy={busy} onClose={() => setOpen(false)}>
           <form className="request-form" aria-label="重大变更申请" onSubmit={submit}>

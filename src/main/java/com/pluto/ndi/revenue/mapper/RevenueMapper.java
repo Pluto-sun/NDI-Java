@@ -6,7 +6,10 @@ import com.pluto.ndi.shared.reporting.DashboardSummary.Metric;
 import java.math.BigDecimal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pluto.ndi.revenue.domain.Revenue;
+import com.pluto.ndi.shared.filter.ListFilters;
 import com.pluto.ndi.revenue.domain.Revenue.*;
+import com.pluto.ndi.revenue.service.RevenueAccessService;
 import com.pluto.ndi.revenue.service.RevenueAccessService.Access;
 import com.pluto.ndi.revenue.util.RevenueFields;
 import com.pluto.ndi.revenue.util.RevenueFields.Source;
@@ -32,15 +35,29 @@ public class RevenueMapper {
 
     private static final String SELECT =
             """
-SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
+SELECT e.*, (%s) AS can_process, (%s) AS row_readable, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
  BIN_TO_UUID(e.recognized_by) recognizer,
  (SELECT BIN_TO_UUID(r.id) FROM revenue_recognition_request r WHERE r.entry_id=e.id AND r.status='PENDING') pending
  FROM revenue_entry e
 """;
 
     public record Filter(
-            String month, String province, String search, String state, int page, int size,
-            String organization, String category, String feeMonth) {
+            List<String> months, List<String> provinces, String search, List<String> states,
+            int page, int size, String organization, List<String> categories, List<String> feeMonths) {
+        public Filter {
+            months = ListFilters.months(months);
+            feeMonths = ListFilters.months(feeMonths);
+            provinces = ListFilters.values(provinces).stream().map(value ->
+                    Set.of("UNASSIGNED", "ORGANIZATION", "DS_TECH").contains(value)
+                            ? value : ListFilters.id(value).toString()).distinct().toList();
+            states = ListFilters.choices(states, Set.of("UNRECOGNIZED", "PENDING", "RECOGNIZED", "CHANGE_PENDING"));
+            categories = ListFilters.choices(categories, Revenue.CATEGORIES);
+        }
+        public Filter(String month, String province, String search, String state, int page, int size,
+                String organization, String category, String feeMonth) {
+            this(ListFilters.one(month), ListFilters.one(province), search, ListFilters.one(state),
+                    page, size, organization, ListFilters.one(category), ListFilters.one(feeMonth));
+        }
         public Filter(String month, String province, String search, String state, int page, int size,
                 String organization, String category) {
             this(month, province, search, state, page, size, organization, category, null);
@@ -178,12 +195,29 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
         return includeOrganizations ? "(" + sources + " OR " + ASSIGNED_PROVINCE.formatted(parameter) + ")" : sources;
     }
 
-    public boolean readsAssignedOrganization(UUID entryId, Access access) {
-        if (!access.readsAssignedOrganizations()) return false;
-        return Boolean.TRUE.equals(jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM revenue_entry e WHERE e.id=UUID_TO_BIN(:id) AND "
-                        + ASSIGNED_PROVINCE.formatted(":province") + ")",
-                Map.of("id", str(entryId), "province", str(access.user().provinceId())), Boolean.class));
+    // 办理范围只取接口人责任省份和来源归属，独立的全国读取角色不能扩大该范围。
+    private static String reviewerScope(Access access, MapSqlParameterSource args) {
+        if (!access.reviewer()) return "FALSE";
+        var provinces = access.user().reviewerProvinceIds();
+        args.addValue("reviewerDigitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+        if (!provinces.isEmpty()) args.addValue("reviewerProvinces", provinces.stream().map(UUID::toString).toList());
+        String standard = provinces.isEmpty() ? "" : " OR BIN_TO_UUID(e.province_id) IN (:reviewerProvinces)";
+        String assigned = provinces.isEmpty() ? "" : " AND BIN_TO_UUID(m.province_id) NOT IN (:reviewerProvinces)";
+        return """
+                ((e.specific_organization=FALSE AND (e.province_id IS NULL%s))
+                 OR (e.specific_organization=TRUE AND
+                     (JSON_VALUE(e.source_fields,'$."省份名称"')=:reviewerDigitalTech
+                      OR NOT EXISTS (SELECT 1 FROM revenue_organization_province m
+                          WHERE m.organization_key=e.source_organization_key%s))))
+                """.formatted(standard, assigned);
+    }
+
+    private static String readScope(Access access, MapSqlParameterSource args) {
+        if (access.national()) return "TRUE";
+        String reviewer = reviewerScope(access, args);
+        if (!access.local() || access.user().provinceId() == null) return reviewer;
+        args.addValue("scope", str(access.user().provinceId()));
+        return "(" + reviewer + " OR " + provinceScope(":scope", access.readsAssignedOrganizations()) + ")";
     }
 
     private record Where(String sql, MapSqlParameterSource args) {}
@@ -191,40 +225,32 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
     private Where where(Access a, Filter f) {
         var sql = new StringBuilder(" WHERE e.active_key=1");
         var args = new MapSqlParameterSource();
-        if (!a.national()) {
-            sql.append(" AND ").append(provinceScope(":scope", a.readsAssignedOrganizations()));
-            args.addValue("scope", str(a.user().provinceId()));
+        sql.append(" AND ").append(readScope(a, args));
+        if (!f.months().isEmpty()) {
+            sql.append(" AND e.account_month IN (:months)");
+            args.addValue("months", f.months().stream().map(month -> month + "-01").toList());
         }
-        if (f.month() != null && !f.month().isBlank()) {
-            sql.append(" AND e.account_month=:month");
-            args.addValue("month", f.month() + "-01");
+        if (!f.feeMonths().isEmpty()) {
+            sql.append(" AND e.fee_month_key IN (:feeMonths)");
+            args.addValue("feeMonths", f.feeMonths());
         }
-        if (f.feeMonth() != null && !f.feeMonth().isBlank()) {
-            sql.append(" AND e.fee_month_key=:feeMonth");
-            args.addValue("feeMonth", RevenueFields.month(f.feeMonth().strip()));
-        }
-        if (f.province() != null && !f.province().isBlank()) {
-            if (f.province().equals("UNASSIGNED")) {
-                sql.append(" AND e.province_id IS NULL AND e.specific_organization=FALSE");
-            } else if (f.province().equals("ORGANIZATION")) {
-                sql.append(
-                        " AND e.specific_organization=TRUE AND"
-                            + " COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"省份名称\"')),"
-                            + " '') <> :digitalTech");
-                args.addValue(
-                        "digitalTech",
-                        com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
-            } else if (f.province().equals("DS_TECH")) {
-                sql.append(
-                        " AND e.specific_organization=TRUE AND"
-                            + " JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"省份名称\"'))=:digitalTech");
-                args.addValue(
-                        "digitalTech",
-                        com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
-            } else {
-                sql.append(" AND ").append(provinceScope(":province", true));
-                args.addValue("province", f.province());
+        if (!f.provinces().isEmpty()) {
+            var alternatives = new ArrayList<String>();
+            var geographic = f.provinces().stream().filter(value -> !Set.of("ORGANIZATION", "DS_TECH", "UNASSIGNED").contains(value)).toList();
+            if (!geographic.isEmpty()) {
+                alternatives.add("""
+                        ((e.specific_organization=FALSE AND BIN_TO_UUID(e.province_id) IN (:provinces))
+                            OR EXISTS (SELECT 1 FROM revenue_organization_province m
+                                 WHERE m.organization_key=e.source_organization_key AND BIN_TO_UUID(m.province_id) IN (:provinces)))
+                        """);
+                args.addValue("provinces", geographic);
             }
+            if (f.provinces().contains("UNASSIGNED")) alternatives.add("(e.province_id IS NULL AND e.specific_organization=FALSE)");
+            String source = "COALESCE(JSON_VALUE(e.source_fields,'$.\"省份名称\"'),'')";
+            if (f.provinces().contains("ORGANIZATION")) alternatives.add("(e.specific_organization=TRUE AND " + source + "<>:filterDigitalTech)");
+            if (f.provinces().contains("DS_TECH")) alternatives.add("(e.specific_organization=TRUE AND " + source + "=:filterDigitalTech)");
+            args.addValue("filterDigitalTech", com.pluto.ndi.revenue.util.RevenueSourceOptions.DIGITAL_TECH);
+            sql.append(" AND (").append(String.join(" OR ", alternatives)).append(")");
         }
         if (f.search() != null && !f.search().isBlank()) {
             sql.append(
@@ -248,18 +274,16 @@ SELECT e.*, BIN_TO_UUID(e.id) eid, BIN_TO_UUID(e.province_id) province,
             args.addValue("organization", "%" + f.organization().strip().replace("!", "!!")
                     .replace("%", "!%").replace("_", "!_") + "%");
         }
-        if (f.category() != null && !f.category().isEmpty()) {
-            sql.append(" AND JSON_UNQUOTE(JSON_EXTRACT(e.source_fields,'$.\"三化分类\"'))=:category");
-            args.addValue("category", f.category());
+        if (!f.categories().isEmpty()) {
+            sql.append(" AND JSON_VALUE(e.source_fields,'$.\"三化分类\"') IN (:categories)");
+            args.addValue("categories", f.categories());
         }
-        String pending =
-                "EXISTS(SELECT 1 FROM revenue_recognition_request r WHERE r.entry_id=e.id AND"
-                        + " r.status='PENDING')";
-        switch (Objects.toString(f.state(), "")) {
-            case "UNRECOGNIZED" -> sql.append(" AND e.recognition IS NULL AND NOT " + pending);
-            case "PENDING" -> sql.append(" AND e.recognition IS NULL AND " + pending);
-            case "RECOGNIZED" -> sql.append(" AND e.recognition IS NOT NULL AND NOT " + pending);
-            case "CHANGE_PENDING" -> sql.append(" AND e.recognition IS NOT NULL AND " + pending);
+        if (!f.states().isEmpty()) {
+            String pending = "EXISTS(SELECT 1 FROM revenue_recognition_request r WHERE r.entry_id=e.id AND r.status='PENDING')";
+            sql.append(" AND (CASE WHEN e.recognition IS NULL THEN CASE WHEN ").append(pending)
+                    .append(" THEN 'PENDING' ELSE 'UNRECOGNIZED' END WHEN ").append(pending)
+                    .append(" THEN 'CHANGE_PENDING' ELSE 'RECOGNIZED' END) IN (:states)");
+            args.addValue("states", f.states());
         }
         return new Where(sql.toString(), args);
     }
@@ -289,12 +313,12 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
         w.args().addValue("limit", f.size()).addValue("offset", f.page() * f.size());
         var items =
                 jdbc.query(
-                        SELECT
+                        SELECT.formatted(reviewerScope(a, w.args()), "TRUE")
                                 + w.sql()
                                 + " ORDER BY e.account_month DESC,e.created_at DESC,e.id LIMIT"
                                 + " :limit OFFSET :offset",
                         w.args(),
-                        (r, n) -> entry(r, a));
+                        (r, n) -> entry(r));
         return new Listing(
                 items,
                 total,
@@ -305,16 +329,14 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
     }
 
     public Optional<Entry> find(UUID id, Access access, boolean lock) {
-        return jdbc
-                .query(
-                        SELECT + " WHERE e.id=UUID_TO_BIN(:id) AND e.active_key=1" + (lock ? " FOR UPDATE" : ""),
-                        Map.of("id", str(id)),
-                        (r, n) -> entry(r, access))
-                .stream()
-                .findFirst();
+        var args = new MapSqlParameterSource("id", str(id));
+        var sql = SELECT.formatted(reviewerScope(access, args), readScope(access, args));
+        return jdbc.query(sql + " WHERE e.id=UUID_TO_BIN(:id) AND e.active_key=1" + (lock ? " FOR UPDATE" : ""),
+                        args, (r, n) -> entry(r)).stream().findFirst();
     }
 
-    private Entry entry(ResultSet r, Access a) throws SQLException {
+    private Entry entry(ResultSet r) throws SQLException {
+        if (!r.getBoolean("row_readable")) throw RevenueAccessService.forbidden();
         var province = uuid(r.getString("province"));
         boolean org = r.getBoolean("specific_organization");
         var value = decode(r.getString("recognition"), Recognition.class);
@@ -342,7 +364,8 @@ SELECT COUNT(*) total, COALESCE(SUM(e.recognition IS NULL),0) unrecognized,
                 uuid(r.getString("recognizer")),
                 state,
                 pending,
-                pending == null && a.recognize(province, org, source.get("三化分类")));
+                pending == null && r.getBoolean("can_process")
+                        && Revenue.REVIEWED_CATEGORIES.contains(Objects.toString(source.get(Revenue.CATEGORY_FIELD), "")));
     }
 
     public Set<Source> existingDuplicates(List<Source> sources) {
@@ -497,11 +520,7 @@ SELECT r.*,BIN_TO_UUID(r.id) rid,BIN_TO_UUID(r.entry_id) entry,
 
     public Page<Request> requestPage(Access access, String view, int page, int size) {
         var args = new MapSqlParameterSource("actor", str(access.user().id()));
-        String condition = " WHERE 1=1";
-        if (!access.national()) {
-            condition += " AND e.province_id=UUID_TO_BIN(:scope) AND e.specific_organization=FALSE";
-            args.addValue("scope", str(access.user().provinceId()));
-        }
+        String condition = " WHERE e.active_key=1 AND " + readScope(access, args);
         if (view.equals("mine")) condition += " AND r.initiator_id=UUID_TO_BIN(:actor)";
         else condition += " AND r.status<>'PENDING'";
         String join = " JOIN revenue_entry e ON e.id=r.entry_id";
@@ -598,39 +617,34 @@ FROM revenue_recognition_history h JOIN identity_user_account a ON a.id=h.actor_
                         .addValue("at", Timestamp.from(at)));
     }
 
-    public List<Notice> notices(UUID actor) {
-        return jdbc.query(
-                "SELECT *,BIN_TO_UUID(id) nid,BIN_TO_UUID(entry_id) entry,BIN_TO_UUID(request_id)"
-                    + " request FROM revenue_notification WHERE recipient_id=UUID_TO_BIN(:id) ORDER"
-                    + " BY created_at DESC,id LIMIT 500",
-                Map.of("id", str(actor)),
-                (r, n) ->
-                        new Notice(
-                                uuid(r.getString("nid")),
-                                uuid(r.getString("entry")),
-                                uuid(r.getString("request")),
-                                r.getString("kind"),
-                                r.getString("message"),
-                                r.getTimestamp("created_at").toInstant(),
-                                instant(r, "read_at")));
+    public List<Notice> notices(Access access) {
+        var args = new MapSqlParameterSource("actor", str(access.user().id()));
+        return jdbc.query("""
+                SELECT n.*,BIN_TO_UUID(n.id) nid,BIN_TO_UUID(n.entry_id) entry,BIN_TO_UUID(n.request_id) request
+                FROM revenue_notification n JOIN revenue_entry e ON e.id=n.entry_id
+                WHERE n.recipient_id=UUID_TO_BIN(:actor) AND e.active_key=1 AND
+                """ + readScope(access, args) + " ORDER BY n.created_at DESC,n.id LIMIT 500", args,
+                (r, n) -> new Notice(uuid(r.getString("nid")), uuid(r.getString("entry")),
+                        uuid(r.getString("request")), r.getString("kind"), r.getString("message"),
+                        r.getTimestamp("created_at").toInstant(), instant(r, "read_at")));
     }
 
-    public void read(UUID actor, UUID notice, Instant at) {
-        jdbc.update(
-                "UPDATE revenue_notification SET read_at=COALESCE(read_at,:at) WHERE"
-                        + " id=UUID_TO_BIN(:id) AND recipient_id=UUID_TO_BIN(:actor)",
-                Map.of("id", str(notice), "actor", str(actor), "at", Timestamp.from(at)));
+    public void read(Access access, UUID notice, Instant at) {
+        var args = new MapSqlParameterSource("actor", str(access.user().id()))
+                .addValue("id", str(notice)).addValue("at", Timestamp.from(at));
+        jdbc.update("""
+                UPDATE revenue_notification n JOIN revenue_entry e ON e.id=n.entry_id
+                SET n.read_at=COALESCE(n.read_at,:at)
+                WHERE n.id=UUID_TO_BIN(:id) AND n.recipient_id=UUID_TO_BIN(:actor)
+                    AND e.active_key=1 AND
+                """ + readScope(access, args), args);
     }
 
     public record Counts(long unread, long pending) {}
 
     public Counts counts(Access access) {
         var parameters = new MapSqlParameterSource("actor", str(access.user().id()));
-        String scope = "";
-        if (!access.national()) {
-            scope = " AND e.province_id=UUID_TO_BIN(:province) AND e.specific_organization=FALSE";
-            parameters.addValue("province", str(access.user().provinceId()));
-        }
+        String scope = " AND e.active_key=1 AND " + readScope(access, parameters);
         long unread =
                 jdbc.queryForObject(
                         "SELECT COUNT(*) FROM revenue_notification n JOIN revenue_entry e ON"

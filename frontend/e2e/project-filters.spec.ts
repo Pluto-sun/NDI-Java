@@ -1,3 +1,4 @@
+import { chooseListOptions } from './support/listFilters';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
@@ -52,10 +53,12 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
     '已终止',
   );
   await expect(page.getByRole('checkbox', { name: '含已终止项目', exact: true })).toHaveCount(0);
-  const tabs = page.getByRole('group', { name: '项目阶段快捷筛选' });
-  await tabs.getByRole('button', { name: '方案交流', exact: true }).click();
+  await chooseListOptions(page, '当前阶段', ['方案交流']);
+  await expect(page.getByRole('row')).toHaveCount(4);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(3);
-  await tabs.getByRole('button', { name: '全部', exact: true }).click();
+  await chooseListOptions(page, '当前阶段', [], true);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(4);
 
   const filters = page.getByRole('form', { name: '项目筛选' });
@@ -86,7 +89,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   await page.getByText('更多筛选条件', { exact: true }).focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await page.getByRole('combobox', { name: '签约主体', exact: true }).selectOption('DS_SIGN');
+  await chooseListOptions(page, '签约主体', ['数科签约']);
   await page.getByRole('textbox', { name: '项目负责人', exact: true }).fill('%_专家');
   await page.getByRole('textbox', { name: '编号或名称关键字', exact: true }).fill(prefix);
   await page.getByRole('button', { name: '查询', exact: true }).click();
@@ -106,7 +109,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   expect(response.request().postDataJSON()).not.toHaveProperty('cityId');
   expect(response.request().postDataJSON()).toHaveProperty('includeTerminated', true);
   expect(response.request().postDataJSON()).toMatchObject({
-    signingSubjectCode: 'DS_SIGN',
+    signingSubjectCodes: ['DS_SIGN'],
     responsiblePersonName: '%_专家',
     keyword: prefix,
   });
@@ -123,7 +126,7 @@ test('高级筛选与真实 CSV 导出保持一致，重置后恢复其他项目
   await page.getByRole('button', { name: '重置筛选', exact: true }).click();
   await expect(page.getByRole('button', { name: '下载 CSV', exact: true })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '项目负责人', exact: true })).toHaveValue('');
-  await expect(page.getByRole('combobox', { name: '签约主体', exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: '签约主体', exact: true })).toHaveText('全部');
   await expect(page.getByRole('link', { name: `详情：${prefix}-其他`, exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   // 用实际视口位置核对未聚焦的跳转链接未遮挡筛选输入。

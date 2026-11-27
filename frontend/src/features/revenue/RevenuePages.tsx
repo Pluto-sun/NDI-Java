@@ -1,5 +1,8 @@
+import { useLedgerScroll } from '../../shared/ui/useLedgerScroll';
+import { RecognitionForm } from './RevenueDetailPage';
+import { MonthMultiSelect, MultiSelect } from '../../shared/ui/MultiSelect';
+import { filterPage, useLedgerFilterDraft } from '../../shared/ui/ledgerFilters';
 import { PersonalizedTable } from '../../shared/list-columns/PersonalizedTable';
-import { MonthPicker } from '../../shared/ui/MonthPicker';
 import { useBatchDelete } from '../../shared/ui/useBatchDelete';
 import { revenueText } from './format';
 import {
@@ -11,7 +14,6 @@ import {
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Feedback, Loading } from '../../shared/ui/Feedback';
-import { Select } from '../../shared/ui/Select';
 import { ImportWizardPage } from '../../shared/imports/ImportWizardPage';
 import { RevenueFieldsForm } from './RevenueFieldsForm';
 import {
@@ -21,6 +23,7 @@ import {
   money,
   type Reference,
   type Listing,
+  type Entry,
 } from './api';
 import './revenue.css';
 import { ListPagination } from '../../shared/ui/ListPagination';
@@ -30,31 +33,33 @@ const message = (e: unknown) => (e instanceof Error ? e.message : '操作失败�
 export function RevenueListPage({ admin, accountId }: { admin: boolean; accountId: string }) {
   const [params, setParams] = useSearchParams();
   const query = params.toString();
-  const [draft, setDraft] = useState(() => Object.fromEntries(params));
+  const draft = useLedgerFilterDraft(query);
   const [reference, setReference] = useState<Reference | null>(null),
     [data, setData] = useState<Listing | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
+  const [recognizing, setRecognizing] = useState<Entry | null>(null);
+  const [notice, setNotice] = useState('');
+  const listScroll = useLedgerScroll(!loading && !!data);
   const batch = useBatchDelete(
     admin,
     'REVENUE',
     query,
     data?.items ?? [],
     () => {
-      if (data?.page && data.items.length) setParams({ ...Object.fromEntries(params), page: '0' });
+      if (data?.page && data.items.length) setParams(filterPage(params, 0));
       else setReload((value) => value + 1);
     },
     {
       count: loading || error ? 0 : (data?.totalElements ?? 0),
-      filters: ['month', 'province', 'search', 'organization', 'state', 'category'],
+      filters: ['month', 'feeMonth', 'province', 'search', 'organization', 'state', 'category'],
       load: revenueApi.list,
     },
   );
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setDraft(Object.fromEntries(new URLSearchParams(query)));
     Promise.all([revenueApi.reference(), revenueApi.list(new URLSearchParams(query))])
       .then(([r, d]) => {
         if (active) {
@@ -73,7 +78,6 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
       active = false;
     };
   }, [query, reload]);
-  const change = (field: string, value: string) => setDraft((old) => ({ ...old, [field]: value }));
   return (
     <>
       <div className="page-heading revenue-list-heading">
@@ -92,69 +96,69 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
         )}
       </div>
       {error && <Feedback tone="error">{error}</Feedback>}
+      {notice && <Feedback tone="success">{notice}</Feedback>}
       <form
         className="filter-bar revenue-list-filters"
         aria-label="计收筛选"
         onSubmit={(e) => {
           e.preventDefault();
-          const next = new URLSearchParams();
-          Object.entries(draft)
-            .filter(([k, v]) => !['page', 'category'].includes(k) && v)
-            .forEach(([k, v]) => next.set(k, v));
-          const category = params.get('category');
-          if (category) next.set('category', category);
-          setParams(next);
+          setParams(draft.apply());
         }}
       >
-        <div className="month-filter-field">
-          费用账期
-          <MonthPicker
-            aria-label="费用账期"
-            value={draft.month ?? ''}
-            onChange={(selectedMonth) => change('month', selectedMonth)}
-          />
-        </div>
-        <label>
-          省份／具体组织
-          <Select value={draft.province ?? ''} onChange={(e) => change('province', e.target.value)}>
-            <option value="">全部</option>
-            {reference?.provinces.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-            <option value="ORGANIZATION">具体组织</option>
-            <option value="DS_TECH">数科</option>
-            <option value="UNASSIGNED">未归属</option>
-          </Select>
-        </label>
+        <MonthMultiSelect
+          label="费用账期"
+          values={[...new Set([...draft.values('month'), ...draft.values('feeMonth')])]}
+          onChange={(values) => {
+            draft.change('feeMonth', []);
+            draft.change('month', values);
+          }}
+        />
+        <MultiSelect
+          label="三化分类"
+          values={draft.values('category')}
+          options={['网络化', '数字化', '智能化'].map((label) => ({ value: label, label }))}
+          onChange={(values) => draft.change('category', values)}
+        />
+        <MultiSelect
+          label="省份／具体组织"
+          values={draft.values('province')}
+          options={[
+            ...(reference?.filterProvinces ?? reference?.provinces ?? []).map(({ id, name }) => ({
+              value: id,
+              label: name,
+            })),
+            ...(reference?.specialSources === false
+              ? []
+              : [
+                  { value: 'ORGANIZATION', label: '具体组织' },
+                  { value: 'DS_TECH', label: '数科' },
+                  { value: 'UNASSIGNED', label: '未归属' },
+                ]),
+          ]}
+          onChange={(values) => draft.change('province', values)}
+        />
         <label>
           地市／组织
           <input
-            value={draft.organization ?? ''}
+            value={draft.text('organization')}
             maxLength={300}
             placeholder="输入地市或组织名称"
-            onChange={(event) => change('organization', event.target.value)}
+            onChange={(event) => draft.change('organization', event.target.value)}
           />
         </label>
-        <label>
-          办理状态
-          <Select value={draft.state ?? ''} onChange={(e) => change('state', e.target.value)}>
-            <option value="">全部状态</option>
-            {Object.entries(stateLabels).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <MultiSelect
+          label="办理状态"
+          values={draft.values('state')}
+          options={Object.entries(stateLabels).map(([value, label]) => ({ value, label }))}
+          onChange={(values) => draft.change('state', values)}
+        />
         <label className="revenue-search">
           项目／客户／合同／条款
           <input
-            value={draft.search ?? ''}
+            value={draft.text('search')}
             maxLength={300}
             placeholder="输入项目、客户、合同或条款关键词"
-            onChange={(e) => change('search', e.target.value)}
+            onChange={(e) => draft.change('search', e.target.value)}
           />
         </label>
         <div className="inline-actions revenue-filter-actions">
@@ -165,14 +169,26 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
             type="button"
             className="secondary-button"
             onClick={() => {
-              setDraft({});
-              setParams(params.get('category') ? { category: params.get('category')! } : {});
+              draft.reset();
+              setParams({});
             }}
           >
             重置
           </button>
         </div>
       </form>
+      {recognizing && reference && (
+        <RecognitionForm
+          entry={recognizing}
+          reference={reference}
+          onClose={() => setRecognizing(null)}
+          onSaved={() => {
+            setRecognizing(null);
+            setNotice('认定申请已提交');
+            setReload((current) => current + 1);
+          }}
+        />
+      )}
       {data ? (
         <>
           <section className="revenue-summary" aria-label="当前筛选汇总" aria-busy={loading}>
@@ -219,6 +235,8 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
               scrollClassName="revenue-list-scroll"
               scrollLabel="计收明细横向滚动区域"
               rows={data.items}
+              scrollRef={listScroll.table}
+              actionWidth={data.items.some((entry) => entry.canRecognize) ? 132 : 76}
               selection={admin ? batch : undefined}
               columns={[
                 {
@@ -319,13 +337,29 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
                 },
               ]}
               actions={(e) => (
-                <Link
-                  className="secondary-button compact-button"
-                  title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.feeMonth || '未填写费用账期'}`}
-                  to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
-                >
-                  详情
-                </Link>
+                <div className="admin-row-actions">
+                  <Link
+                    className="secondary-button compact-button"
+                    title={`查看计收详情：${e.source['项目名称'] || e.contractNo || e.feeMonth || '未填写费用账期'}`}
+                    onClick={listScroll.remember}
+                    to={`/revenue/${e.id}?from=${encodeURIComponent('/revenue' + (query ? '?' + query : ''))}`}
+                  >
+                    详情
+                  </Link>
+                  {e.canRecognize && (
+                    <button
+                      type="button"
+                      className="secondary-button compact-button"
+                      disabled={loading || !reference}
+                      onClick={() => {
+                        setNotice('');
+                        setRecognizing(e);
+                      }}
+                    >
+                      认定
+                    </button>
+                  )}
+                </div>
               )}
             />
             {data.items.length === 0 && (
@@ -341,13 +375,11 @@ export function RevenueListPage({ admin, accountId }: { admin: boolean; accountI
               totalPages={data.totalPages}
               totalElements={data.totalElements}
               onPageChange={(page) => {
-                const next = new URLSearchParams(params);
-                next.set('page', String(page));
-                setParams(next);
+                setParams(filterPage(params, page));
               }}
             />
             <p className="revenue-list-note">
-              未认定与已认定均包含各自的待审记录，待审核不单独累加。未归属记录仅全国范围账号可查看，由接口人发起认定，集团审核。
+              未认定与已认定均包含各自的待审记录，待审核不单独累加。计收认定由有办理权限的接口人发起，指定集团审核人审核。
             </p>
           </section>
         </>

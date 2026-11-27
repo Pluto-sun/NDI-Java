@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -44,11 +45,13 @@ export function ProjectRequests({
   me,
   reference,
   documentsVersion,
+  pageActions,
 }: {
   project: ProjectDetail;
   me: ProjectUser;
   reference: ReferenceData;
   documentsVersion: number;
+  pageActions: HTMLDivElement | null;
 }) {
   const availableLevels = levels(me, project);
   const [level, setLevel] = useState<InitiatorLevel>(availableLevels[0] ?? 'CITY');
@@ -131,12 +134,10 @@ export function ProjectRequests({
     }
   }
 
-  return (
-    <div className="panel request-panel">
-      <h2>项目申请</h2>
-      <p className="subtle">审批通过前，项目主档不变；同一项目同一时间只能有一条待审申请。</p>
+  const controls = (
+    <>
       <label className="request-level">
-        发起职责
+        <span className="request-level-label">发起职责</span>
         <Select value={level} onChange={(event) => setLevel(event.target.value as InitiatorLevel)}>
           {availableLevels.map((item) => (
             <option key={item} value={item}>
@@ -145,15 +146,6 @@ export function ProjectRequests({
           ))}
         </Select>
       </label>
-      {error && <Feedback tone="error">{error}</Feedback>}
-      {requestId && (
-        <Feedback tone="success">
-          申请已提交，正式数据等待审批。
-          <Link className="secondary-button compact-button" to={`/approvals/${requestId}`}>
-            查看申请
-          </Link>
-        </Feedback>
-      )}
       {target && (
         <button
           type="button"
@@ -166,6 +158,23 @@ export function ProjectRequests({
         >
           发起阶段推进
         </button>
+      )}
+    </>
+  );
+
+  return (
+    <div className="panel request-panel">
+      <h2>项目申请</h2>
+      {pageActions ? createPortal(controls, pageActions) : controls}
+      <p className="subtle">审批通过前，项目主档不变；同一项目同一时间只能有一条待审申请。</p>
+      {error && <Feedback tone="error">{error}</Feedback>}
+      {requestId && (
+        <Feedback tone="success">
+          申请已提交，正式数据等待审批。
+          <Link className="secondary-button compact-button" to={`/approvals/${requestId}`}>
+            查看申请
+          </Link>
+        </Feedback>
       )}
       {target && stageOpen && (
         <Modal title="阶段推进申请" busy={busy} onClose={() => setStageOpen(false)}>
@@ -274,6 +283,7 @@ export function ProjectRequests({
         reference={reference}
         busy={busy}
         disabled={!!requestId}
+        triggerContainer={pageActions}
         onBusyChange={setBusy}
         onSubmitted={(id) => {
           setError('');
