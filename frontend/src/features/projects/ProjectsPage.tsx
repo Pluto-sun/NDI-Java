@@ -40,6 +40,22 @@ export function ProjectsPage({
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const pageRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const element = pageRef.current;
+    if (!element) return;
+    const measure = () => {
+      element.style.setProperty('--project-list-top', element.getBoundingClientRect().top + 'px');
+    };
+    const observer = new ResizeObserver(measure);
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
   const draftKey = `ndi.project-list-draft:${userId}:/projects${location.search}`;
   const [savedDraft] = useState<Record<string, unknown> | null>(() => {
     try {
@@ -301,12 +317,7 @@ export function ProjectsPage({
   const label = (code: string) =>
     reference.stages.find((item) => item.code === code)?.label ?? code;
   return (
-    <section>
-      <div className="page-heading project-stage-heading">
-        <div>
-          <p>查看权限范围内的项目主档，按编号、名称、行业、归属和阶段定位。</p>
-        </div>
-      </div>
+    <section ref={pageRef} className="project-list-page">
       <form
         className="filter-bar project-list-filters"
         aria-label="项目筛选"
@@ -467,7 +478,7 @@ export function ProjectsPage({
             </label>
             <p
               id="project-date-hint"
-              className="subtle span-two"
+              className={invalidDateRange ? 'project-date-error' : 'sr-only'}
               role={invalidDateRange ? 'alert' : undefined}
             >
               {invalidDateRange
@@ -563,7 +574,7 @@ export function ProjectsPage({
       {busy ? (
         <Loading />
       ) : (
-        <div className="panel table-panel">
+        <div className="panel table-panel project-list-panel">
           <div className="panel-top">
             <strong>项目清单</strong>
             <span>共 {data?.totalElements ?? 0} 个项目</span>

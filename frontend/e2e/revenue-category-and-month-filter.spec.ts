@@ -120,7 +120,7 @@ test('项目省市控件对齐并保留多选联动', async ({ page }) => {
   expect(await province.evaluate(style)).toEqual(await stage.evaluate(style));
   await province.click();
   await expect(province).toHaveAttribute('aria-expanded', 'true');
-  await page.getByText('查看权限范围内的项目主档，按编号、名称、行业、归属和阶段定位。').click();
+  await page.getByRole('textbox', { name: '项目名称', exact: true }).click();
   await expect(province).toHaveAttribute('aria-expanded', 'false');
   await expect(province).toHaveText('全部');
   await province.click();
